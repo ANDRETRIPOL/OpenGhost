@@ -137,7 +137,7 @@ ipcMain.handle('store:write', (event, key, value) => writeStore(key, value));
 ipcMain.handle('store:remove', (event, key) => removeStore(key));
 ipcMain.on('window:titlebar', (event, color) => {
  const win = BrowserWindow.fromWebContents(event.sender);
- if (win && typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) win.setTitleBarOverlay({ color, symbolColor: TITLE_BAR.symbolColor, height: TITLE_BAR.height });
+ if (win && typeof win.setTitleBarOverlay === 'function' && typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) win.setTitleBarOverlay({ color, symbolColor: TITLE_BAR.symbolColor, height: TITLE_BAR.height });
 });
 
 const fromApp = event => event.sender.getType() === 'window' && event.senderFrame?.url.startsWith('file:');
