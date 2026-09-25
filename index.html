@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenGhost</title>
+  <meta name="description" content="OpenGhost is an open desktop agent for Windows. The agent engine and the rendering engine are written from scratch.">
+  <link rel="icon" href="images/icon.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #191919;
+      --fg: rgba(255, 255, 255, 0.88);
+      --muted: rgba(255, 255, 255, 0.55);
+      --faint: rgba(255, 255, 255, 0.28);
+      --line: rgba(255, 255, 255, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font: 17px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    .wrap { width: min(920px, calc(100% - 48px)); margin: 0 auto; }
+    header { padding: 72px 0 28px; text-align: center; }
+    .mark { display: flex; align-items: center; justify-content: center; gap: 14px; }
+    .mark svg { width: 46px; height: 48px; }
+    h1 { margin: 0; font-size: 40px; font-weight: 650; letter-spacing: -0.03em; }
+    .lead { max-width: 640px; margin: 18px auto 0; color: var(--muted); font-size: 18px; }
+    .get { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 28px; }
+    .download {
+      display: inline-flex; align-items: center; height: 44px; padding: 0 22px;
+      border-radius: 22px; background: #fafafa; color: #0f0f0f;
+      font-weight: 650; text-decoration: none;
+    }
+    .download:hover { background: #fff; }
+    .version { color: var(--faint); font-size: 14px; font-weight: 600; }
+    main { padding-bottom: 96px; }
+    section { margin-top: 72px; }
+    h2 { margin: 0 0 8px; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
+    p { margin: 0; color: var(--muted); }
+    figure { margin: 18px 0 0; }
+    img {
+      display: block; width: 100%; height: auto;
+      border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line);
+    }
+    footer { padding: 8px 0 40px; color: var(--faint); font-size: 13px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <div class="mark">
+      <svg viewBox="-1 -1 60 62" aria-hidden="true"><path fill="#fafafa" d="M0 29A29 29 0 0 1 58 29L58 57A2.5 2.5 0 0 1 53 57A6 6 0 0 0 41 57A3 3 0 0 1 35 57A6 6 0 0 0 23 57A3 3 0 0 1 17 57A6 6 0 0 0 5 57A2.5 2.5 0 0 1 0 57Z"/><ellipse cx="17" cy="29.5" rx="3.8" ry="4.1" fill="#191919"/><ellipse cx="41" cy="29.5" rx="3.8" ry="4.1" fill="#191919"/></svg>
+      <h1>OpenGhost</h1>
+    </div>
+    <p class="lead">An open desktop agent for Windows. The agent engine is written from scratch. It runs commands, edits files, keeps git, and works on the web. Its main advantage is visualization: when something can be shown, OpenGhost draws it.</p>
+    <div class="get">
+      <a class="download" href="https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.0.0/OpenGhost-Setup.exe">Download for Windows</a>
+      <span class="version">v1.0.0 beta</span>
+    </div>
+  </header>
+  <main class="wrap">
+    <section>
+      <h2>It opens with the ghost</h2>
+      <p>The app starts on its own screen. The ghost arrives first, then the name OpenGhost.</p>
+      <figure><img src="images/splash.jpg" alt="OpenGhost splash screen, a white ghost beside the name OpenGhost"></figure>
+    </section>
+    <section>
+      <h2>A chat lives in a folder</h2>
+      <p>Every new chat belongs to a folder you choose. Until the first message, the ghost waits above the composer.</p>
+      <figure><img src="images/welcome.jpg" alt="Empty OpenGhost chat with the ghost above the composer and a New Folder button"></figure>
+    </section>
+    <section>
+      <h2>Show the numbers, do not only tell them</h2>
+      <p>The rendering engine is written from scratch. Shares, flows, prices, and plans become charts and diagrams next to the explanation. One picture carries the idea.</p>
+      <figure><img src="images/visual.jpg" alt="A donut chart of token cost shares above a flowchart of model routing"></figure>
+    </section>
+    <section>
+      <h2>Change the diagram where it stands</h2>
+      <p>A chart is not a finished picture. Open it and edit the layout, the blocks, and the arrows. The drawing updates in place.</p>
+      <figure><img src="images/editor.jpg" alt="Diagram editor open on a flowchart, with blocks and arrow fields"></figure>
+    </section>
+    <section>
+      <h2>A browser with its own cursor</h2>
+      <p>OpenGhost has a built-in browser and drives it itself. It opens a page, moves its own cursor, clicks, types, and sees what is on the screen. The panel sits on the right of the chat. Close it and the agent still works.</p>
+      <figure><img src="images/browser.jpg" alt="OpenGhost chat beside the built-in browser open on a model page"></figure>
+    </section>
+    <section>
+      <h2>Mini chat for a side question</h2>
+      <p>Select a passage and open Mini chat over the conversation. It is the same agent, with the current chat as context. Nothing written there is saved, and closing the window throws it away.</p>
+      <figure><img src="images/mini.jpg" alt="Mini chat window over a chart, marked Not saved"></figure>
+    </section>
+    <section>
+      <h2>Three ways to let it act</h2>
+      <p>Ask waits for approval before commands, file changes, and the web. Auto works inside the project folder and asks before a risky step. Full access does not ask.</p>
+      <figure><img src="images/modes.jpg" alt="Agent mode menu with Ask, Auto, and Full access"></figure>
+    </section>
+    <section>
+      <h2>The key stays on this computer</h2>
+      <p>OpenGhost talks to DeepSeek with a key stored only on your machine. The app checks the key and tells you when it works.</p>
+      <figure><img src="images/settings.jpg" alt="Settings, API Keys, with a stored DeepSeek key marked Key works"></figure>
+    </section>
+  </main>
+  <footer>OpenGhost for Windows</footer>
+</body>
+</html>
