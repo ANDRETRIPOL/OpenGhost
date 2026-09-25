@@ -42,6 +42,8 @@ jobs:
           if-no-files-found: ignore
       - name: Publish
         working-directory: mac
-        run: gh release upload v1.0.1 dist/*.zip --clobber
+        run: |
+          gh release upload v1.0.1 dist/*.dmg --clobber
+          gh release delete-asset v1.0.1 OpenGhost-1.0.1-mac.zip --yes || true
         env:
           GH_TOKEN: ${{ github.token }}

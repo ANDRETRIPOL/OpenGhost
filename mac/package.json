@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "shortcut": "electron . --create-shortcut",
-    "dist": "electron-builder --mac zip --universal"
+    "dist": "electron-builder --mac dmg --universal"
   },
   "devDependencies": {
     "electron": "^44.4.5",
@@ -28,7 +28,7 @@
     ],
     "asar": true,
     "mac": {
-      "target": "zip",
+      "target": "dmg",
       "icon": "desktop/icon.png",
       "category": "public.app-category.utilities",
       "artifactName": "OpenGhost-1.0.1-mac.${ext}",
