@@ -1,0 +1,51 @@
+{
+  "name": "openghost",
+  "productName": "OpenGhost",
+  "version": "1.0.0",
+  "private": true,
+  "description": "OpenGhost",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "shortcut": "electron . --create-shortcut",
+    "dist": "electron-builder --linux tar.gz"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.openghost.app",
+    "productName": "OpenGhost",
+    "icon": "desktop/icon.ico",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!**/*.md"
+    ],
+    "asar": true,
+    "linux": {
+      "target": "tar.gz",
+      "icon": "desktop/icon.png",
+      "category": "Utility",
+      "artifactName": "OpenGhost-1.0.0-linux.${ext}"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "desktop/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OpenGhost",
+      "artifactName": "OpenGhost-Setup.exe",
+      "uninstallDisplayName": "OpenGhost"
+    }
+  }
+}

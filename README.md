@@ -4,6 +4,8 @@
 
 [Download for Windows](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.0.0/OpenGhost-Setup.exe)
 
+[Linux version 1.0.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.0.0/OpenGhost-1.0.0-linux.tar.gz)
+
 The code is under the MIT license. The name OpenGhost, the ghost logo, the animations, and the visual design are not. You may not use those for any commercial purpose. See LICENSE.
 
 OpenGhost is an open desktop agent for Windows. The agent engine is written from scratch. It runs commands, edits files, keeps git, and works on the web. Its main advantage is visualization: when something can be shown, OpenGhost draws it. The rendering engine is written from scratch too.
