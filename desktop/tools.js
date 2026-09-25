@@ -295,10 +295,20 @@ async function readBody(response, limit) {
  return { bytes: Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).subarray(0, limit), cut };
 }
 
+const PRIVATE_HOST = /^(127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0$|\[?::1\]?$|\[?fe80:|\[?f[cd][0-9a-f]{2}:|localhost$)/i;
+
+function isPrivateHost(hostname) {
+ const host = hostname.toLowerCase();
+ if (PRIVATE_HOST.test(host)) return true;
+ const octets = host.match(/^(\d{1,3})\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
+ return !!octets && Number(octets[1]) === 172 && Number(host.split('.')[1]) >= 16 && Number(host.split('.')[1]) <= 31;
+}
+
 async function fetchUrl(id, { url }) {
  let address;
  try { address = new URL(String(url || '').trim()); } catch { return { error: `Not a valid address: ${url}` }; }
  if (address.protocol !== 'http:' && address.protocol !== 'https:') return { error: 'Only http and https addresses can be opened' };
+ if (isPrivateHost(address.hostname)) return { error: 'Only public http and https addresses can be opened' };
  const controller = new AbortController();
  const timer = setTimeout(() => controller.abort(), TIMEOUT.fetch * 1000);
  if (id) jobs.set(id, () => controller.abort());
