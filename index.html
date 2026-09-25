@@ -2,106 +2,173 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenGhost</title>
-  <meta name="description" content="OpenGhost is an open desktop agent for Windows. The agent engine and the rendering engine are written from scratch.">
-  <link rel="icon" href="images/icon.png">
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #191919;
-      --fg: rgba(255, 255, 255, 0.88);
-      --muted: rgba(255, 255, 255, 0.55);
-      --faint: rgba(255, 255, 255, 0.28);
-      --line: rgba(255, 255, 255, 0.08);
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; }
-    body {
-      background: var(--bg);
-      color: var(--fg);
-      font: 17px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
-    }
-    .wrap { width: min(920px, calc(100% - 48px)); margin: 0 auto; }
-    header { padding: 72px 0 28px; text-align: center; }
-    .mark { display: flex; align-items: center; justify-content: center; gap: 14px; }
-    .mark svg { width: 46px; height: 48px; }
-    h1 { margin: 0; font-size: 40px; font-weight: 650; letter-spacing: -0.03em; }
-    .lead { max-width: 640px; margin: 18px auto 0; color: var(--muted); font-size: 18px; }
-    .get { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 28px; }
-    .download {
-      display: inline-flex; align-items: center; height: 44px; padding: 0 22px;
-      border-radius: 22px; background: #fafafa; color: #0f0f0f;
-      font-weight: 650; text-decoration: none;
-    }
-    .download:hover { background: #fff; }
-    .version { color: var(--faint); font-size: 14px; font-weight: 600; }
-    main { padding-bottom: 96px; }
-    section { margin-top: 72px; }
-    h2 { margin: 0 0 8px; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
-    p { margin: 0; color: var(--muted); }
-    figure { margin: 18px 0 0; }
-    img {
-      display: block; width: 100%; height: auto;
-      border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line);
-    }
-    footer { padding: 8px 0 40px; color: var(--faint); font-size: 13px; text-align: center; }
-  </style>
+  <link rel="icon" href="desktop/icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="desktop.js"></script>
 </head>
 <body>
-  <header class="wrap">
-    <div class="mark">
-      <svg viewBox="-1 -1 60 62" aria-hidden="true"><path fill="#fafafa" d="M0 29A29 29 0 0 1 58 29L58 57A2.5 2.5 0 0 1 53 57A6 6 0 0 0 41 57A3 3 0 0 1 35 57A6 6 0 0 0 23 57A3 3 0 0 1 17 57A6 6 0 0 0 5 57A2.5 2.5 0 0 1 0 57Z"/><ellipse cx="17" cy="29.5" rx="3.8" ry="4.1" fill="#191919"/><ellipse cx="41" cy="29.5" rx="3.8" ry="4.1" fill="#191919"/></svg>
-      <h1>OpenGhost</h1>
+  <div class="titlebar" aria-hidden="true"><div class="titlebar-name"></div></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-search">
+          <search-button class="sidebar-search-button"></search-button>
+          <input class="sidebar-search-input" type="text" placeholder="Search" aria-label="Search chats" aria-keyshortcuts="Control+K Meta+K" data-i18n-attr="placeholder:search;aria-label:search.label" autocomplete="off" spellcheck="false" inert>
+          <button class="sidebar-search-clear" type="button" tabindex="-1" aria-label="Clear search" data-i18n-attr="aria-label:search.clear">
+            <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1.5 1.5l5 5M6.5 1.5l-5 5"/></svg>
+          </button>
+        </div>
+        <add-button class="sidebar-new-chat" label="New chat" data-i18n-attr="label:chat.new"></add-button>
+      </div>
+      <nav class="chats" aria-label="Chats" data-i18n-attr="aria-label:chats.label">
+        <div class="chats-scroll"><div class="chats-list"></div></div>
+        <div class="scrollbar chats-scrollbar" aria-hidden="true"><div class="scrollbar-thumb"></div></div>
+      </nav>
+      <div class="sidebar-footer">
+        <settings-button class="sidebar-settings" data-i18n="settings">Settings</settings-button>
+      </div>
+    </aside>
+    <main class="main is-empty">
+      <sidebar-toggle class="sidebar-toggle"></sidebar-toggle>
+      <browser-toggle class="browser-toggle" hidden></browser-toggle>
+      <div class="thread-view">
+        <div class="thread">
+          <div class="thread-list"></div>
+        </div>
+        <div class="scrollbar thread-scrollbar" aria-hidden="true"><div class="scrollbar-thumb"></div></div>
+        <scroll-button class="thread-bottom glass-lens"></scroll-button>
+      </div>
+      <div class="drop-zone" aria-hidden="true">
+        <div class="drop-art"></div>
+        <div class="drop-title" data-i18n="drop.title">Drop files here</div>
+        <div class="drop-hint" data-i18n="drop.hint">Photos, code, documents and anything else</div>
+      </div>
+      <div class="welcome" aria-hidden="true"><div class="welcome-flight"></div></div>
+      <div class="composer">
+        <button type="button" class="composer-folder"></button>
+        <div class="composer-attachments"><div class="attachments-row" aria-label="Attachments" data-i18n-attr="aria-label:attach.label"></div></div>
+        <input class="composer-picker" type="file" multiple hidden>
+        <div class="composer-field">
+          <div class="composer-placeholder" aria-hidden="true" data-i18n="composer.placeholder">Ask anything</div>
+          <div class="composer-mirror" aria-hidden="true"><div class="composer-mirror-lines"></div></div>
+          <div class="composer-ghosts" aria-hidden="true"></div>
+          <textarea class="composer-input" aria-label="Message" aria-placeholder="Ask anything" data-i18n-attr="aria-label:composer.label;aria-placeholder:composer.placeholder" autofocus></textarea>
+          <div class="scrollbar composer-scrollbar" aria-hidden="true"><div class="scrollbar-thumb"></div></div>
+        </div>
+        <div class="composer-toolbar">
+          <div class="composer-tools">
+            <add-button class="composer-add" label="Add photos and files" data-i18n-attr="label:attach.add"></add-button>
+            <button type="button" class="composer-mode" popovertarget="mode-menu" aria-haspopup="menu" aria-expanded="false" hidden></button>
+          </div>
+          <div class="composer-actions">
+            <effort-button class="composer-effort"></effort-button>
+            <send-button class="composer-send" disabled></send-button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="effort-panel" popover="manual" role="dialog" aria-label="Effort" data-i18n-attr="aria-label:effort">
+    <div class="effort-slider" role="slider" tabindex="0" aria-valuemin="0" aria-valuemax="3" aria-label="Effort" data-i18n-attr="aria-label:effort">
+      <div class="effort-track"><span class="effort-fill"></span></div>
+      <span class="effort-thumb glass-lens"></span>
     </div>
-    <p class="lead">An open desktop agent for Windows. The agent engine is written from scratch. It runs commands, edits files, keeps git, and works on the web. Its main advantage is visualization: when something can be shown, OpenGhost draws it.</p>
-    <div class="get">
-      <a class="download" href="https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.0.0/OpenGhost-Setup.exe">Download for Windows</a>
-      <span class="version">v1.0.0 beta</span>
+  </div>
+
+  <div class="mode-menu" id="mode-menu" popover="auto" role="menu" aria-label="Agent mode" data-i18n-attr="aria-label:mode"></div>
+
+  <div class="note-panel" popover="auto" role="dialog" aria-labelledby="note-title">
+    <div class="note-head">
+      <span class="note-thumb" aria-hidden="true"></span>
+      <span class="note-title" id="note-title"></span>
     </div>
-  </header>
-  <main class="wrap">
-    <section>
-      <h2>It opens with the ghost</h2>
-      <p>The app starts on its own screen. The ghost arrives first, then the name OpenGhost.</p>
-      <figure><img src="images/splash.jpg" alt="OpenGhost splash screen, a white ghost beside the name OpenGhost"></figure>
+    <textarea class="note-input" rows="3" spellcheck="true" aria-label="Note" data-i18n-attr="placeholder:note.placeholder;aria-label:note.label"></textarea>
+    <div class="note-foot">
+      <span class="note-hint" data-i18n="note.hint">Press Enter to save</span>
+      <button type="button" class="note-done" data-i18n="note.done">Done</button>
+    </div>
+  </div>
+
+  <dialog class="settings" closedby="any" aria-labelledby="settings-title" tabindex="-1">
+    <nav class="settings-nav" aria-label="Settings sections" data-i18n-attr="aria-label:settings.sections">
+      <div class="settings-heading" id="settings-title" data-i18n="settings">Settings</div>
+      <button type="button" class="settings-tab" aria-current="page" data-i18n="settings.provider">Provider</button>
+    </nav>
+    <section class="settings-page" aria-labelledby="settings-keys-title">
+      <header class="settings-page-header">
+        <h2 class="settings-page-title" id="settings-keys-title" data-i18n="settings.keys">API Keys</h2>
+        <close-button class="settings-close"></close-button>
+      </header>
+      <div class="settings-row">
+        <div class="settings-text">
+          <label class="settings-label" for="settings-key" data-i18n="settings.key">DeepSeek API key</label>
+          <p class="settings-hint"><span data-i18n="settings.key.hint">Stored only on this computer. Get a key at</span> <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">platform.deepseek.com</a></p>
+        </div>
+        <div class="settings-control">
+          <input id="settings-key" class="settings-key" type="text" placeholder="sk-…" autocomplete="off" spellcheck="false">
+          <p class="settings-status" role="status"></p>
+        </div>
+      </div>
     </section>
-    <section>
-      <h2>A chat lives in a folder</h2>
-      <p>Every new chat belongs to a folder you choose. Until the first message, the ghost waits above the composer.</p>
-      <figure><img src="images/welcome.jpg" alt="Empty OpenGhost chat with the ghost above the composer and a New Folder button"></figure>
-    </section>
-    <section>
-      <h2>Show the numbers, do not only tell them</h2>
-      <p>The rendering engine is written from scratch. Shares, flows, prices, and plans become charts and diagrams next to the explanation. One picture carries the idea.</p>
-      <figure><img src="images/visual.jpg" alt="A donut chart of token cost shares above a flowchart of model routing"></figure>
-    </section>
-    <section>
-      <h2>Change the diagram where it stands</h2>
-      <p>A chart is not a finished picture. Open it and edit the layout, the blocks, and the arrows. The drawing updates in place.</p>
-      <figure><img src="images/editor.jpg" alt="Diagram editor open on a flowchart, with blocks and arrow fields"></figure>
-    </section>
-    <section>
-      <h2>A browser with its own cursor</h2>
-      <p>OpenGhost has a built-in browser and drives it itself. It opens a page, moves its own cursor, clicks, types, and sees what is on the screen. The panel sits on the right of the chat. Close it and the agent still works.</p>
-      <figure><img src="images/browser.jpg" alt="OpenGhost chat beside the built-in browser open on a model page"></figure>
-    </section>
-    <section>
-      <h2>Mini chat for a side question</h2>
-      <p>Select a passage and open Mini chat over the conversation. It is the same agent, with the current chat as context. Nothing written there is saved, and closing the window throws it away.</p>
-      <figure><img src="images/mini.jpg" alt="Mini chat window over a chart, marked Not saved"></figure>
-    </section>
-    <section>
-      <h2>Three ways to let it act</h2>
-      <p>Ask waits for approval before commands, file changes, and the web. Auto works inside the project folder and asks before a risky step. Full access does not ask.</p>
-      <figure><img src="images/modes.jpg" alt="Agent mode menu with Ask, Auto, and Full access"></figure>
-    </section>
-    <section>
-      <h2>The key stays on this computer</h2>
-      <p>OpenGhost talks to DeepSeek with a key stored only on your machine. The app checks the key and tells you when it works.</p>
-      <figure><img src="images/settings.jpg" alt="Settings, API Keys, with a stored DeepSeek key marked Key works"></figure>
-    </section>
-  </main>
-  <footer>OpenGhost for Windows</footer>
+  </dialog>
+
+  <div class="splash" aria-hidden="true">
+    <div class="splash-bg"></div>
+    <div class="splash-fly"><div class="splash-ghost"><div class="splash-ghost-body"><ghost-thinking></ghost-thinking></div></div></div>
+    <div class="splash-word">OpenGhost</div>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script src="liquid-glass.js"></script>
+  <script src="icon-button.js"></script>
+  <script src="sidebar-toggle.js"></script>
+  <script src="browser-toggle.js"></script>
+  <script src="add-button.js"></script>
+  <script src="search-button.js"></script>
+  <script src="search-field.js"></script>
+  <script src="settings-button.js"></script>
+  <script src="close-button.js"></script>
+  <script src="effort-button.js"></script>
+  <script src="ghost-thinking.js"></script>
+  <script src="welcome-ghost.js"></script>
+  <script src="scrollbar.js"></script>
+  <script src="smooth-height.js"></script>
+  <script src="link-chip.js"></script>
+  <script src="composer-text.js"></script>
+  <script src="send-button.js"></script>
+  <script src="scroll-button.js"></script>
+  <script src="deepseek.js"></script>
+  <script src="tex.js"></script>
+  <script src="highlight.js"></script>
+  <script src="markdown.js"></script>
+  <script src="diagram.js"></script>
+  <script src="stream-view.js"></script>
+  <script src="row-glide.js"></script>
+  <script src="file-kinds.js"></script>
+  <script src="attachment-reader.js"></script>
+  <script src="attachments.js"></script>
+  <script src="media-slider.js"></script>
+  <script src="settings.js"></script>
+  <script src="effort-paint.js"></script>
+  <script src="effort-morph.js"></script>
+  <script src="effort-slider.js"></script>
+  <script src="glyphs.js"></script>
+  <script src="chat-store.js"></script>
+  <script src="library.js"></script>
+  <script src="agent-tools.js"></script>
+  <script src="agent-prompt.js"></script>
+  <script src="approval-card.js"></script>
+  <script src="chat.js"></script>
+  <script src="chat-list.js"></script>
+  <script src="folder-pill.js"></script>
+  <script src="mode-picker.js"></script>
+  <script src="selection-menu.js"></script>
+  <script src="mini-chat.js"></script>
+  <script src="browser-panel.js"></script>
+  <script src="script.js"></script>
+  <script src="splash.js"></script>
 </body>
 </html>
