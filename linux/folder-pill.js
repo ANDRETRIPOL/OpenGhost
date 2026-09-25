@@ -21,12 +21,13 @@ class FolderPill {
  }
 
  sync() {
-  const folder = this.chat.folder, shown = folder ? folder.path : '';
-  if (shown === this.shown) return;
+  const folder = this.chat.folder, shown = folder ? folder.path : '', name = folder ? folder.name : I18n.t('folder.new');
+  if (shown === this.shown && this.label.textContent === name) return;
+  for (const animation of [...this.button.getAnimations(), ...this.label.getAnimations()]) animation.cancel();
   const first = this.shown === null, from = this.button.offsetWidth;
   this.shown = shown;
   this.button.classList.toggle('is-picked', !!folder);
-  this.label.textContent = folder ? folder.name : I18n.t('folder.new');
+  this.label.textContent = name;
   this.button.title = folder ? folder.path : I18n.t('folder.choose');
   this.button.setAttribute('aria-label', folder ? I18n.t('folder.change', { name: folder.name }) : I18n.t('folder.choose'));
   if (first || reducedMotion()) return;

@@ -66,7 +66,7 @@ function environment({ folder, mode, env, now }) {
   `- Project folder: ${folder}. Commands start here and relative paths point here.`,
   `- Computer: ${env?.os || 'Linux'}, user ${env?.user || 'unknown'}, home folder ${env?.home || 'unknown'}.`,
   `- Shell: ${env?.shell || 'bash'}. Git: ${env?.git ? `version ${env.git}` : 'not installed'}.`,
-  `- Today is ${date}; Get-Date gives the exact time.`,
+  `- Today is ${date}; date gives the exact time.`,
   `- Permission mode: ${MODES[mode] || MODES.ask}`,
  ].join('\n');
 }

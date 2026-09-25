@@ -255,10 +255,10 @@ class ChatList {
  }
 
  collapse(group, collapsed) {
+  group.body.inert = collapsed;
   if (group.section.classList.contains('is-collapsed') === collapsed) return;
   group.section.classList.toggle('is-collapsed', collapsed);
   group.head.setAttribute('aria-expanded', String(!collapsed));
-  group.body.inert = collapsed;
   this.wake(COLLAPSE_TIME);
  }
 

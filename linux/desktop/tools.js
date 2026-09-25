@@ -16,7 +16,7 @@ const FETCH_BYTES = 5 * 1024 * 1024;
 const LIST = { depth: 2, max: 6, entries: 400 };
 const HEAVY = new Set(['node_modules', '.git', '__pycache__', '.venv', 'venv', '.next', '.nuxt', '.cache', '.idea', '.vs', '.gradle', 'target', 'dist', 'build', 'bin', 'obj', 'coverage']);
 const IDENTITY = new Set(['commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'tag', 'stash', 'am', 'pull']);
-const UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+const UA = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 const BASH = { exe: '/bin/bash', name: 'bash', version: '' };
 
 const ENV = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(ELECTRON_|npm_)/i.test(name)));

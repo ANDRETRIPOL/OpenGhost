@@ -1,5 +1,11 @@
 # OpenGhost
 
+**v1.0.1**
+
+[Windows version 1.0.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.0.1/OpenGhost-1.0.1-Setup.exe)
+
+[Linux version 1.0.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.0.1/OpenGhost-1.0.1-linux.tar.gz)
+
 **v1.0.0 beta**
 
 [Download for Windows](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.0.0/OpenGhost-Setup.exe)

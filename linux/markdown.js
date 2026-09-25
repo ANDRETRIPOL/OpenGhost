@@ -28,7 +28,8 @@ const SHEET_LABEL = /^([^\s:=][^:=]{0,28}?)[ \t]*:[ \t]+(\S.*)$/;
 const SHEET_CODE = /[{}<>;`\\[\]|]|[\u2500-\u259f]/;
 const SHEET_TOTAL = /^(?:итог|всего|сумма|total|sum|result|ответ|answer)/i;
 const SHEET_EXPR = /\d\s*(?:[=+×÷·≈*]|\s[−–-]\s|\s[xх]\s)\s*[$€£¥₽]?\d|=\s*[$€£¥₽]?\d/;
-const SHEET_OP = /\s([=+×÷·≈−–*-]|[xх](?=\s+[$€£¥₽]?\d))\s+/g;
+const SHEET_OP = /\s([=+×÷·≈−–*/-]|[xх](?=\s+[$€£¥₽]?\d))\s+/g;
+const QUOTIENT = /^(.+?\d)\s*\/\s*(\d[\d.,]*)\s*=\s*(\d[\d.,]*)(?:\s*(?:→|->|=>)\s*(.+))?$/;
 const SHEET_NUM = /(?<![\p{L}\d])[$€£¥₽]?\d+(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)?(?:[%$€£¥₽]|[kKMBкКмМ](?![\p{L}\d]))?(?![\p{L}\d])/gu;
 const CITE = /^[ \t]*(?:—|–|―|--)[ \t]+(\S.*)$/;
 const CITE_INLINE = /^(.*[»”"])[ \t]+(?:—|–|―|--?)[ \t]+(\S.*)$/;
@@ -572,9 +573,11 @@ function sheetMath(line) {
 function sheetLine(raw) {
  const line = raw.replace(/\t/g, '    ').replace(/\s+$/, ''), text = line.trim();
  if (!text) return { kind: 'blank' };
- if (CALC_RULE.test(text)) return { kind: 'rule', line };
+ if (CALC_RULE.test(text) || /^[\u2500-\u257F]{2,}$/.test(text)) return { kind: 'rule', line };
  const math = sheetMath(line);
  if (math) return /\d\s*=\s*\d/.test(math.math) ? { kind: 'pair', label: '', value: math.math.trim(), note: math.note } : { kind: 'math', line };
+ const quot = text.match(QUOTIENT);
+ if (quot) return { kind: 'pair', label: '', value: `${quot[1].trim()} / ${quot[2]} = ${quot[3]}`, note: (quot[4] || '').trim(), total: true };
  const m = text.match(SHEET_LABEL);
  if (!m || !/\p{L}/u.test(m[1])) return { kind: 'text', text };
  const value = m[2], v = sheetMath(value);
@@ -617,7 +620,7 @@ function sheetModel(body, done) {
   const text = l.kind === 'text' ? l.text : `${l.label} ${l.value}`;
   if (text.length > SHEET.width || SHEET_CODE.test(text)) return null;
   if (l.kind === 'text') items.push({ type: 'text', text: l.text, title: gap });
-  else items.push({ type: 'pair', label: l.label, value: l.value, note: l.note, total: SHEET_TOTAL.test(l.label) });
+  else items.push({ type: 'pair', label: l.label, value: l.value, note: l.note, total: l.total || SHEET_TOTAL.test(l.label) });
  }
  flush(done);
  while (items.length && (last().type === 'gap' || last().type === 'divider')) items.pop();
@@ -641,7 +644,7 @@ function sheetExpr(text, total) {
  const eq = total && ops[ops.length - 1][1] === '=' ? ops.length - 1 : -1;
  let html = '', at = 0;
  ops.forEach((m, k) => {
-  html += `${num(text.slice(at, m.index))} <span class="md-sheet-op">${CALC_OPS[m[1]] || m[1]}</span> `;
+  html += `${num(text.slice(at, m.index))} <span class="md-sheet-op">${m[1] === '/' ? '÷' : CALC_OPS[m[1]] || m[1]}</span> `;
   at = m.index + m[0].length;
  });
  const tail = num(text.slice(at));

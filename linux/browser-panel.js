@@ -43,6 +43,7 @@ function normalize(value) {
  const text = String(value || '').trim();
  if (!text) return '';
  if (/^(https?|file|about|data):/i.test(text)) return text;
+ if (text.startsWith('/')) return `file://${text}`;
  if (/^[a-zA-Z]:[\\/]/.test(text)) return `file:///${text.replace(/\\/g, '/')}`;
  if (/^(localhost|127\.0\.0\.1|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/|$)/i.test(text)) return `http://${text}`;
  if (!/\s/.test(text) && /^[^\s/]+\.[a-z]{2,}(:\d+)?(\/|$|\?|#)/i.test(text)) return `https://${text}`;

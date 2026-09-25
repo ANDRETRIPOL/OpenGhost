@@ -1,7 +1,7 @@
 {
   "name": "openghost",
   "productName": "OpenGhost",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "OpenGhost",
   "main": "desktop/main.js",
@@ -31,7 +31,7 @@
       "target": "tar.gz",
       "icon": "desktop/icon.png",
       "category": "Utility",
-      "artifactName": "OpenGhost-1.0.0-linux.${ext}"
+      "artifactName": "OpenGhost-1.0.1-linux.${ext}"
     },
     "win": {
       "target": "nsis",
@@ -44,7 +44,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "OpenGhost",
-      "artifactName": "OpenGhost-Setup.exe",
+      "artifactName": "OpenGhost-1.0.1-Setup.exe",
       "uninstallDisplayName": "OpenGhost"
     }
   }

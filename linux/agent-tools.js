@@ -14,7 +14,7 @@ const fn = (name, description, properties, required = []) => ({
 
 const SCHEMAS = [
  fn('run_bash', 'Run a bash script on the user\'s Linux computer. It starts in the project folder, is non-interactive (it can never wait for input) and returns the exit code with the combined output. Use it to run programs, scripts and tests, builds, package managers (npm, pip, apt, dnf), to inspect the system, and for file work other tools don\'t cover: moving, copying, deleting, searching with grep. Servers and watchers never exit: start them with nohup, send their output to a log file, and put them in the background with &.', {
-  command: { type: 'string', description: 'PowerShell code, several lines are fine' },
+  command: { type: 'string', description: 'Bash script, several lines are fine' },
   timeout: { type: 'integer', description: 'Seconds before the command is stopped, 120 by default, 900 at most' },
  }, ['command']),
  fn('read_file', 'Read a text file, or look at an image: PNG, JPEG, WebP, GIF, BMP, ICO and AVIF files come back as a picture you can see. Text comes as up to 2000 lines; for longer files pass offset (first line, starting at 1) and limit.', {
@@ -132,7 +132,7 @@ function resolve(cwd, path) {
  for (const part of raw.split(/\/+/)) {
   if (!part || part === '.') continue;
   if (part === '..') parts.pop();
-  else parts.push(part.toLowerCase());
+  else parts.push(part);
  }
  return parts.join('/');
 }
@@ -207,7 +207,7 @@ function needsApproval(name, args, { mode, cwd }) {
 function relative(cwd, path) {
  const raw = String(path ?? '.').trim() || '.';
  if (!raw.startsWith('/')) return raw.replace(/^\.\//, '');
- return inside(cwd, raw) ? raw.slice(norm(cwd).length).replace(/^\/+/, '') || '.' : raw;
+ return inside(cwd, raw) ? raw.slice(norm(cwd).length).replace(/^[\\/]+/, '') || '.' : raw;
 }
 
 function describe(name, args, cwd) {

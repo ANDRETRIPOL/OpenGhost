@@ -83,7 +83,7 @@ class Library {
  }
 
  toggleFolder(path) {
-  const folder = this.folders.find(item => item.path === path);
+  const folder = this.folders.find(item => samePath(item.path, path));
   if (!folder) return;
   folder.collapsed = !folder.collapsed;
   this.changed();
