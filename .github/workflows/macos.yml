@@ -1,0 +1,47 @@
+name: macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: mac
+        run: npm ci
+      - name: Build
+        working-directory: mac
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Screenshot
+        working-directory: mac
+        continue-on-error: true
+        run: |
+          app=$(find dist -name 'OpenGhost.app' -type d | head -1)
+          echo "app=$app"
+          open "$app"
+          sleep 15
+          osascript -e 'tell application "OpenGhost" to activate' || true
+          sleep 2
+          screencapture -x "$RUNNER_TEMP/openghost-mac.png"
+          ls -la "$RUNNER_TEMP/openghost-mac.png"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-screenshot
+          path: ${{ runner.temp }}/openghost-mac.png
+          if-no-files-found: ignore
+      - name: Publish
+        working-directory: mac
+        run: gh release upload v1.0.1 dist/*.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

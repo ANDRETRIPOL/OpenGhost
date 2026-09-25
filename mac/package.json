@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "shortcut": "electron . --create-shortcut",
-    "dist": "electron-builder --mac zip"
+    "dist": "electron-builder --mac zip --universal"
   },
   "devDependencies": {
     "electron": "^44.4.5",
