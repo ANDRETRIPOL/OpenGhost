@@ -38,6 +38,8 @@ const WIDE_TABLE = { columns: 5, text: { columns: 3, chars: 130, cell: 80 } };
 const PSEUDO_HEADING_MAX = 100;
 const SETEXT_MAX = 60;
 const FLOW = { max: 180, part: 42, min: 3 };
+// Quotes and lists nested deeper than this show their remaining text as a plain paragraph, so deep nesting cannot overflow the stack.
+const MAX_DEPTH = 32;
 const SAFE_URL = /^(?:https?:|mailto:)/i;
 
 const LIST_ITEM = /^([ \t]*)([-*+]|\d{1,9}[.)])(?:([ \t]+)(.*))?$/;
@@ -448,6 +450,11 @@ function renderAll(blocks, state, live) {
  return blocks.map((block, k) => render(block, state, live && k === blocks.length - 1, false)).join('');
 }
 
+function renderNested(lines, state, live) {
+ if (state.depth >= MAX_DEPTH) return `<p>${inline(lines.join('\n'), live)}</p>`;
+ return renderAll(parse(lines), state, live);
+}
+
 function renderCode(block, state, live) {
  const lang = block.lang, t = tone(state.tone || state.tones[0]);
  const kind = DIAGRAM_KINDS[lang] ? `${DIAGRAM_KINDS[lang]} ${block.info || ''}`.trim() : '';
@@ -741,7 +748,7 @@ function renderList(block, state, live) {
  const inner = { ...state, depth: state.depth + 1 };
  const items = block.items.map((item, k) => {
   const last = live && k === block.items.length - 1;
-  const body = renderAll(parse(item.body), inner, last);
+  const body = renderNested(item.body, inner, last);
   const task = item.task === null ? '' : classes('md-task', item.task && 'is-done');
   return `<li${task}>${task ? '<span class="md-box" aria-hidden="true"></span>' : ''}${body}</li>`;
  }).join('');
@@ -753,9 +760,9 @@ function renderQuote(block, state, live) {
  const m = block.lines[0].match(CALLOUT);
  if (m) {
   const kind = m[1].toLowerCase(), body = [m[2], ...block.lines.slice(1)];
-  return `<blockquote class="md-callout is-${kind} t-${CALLOUTS[kind]}"><div class="md-callout-title">${I18n.t(`callout.${kind}`)}</div>${renderAll(parse(body), inner, live)}</blockquote>`;
+  return `<blockquote class="md-callout is-${kind} t-${CALLOUTS[kind]}"><div class="md-callout-title">${I18n.t(`callout.${kind}`)}</div>${renderNested(body, inner, live)}</blockquote>`;
  }
- if (state.depth) return `<blockquote>${renderAll(parse(block.lines), inner, live)}</blockquote>`;
+ if (state.depth) return `<blockquote>${renderNested(block.lines, inner, live)}</blockquote>`;
  const lines = [...block.lines];
  const trim = () => { while (lines.length && !lines[lines.length - 1].trim()) lines.pop(); };
  trim();
@@ -770,7 +777,7 @@ function renderQuote(block, state, live) {
    lines[lines.length - 1] = lines[lines.length - 1].trimEnd().slice(0, -1);
   }
  }
- return `<blockquote${classes('md-quote', tone(state.tone || state.tones[0]))}>${renderAll(parse(lines), inner, live && !cite)}${cite ? citeHtml(cite, live) : ''}</blockquote>`;
+ return `<blockquote${classes('md-quote', tone(state.tone || state.tones[0]))}>${renderNested(lines, inner, live && !cite)}${cite ? citeHtml(cite, live) : ''}</blockquote>`;
 }
 
 function citeHtml(text, live) {
