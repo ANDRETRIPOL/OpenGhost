@@ -238,7 +238,7 @@ class Conversation {
 
 class Chat {
  constructor({ main, thread, bottom, settings, library, onChange, onList, note = '' }) {
-  this.note = note;
+  this.promptNote = note;
   this.main = main;
   this.thread = thread;
   this.bottom = bottom;
@@ -789,7 +789,7 @@ class Chat {
  }
 
  async system(conv) {
-  const note = this.note ? `\n\n${this.note}` : '';
+  const note = this.promptNote ? `\n\n${this.promptNote}` : '';
   if (!this.agent(conv)) return FORMAT_GUIDE + note;
   const env = await AgentTools.environment();
   const browser = window.browserPanel?.context() || '';
