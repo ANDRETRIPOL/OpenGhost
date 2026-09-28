@@ -325,10 +325,14 @@ class ChatList {
   }
  }
 
+ // One id lookup table per tick: library.chat() scans every chat, which made each tick quadratic in the row count.
  clock() {
+  const chats = new Map(this.library.chats.map(chat => [chat.id, chat]));
   for (const [id, item] of this.rows) {
-   const chat = this.library.chat(id);
-   if (chat) item.time.textContent = ago(chat.updated);
+   const chat = chats.get(id);
+   if (!chat) continue;
+   const text = ago(chat.updated);
+   if (item.time.textContent !== text) item.time.textContent = text;
   }
  }
 
