@@ -1,5 +1,19 @@
 # OpenGhost
 
+**v1.1.0 beta**
+
+[Windows version 1.1.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.1.0/OpenGhost-1.1.0-Setup.exe)
+
+[Linux version 1.1.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.1.0/OpenGhost-1.1.0-linux.tar.gz)
+
+[macOS version 1.1.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.1.0/OpenGhost-1.1.0-mac.dmg)
+
+What's new:
+- OpenAI and Claude join DeepSeek. Sign in with your ChatGPT account or use an API key, and pick the model per chat.
+- Put a password on any chat. It's real encryption on your computer, not just a lock screen.
+- A smoother, more polished UI.
+- Lots of bugs fixed.
+
 **v1.0.1 beta**
 
 [Windows version 1.0.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.0.1/OpenGhost-1.0.1-Setup.exe)
@@ -62,6 +76,6 @@ Ask waits for approval before commands, file changes, and the web. Auto works in
 
 ## The key stays on this computer
 
-OpenGhost talks to DeepSeek with a key stored only on your machine. The app checks the key and tells you when it works.
+OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek. Keys and sign-ins are stored only on your machine, and the app checks them for you.
 
 ![API key settings](images/settings.jpg)

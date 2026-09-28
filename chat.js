@@ -10,9 +10,11 @@ const FINISH_NOTES = ['length', 'content_filter', 'insufficient_system_resource'
 const LEAVE = { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
 const SWITCH = { duration: 280, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const PIN_TIME = 2000;
+// The chat on screen keeps its messages under the lock screen while it fades in, then lets them go.
+const LOCK_FADE = 520;
 const TITLE_PROMPT = 'Name this conversation in 2 to 5 words in the language of the user message. Reply with the name only, without quotes, emoji or a final period.';
 const TITLE_INPUT = { user: 1500, reply: 800, max: 60 };
-const CONTEXT = { window: 1000000, reserve: 0.1, chars: 3.2, image: 1200 };
+const CONTEXT = { reserve: 0.1, chars: 3.2, image: 1200 };
 const COMPACT = {
  prompt: 'You compress a long conversation between a user and OpenGhost, an AI agent working on the user\'s computer, so the work can go on without the original messages. Write a dense summary in the language the user writes in, with these parts: the user\'s goals and preferences; key facts, decisions and constraints; what has been done, with file paths, commands and their results, commits; the current state and open problems; the exact next steps. Keep names, paths, numbers, versions and code identifiers exact. Leave out small talk and whatever no longer matters.',
  head: 'The earlier part of this conversation was compacted to save context. Your tools, formatting rules and browser instructions still apply; this summary does not replace them. Summary of it:',
@@ -147,9 +149,11 @@ function imageStep(images) {
  return { role: 'user', content };
 }
 
-function assistantStep({ content, reasoning, toolCalls = [] }) {
+// A provider's own blocks (signed thinking, encrypted reasoning) ride along, so the next step can hand them back unchanged.
+function assistantStep({ content, reasoning, toolCalls = [], native }) {
  const message = { role: 'assistant', content: content || '' };
  if (reasoning) message.reasoning_content = reasoning;
+ if (native) message.native = native;
  if (toolCalls.length) {
   message.tool_calls = toolCalls.map((call, k) => ({
    id: call.id || `call_${Date.now().toString(36)}_${k}`,
@@ -214,6 +218,7 @@ class Conversation {
  constructor(record, list = document.createElement('div')) {
   this.record = record;
   this.folder = null;
+  this.model = '';
   this.messages = [];
   this.tokens = 0;
   this.list = list;
@@ -274,6 +279,53 @@ class Chat {
   return !!this.active?.turn;
  }
 
+ get model() {
+  return this.modelOf(this.active);
+ }
+
+ modelOf(conv) {
+  return this.settings.resolve(conv?.record?.model || conv?.model);
+ }
+
+ config(conv) {
+  return this.settings.configFor(this.modelOf(conv));
+ }
+
+ // Whether the chat has turns no summary covers yet: a new model would need them compacted first.
+ hasHistory(conv = this.active) {
+  const messages = conv?.messages || [], last = messages.findLastIndex(entry => entry.role === 'compact');
+  return messages.slice(last + 1).some(entry => entry.role === 'user' || entry.role === 'assistant');
+ }
+
+ setModel(id) {
+  const conv = this.active;
+  if (!conv || conv.turn || id === this.modelOf(conv)) return;
+  if (conv.record) this.library.update(conv.id, { model: id });
+  else conv.model = id;
+  this.settings.setModel(id);
+  this.onChange();
+ }
+
+ // The model the chat worked with summarizes it first, so the new one starts from a history that fits its own window.
+ switchModel(id) {
+  const conv = this.active;
+  if (!conv?.record || conv.turn || id === this.modelOf(conv)) return;
+  if (!this.hasHistory(conv)) { this.setModel(id); return; }
+  const turn = this.begin(conv, this.config(conv));
+  turn.switch = this.modelOf(conv);
+  turn.quiet = true;
+  this.library.update(conv.id, { model: id });
+  this.settings.setModel(id);
+  this.openPart(conv, turn);
+  const view = turn.part.view;
+  view.status.remove();
+  view.el.hidden = true;
+  this.follow = true;
+  this.onChange();
+  this.drive(conv, turn);
+  this.followBottom();
+ }
+
  get activeId() {
   return this.active?.id || '';
  }
@@ -307,6 +359,7 @@ class Chat {
  newChat(folder = null) {
   const draft = this.draft || this.newDraft();
   draft.folder = folder;
+  draft.model = '';
   this.opening++;
   this.activate(draft);
   this.onChange();
@@ -321,17 +374,95 @@ class Chat {
    if (!record) return Promise.resolve();
    conv = new Conversation(record);
    this.conversations.set(id, conv);
-   conv.ready = this.library.conversation(id).then(({ messages, tokens }) => {
-    conv.messages = messages;
-    conv.tokens = tokens;
-    this.restore(conv);
-   });
+   // A locked chat opens onto its lock screen; its messages are read only once the password is in.
+   if (this.library.isLocked(id)) conv.locked = true;
+   else conv.ready = this.load(conv);
   }
   return Promise.resolve(conv.ready).then(() => {
    if (token !== this.opening) return;
    this.activate(conv);
    this.onChange();
   });
+ }
+
+ load(conv) {
+  return this.library.conversation(conv.id).then(({ messages, tokens }) => {
+   conv.messages = messages;
+   conv.tokens = tokens;
+   this.restore(conv);
+  });
+ }
+
+ isLocked(id) {
+  const conv = this.conversations.get(id);
+  return conv ? !!conv.locked : this.library.isLocked(id);
+ }
+
+ // Locks a protected chat: its view closes at once, and its messages leave memory as soon as no reply is being written into them.
+ seal(conv, delay = 0) {
+  conv.locked = true;
+  const drop = () => {
+   if (!conv.locked || conv.turn) return;
+   this.library.relock(conv.id);
+   conv.messages = [];
+   conv.tokens = 0;
+   conv.ready = null;
+   conv.list.replaceChildren();
+  };
+  if (delay && !reducedMotion()) setTimeout(drop, delay);
+  else drop();
+ }
+
+ lock(id) {
+  const conv = this.conversations.get(id);
+  if (!conv || conv.locked || !this.library.isProtected(id)) return;
+  this.seal(conv, conv === this.active ? LOCK_FADE : 0);
+  this.onChange();
+ }
+
+ // The password opens the chat; its messages are read again unless a reply still running kept them in memory.
+ async unlock(id, password) {
+  const conv = this.conversations.get(id);
+  if (!conv?.locked) return true;
+  if (!(await this.library.unlock(id, password))) return false;
+  if (!conv.ready) {
+   try {
+    await (conv.ready = this.load(conv));
+   } catch (error) {
+    // Messages that would not open must never pass for an empty chat: a reply saved into it would overwrite them.
+    conv.ready = null;
+    this.library.relock(id);
+    throw error;
+   }
+  }
+  conv.locked = false;
+  if (conv === this.active) {
+   this.main.classList.toggle('is-empty', !conv.list.childElementCount);
+   this.follow = true;
+   this.pin();
+   this.pinUntil = performance.now() + PIN_TIME;
+  }
+  this.onChange();
+  return true;
+ }
+
+ // Setting a password locks the chat straight away, so the first thing its owner does is open it with the new password.
+ async protect(id, password) {
+  const conv = this.conversations.get(id);
+  if (conv?.turn || conv?.locked) return false;
+  const loaded = conv?.ready ? { messages: conv.messages, tokens: conv.tokens } : null;
+  if (!(await this.library.protect(id, password, loaded))) return false;
+  if (conv) this.seal(conv, conv === this.active ? LOCK_FADE : 0);
+  this.onChange();
+  return true;
+ }
+
+ async unprotect(id) {
+  const conv = this.conversations.get(id);
+  if (!conv || conv.locked) return false;
+  const done = await this.library.unprotect(id, conv.ready ? { messages: conv.messages, tokens: conv.tokens } : null);
+  this.onChange();
+  return done;
  }
 
  remove(id) {
@@ -370,6 +501,8 @@ class Chat {
    prev.scrollTop = this.thread.scrollTop;
    prev.list.classList.add('is-parked');
    this.resize.unobserve(prev.list);
+   // A protected chat locks again as soon as it is left.
+   if (prev.record && !prev.locked && this.library.isProtected(prev.id)) this.seal(prev);
   }
   this.attach(conv);
   this.active = conv;
@@ -377,7 +510,7 @@ class Chat {
   conv.list.classList.remove('is-parked');
   this.resize.observe(conv.list);
   const empty = !conv.list.childElementCount;
-  this.main.classList.toggle('is-empty', empty);
+  this.main.classList.toggle('is-empty', empty && !conv.locked);
   this.follow = conv.follow;
   if (conv.follow) this.pin();
   else this.thread.scrollTop = conv.scrollTop;
@@ -401,15 +534,16 @@ class Chat {
  }
 
  send(text, attachments = []) {
-  const config = this.settings.config;
-  if (!config.key) {
-   this.settings.open(I18n.t('settings.key.needed'));
+  const conv = this.active, config = this.config(conv);
+  if (conv.locked) return false;
+  if (!config.ready) {
+   this.settings.open(I18n.t('settings.key.needed'), config.provider);
    return false;
   }
-  const conv = this.active;
   if (!conv.record) {
    if (!conv.folder) return false;
    conv.record = this.library.create({ folder: conv.folder, text, attachments });
+   this.library.update(conv.id, { model: this.modelOf(conv) });
    this.conversations.set(conv.id, conv);
    this.draft = null;
   } else {
@@ -571,7 +705,7 @@ class Chat {
  }
 
  agent(conv) {
-  return AgentTools.available && /^([a-zA-Z]:[\\/]|\\\\)/.test(conv.record?.folder || '');
+  return AgentTools.available && /^([a-zA-Z]:[\\/]|\\\\|\/)/.test(conv.record?.folder || '');
  }
 
  begin(conv, config) {
@@ -623,6 +757,14 @@ class Chat {
  }
 
  async loop(conv, turn) {
+  if (turn.switch) {
+   if (!(await this.compact(conv, turn, this.switchLabels(turn.switch, this.modelOf(conv))))) return null;
+   turn.switch = '';
+   turn.config = this.config(conv);
+   if (!turn.queue.length) return null;
+   turn.quiet = false;
+   await this.takeQueue(conv, turn);
+  }
   for (;;) {
    await this.compactIfNeeded(conv, turn);
    const { part, calls, finish } = await this.request(conv, turn);
@@ -657,7 +799,7 @@ class Chat {
  context() {
   const conv = this.active, record = conv?.record;
   const folder = record ? this.library.folders.find(item => samePath(item.path, record.folder)) || { path: record.folder, name: '' } : conv?.folder || null;
-  return { messages: conv ? snapshot(conv.messages) : [], tokens: conv?.tokens || 0, folder };
+  return { messages: conv ? snapshot(conv.messages) : [], tokens: conv?.tokens || 0, folder, model: this.modelOf(conv) };
  }
 
  history(conv) {
@@ -683,11 +825,11 @@ class Chat {
   const messages = [{ role: 'system', content: await this.system(conv) }, ...this.history(conv)];
   let result;
   try {
-   result = await DeepSeek.streamChat({
-    ...turn.config,
+   result = await Providers.stream(turn.config, {
     messages,
     tools: this.agent(conv) ? AgentTools.schemas : null,
     signal: turn.controller.signal,
+    session: conv.id,
     onContent: (delta, stream) => {
      if (!stream.content.trim()) return;
      turn.text = true;
@@ -802,6 +944,10 @@ class Chat {
   const { view, entry } = turn.part, aborted = error?.name === 'AbortError';
   for (const pending of turn.approvals) pending.card.settle('deny');
   conv.turn = null;
+  if (turn.switch && this.library.chat(conv.id)) {
+   this.library.update(conv.id, { model: turn.switch });
+   this.settings.setModel(turn.switch);
+  }
   window.browserPanel?.drive(conv, false);
   if (!entry.steps.length) drop(conv.messages, entry);
   if (turn.next) collapse(turn.next.el);
@@ -824,6 +970,7 @@ class Chat {
   const text = !!entry.content.trim();
   let noted = true;
   if (error && !aborted) this.fail(conv, view, error);
+  else if (turn.quiet) noted = false;
   else if (aborted) this.note(view, I18n.t('chat.stopped'));
   else if (FINISH_NOTES.includes(finish)) this.note(view, I18n.t(`finish.${finish}`));
   else if (!turn.text) this.note(view, I18n.t('chat.empty'));
@@ -836,17 +983,32 @@ class Chat {
   }
   if (!text && !noted) collapse(view.el);
   if (conv === this.active) this.followBottom();
+  // A protected chat left while it was replying locks fully once the reply is saved.
+  if (conv.locked && !conv.turn) this.seal(conv);
  }
 
  async compactIfNeeded(conv, turn) {
   const used = conv.tokens || estimate(this.history(conv));
-  if (used < CONTEXT.window * (1 - CONTEXT.reserve)) return;
+  if (used < this.settings.windowOf(turn.config.model) * (1 - CONTEXT.reserve)) return;
+  await this.compact(conv, turn);
+ }
+
+ switchLabels(from, to) {
+  const name = id => this.settings.find(id)?.name || id;
+  return {
+   running: I18n.t('compact.switch.running', { name: name(to) }),
+   done: I18n.t('compact.switch.done', { name: name(to) }),
+   failed: I18n.t('compact.switch.failed', { name: name(from) }),
+  };
+ }
+
+ async compact(conv, turn, labels = null) {
   const messages = conv.messages;
   let at = messages.length;
   while (at > 0 && (messages[at - 1].role === 'user' || (messages[at - 1].steps && !messages[at - 1].steps.length))) at--;
-  if (!at) return;
+  if (!at) return true;
   const middle = at === messages.length;
-  const notice = this.compactNotice(true);
+  const notice = this.compactNotice(true, labels);
   if (middle) {
    this.closePart(conv, turn.part);
    conv.list.append(notice);
@@ -858,9 +1020,7 @@ class Chat {
   if (conv === this.active) this.followBottom();
   let summary = '';
   try {
-   summary = await DeepSeek.complete({
-    key: turn.config.key,
-    model: turn.config.model,
+   summary = await Providers.complete(turn.config, {
     messages: [{ role: 'system', content: COMPACT.prompt }, { role: 'user', content: transcript(messages.slice(0, at)) }],
     maxTokens: COMPACT.output,
     signal: turn.controller.signal,
@@ -871,7 +1031,7 @@ class Chat {
   if (middle) this.openPart(conv, turn);
   if (!summary) {
    this.finishNotice(notice, false);
-   return;
+   return false;
   }
   const entry = { role: 'compact', summary, resume: middle };
   messages.splice(at, 0, entry);
@@ -879,14 +1039,16 @@ class Chat {
   conv.tokens = estimate([{ content: await this.system(conv) }, ...this.history(conv)]);
   this.finishNotice(notice, true);
   this.save(conv);
+  return true;
  }
 
- compactNotice(live) {
+ compactNotice(live, labels = null) {
   const el = document.createElement('div');
   el.className = `thread-compact${live ? ' is-live' : ''}`;
+  el.labels = labels;
   const text = document.createElement('span');
   text.className = 'thread-compact-text';
-  text.textContent = I18n.t(live ? 'compact.running' : 'compact.done');
+  text.textContent = live ? labels?.running || I18n.t('compact.running') : I18n.t('compact.done');
   el.append(text);
   return el;
  }
@@ -894,7 +1056,7 @@ class Chat {
  finishNotice(el, ok) {
   const text = el.querySelector('.thread-compact-text');
   el.classList.remove('is-live');
-  text.textContent = I18n.t(ok ? 'compact.done' : 'compact.failed');
+  text.textContent = ok ? el.labels?.done || I18n.t('compact.done') : el.labels?.failed || I18n.t('compact.failed');
   if (!reducedMotion()) text.animate([{ opacity: 0, filter: 'blur(3px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 360, easing: 'ease-out' });
  }
 
@@ -910,9 +1072,7 @@ class Chat {
   this.library.update(id, { named: true });
   const asked = user.text || (user.attachments || []).map(item => item.name).join(', ');
   try {
-   const title = await DeepSeek.complete({
-    key: config.key,
-    model: config.model,
+   const title = await Providers.complete(config, {
     messages: [
      { role: 'system', content: TITLE_PROMPT },
      { role: 'user', content: `${asked.slice(0, TITLE_INPUT.user)}\n\n${reply.content.slice(0, TITLE_INPUT.reply)}` },
@@ -1004,9 +1164,9 @@ class Chat {
 
  retry(conv, view) {
   if (conv.turn) return;
-  const config = this.settings.config;
-  if (!config.key) {
-   this.settings.open(I18n.t('settings.key.needed'));
+  const config = this.config(conv);
+  if (!config.ready) {
+   this.settings.open(I18n.t('settings.key.needed'), config.provider);
    return;
   }
   for (const node of view.el.querySelectorAll('.message-error, .message-actions')) node.remove();

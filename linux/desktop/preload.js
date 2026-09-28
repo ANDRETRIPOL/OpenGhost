@@ -22,4 +22,16 @@ contextBridge.exposeInMainWorld('openghost', {
   onEvent: callback => ipcRenderer.on('browser:event', (event, data) => callback(data)),
   shown: value => ipcRenderer.send('browser:shown', value),
  },
+ llm: {
+  start: (id, request) => ipcRenderer.send('llm:start', id, request),
+  abort: id => ipcRenderer.send('llm:abort', id),
+  onEvent: callback => ipcRenderer.on('llm:event', (event, data) => callback(data)),
+  models: (provider, key) => ipcRenderer.invoke('llm:models', provider, key),
+ },
+ auth: {
+  login: () => ipcRenderer.invoke('auth:login'),
+  cancel: () => ipcRenderer.invoke('auth:cancel'),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+  status: () => ipcRenderer.invoke('auth:status'),
+ },
 });

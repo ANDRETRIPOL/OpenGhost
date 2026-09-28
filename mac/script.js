@@ -17,6 +17,8 @@ const composerSend = document.querySelector('.composer-send');
 
 let chatList = null;
 let folderPill = null;
+let modelStage = null;
+let effortSlider = null;
 
 new SmoothHeight(composerField, composerInput);
 new ResizeObserver(() => {
@@ -30,11 +32,14 @@ const composerText = new ComposerText(composerInput, document.querySelector('.co
 LinkChip.watch(document.querySelector('.composer-mirror'));
 LinkChip.watch(thread);
 const settings = new Settings(document.querySelector('.settings'));
+new Scrollbar(document.querySelector('.settings-page'), document.querySelector('.settings-scrollbar')).observe(document.querySelector('.settings-providers'));
 const threadBottom = document.querySelector('.thread-bottom');
 new LiquidGlass(threadBottom, { width: 36, height: 36 });
 const library = new Library(ChatStore, syncAll);
 window.addEventListener('pagehide', () => library.flush());
 const chat = new Chat({ main, thread, bottom: threadBottom, settings, library, onChange: syncAll, onList: list => threadScrollbar.observe(list) });
+const lockScreen = new LockScreen({ main, chat, composer, onOpen: () => composerInput.focus({ preventScroll: true }) });
+const lockCard = new LockCard({ chat, library, scroller: document.querySelector('.chats-scroll') });
 new WelcomeGhost({ main, root: document.querySelector('.welcome'), input: composerInput });
 folderPill = new FolderPill({ button: document.querySelector('.composer-folder'), library, chat });
 chatList = new ChatList({
@@ -51,6 +56,7 @@ chatList = new ChatList({
     chat.newChat(folder);
     composerInput.focus();
   },
+  onLock: (id, row) => lockCard.open(id, row),
 });
 document.querySelector('.titlebar-name').innerHTML = `${Glyphs.ghost}<span>OpenGhost</span>`;
 const modeButton = document.querySelector('.composer-mode');
@@ -70,7 +76,7 @@ const attachments = new Attachments({
   zone: document.querySelector('.drop-zone'),
   input: composerInput,
   onChange: syncComposer,
-  isActive: () => !MiniChat.current,
+  isActive: () => !MiniChat.current && !chat.active?.locked,
 });
 new SelectionMenu({
   onAsk: (text, box) => {
@@ -82,11 +88,20 @@ new SelectionMenu({
   onMini: text => MiniChat.open({ settings, source: chat, quote: text }),
 });
 document.querySelector('.composer-add').addEventListener('add', () => attachments.pick());
-new EffortSlider({
+settings.show(chat.model);
+modelStage = new ModelStage({
+  button: document.querySelector('.composer-model'),
+  root: document.querySelector('.model-stage'),
+  chat,
+  settings,
+  input: composerInput,
+});
+effortSlider = new EffortSlider({
   button: document.querySelector('.composer-effort'),
   panel: document.querySelector('.effort-panel'),
   settings,
 });
+effortSlider.lock(chat.busy);
 
 document.querySelector('.sidebar-settings').addEventListener('settings-open', () => settings.open());
 
@@ -139,6 +154,10 @@ function syncAll() {
   syncComposer();
   folderPill.sync();
   chatList.render();
+  lockScreen.sync();
+  settings.show(chat.model);
+  modelStage?.sync();
+  effortSlider?.lock(chat.busy);
 }
 
 async function send() {

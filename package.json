@@ -1,14 +1,16 @@
 {
   "name": "openghost",
   "productName": "OpenGhost",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "OpenGhost",
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
     "shortcut": "electron . --create-shortcut",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg --universal",
+    "dist:linux": "electron-builder --linux tar.gz"
   },
   "devDependencies": {
     "electron": "^44.4.5",
@@ -38,8 +40,24 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "OpenGhost",
-      "artifactName": "OpenGhost-1.0.1-Setup.exe",
+      "artifactName": "OpenGhost-${version}-Setup.exe",
       "uninstallDisplayName": "OpenGhost"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "desktop/icon.png",
+      "category": "public.app-category.utilities",
+      "artifactName": "OpenGhost-${version}-mac.${ext}",
+      "identity": null
+    },
+    "linux": {
+      "target": "tar.gz",
+      "icon": "desktop/icon.png",
+      "category": "Utility",
+      "artifactName": "OpenGhost-${version}-linux.${ext}"
     }
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0"
   }
 }

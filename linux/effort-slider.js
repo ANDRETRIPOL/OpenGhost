@@ -2,8 +2,6 @@
 'use strict';
 
 const EFFORTS = ['none', 'low', 'high', 'max'];
-const LAST = EFFORTS.length - 1;
-const DEFAULT = EFFORTS.indexOf('high');
 const FOLLOW = [1400, 75];
 const SETTLE = [320, 26];
 const STRETCH = [520, 34];
@@ -17,7 +15,7 @@ const RUBBER = { limit: 0.16, k: 0.55 };
 const FLING = 0.06;
 const STRETCH_PER_SPEED = 0.035;
 const STRETCH_MAX = 0.3;
-const PAINT_ZONE = { enter: LAST - 0.4, leave: LAST - 0.6 };
+const PAINT_ZONE = { enter: 0.4, leave: 0.6 };
 const LENS_REVEAL = { from: 0.88, fade: 0.96, scale: 0.55 };
 const PAINT_FADE = [0.55, 1];
 const PAINT_ARRIVE = [0.92, 0.96];
@@ -43,24 +41,20 @@ class EffortSlider {
   this.paint = new EffortPaint(panel);
   this.painted = false;
   this.opened = false;
+  this.locked = false;
   this.lens = 0;
+  this.efforts = settings.efforts?.length ? settings.efforts.slice() : EFFORTS.slice();
   this.morph = new EffortMorph({
-   panel, button, track: this.track, fill: this.fill, levels: EFFORTS.length,
+   panel, button, track: this.track, fill: this.fill, levels: this.efforts.length,
    onProgress: m => this.onMorph(m),
    onLanded: () => this.paint.bloomIn(),
    onOpened: () => this.onOpened(),
    onClosed: () => this.onClosed(),
   });
-  this.track.style.setProperty('--last', LAST);
-  this.ticks = EFFORTS.slice(1, -1).map((_, k) => {
-   const tick = document.createElement('span');
-   tick.className = 'effort-tick';
-   tick.style.setProperty('--i', k + 1);
-   this.track.append(tick);
-   return tick;
-  });
-  const saved = EFFORTS.indexOf(settings.effort);
-  this.value = saved < 0 ? DEFAULT : saved;
+  this.ticks = [];
+  this.fillTicks();
+  const saved = this.efforts.indexOf(settings.effort);
+  this.value = saved < 0 ? Math.max(0, this.efforts.indexOf('high')) : saved;
   this.pos = this.value;
   this.vel = 0;
   this.goal = this.value;
@@ -84,9 +78,16 @@ class EffortSlider {
    const path = e.composedPath();
    if (this.isOpen && !path.includes(panel) && !path.includes(button)) this.close();
   }, true);
+  panel.addEventListener('keydown', e => {
+   if (e.key === 'Escape' && this.isOpen) { e.preventDefault(); this.close(true); }
+  });
+  new ResizeObserver(() => this.relayout()).observe(panel);
 
   this.commit(this.value);
   button.setLevel(this.value, true);
+  button.setCount(this.efforts.length);
+  const prior = settings.onEfforts;
+  settings.onEfforts = efforts => { prior?.(efforts); this.setEfforts(efforts); };
  }
 
  get isOpen() {
@@ -95,7 +96,16 @@ class EffortSlider {
 
  toggle(keyboard) {
   if (this.opened) this.close(keyboard);
-  else this.open();
+  else if (!this.locked) this.open();
+ }
+
+ // While OpenGhost works the effort stays as the turn started with it.
+ lock(locked) {
+  if (locked === this.locked) return;
+  this.locked = locked;
+  this.button.toggleAttribute('disabled', locked);
+  this.button.title = locked ? I18n.t('effort.locked') : '';
+  if (locked) this.close();
  }
 
  open() {
@@ -107,12 +117,12 @@ class EffortSlider {
    this.vel = 0;
    this.stretch = [0, 0];
    this.press = [0, 0];
-   this.paint.layout({ width: this.panel.offsetWidth, height: this.panel.offsetHeight, lensRight: this.slider.offsetLeft + this.x(LAST) + LENS.width / 2 });
-   this.painted = this.value === LAST;
+   this.paint.layout(this.paintBox());
+   this.painted = this.value === this.max;
    if (this.painted) this.paint.ready();
    else this.paint.set(false, true);
    this.paint.fade(0);
-   this.panel.style.setProperty('--shell-paint', this.painted ? 1 : 0);
+   this.panel.style.setProperty('--shell-paint', 0);
    this.render();
    this.morph.measure(this.value);
   }
@@ -126,7 +136,7 @@ class EffortSlider {
   if (!this.opened) return;
   this.opened = false;
   if (this.drag) this.release();
-  this.panel.style.setProperty('--shell-paint', this.paint.full ? 1 : 0);
+  this.panel.style.setProperty('--shell-paint', 0);
   if (this.morph.settled) this.morph.measure(this.value);
   this.morph.to(0);
   if (focusButton) this.button.focus();
@@ -136,6 +146,17 @@ class EffortSlider {
   this.panel.style.setProperty('--shell-paint', 0);
   this.paint.fade(1);
   this.syncPaint();
+  if (this.relayoutPending) this.relayout();
+ }
+
+ relayout() {
+  if (!this.opened || !this.panel.matches(':popover-open')) return;
+  if (!this.morph.settled) { this.relayoutPending = true; return; }
+  this.relayoutPending = false;
+  this.geo = { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
+  this.morph.measure(this.value);
+  this.paint.layout(this.paintBox());
+  this.render();
  }
 
  onClosed() {
@@ -157,14 +178,61 @@ class EffortSlider {
  syncPaint() {
   if (!this.opened || !this.morph.settled) return;
   const level = this.drag ? this.goal : this.value;
-  const on = level > (this.painted ? PAINT_ZONE.leave : PAINT_ZONE.enter);
+  const on = level > this.max - (this.painted ? PAINT_ZONE.leave : PAINT_ZONE.enter);
   if (on === this.painted) return;
   this.painted = on;
   this.paint.set(on);
  }
 
+ paintBox() {
+  return {
+   width: this.panel.offsetWidth,
+   height: this.panel.offsetHeight,
+   lensRight: this.slider.offsetLeft + this.x(this.max) + LENS.width / 2,
+  };
+ }
+
+ get max() {
+  return Math.max(0, this.efforts.length - 1);
+ }
+
+ fillTicks() {
+  this.ticks.forEach(tick => tick.remove());
+  this.ticks = this.efforts.slice(1, -1).map((_, k) => {
+   const tick = document.createElement('span');
+   tick.className = 'effort-tick';
+   tick.style.setProperty('--i', k + 1);
+   this.track.append(tick);
+   return tick;
+  });
+  this.track.style.setProperty('--last', this.max);
+  this.slider.setAttribute('aria-valuemax', String(this.max));
+ }
+
+ setEfforts(efforts) {
+  const next = efforts?.length ? efforts.slice() : EFFORTS.slice();
+  const same = next.length === this.efforts.length && next.every((level, i) => level === this.efforts[i]);
+  if (same) return;
+  this.efforts = next;
+  this.button.setCount(next.length);
+  this.morph.setLevels(next.length);
+  this.fillTicks();
+  let index = next.indexOf(this.settings.effort);
+  if (index < 0) index = next.indexOf('high');
+  if (index < 0) index = Math.min(next.length - 1, 2);
+  this.value = this.goal = this.pos = index;
+  this.button.setLevel(index, true);
+  this.commit(index);
+  if (this.opened && this.panel.matches(':popover-open')) {
+   this.geo = { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
+   this.morph.measure(this.value);
+   this.paint.layout(this.paintBox());
+   this.render();
+  }
+ }
+
  x(pos) {
-  return this.geo.left + pos / LAST * this.geo.width;
+  return this.geo.left + pos / (this.max || 1) * this.geo.width;
  }
 
  // The glass reads its backdrop on the device pixel grid, so a lens resting between pixels makes the refraction shimmer.
@@ -179,12 +247,12 @@ class EffortSlider {
 
  pointerPos(e) {
   const rect = this.slider.getBoundingClientRect(), scale = rect.width / this.slider.offsetWidth || 1;
-  return ((e.clientX - rect.left) / scale - this.geo.left) / this.geo.width * LAST;
+  return ((e.clientX - rect.left) / scale - this.geo.left) / this.geo.width * (this.max || 1);
  }
 
  shape(raw) {
   if (raw < 0) return -rubber(-raw);
-  if (raw > LAST) return LAST + rubber(raw - LAST);
+  if (raw > this.max) return this.max + rubber(raw - this.max);
   const d = raw - Math.round(raw);
   return raw - d * MAGNET.pull * (1 - smoothstep(0, MAGNET.reach, Math.abs(d)));
  }
@@ -195,7 +263,7 @@ class EffortSlider {
   this.slider.focus({ preventScroll: true });
   this.slider.setPointerCapture(e.pointerId);
   const raw = this.pointerPos(e);
-  const onThumb = Math.abs(raw - this.pos) / LAST * this.geo.width <= LENS.width / 2 + GRAB_SLOP;
+  const onThumb = Math.abs(raw - this.pos) / (this.max || 1) * this.geo.width <= LENS.width / 2 + GRAB_SLOP;
   this.drag = { id: e.pointerId, offset: onThumb ? raw - this.pos : 0 };
   this.panel.classList.add('is-dragging');
   this.goal = this.shape(raw - this.drag.offset);
@@ -218,7 +286,7 @@ class EffortSlider {
   this.drag = null;
   if (this.slider.hasPointerCapture(id)) this.slider.releasePointerCapture(id);
   this.panel.classList.remove('is-dragging');
-  this.moveTo(Math.round(clamp(this.goal + this.vel * FLING, 0, LAST)));
+  this.moveTo(Math.round(clamp(this.goal + this.vel * FLING, 0, this.max)));
  }
 
  moveTo(i) {
@@ -230,14 +298,16 @@ class EffortSlider {
 
  onKey(e) {
   const step = { ArrowLeft: -1, ArrowDown: -1, PageDown: -1, ArrowRight: 1, ArrowUp: 1, PageUp: 1 }[e.key];
-  const to = step ? clamp(this.value + step, 0, LAST) : { Home: 0, End: LAST }[e.key];
+  const to = step ? clamp(this.value + step, 0, this.max) : { Home: 0, End: this.max }[e.key];
   if (to !== undefined) { e.preventDefault(); if (!this.drag) this.moveTo(to); }
   else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); this.close(true); }
   else if (e.key === 'Tab') this.close();
  }
 
  commit(i) {
-  const value = EFFORTS[i], name = I18n.t(`effort.${value}`);
+  const value = this.efforts[i];
+  if (!value) return;
+  const name = I18n.has(`effort.${value}`) ? I18n.t(`effort.${value}`) : value;
   this.value = i;
   if (value !== this.settings.effort) this.settings.setEffort(value);
   this.slider.setAttribute('aria-valuenow', String(i));
@@ -297,7 +367,7 @@ class EffortSlider {
   this.thumb.style.transform = `translate(${x - LENS.width / 2}px, ${-LENS.height / 2}px) scale(${grow * (1 + stretch)}, ${grow * (1 - 0.35 * stretch)})`;
   this.fill.style.setProperty('--fill-cut', `${this.geo.width + TRACK_CAP - Math.max(0, x - this.geo.left)}px`);
   this.ticks.forEach((tick, k) => tick.style.setProperty('--under', clamp((this.pos - k - 1) * 6 + 0.5, 0, 1).toFixed(3)));
-  this.button.setLevel(clamp(this.pos, 0, LAST));
+  this.button.setLevel(clamp(this.pos, 0, this.max));
  }
 }
 

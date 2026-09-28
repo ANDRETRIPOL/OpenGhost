@@ -6,7 +6,7 @@ const STORE = 'openghost.browser';
 const ACCOUNTS = 'openghost.browser.accounts';
 const TABS_MAX = 12;
 const WIDTH = { share: 0.44, min: 360, chat: 400 };
-const CURSOR = { duration: 380, hide: 2600 };
+const CURSOR = { hide: 2600 };
 const TOAST_TIME = 4200;
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 const bridge = window.openghost?.browser || null;
@@ -23,7 +23,6 @@ const ICONS = {
  close: svg('<path d="M50 50l20 20M70 50 50 70"/>'),
  external: svg('<path d="M65 40h15v15M80 40 58 62"/><path d="M73 67v8a5 5 0 0 1-5 5H45a5 5 0 0 1-5-5V52a5 5 0 0 1 5-5h8"/>'),
 };
-const CURSOR_ART = '<svg class="browser-cursor-arrow" viewBox="0 0 20 22" aria-hidden="true"><path d="M2.5 1.8 17 12.2l-6.3 1.1 3.6 6.4-2.7 1.5-3.6-6.4L3.6 19z" fill="currentColor" stroke="rgba(0,0,0,.55)" stroke-width="1.2" stroke-linejoin="round"/></svg>';
 
 const read = key => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } };
 const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
@@ -76,6 +75,13 @@ class BrowserPanel {
   toggle.addEventListener('browser-toggle', () => this.setOpen(!this.open));
   window.addEventListener('resize', () => this.fit());
   if (saved.open) this.setOpen(true);
+  const yieldKeys = event => {
+   const target = event.target;
+   if (target instanceof Element && this.root.contains(target)) return;
+   for (const tab of this.tabs) tab.view?.blur();
+  };
+  document.addEventListener('pointerdown', yieldKeys, true);
+  document.addEventListener('focusin', yieldKeys, true);
   this.render();
  }
 
@@ -108,7 +114,7 @@ class BrowserPanel {
       <div class="browser-badge">${Glyphs.ghost}<span>${I18n.t('browser.driving')}</span></div>
       <button type="button" class="browser-take browser-pill">${I18n.t('browser.take')}</button>
      </div>
-     <div class="browser-cursor" aria-hidden="true">${CURSOR_ART}<span>OpenGhost</span></div>
+     <div class="browser-cursor" aria-hidden="true"><img class="browser-cursor-arrow" src="desktop/cursor.png" alt=""></div>
      <div class="browser-user"><span>${I18n.t('browser.user')}</span><button type="button" class="browser-pill">${I18n.t('browser.handBack')}</button></div>
      <div class="browser-toast" hidden></div>
     </div>
@@ -403,15 +409,26 @@ class BrowserPanel {
    this.stage.append(ring);
    ring.addEventListener('animationend', () => ring.remove());
   };
-  if (reducedMotion()) {
+  const dx = x - from.x, dy = y - from.y, dist = Math.hypot(dx, dy);
+  if (reducedMotion() || dist < 3) {
    cursor.style.translate = `${x}px ${y}px`;
    ripple();
    return;
   }
+  const nx = -dy / dist, ny = dx / dist;
+  const bend = Math.min(32, dist * 0.14) * (Math.random() < 0.5 ? -1 : 1);
+  const steps = dist < 90 ? 10 : 16;
+  const frames = [];
+  for (let i = 0; i <= steps; i++) {
+   const t = i / steps;
+   const s = (10 * t ** 3) - (15 * t ** 4) + (6 * t ** 5);
+   const arc = Math.sin(Math.PI * t) * bend;
+   frames.push({ translate: `${from.x + dx * s + nx * arc}px ${from.y + dy * s + ny * arc}px`, offset: t });
+  }
+  const duration = Math.round(Math.min(400, Math.max(170, 60 + 90 * Math.log2(dist / 26 + 1))));
   cursor.getAnimations().forEach(animation => animation.cancel());
   cursor.style.translate = `${x}px ${y}px`;
-  cursor.animate([{ translate: `${from.x}px ${from.y}px` }, { translate: `${x}px ${y}px` }], { duration: CURSOR.duration, easing: EASE })
-   .finished.then(ripple, () => {});
+  cursor.animate(frames, { duration, easing: 'linear' }).finished.then(ripple, () => {});
  }
 
  signedIn(host) {

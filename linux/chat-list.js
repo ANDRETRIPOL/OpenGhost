@@ -14,6 +14,16 @@ const MINUTE = 60000, HOUR = 60 * MINUTE, DAY = 24 * HOUR, WEEK = 7 * DAY;
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const key = path => path.toLowerCase();
+// A title blurs away before its stand-in takes its place.
+const VEIL_TIME = 420;
+
+// A locked chat's title is sealed; in its place stands a blurred line of made-up words, different for every chat.
+function veiled(id) {
+ let seed = [...id].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 7);
+ const next = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 2 ** 32;
+ const word = () => Array.from({ length: 3 + Math.floor(next() * 6) }, () => 'aceimnorsuvwxz'[Math.floor(next() * 14)]).join('');
+ return Array.from({ length: 2 + Math.floor(next() * 3) }, word).join(' ');
+}
 
 function element(tag, className, text) {
  const el = document.createElement(tag);
@@ -63,13 +73,14 @@ function place(parent, children) {
 }
 
 class ChatList {
- constructor({ root, library, chat, onNewFolder, onNewChat }) {
+ constructor({ root, library, chat, onNewFolder, onNewChat, onLock }) {
   this.root = root;
   this.list = root.querySelector('.chats-list');
   this.library = library;
   this.chat = chat;
   this.onNewFolder = onNewFolder;
   this.onNewChat = onNewChat;
+  this.onLock = onLock;
   this.query = '';
   this.rows = new Map();
   this.groups = new Map();
@@ -140,23 +151,24 @@ class ChatList {
   row.tabIndex = 0;
   row.dataset.id = chat.id;
   const mark = element('span', 'chat-mark');
-  mark.append(element('span', 'chat-dot'));
+  const guard = element('span', 'chat-guard');
+  guard.innerHTML = Glyphs.padlock;
+  mark.append(element('span', 'chat-dot'), guard);
   const title = element('span', 'chat-title');
   const meta = element('span', 'chat-meta');
   const time = element('span', 'chat-time');
   const actions = element('span', 'chat-actions');
-  const pin = action('chat-action', 'pin', Glyphs.pin), remove = action('chat-action is-delete', 'delete', Glyphs.trash);
+  const lock = action('chat-action is-lock', 'lock', Glyphs.padlock), pin = action('chat-action', 'pin', Glyphs.pin), remove = action('chat-action is-delete', 'delete', Glyphs.trash);
   label(remove, I18n.t('chat.delete'));
-  actions.append(pin, remove);
+  actions.append(lock, pin, remove);
   meta.append(time, actions);
   row.append(mark, title, meta);
-  return { row, mark, title, time, pin, remove, ghost: null, pinned: null, confirm: false, timer: 0 };
+  return { row, mark, title, time, lock, pin, remove, ghost: null, pinned: null, guarded: null, locked: null, veil: 0, confirm: false, timer: 0 };
  }
 
  paint(item, chat) {
   const active = chat.id === this.chat.activeId;
-  if (item.title.textContent !== chat.title) item.title.textContent = chat.title;
-  item.row.title = chat.title;
+  this.guard(item, chat);
   item.time.textContent = ago(chat.updated);
   item.row.classList.toggle('is-active', active);
   item.row.classList.toggle('is-unread', !active && this.chat.isUnread(chat.id));
@@ -167,7 +179,35 @@ class ChatList {
    item.pin.classList.toggle('is-on', chat.pinned);
    label(item.pin, I18n.t(chat.pinned ? 'chat.unpin' : 'chat.pin'));
   }
-  this.busy(item, this.chat.isBusy(chat.id));
+  const busy = this.chat.isBusy(chat.id);
+  this.busy(item, busy);
+  // Locking waits for the reply to finish, the same as changing the model.
+  item.lock.disabled = busy;
+ }
+
+ // A protected chat wears a small padlock instead of the dot, shut while the chat is locked; its title then hides behind a blur.
+ guard(item, chat) {
+  const guarded = !!chat.lock, locked = guarded && this.chat.isLocked(chat.id), first = item.guarded === null;
+  const text = locked ? veiled(chat.id) : this.library.titleOf(chat) || '';
+  item.row.classList.toggle('is-protected', guarded);
+  item.row.classList.toggle('is-locked', locked);
+  item.row.title = locked ? I18n.t('chat.locked') : text;
+  if (locked) item.row.setAttribute('aria-label', I18n.t('chat.locked'));
+  else item.row.removeAttribute('aria-label');
+  if (item.guarded !== guarded || item.locked !== locked) {
+   item.lock.classList.toggle('is-on', guarded);
+   label(item.lock, I18n.t(!guarded ? 'chat.lock' : locked ? 'chat.unlock' : 'chat.protected'));
+  }
+  const closing = locked && item.locked === false && !first && !reducedMotion();
+  item.guarded = guarded;
+  item.locked = locked;
+  // A stand-in already on its way is left to arrive; one that is no longer wanted finds the chat open and stays away.
+  if ((locked && item.veil) || item.title.textContent === text) return;
+  clearTimeout(item.veil);
+  item.veil = 0;
+  // Opening, the real title takes the stand-in's place while still blurred and comes into focus; closing, it blurs away first.
+  if (closing) item.veil = setTimeout(() => { item.veil = 0; if (item.locked) item.title.textContent = veiled(chat.id); }, VEIL_TIME);
+  else item.title.textContent = text;
  }
 
  busy(item, on) {
@@ -199,7 +239,8 @@ class ChatList {
 
  render() {
   const lib = this.library, query = this.query.trim().toLowerCase(), seen = new Set();
-  const match = chat => !query || chat.title.toLowerCase().includes(query);
+  // A locked chat's title is sealed, so a search never finds it.
+  const match = chat => !query || (this.library.titleOf(chat) || '').toLowerCase().includes(query);
   const recent = (a, b) => b.updated - a.updated;
   const live = lib.chats.filter(match);
   const pinned = live.filter(chat => chat.pinned).sort(recent);
@@ -300,6 +341,7 @@ class ChatList {
    else if (button.dataset.action === 'delete-folder') this.askDeleteFolder(group);
    else if (button.dataset.action === 'pin') this.togglePin(id);
    else if (button.dataset.action === 'delete') this.askDelete(id);
+   else if (button.dataset.action === 'lock') this.onLock?.(id, button.closest('.chat-row'));
    return;
   }
   const head = event.target.closest('.chats-folder-head');

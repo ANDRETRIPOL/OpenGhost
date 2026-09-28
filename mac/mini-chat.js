@@ -29,6 +29,8 @@ function memoryLibrary() {
   },
   saveMessages: () => Promise.resolve(),
   conversation: () => Promise.resolve({ messages: [], tokens: 0 }),
+  isProtected: () => false,
+  isLocked: () => false,
   remove() {},
   removeFolder: () => [],
   flush() {},
@@ -111,6 +113,7 @@ class MiniChat {
   const context = source.context();
   this.chat = new Chat({ main: this.main, thread, bottom, settings, library: memoryLibrary(), onChange: () => this.sync(), onList: list => scrollbar.observe(list), note: NOTE });
   this.chat.newChat(context.folder || { path: '', name: '' });
+  this.chat.active.model = context.model;
   this.chat.active.messages = context.messages;
   this.chat.active.tokens = context.tokens;
   this.attachments = new Attachments({

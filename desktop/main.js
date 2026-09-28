@@ -5,10 +5,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Tools = require('./tools');
 const Browser = require('./browser');
+const LLM = require('./llm');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
-const ICON = path.join(__dirname, 'icon.ico');
+// Windows takes the .ico; macOS and Linux take the .png.
+const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const CHAT_BG = '#191919';
 const TITLE_BAR = { height: 36, symbolColor: '#9a9a9a' };
 const STORE_KEY = /^[a-z0-9-]+(\/[a-z0-9-]+)?$/;
@@ -82,8 +84,11 @@ function createWindow() {
   title: 'OpenGhost',
   icon: ICON,
   backgroundColor: CHAT_BG,
-  titleBarStyle: 'hidden',
-  titleBarOverlay: { color: CHAT_BG, symbolColor: TITLE_BAR.symbolColor, height: TITLE_BAR.height },
+  // Linux window managers draw their own title bar; Windows and macOS get the app's own.
+  ...(process.platform === 'linux' ? {} : {
+   titleBarStyle: 'hidden',
+   titleBarOverlay: { color: CHAT_BG, symbolColor: TITLE_BAR.symbolColor, height: TITLE_BAR.height },
+  }),
   webPreferences: {
    preload: path.join(__dirname, 'preload.js'),
    contextIsolation: true,
@@ -109,10 +114,12 @@ function createWindow() {
  win.webContents.on('before-input-event', (event, input) => {
   if (input.type !== 'keyDown') return;
   const key = input.key.toLowerCase();
-  if (key === 'f12' || (input.control && input.shift && key === 'i')) {
+  // Cmd on macOS, Ctrl elsewhere.
+  const command = input.meta || input.control;
+  if (key === 'f12' || (command && input.shift && key === 'i') || (input.meta && input.alt && key === 'i')) {
    win.webContents.toggleDevTools();
    event.preventDefault();
-  } else if (key === 'f5' || (input.control && !input.shift && key === 'r')) {
+  } else if (key === 'f5' || (command && !input.shift && key === 'r')) {
    win.webContents.reload();
    event.preventDefault();
   }
@@ -136,7 +143,8 @@ ipcMain.handle('store:write', (event, key, value) => writeStore(key, value));
 ipcMain.handle('store:remove', (event, key) => removeStore(key));
 ipcMain.on('window:titlebar', (event, color) => {
  const win = BrowserWindow.fromWebContents(event.sender);
- if (win && typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) win.setTitleBarOverlay({ color, symbolColor: TITLE_BAR.symbolColor, height: TITLE_BAR.height });
+ if (process.platform === 'linux') return;
+ if (win && typeof win.setTitleBarOverlay === 'function' && typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) win.setTitleBarOverlay({ color, symbolColor: TITLE_BAR.symbolColor, height: TITLE_BAR.height });
 });
 
 const fromApp = event => event.sender.getType() === 'window' && event.senderFrame?.url.startsWith('file:');
@@ -144,6 +152,7 @@ ipcMain.handle('tool:run', (event, id, name, args, cwd) => fromApp(event) ? Tool
 ipcMain.on('browser:shown', (event, value) => { if (fromApp(event)) Browser.setShown(value); });
 ipcMain.handle('tool:cancel', (event, id) => { if (fromApp(event)) Tools.cancel(id); });
 ipcMain.handle('tool:environment', event => fromApp(event) ? Tools.environment() : null);
+LLM.register(fromApp);
 
 if (process.argv.includes('--create-shortcut')) {
  app.whenReady().then(() => {
@@ -165,6 +174,7 @@ if (process.argv.includes('--create-shortcut')) {
   win.on('closed', () => {
    win = null;
    Tools.cancelAll();
+   LLM.cancelAll();
   });
  });
  app.on('window-all-closed', () => app.quit());

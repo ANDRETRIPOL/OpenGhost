@@ -28,19 +28,51 @@ async function request(path, key, options = {}) {
  throw new DeepSeekError(statusMessage(response.status) || detail || I18n.t('error.status', { status: response.status }), response.status);
 }
 
-async function listModels(key, signal) {
- const body = await (await request('/models', key, { signal })).json();
- return body.data.map(model => model.id);
+const DEFAULT_EFFORTS = ['none', 'low', 'high', 'max'];
+
+const NO_VISION = '[A picture was here, but the selected model can\'t see pictures]';
+
+function effortsOf(model) {
+ const raw = model.effort?.supported_levels || model.reasoning_efforts || model.supported_reasoning_efforts || model.efforts;
+ if (!Array.isArray(raw)) return DEFAULT_EFFORTS.slice();
+ const levels = raw.map(item => typeof item === 'string' ? item : item?.id || item?.name).filter(Boolean);
+ if (!levels.length) return DEFAULT_EFFORTS.slice();
+ // The API lists only thinking levels; none is the app's own step that turns thinking off, which every model allows.
+ const known = DEFAULT_EFFORTS.filter(level => level === 'none' || levels.includes(level));
+ const extra = levels.filter(level => !DEFAULT_EFFORTS.includes(level));
+ return [...known, ...extra];
 }
 
-async function streamChat({ key, model, effort, messages, tools, signal, onReasoning, onContent }) {
+async function listModels(key, signal) {
+ const body = await (await request('/models', key, { signal })).json();
+ return (body.data || []).filter(model => model?.id).map(model => ({
+  id: model.id,
+  name: model.name || '',
+  context: Number(model.context_window) || 0,
+  efforts: effortsOf(model),
+  defaultEffort: model.effort?.default_level || '',
+  vision: Array.isArray(model.input_modalities) ? model.input_modalities.includes('image') : true,
+ }));
+}
+
+// A text-only model rejects image parts, so pictures in the history turn into a short note instead.
+function textOnly(messages) {
+ return messages.map(message => {
+  if (!Array.isArray(message.content)) return message;
+  const content = message.content.map(part => part.type === 'image_url' ? NO_VISION : part.text || '').filter(Boolean).join('\n\n');
+  return { ...message, content };
+ });
+}
+
+async function streamChat({ key, model, effort, vision = true, messages, tools, signal, onReasoning, onContent }) {
  const response = await request('/chat/completions', key, {
   method: 'POST',
   signal,
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
    model,
-   messages,
+   // Blocks another provider left on a message mean nothing here.
+   messages: (vision ? messages : textOnly(messages)).map(({ native, ...message }) => message),
    ...(tools?.length ? { tools } : {}),
    stream: true,
    stream_options: { include_usage: true },

@@ -1,0 +1,81 @@
+name: Build
+
+# Builds the macOS and Linux apps from a release branch and keeps them as workflow artifacts.
+# Nothing is published: the files go into a release only by hand.
+on:
+  push:
+    branches: ['release-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: mac
+        run: npm ci
+      - name: Build
+        working-directory: mac
+        run: npm run dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Screenshot
+        working-directory: mac
+        continue-on-error: true
+        run: |
+          app=$(find dist -name 'OpenGhost.app' -type d | head -1)
+          open "$app"
+          sleep 15
+          osascript -e 'tell application "OpenGhost" to activate' || true
+          sleep 2
+          screencapture -x "$RUNNER_TEMP/openghost-mac.png"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenGhost-mac
+          path: mac/dist/*.dmg
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-screenshot
+          path: ${{ runner.temp }}/openghost-mac.png
+          if-no-files-found: ignore
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: linux
+        run: npm ci
+      - name: Build
+        working-directory: linux
+        run: npm run dist:linux
+      - name: Screenshot
+        working-directory: linux
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb imagemagick > /dev/null
+          dir=$(find dist -maxdepth 1 -name 'linux-unpacked' -type d | head -1)
+          xvfb-run -a -s '-screen 0 1280x840x24' bash -c "'$dir/openghost' --no-sandbox & sleep 15; import -window root '$RUNNER_TEMP/openghost-linux.png'"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenGhost-linux
+          path: linux/dist/*.tar.gz
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-screenshot
+          path: ${{ runner.temp }}/openghost-linux.png
+          if-no-files-found: ignore

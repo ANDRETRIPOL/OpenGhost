@@ -63,6 +63,7 @@
             <button type="button" class="composer-mode" popovertarget="mode-menu" aria-haspopup="menu" aria-expanded="false" hidden></button>
           </div>
           <div class="composer-actions">
+            <model-button class="composer-model"></model-button>
             <effort-button class="composer-effort"></effort-button>
             <send-button class="composer-send" disabled></send-button>
           </div>
@@ -80,6 +81,8 @@
 
   <div class="mode-menu" id="mode-menu" popover="auto" role="menu" aria-label="Agent mode" data-i18n-attr="aria-label:mode"></div>
 
+  <div class="model-stage" popover="manual" role="dialog" aria-label="Model" data-i18n-attr="aria-label:model"></div>
+
   <div class="note-panel" popover="auto" role="dialog" aria-labelledby="note-title">
     <div class="note-head">
       <span class="note-thumb" aria-hidden="true"></span>
@@ -95,24 +98,20 @@
   <dialog class="settings" closedby="any" aria-labelledby="settings-title" tabindex="-1">
     <nav class="settings-nav" aria-label="Settings sections" data-i18n-attr="aria-label:settings.sections">
       <div class="settings-heading" id="settings-title" data-i18n="settings">Settings</div>
-      <button type="button" class="settings-tab" aria-current="page" data-i18n="settings.provider">Provider</button>
+      <button type="button" class="settings-tab" aria-current="page">
+        <svg class="settings-tab-icon" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M52 36v10M68 36v10"/><path d="M44 46h32v7a15 15 0 0 1-15 15h-2a15 15 0 0 1-15-15z"/><path d="M60 68v8a6 6 0 0 1-6 6h-4"/></svg>
+        <span data-i18n="settings.providers">Providers</span>
+      </button>
     </nav>
-    <section class="settings-page" aria-labelledby="settings-keys-title">
+    <section class="settings-page" aria-labelledby="settings-page-title">
       <header class="settings-page-header">
-        <h2 class="settings-page-title" id="settings-keys-title" data-i18n="settings.keys">API Keys</h2>
+        <h2 class="settings-page-title" id="settings-page-title" data-i18n="settings.providers">Providers</h2>
         <close-button class="settings-close"></close-button>
       </header>
-      <div class="settings-row">
-        <div class="settings-text">
-          <label class="settings-label" for="settings-key" data-i18n="settings.key">DeepSeek API key</label>
-          <p class="settings-hint"><span data-i18n="settings.key.hint">Stored only on this computer. Get a key at</span> <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">platform.deepseek.com</a></p>
-        </div>
-        <div class="settings-control">
-          <input id="settings-key" class="settings-key" type="text" placeholder="sk-…" autocomplete="off" spellcheck="false">
-          <p class="settings-status" role="status"></p>
-        </div>
-      </div>
+      <p class="settings-lead" data-i18n="settings.lead">Connect the services whose models OpenGhost can use. Keys and sign-ins stay on this computer.</p>
+      <div class="settings-providers"></div>
     </section>
+    <div class="scrollbar settings-scrollbar" aria-hidden="true"><div class="scrollbar-thumb"></div></div>
   </dialog>
 
   <div class="splash" aria-hidden="true">
@@ -141,6 +140,7 @@
   <script src="send-button.js"></script>
   <script src="scroll-button.js"></script>
   <script src="deepseek.js"></script>
+  <script src="providers.js"></script>
   <script src="tex.js"></script>
   <script src="highlight.js"></script>
   <script src="markdown.js"></script>
@@ -156,7 +156,9 @@
   <script src="effort-morph.js"></script>
   <script src="effort-slider.js"></script>
   <script src="glyphs.js"></script>
+  <script src="model-button.js"></script>
   <script src="chat-store.js"></script>
+  <script src="chat-lock.js"></script>
   <script src="library.js"></script>
   <script src="agent-tools.js"></script>
   <script src="agent-prompt.js"></script>
@@ -165,9 +167,12 @@
   <script src="chat-list.js"></script>
   <script src="folder-pill.js"></script>
   <script src="mode-picker.js"></script>
+  <script src="model-stage.js"></script>
+  <script src="selection-focus.js"></script>
   <script src="selection-menu.js"></script>
   <script src="mini-chat.js"></script>
   <script src="browser-panel.js"></script>
+  <script src="lock-ui.js"></script>
   <script src="script.js"></script>
   <script src="splash.js"></script>
 </body>

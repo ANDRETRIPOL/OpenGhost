@@ -40,6 +40,7 @@
   --warn-rgb: 255, 180, 96;
   --control-hover-bg: rgb(36, 36, 36);
   --focus-ring: rgba(var(--fg-rgb), 0.35);
+  --selection-rgb: 130, 180, 245;
   --backdrop: rgba(0, 0, 0, 0.5);
 
   --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 55%, rgba(255, 255, 255, 0.05));
@@ -136,6 +137,19 @@ body {
   app-region: drag;
 }
 
+/* macOS shows the name in its own title bar; Linux window managers draw the whole bar themselves. */
+.is-mac .titlebar-name {
+  display: none;
+}
+
+.is-linux.is-desktop {
+  --titlebar-height: 0px;
+}
+
+.is-linux.is-desktop .titlebar {
+  display: none;
+}
+
 .titlebar-name {
   display: flex;
   align-items: center;
@@ -155,19 +169,6 @@ body {
 
 .glyph-ghost-eye {
   fill: var(--app-bg);
-}
-
-.is-linux.is-desktop {
-  --titlebar-height: 0px;
-}
-
-.is-linux.is-desktop .titlebar {
-  display: none;
-}
-
-.is-linux.is-desktop .app {
-  top: var(--chat-gap);
-  height: calc(100% - var(--chat-gap));
 }
 
 .is-desktop .app {
@@ -244,6 +245,74 @@ body {
   margin: 14px calc(-1 * var(--toggle-inset)) 8px;
 }
 
+/* Chats slip under the header and the footer through the same soft fade as the messages in the chat.
+   Each fade follows the scroll: it comes in once there is something past that edge, so the first and last rows stay clear at the ends. */
+.chats::before,
+.chats::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  left: 0;
+  height: 28px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chats::before {
+  top: 0;
+  background: linear-gradient(var(--app-bg), rgba(22, 22, 22, 0) 70%);
+}
+
+.chats::after {
+  bottom: 0;
+  background: linear-gradient(rgba(22, 22, 22, 0), var(--app-bg) 70%);
+}
+
+/* The fades run on the scroll only while there is one. In a list that fits, the timeline would be inactive and the fade
+   animations would sit waiting on it for good, and a list in that state trembled after a hover. */
+.chats:has(> .chats-scrollbar.is-scrollable) {
+  timeline-scope: --chats;
+}
+
+.chats:has(> .chats-scrollbar.is-scrollable) > .chats-scroll {
+  scroll-timeline: --chats block;
+}
+
+.chats:has(> .chats-scrollbar.is-scrollable)::before,
+.chats:has(> .chats-scrollbar.is-scrollable)::after {
+  animation-duration: auto;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-timeline: --chats;
+}
+
+.chats:has(> .chats-scrollbar.is-scrollable)::before {
+  animation-name: chats-edge-in;
+  animation-range: 0 28px;
+}
+
+.chats:has(> .chats-scrollbar.is-scrollable)::after {
+  animation-name: chats-edge-out;
+  animation-range: calc(100% - 28px) 100%;
+}
+
+@keyframes chats-edge-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes chats-edge-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 .chats-scroll {
   position: absolute;
   inset: 0;
@@ -263,7 +332,7 @@ body {
 }
 
 .chats-scrollbar {
-  z-index: 2;
+  z-index: 3;
   right: 0;
 }
 
@@ -459,6 +528,20 @@ body {
   white-space: nowrap;
 }
 
+/* A long title fades out instead of ending in an ellipsis, so its end can glide when the row makes room for the buttons. */
+.chat-title {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  transition: filter 0.42s var(--motion-easing), opacity 0.42s ease;
+}
+
+/* A locked chat's title hides behind a blur; unlocking brings the real one into focus. */
+.chat-row.is-locked .chat-title {
+  filter: blur(3.5px);
+  opacity: 0.5;
+}
+
 .chats-folder-body {
   display: grid;
   grid-template-rows: 1fr;
@@ -520,9 +603,47 @@ body {
   background: rgb(var(--composer-accent-rgb));
 }
 
-.chat-row.is-busy .chat-dot {
+.chat-row.is-busy .chat-dot,
+.chat-row.is-protected .chat-dot {
   opacity: 0;
   transform: scale(0.2);
+}
+
+/* A protected chat wears a small padlock in place of the dot: shut while locked, open while it is on screen. */
+.chat-guard {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(var(--fg-rgb), 0.5);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.2s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s ease;
+}
+
+.chat-guard .glyph {
+  width: 14px;
+  height: 14px;
+  overflow: visible;
+}
+
+.chat-row.is-protected .chat-guard {
+  opacity: 1;
+  transform: none;
+}
+
+.chat-row.is-protected:not(.is-locked) .chat-guard {
+  color: rgba(var(--fg-rgb), 0.85);
+}
+
+/* A reply that came in while the chat was locked lights the padlock up, the way it lights the dot of any other chat. */
+.chat-row.is-protected.is-unread .chat-guard {
+  color: rgb(var(--composer-accent-rgb));
+}
+
+.chat-row.is-busy .chat-guard {
+  opacity: 0;
+  transform: scale(0.5);
 }
 
 .chat-mark ghost-thinking {
@@ -535,6 +656,8 @@ body {
   --ghost-eye: var(--app-bg);
 }
 
+/* On hover the row makes room for its two buttons: the title's end glides back, the time fades and the buttons pop in one after the other.
+   A short wait before it starts keeps a quick sweep down the list calm. */
 .chat-meta {
   position: relative;
   flex: none;
@@ -543,18 +666,21 @@ body {
   justify-content: flex-end;
   min-width: 26px;
   height: 100%;
+  transition: min-width 0.36s var(--motion-easing);
 }
 
 .chat-row:hover .chat-meta,
-.chat-row:focus-within .chat-meta {
-  min-width: 52px;
+.chat-row:focus-within .chat-meta,
+.chat-row.is-confirming .chat-meta {
+  min-width: 78px;
+  transition-delay: 0.05s;
 }
 
 .chat-time {
   color: rgba(var(--fg-rgb), 0.45);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.2s ease, transform 0.3s var(--motion-easing);
 }
 
 .chat-actions {
@@ -562,20 +688,19 @@ body {
   top: 50%;
   right: -4px;
   display: flex;
-  opacity: 0;
   translate: 0 -50%;
   pointer-events: none;
-  transition: opacity 0.15s ease;
 }
 
 .chat-row:hover .chat-time,
 .chat-row:focus-within .chat-time {
   opacity: 0;
+  transform: scale(0.85);
+  transition-delay: 0.05s;
 }
 
 .chat-row:hover .chat-actions,
 .chat-row:focus-within .chat-actions {
-  opacity: 1;
   pointer-events: auto;
 }
 
@@ -591,7 +716,37 @@ body {
   background: none;
   color: rgba(var(--fg-rgb), 0.5);
   cursor: pointer;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.18s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease, background-color 0.2s ease;
+}
+
+.chat-row:hover .chat-action,
+.chat-row:focus-within .chat-action,
+.chat-row.is-confirming .chat-action {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0.05s, 0.05s, 0s, 0s;
+}
+
+.chat-row:hover .chat-action + .chat-action,
+.chat-row:focus-within .chat-action + .chat-action,
+.chat-row.is-confirming .chat-action + .chat-action {
+  transition-delay: 0.08s, 0.08s, 0s, 0s;
+}
+
+.chat-row:hover .chat-action + .chat-action + .chat-action,
+.chat-row:focus-within .chat-action + .chat-action + .chat-action,
+.chat-row.is-confirming .chat-action + .chat-action + .chat-action {
+  transition-delay: 0.11s, 0.11s, 0s, 0s;
+}
+
+/* Locking waits while the chat is replying. */
+.chat-row:hover .chat-action:disabled,
+.chat-row:focus-within .chat-action:disabled {
+  opacity: 0.3;
+  background: none;
+  cursor: default;
 }
 
 .chat-action:hover,
@@ -619,12 +774,29 @@ body {
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* The padlock's shackle swings open about its left leg and snaps shut with a small bounce. */
+.lock-shackle {
+  transform-origin: 49px 55px;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chat-row.is-protected:not(.is-locked) .chat-guard .lock-shackle,
+.chat-action.is-lock:not(.is-on) .lock-shackle,
+.lock-card-glyph.is-open .lock-shackle,
+.lock-screen.is-open .lock-shackle {
+  transform: rotate(-32deg);
+}
+
+/* Reaching for the lock of an open chat already shows it shutting. */
+.chat-action.is-lock:not(.is-on):not(:disabled):hover .lock-shackle {
+  transform: none;
+}
+
 .chat-row.is-confirming .chat-time {
   opacity: 0;
 }
 
 .chat-row.is-confirming .chat-actions {
-  opacity: 1;
   pointer-events: auto;
 }
 
@@ -1401,10 +1573,44 @@ ghost-thinking {
   }
 }
 
+@property --selection-alpha {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.3;
+}
+
+/* Selected text keeps its own color: only a soft blue wash goes behind it while the mouse is still selecting. */
+::selection {
+  background: rgba(var(--selection-rgb), var(--selection-alpha));
+}
+
+/* Once the rest of the feed is blurred, the wash behind the picked words fades away: their sharpness alone marks them. */
+.select-held {
+  --selection-alpha: 0;
+  transition: --selection-alpha 0.45s ease;
+}
+
+/* While a piece of a reply is selected, the rest of the feed steps back behind a soft blur; the selection itself is cut out of the veil.
+   Brightness dims the text and the slightly lowered contrast lifts the chat background back to its own color, so the cut-outs leave no visible boxes. */
+.select-focus {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  left: 0;
+  -webkit-backdrop-filter: blur(5px) brightness(0.78) contrast(0.949);
+  backdrop-filter: blur(5px) brightness(0.78) contrast(0.949);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Once it has faded out the menu leaves the layout altogether: left where the last selection was, deep in a long reply,
+   it kept the feed scrollable far below its end, so a short chat opened onto empty space and an empty one could scroll. */
 .select-menu {
-  position: fixed;
-  inset: 0 auto auto 0;
-  display: flex;
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  display: none;
   align-items: center;
   gap: 2px;
   margin: 0;
@@ -1417,21 +1623,28 @@ ghost-thinking {
   color: var(--fg-primary);
   opacity: 0;
   scale: 0.94;
+  pointer-events: none;
+  user-select: none;
   transform-origin: 24px 100%;
   transition:
     opacity 0.16s ease,
     scale 0.3s var(--motion-easing),
-    overlay 0.3s allow-discrete,
     display 0.3s allow-discrete;
 }
 
-.select-menu:popover-open {
+.select-menu.is-shown {
+  display: flex;
   opacity: 1;
   scale: 1;
+  pointer-events: auto;
+  transition:
+    opacity 0.16s ease,
+    scale 0.3s var(--motion-easing),
+    display 0s allow-discrete;
 }
 
 @starting-style {
-  .select-menu:popover-open {
+  .select-menu.is-shown {
     opacity: 0;
     scale: 0.94;
   }
@@ -4726,7 +4939,7 @@ h6.md-h {
   transform: translateY(10px) scale(0.6);
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.4s var(--motion-easing), visibility 0s linear 0.4s;
+  transition: opacity 0.2s ease, transform 0.4s var(--motion-easing), visibility 0s linear 0.4s, filter 0.45s var(--motion-easing);
 }
 
 .thread-bottom.is-shown {
@@ -4734,10 +4947,307 @@ h6.md-h {
   transform: none;
   visibility: visible;
   pointer-events: auto;
-  transition: opacity 0.25s ease, transform 0.5s cubic-bezier(0.34, 1.5, 0.64, 1), visibility 0s;
+  transition: opacity 0.25s ease, transform 0.5s cubic-bezier(0.34, 1.5, 0.64, 1), visibility 0s, filter 0.45s var(--motion-easing);
+}
+
+.is-veiled .thread-bottom {
+  filter: blur(5px) brightness(0.78) contrast(0.949);
 }
 .main.is-empty::after {
   flex-grow: 1;
+}
+
+/* Over a locked chat: the chat's own background, a glowing padlock, a line of big type and a single field. */
+.lock-screen {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border-radius: inherit;
+  background: var(--chat-bg);
+}
+
+.lock-screen[hidden] {
+  display: none;
+}
+
+.lock-screen-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(360px, 100%);
+  margin-bottom: 6vh;
+  text-align: center;
+}
+
+.lock-screen-glyph {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 18px;
+  color: rgb(var(--composer-accent-rgb));
+  filter: drop-shadow(0 0 22px rgba(255, 255, 255, 0.16));
+}
+
+.lock-screen-glyph .glyph {
+  width: 56px;
+  height: 56px;
+  overflow: visible;
+}
+
+/* While the password is being checked the padlock gently rocks. */
+.lock-screen.is-checking .lock-screen-glyph .glyph {
+  animation: lock-think 0.9s ease-in-out infinite;
+}
+
+@keyframes lock-think {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+
+  25% {
+    transform: rotate(-6deg);
+  }
+
+  75% {
+    transform: rotate(6deg);
+  }
+}
+
+.lock-screen-title {
+  margin: 0;
+  color: rgba(var(--fg-rgb), 0.95);
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.lock-word {
+  display: inline-block;
+}
+
+.lock-screen-text {
+  margin: 8px 0 0;
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.lock-screen-form {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  margin-top: 26px;
+}
+
+.lock-screen-input {
+  width: 100%;
+  height: 46px;
+  box-sizing: border-box;
+  padding: 0 54px 0 20px;
+  border: 0;
+  border-radius: 23px;
+  outline: none;
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 14px 40px rgba(0, 0, 0, 0.35);
+  color: var(--fg-primary);
+  caret-color: var(--fg-primary);
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  transition: box-shadow 0.2s ease;
+}
+
+.lock-screen-input::placeholder {
+  color: rgb(var(--composer-fg-rgb));
+  letter-spacing: 0;
+}
+
+.lock-screen-input:focus {
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.2), 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+
+.lock-screen-go {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: rgb(var(--composer-accent-rgb));
+  color: rgb(var(--composer-on-accent-rgb));
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lock-screen-go:not(:disabled):active {
+  transform: scale(0.9);
+}
+
+.lock-screen-go:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.lock-screen-go:focus-visible {
+  box-shadow: 0 0 0 2px var(--composer-bg), 0 0 0 4px var(--focus-ring);
+}
+
+.lock-screen-go .glyph {
+  width: 16px;
+  height: 16px;
+}
+
+.lock-screen-error {
+  min-height: 18px;
+  margin: 12px 0 0;
+  color: rgb(var(--danger-rgb));
+  font-size: 13px;
+  line-height: 18px;
+  opacity: 0;
+  filter: blur(3px);
+  transition: opacity 0.25s ease, filter 0.3s ease;
+}
+
+.lock-screen-error.is-shown {
+  opacity: 1;
+  filter: none;
+}
+
+/* The card beside a chat in the list, cut from the same cloth as the selection menu. */
+.lock-card {
+  position: fixed;
+  inset: auto;
+  width: 300px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 18px;
+  background: rgb(33, 33, 33);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.09), 0 18px 50px rgba(0, 0, 0, 0.5);
+  color: var(--fg-primary);
+}
+
+.lock-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.lock-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lock-card-glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: rgb(var(--composer-accent-rgb));
+}
+
+.lock-card-glyph .glyph {
+  width: 20px;
+  height: 20px;
+  overflow: visible;
+}
+
+.lock-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lock-card-text {
+  margin: 0 0 2px;
+  color: var(--fg-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.lock-card-field {
+  width: 100%;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 19px;
+  outline: none;
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px var(--composer-border);
+  color: var(--fg-primary);
+  caret-color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  transition: box-shadow 0.2s ease;
+}
+
+.lock-card-field::placeholder {
+  color: rgb(var(--composer-fg-rgb));
+  letter-spacing: 0;
+}
+
+.lock-card-field:focus {
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.22);
+}
+
+.lock-card-note {
+  margin: 0;
+  color: rgba(var(--fg-rgb), 0.45);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.lock-card-error {
+  display: none;
+  margin: 0;
+  color: rgb(var(--danger-rgb));
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+.lock-card-error.is-shown {
+  display: block;
+}
+
+.lock-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.lock-card .settings-button {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  transition: background-color 0.15s ease, color 0.2s ease, opacity 0.2s ease, transform 0.2s var(--motion-easing);
+}
+
+.lock-card .settings-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lock-card .settings-button.is-confirming {
+  background: rgba(var(--danger-rgb), 0.16);
+  color: rgb(var(--danger-rgb));
 }
 
 .sidebar-toggle {
@@ -4763,7 +5273,19 @@ h6.md-h {
   font-size: var(--composer-font-size);
   line-height: var(--composer-line-height);
   cursor: text;
-  transition: margin-top var(--motion-duration) var(--motion-easing), margin-bottom var(--motion-duration) var(--motion-easing);
+  transition:
+    margin-top var(--motion-duration) var(--motion-easing),
+    margin-bottom var(--motion-duration) var(--motion-easing),
+    filter 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* While a piece of a reply is selected the composer steps back with the feed, with the same blur and dimming as the veil. */
+.is-veiled > .composer {
+  filter: blur(5px) brightness(0.78) contrast(0.949);
+  transition:
+    margin-top var(--motion-duration) var(--motion-easing),
+    margin-bottom var(--motion-duration) var(--motion-easing),
+    filter 0.52s var(--motion-easing);
 }
 
 .main.is-empty .composer {
@@ -4845,10 +5367,44 @@ h6.md-h {
 }
 
 .composer-folder-label {
+  position: relative;
   display: block;
   max-width: 280px;
+  line-height: 1.5;
+}
+
+.composer-folder-text {
+  display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: inherit;
+}
+
+.composer-folder-ghosts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.composer-folder-char {
+  position: relative;
+  animation: composer-folder-char 220ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+@keyframes composer-folder-char {
+  from {
+    opacity: 0;
+    top: 0.35em;
+    filter: blur(2px);
+  }
+}
+
+.composer-folder-ghost {
+  position: absolute;
+  line-height: 1.5;
+  white-space: pre;
+  animation: composer-ghost-out 240ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
 }
 
 @property --welcome-wipe {
@@ -5053,7 +5609,7 @@ h6.md-h {
 }
 
 .composer-input::selection {
-  background: rgba(var(--fg-rgb), 0.2);
+  background: rgba(var(--selection-rgb), 0.3);
   color: transparent;
 }
 
@@ -5360,6 +5916,280 @@ h6.md-h {
   anchor-name: --effort;
 }
 
+.composer-model {
+  --icon-button-size: var(--composer-button-size);
+  --icon-size: var(--composer-icon-size);
+  --icon-rgb: var(--composer-fg-rgb);
+  --icon-hover-rgb: var(--composer-accent-rgb);
+  --icon-opacity: 1;
+  --icon-hover-opacity: 1;
+}
+
+/* Locked while OpenGhost works: the controls fade back instead of vanishing. */
+.composer-effort,
+.composer-model {
+  --icon-disabled-opacity: 0.3;
+}
+
+.composer-model[expanded] {
+  --icon-rgb: var(--composer-accent-rgb);
+}
+
+.model-stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: rgb(var(--composer-accent-rgb));
+  user-select: none;
+}
+
+.model-stage::backdrop {
+  background: none;
+}
+
+.model-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.36);
+  -webkit-backdrop-filter: blur(24px) saturate(1.1) brightness(0.5);
+  backdrop-filter: blur(24px) saturate(1.1) brightness(0.5);
+}
+
+@property --fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* With many models the list scrolls; whatever runs past its top or bottom fades into the veil. */
+.model-list {
+  --fade-top: 0px;
+  --fade-bottom: 0px;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  box-sizing: border-box;
+  padding: 12px 68px 10px 96px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+  transition: --fade-top 0.35s ease, --fade-bottom 0.35s ease;
+}
+
+.model-list::-webkit-scrollbar {
+  display: none;
+}
+
+.model-list.can-up {
+  --fade-top: 72px;
+}
+
+.model-list.can-down {
+  --fade-bottom: 72px;
+}
+
+.model-group {
+  padding: 18px 48px 2px 0;
+  color: rgba(var(--fg-rgb), 0.4);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  letter-spacing: 0.14em;
+  text-align: right;
+  text-transform: uppercase;
+  transform-origin: 100% 50%;
+  user-select: none;
+}
+
+.model-slot {
+  flex: none;
+  display: grid;
+  grid-template-rows: 1fr;
+  justify-items: end;
+  transition: grid-template-rows 0.55s var(--motion-easing), opacity 0.3s ease, filter 0.4s ease;
+}
+
+.model-slot.is-gone,
+.model-slot.is-folded {
+  grid-template-rows: 0fr;
+}
+
+.model-slot.is-gone {
+  opacity: 0;
+  filter: blur(8px);
+}
+
+/* The glow and the letter ripple reach past the rows, only the folding clips them. */
+.model-slot-inner {
+  min-height: 0;
+  overflow: clip;
+  overflow-clip-margin: 72px;
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.26;
+  filter: blur(1.5px);
+  transform: scale(0.95);
+  transform-origin: 100% 50%;
+  transition: opacity 0.35s ease, filter 0.45s var(--motion-easing), transform 0.6s var(--motion-easing);
+}
+
+/* At rest the focused row has no filter at all: a zero blur still leaves a faint line along the edge of its glow. */
+.model-row.is-focus {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.model-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.model-name {
+  font-size: clamp(28px, 3.3vw, 44px);
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  white-space: pre;
+  text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  transition: text-shadow 0.5s ease;
+}
+
+.model-row.is-focus .model-name {
+  text-shadow: 0 0 34px rgba(255, 255, 255, 0.28);
+}
+
+.model-letter {
+  display: inline-block;
+}
+
+.model-meta {
+  color: rgba(var(--fg-rgb), 0.55);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.model-mark {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+}
+
+.model-mark svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+  overflow: visible;
+}
+
+.model-mark.is-away svg {
+  visibility: hidden;
+}
+
+.model-flyer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: rgb(var(--composer-accent-rgb));
+  pointer-events: none;
+  will-change: transform;
+}
+
+.model-flyer svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.model-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: max-content;
+  max-width: 420px;
+  padding: 22px 48px 4px 0;
+  text-align: right;
+  pointer-events: auto;
+}
+
+.model-confirm p {
+  margin: 0;
+}
+
+.model-confirm-title {
+  color: rgba(var(--fg-rgb), 0.95);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.model-word {
+  display: inline-block;
+}
+
+.model-confirm-text {
+  color: rgba(var(--fg-rgb), 0.6);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.model-confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.model-confirm .approval-button {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: 17px;
+}
+
+.model-confirm .approval-button:focus-visible {
+  box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.6), 0 0 0 4px var(--focus-ring);
+}
+
 .composer-effort[expanded] {
   --icon-rgb: var(--composer-accent-rgb);
 }
@@ -5495,9 +6325,9 @@ h6.md-h {
 .settings {
   position: fixed;
   inset: 0;
-  width: min(760px, 100% - 48px);
+  width: min(780px, 100% - 48px);
   max-width: none;
-  height: min(540px, 100% - 48px);
+  height: min(640px, 100% - 48px);
   max-height: none;
   margin: auto;
   padding: 0;
@@ -5564,20 +6394,33 @@ h6.md-h {
   display: flex;
   align-items: center;
   height: var(--icon-button-size);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   padding: 0 12px;
-  color: var(--fg-secondary);
-  font-size: var(--small-font-size);
+  color: var(--fg-primary);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .settings-tab {
-  height: var(--icon-button-size);
-  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 12px 0 10px;
   background: transparent;
-  border-radius: calc(var(--icon-button-size) / 2);
+  border-radius: 17px;
   color: var(--fg-secondary);
+  font-weight: 500;
   text-align: left;
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.settings-tab-icon {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  overflow: visible;
 }
 
 .settings-tab:hover {
@@ -5585,19 +6428,151 @@ h6.md-h {
 }
 
 .settings-tab[aria-current="page"] {
-  background: rgba(var(--fg-rgb), 0.06);
+  background: rgba(var(--fg-rgb), 0.07);
   color: var(--fg-primary);
 }
 
+.settings-lead {
+  margin: 0 0 4px;
+  color: var(--fg-secondary);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.provider {
+  padding-top: 20px;
+}
+
+.provider + .provider {
+  margin-top: 6px;
+  border-top: 1px solid rgba(var(--fg-rgb), 0.07);
+}
+
+.provider-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.provider-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.provider-models {
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+}
+
+.provider-state {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(var(--fg-rgb), 0.06);
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.provider-state.is-on {
+  background: rgba(var(--success-rgb), 0.12);
+  color: rgb(var(--success-rgb));
+}
+
+.provider .settings-row {
+  padding: 14px 0;
+}
+
+.settings-account-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.settings-account-who {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--fg-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-account[data-state="idle"] :is([data-action="cancel"], [data-action="logout"], .settings-account-who),
+.settings-account[data-state="waiting"] :is([data-action="login"], [data-action="logout"]),
+.settings-account[data-state="connected"] :is([data-action="login"], [data-action="cancel"]) {
+  display: none;
+}
+
+/* While the browser sign-in is open, the same slow band that marks a live compaction runs across the words. */
+.settings-account[data-state="waiting"] .settings-account-who {
+  background: linear-gradient(90deg, rgba(var(--fg-rgb), 0.58) 0 34%, rgba(var(--fg-rgb), 0.14) 50%, rgba(var(--fg-rgb), 0.58) 66% 100%) 100% 0 / 250% 100% no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: compact-wave 1.9s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.settings-button {
+  height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 17px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.2s var(--motion-easing);
+}
+
+.settings-button:hover {
+  background: rgba(var(--fg-rgb), 0.11);
+}
+
+.settings-button.is-primary {
+  background: rgb(var(--composer-accent-rgb));
+  color: rgb(var(--composer-on-accent-rgb));
+}
+
+.settings-button:active {
+  transform: scale(0.96);
+}
+
+.settings-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--chat-bg), 0 0 0 4px var(--focus-ring);
+}
+
+/* The page scrolls under the app's own thin scrollbar, the one the chat has. */
 .settings-page {
   flex: 1;
   min-width: 0;
+  scrollbar-width: none;
   margin: var(--chat-gap) var(--chat-gap) var(--chat-gap) 0;
   padding: var(--toggle-inset) 24px 24px;
   overflow-y: auto;
   background: var(--chat-bg);
   border-radius: var(--chat-radius);
   box-shadow: var(--contour);
+}
+
+.settings-page::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-scrollbar {
+  z-index: 2;
+  top: calc(var(--chat-gap) + 12px);
+  right: calc(var(--chat-gap) + 2px);
+  bottom: calc(var(--chat-gap) + 12px);
 }
 
 .settings-page-header {
@@ -5691,10 +6666,6 @@ h6.md-h {
   color: var(--fg-secondary);
   font-size: 13px;
   line-height: 18px;
-}
-
-.settings-status[data-tone="ok"] {
-  color: rgb(var(--success-rgb));
 }
 
 .settings-status[data-tone="error"] {
@@ -6739,7 +7710,7 @@ h6.md-h {
 }
 
 .browser-url::selection {
-  background: rgba(var(--fg-rgb), 0.22);
+  background: rgba(var(--selection-rgb), 0.3);
   color: var(--fg-primary);
 }
 
@@ -7059,23 +8030,10 @@ h6.md-h {
 }
 
 .browser-cursor-arrow {
-  width: 18px;
-  height: 20px;
-  margin: -2px 0 0 -2px;
-  color: rgb(var(--composer-accent-rgb));
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
-}
-
-.browser-cursor span {
-  margin: 14px 0 0 -2px;
-  padding: 3px 8px;
-  border-radius: 8px;
-  background: rgb(var(--composer-accent-rgb));
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  color: rgb(var(--composer-on-accent-rgb));
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 1.2;
+  width: 52px;
+  height: 52px;
+  margin: -8px 0 0 -16px;
+  pointer-events: none;
 }
 
 .browser-ripple {
@@ -7153,7 +8111,17 @@ h6.md-h {
   .mode-glide,
   .composer-mode-icons .mode-icon,
   .mode-option-check,
+  .model-slot,
+  .model-row,
+  .model-name,
   .chats-folder-action,
+  .chat-meta,
+  .chat-time,
+  .chat-action,
+  .chat-title,
+  .chat-guard,
+  .lock-shackle,
+  .lock-screen-error,
   .trash-lid,
   .select-menu,
   .mini,
@@ -7168,6 +8136,7 @@ h6.md-h {
   }
 
   .attachment.is-entering,
+  .lock-screen.is-checking .lock-screen-glyph .glyph,
   .message-tools,
   .approval,
   .thread-compact,

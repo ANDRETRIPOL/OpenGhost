@@ -25,6 +25,14 @@ class EffortButton extends IconButton {
  get expanded(){return this.hasAttribute('expanded')}
  defaultLabel(){return I18n.t('effort')}
  activate(e){this.dispatchEvent(new CustomEvent('effort-toggle',{bubbles:true,composed:true,detail:{keyboard:e.detail===0}}))}
+ setCount(count){
+  if(count===this.segments.length||count<1)return;
+  const gap=SEGMENT.gap,width=SEGMENT.width,height=SEGMENT.height,view=count*width+(count-1)*gap;
+  this.icon.setAttribute('viewBox',`0 0 ${view} 60`);
+  this.icon.style.width=`calc(var(--icon-size,16px)*${view/60})`;
+  this.icon.querySelector('.glyph').innerHTML=Array.from({length:count},(_,i)=>`<rect class="segment" x="${i*(width+gap)}" y="${30-height/2}" width="${width}" height="${height}" rx="${height/2}"/>`).join('');
+  this.segments=[...this.icon.querySelectorAll('.segment')];
+ }
  setLevel(level,instant=false){
   this.levelGoal=level;
   if(instant)this.s.level=[level,0];

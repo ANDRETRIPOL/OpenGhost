@@ -454,6 +454,10 @@ async function mouse(guest, x, y, count = 1) {
  }
 }
 
+function releaseKeyboard(guest, keep) {
+ if (!keep && guest && !guest.isDestroyed() && guest.isFocused()) guest.blur();
+}
+
 function keyOf(combo) {
  const parts = String(combo || '').split('+').map(part => part.trim()).filter(Boolean);
  if (!parts.length) throw plain('key is empty');
@@ -530,6 +534,7 @@ async function act(found, name, args, signal) {
   case 'browser_snapshot':
    return state(guest, { full: !!args.full });
   case 'browser_click': {
+   const keep = guest.isFocused();
    let x = Number(args.x), y = Number(args.y), note = '';
    if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
     const spot = await world(guest, `__og.point(${Number(args.ref)})`);
@@ -541,10 +546,12 @@ async function act(found, name, args, signal) {
    check();
    await pointer(found, x, y);
    await mouse(guest, x, y, args.double ? 2 : 1);
+   releaseKeyboard(guest, keep);
    await settle(guest);
    return state(guest, { note });
   }
   case 'browser_type': {
+   const keep = guest.isFocused();
    const text = String(args.text ?? '');
    if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
     const spot = await world(guest, `__og.point(${Number(args.ref)})`);
@@ -559,6 +566,7 @@ async function act(found, name, args, signal) {
    }
    if (text) await guest.debugger.sendCommand('Input.insertText', { text });
    if (args.submit) { await sleep(60); await press(guest, 'Enter'); }
+   releaseKeyboard(guest, keep);
    await settle(guest);
    return state(guest);
   }
@@ -568,8 +576,10 @@ async function act(found, name, args, signal) {
    return state(guest, { note: `Chose "${chosen}".` });
   }
   case 'browser_press': {
+   const keep = guest.isFocused();
    const count = Math.min(20, Math.max(1, Math.round(Number(args.times) || 1)));
    for (let k = 0; k < count; k++) { check(); await press(guest, args.key); }
+   releaseKeyboard(guest, keep);
    await settle(guest);
    return state(guest);
   }

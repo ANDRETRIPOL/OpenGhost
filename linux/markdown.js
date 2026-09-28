@@ -579,10 +579,29 @@ function sheetLine(raw) {
  const quot = text.match(QUOTIENT);
  if (quot) return { kind: 'pair', label: '', value: `${quot[1].trim()} / ${quot[2]} = ${quot[3]}`, note: (quot[4] || '').trim(), total: true };
  const m = text.match(SHEET_LABEL);
- if (!m || !/\p{L}/u.test(m[1])) return { kind: 'text', text };
- const value = m[2], v = sheetMath(value);
- if (v && !v.math.includes('=')) return { kind: 'math', line: ' '.repeat(line.length - value.length) + value, label: m[1] };
- return { kind: 'pair', label: m[1], value: v ? v.math.trim() : value, note: v ? v.note : '' };
+ if (m && /\p{L}/u.test(m[1])) {
+  const value = m[2], v = sheetMath(value);
+  if (v && !v.math.includes('=')) return { kind: 'math', line: ' '.repeat(line.length - value.length) + value, label: m[1] };
+  return { kind: 'pair', label: m[1], value: v ? v.math.trim() : value, note: v ? v.note : '' };
+ }
+ const qty = sheetQty(text);
+ if (qty) return qty;
+ return { kind: 'text', text };
+}
+
+function sheetQty(text) {
+ const arrow = text.match(/^(.*?)\s+(?:←|<-)\s+(\S.*)$/);
+ const main = (arrow ? arrow[1] : text).trim();
+ const note = arrow ? arrow[2].trim() : '';
+ const number = '[$€£¥₽]?\\d+(?:[ \\u00a0\\u202f]\\d{3})*(?:[.,]\\d+)?%?[$€£¥₽]?';
+ const wide = main.match(new RegExp(`^(\\p{L}[\\p{L} .'’-]*)\\s{2,}(${number})(?:[ \\t]+(\\S{1,12}))?$`, 'u'));
+ const found = wide || main.match(new RegExp(`^(\\p{L}[\\p{L} .'’-]*)\\s(${number})[ \\t]+(\\S{1,12})$`, 'u'));
+ if (!found) return null;
+ const label = found[1].trim();
+ const unit = found[3] || '';
+ const unitOk = !unit || /^[%‰$€£¥₽]$/u.test(unit) || /^[\p{L}]{1,8}\.?$/u.test(unit);
+ if (!label || !unitOk) return null;
+ return { kind: 'pair', label, value: unit ? `${found[2]} ${unit}` : found[2], note, total: SHEET_TOTAL.test(label), qty: true, unit: !!unit };
 }
 
 function sheetModel(body, done) {
@@ -620,13 +639,15 @@ function sheetModel(body, done) {
   const text = l.kind === 'text' ? l.text : `${l.label} ${l.value}`;
   if (text.length > SHEET.width || SHEET_CODE.test(text)) return null;
   if (l.kind === 'text') items.push({ type: 'text', text: l.text, title: gap });
-  else items.push({ type: 'pair', label: l.label, value: l.value, note: l.note, total: l.total || SHEET_TOTAL.test(l.label) });
+  else items.push({ type: 'pair', label: l.label, value: l.value, note: l.note, total: l.total || SHEET_TOTAL.test(l.label), qty: l.qty, unit: l.unit });
  }
  flush(done);
  while (items.length && (last().type === 'gap' || last().type === 'divider')) items.pop();
  const calcs = items.filter(item => item.type === 'calc').length;
  const exprs = items.filter(item => item.type === 'pair' && SHEET_EXPR.test(item.value)).length;
- if (!calcs && exprs < (done ? 2 : 1)) return null;
+ const qtys = items.filter(item => item.type === 'pair' && item.qty);
+ const measured = qtys.some(item => item.unit || item.total) || items.some(item => item.type === 'divider');
+ if (!calcs && exprs < (done ? 2 : 1) && !(qtys.length >= (done ? 2 : 1) && measured)) return null;
  return { items, labels: items.some(item => item.label) };
 }
 

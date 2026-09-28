@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('openghost', {
  desktop: true,
+ platform: process.platform,
  pickFolder: () => ipcRenderer.invoke('folder:pick'),
  revealFolder: folder => ipcRenderer.invoke('folder:reveal', folder),
  setTitleBar: color => ipcRenderer.send('window:titlebar', color),
@@ -20,5 +21,17 @@ contextBridge.exposeInMainWorld('openghost', {
  browser: {
   onEvent: callback => ipcRenderer.on('browser:event', (event, data) => callback(data)),
   shown: value => ipcRenderer.send('browser:shown', value),
+ },
+ llm: {
+  start: (id, request) => ipcRenderer.send('llm:start', id, request),
+  abort: id => ipcRenderer.send('llm:abort', id),
+  onEvent: callback => ipcRenderer.on('llm:event', (event, data) => callback(data)),
+  models: (provider, key) => ipcRenderer.invoke('llm:models', provider, key),
+ },
+ auth: {
+  login: () => ipcRenderer.invoke('auth:login'),
+  cancel: () => ipcRenderer.invoke('auth:cancel'),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+  status: () => ipcRenderer.invoke('auth:status'),
  },
 });

@@ -56,7 +56,7 @@ class EffortMorph {
 
  measure(level) {
   const p = this.panel.getBoundingClientRect(), b = this.button.getBoundingClientRect(), t = this.track.getBoundingClientRect();
-  const stops = Array.from({ length: this.levels }, (_, i) => t.left - p.left + t.width * i / (this.levels - 1));
+  const stops = Array.from({ length: this.levels }, (_, i) => t.left - p.left + t.width * i / Math.max(1, this.levels - 1));
   const lit = rgba(getComputedStyle(this.fill).backgroundColor), dim = rgba(getComputedStyle(this.track, '::before').backgroundColor);
   const top = t.top - p.top + t.height / 2, last = this.levels - 1;
   const parts = stops.map((stop, i) => {
@@ -122,6 +122,7 @@ class EffortMorph {
   this.layer.style.display = reveal < 1 ? '' : 'none';
   this.segments.forEach((seg, i) => {
    const from = plan.from[i], part = plan.parts[i];
+   if (!from || !part) return;
    const left = lerp(from.left, part.left, g), right = lerp(from.right, part.right, g), height = lerp(from.height, TRACK.height, g);
    const color = from.color.map((v, k) => lerp(v, part.color[k], g));
    Object.assign(seg.style, {
@@ -135,6 +136,14 @@ class EffortMorph {
    this.landed = true;
    this.onLanded();
   }
+ }
+
+ setLevels(levels) {
+  if (levels === this.levels || levels < 1) return;
+  this.levels = levels;
+  this.layer.replaceChildren();
+  this.segments = Array.from({ length: levels }, () => this.layer.appendChild(document.createElement('span')));
+  this.plan = null;
  }
 }
 
