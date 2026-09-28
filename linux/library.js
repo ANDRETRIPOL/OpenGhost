@@ -7,7 +7,8 @@ const TITLE_MAX = 60;
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const baseName = path => path.split(/[\\/]/).filter(Boolean).pop() || path;
-const samePath = (a, b) => a.toLowerCase() === b.toLowerCase();
+// Linux paths are case-sensitive: /work/Foo and /work/foo are different folders.
+const samePath = (a, b) => a === b;
 
 function titleFrom(text, attachments) {
  const lines = text.split('\n').map(part => part.trim()).filter(Boolean);

@@ -13,7 +13,8 @@ const CLOCK = 30000;
 const MINUTE = 60000, HOUR = 60 * MINUTE, DAY = 24 * HOUR, WEEK = 7 * DAY;
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const key = path => path.toLowerCase();
+// Linux paths are case-sensitive: /work/Foo and /work/foo are different folders.
+const key = path => path;
 // A title blurs away before its stand-in takes its place.
 const VEIL_TIME = 420;
 

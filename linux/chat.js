@@ -83,7 +83,8 @@ const FORMAT_GUIDE = [
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const attr = text => text.replace(/[&"<\n]/g, c => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '\n': ' ' })[c]);
-const samePath = (a, b) => a.toLowerCase() === b.toLowerCase();
+// Linux paths are case-sensitive: /work/Foo and /work/foo are different folders.
+const samePath = (a, b) => a === b;
 
 function fileBlock(item, payload) {
  let head = `<file name="${attr(item.name)}"`;
