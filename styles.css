@@ -6439,6 +6439,16 @@ h6.md-h {
   line-height: 20px;
 }
 
+.settings-warning {
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(var(--warn-rgb), 0.12);
+  color: rgb(var(--warn-rgb));
+  font-size: 13px;
+  line-height: 18px;
+}
+
 .provider {
   padding-top: 20px;
 }

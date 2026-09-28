@@ -35,7 +35,7 @@ function keyRow(provider) {
     <p class="settings-hint"><span>${escapeHtml(I18n.t(`settings.${provider}.hint`))}</span> <a href="${href}" target="_blank" rel="noopener noreferrer">${host}</a>.${note}</p>
    </div>
    <div class="settings-control">
-    <input id="settings-key-${provider}" class="settings-key" data-provider="${provider}" type="text" placeholder="${provider === 'anthropic' ? 'sk-ant-…' : 'sk-…'}" autocomplete="off" spellcheck="false">
+    <input id="settings-key-${provider}" class="settings-key" data-provider="${provider}" type="password" placeholder="${provider === 'anthropic' ? 'sk-ant-…' : 'sk-…'}" autocomplete="new-password" spellcheck="false">
     <p class="settings-status" data-provider="${provider}" role="status"></p>
    </div>
   </div>`;
@@ -76,7 +76,12 @@ class Settings {
  constructor(dialog) {
   this.dialog = dialog;
   this.list = dialog.querySelector('.settings-providers');
-  this.keys = Object.fromEntries(Object.entries(KEYS).map(([provider, key]) => [provider, localStorage.getItem(key) || '']));
+  // Secrets no longer live in localStorage. This starts empty and fills async
+  // from the OS keychain (desktop/keys.js via preload). Legacy plaintext
+  // values are migrated once, then wiped. Without Electron (plain browser)
+  // we fall back to localStorage so the UI still works.
+  this.keys = { openai: '', anthropic: '', deepseek: '' };
+  this.keyEncryption = 'unknown';
   this.account = { connected: false };
   this.catalog = this.readCatalog();
   this.models = [];
@@ -91,11 +96,76 @@ class Settings {
   this.checks = {};
   this.checked = new Set();
   // Keys saved in an earlier session count as working until a check says otherwise.
-  this.accepted = new Set(Object.keys(KEYS).filter(provider => this.keys[provider]));
+  this.accepted = new Set();
   this.build();
   this.collect();
   dialog.addEventListener('dismiss', () => dialog.close());
-  this.refreshAll();
+  this.ready = this.loadKeys();
+ }
+
+ static hasSecureStore() {
+  return !!window.openghost?.keys;
+ }
+
+ // One-time migration: plaintext localStorage -> OS keychain, then wipe.
+ // Returns the key map to keep in memory. Never writes secrets to localStorage
+ // when the secure store exists.
+ async loadKeys() {
+  if (!Settings.hasSecureStore()) {
+   this.keys = Object.fromEntries(Object.entries(KEYS).map(([provider, key]) => [provider, localStorage.getItem(key) || '']));
+   this.keyEncryption = 'legacy';
+   this.accepted = new Set(Object.keys(KEYS).filter(provider => this.keys[provider]));
+   this.syncKeyInputs();
+   this.changed();
+   await this.refreshAll();
+   return this.keys;
+  }
+  let stored = {};
+  try { stored = await window.openghost.keys.read() || {}; } catch { stored = {}; }
+  let status = null;
+  try { status = await window.openghost.keys.status(); } catch { status = null; }
+  this.keyEncryption = status && status.encrypted === false ? 'file' : 'os';
+  const migrated = {};
+  for (const [provider, storageKey] of Object.entries(KEYS)) {
+   const legacy = localStorage.getItem(storageKey) || '';
+   let wiped = !!stored[provider];
+   if (legacy && !stored[provider]) {
+    migrated[provider] = legacy;
+    // Wipe the plaintext copy only once the keychain write landed; a failed
+    // write keeps it in localStorage and migration retries on next launch.
+    try { await window.openghost.keys.write(provider, legacy); wiped = true; } catch {}
+   }
+   if (wiped) { try { localStorage.removeItem(storageKey); } catch {} }
+  }
+  this.keys = {
+   openai: stored.openai || migrated.openai || '',
+   anthropic: stored.anthropic || migrated.anthropic || '',
+   deepseek: stored.deepseek || migrated.deepseek || '',
+  };
+  // Old beta used a different model key; not a secret, just cleanup.
+  try { localStorage.removeItem('deepseek.model'); } catch {}
+  this.accepted = new Set(Object.keys(KEYS).filter(provider => this.keys[provider]));
+  this.syncKeyInputs();
+  this.changed();
+  if (this.keyEncryption === 'file') this.noteKeychainFallback();
+  await this.refreshAll();
+  return this.keys;
+ }
+
+ syncKeyInputs() {
+  if (!this.inputs) return;
+  for (const [provider, input] of Object.entries(this.inputs)) {
+   if (input && input.value !== (this.keys[provider] || '')) input.value = this.keys[provider] || '';
+  }
+ }
+
+ noteKeychainFallback() {
+  // OS keychain unavailable (typical headless Linux): keys.js stores a 0600 file instead.
+  // Say so in the settings rather than letting the page imply the keys are encrypted.
+  const note = this.dialog.querySelector('.settings-warning');
+  if (!note) return;
+  note.textContent = I18n.t('settings.keychain.fallback');
+  note.hidden = false;
  }
 
  readCatalog() {
@@ -324,7 +394,13 @@ class Settings {
  onKeyInput(provider) {
   const key = this.inputs[provider].value.trim();
   this.keys[provider] = key;
-  if (key) localStorage.setItem(KEYS[provider], key);
+  // Secure path first; legacy localStorage only when running without Electron.
+  // Any leftover plaintext value is wiped whenever the secure store exists.
+  if (Settings.hasSecureStore()) {
+   try { localStorage.removeItem(KEYS[provider]); } catch {}
+   if (key) window.openghost.keys.write(provider, key).catch(() => {});
+   else window.openghost.keys.remove(provider).catch(() => {});
+  } else if (key) localStorage.setItem(KEYS[provider], key);
   else localStorage.removeItem(KEYS[provider]);
   clearTimeout(this.timer?.[provider]);
   this.timer = { ...this.timer };

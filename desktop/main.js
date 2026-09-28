@@ -6,6 +6,7 @@ const path = require('node:path');
 const Tools = require('./tools');
 const Browser = require('./browser');
 const LLM = require('./llm');
+const Keys = require('./keys');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
@@ -153,6 +154,7 @@ ipcMain.on('browser:shown', (event, value) => { if (fromApp(event)) Browser.setS
 ipcMain.handle('tool:cancel', (event, id) => { if (fromApp(event)) Tools.cancel(id); });
 ipcMain.handle('tool:environment', event => fromApp(event) ? Tools.environment() : null);
 LLM.register(fromApp);
+Keys.register(fromApp);
 
 if (process.argv.includes('--create-shortcut')) {
  app.whenReady().then(() => {

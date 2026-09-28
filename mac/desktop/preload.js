@@ -34,4 +34,10 @@ contextBridge.exposeInMainWorld('openghost', {
   logout: () => ipcRenderer.invoke('auth:logout'),
   status: () => ipcRenderer.invoke('auth:status'),
  },
+ keys: {
+  read: () => ipcRenderer.invoke('keys:read'),
+  status: () => ipcRenderer.invoke('keys:status'),
+  write: (provider, key) => ipcRenderer.invoke('keys:write', provider, key),
+  remove: provider => ipcRenderer.invoke('keys:remove', provider),
+ },
 });

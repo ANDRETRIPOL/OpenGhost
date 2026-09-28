@@ -115,6 +115,7 @@ const STRINGS = {
   'settings.sections': 'Settings sections',
   'settings.providers': 'Providers',
   'settings.lead': 'Connect the services whose models OpenGhost can use. Keys and sign-ins stay on this computer.',
+  'settings.keychain.fallback': 'The OS keychain isn’t available, so API keys are stored unencrypted in a file that other apps on this computer can read.',
   'settings.connected': 'Connected',
   'settings.off': 'Not connected',
   'settings.models': '{count} models',
