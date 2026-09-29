@@ -76,6 +76,6 @@ Ask waits for approval before commands, file changes, and the web. Auto works in
 
 ## The key stays on this computer
 
-OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek. Keys and sign-ins are stored only on your machine, and the app checks them for you.
+OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek, and with any server that speaks the OpenAI API: Ollama, llama.cpp, LM Studio, vLLM, or a cloud service of your choice. Pick a preset in the settings, or enter the address, the model, and the context window yourself. Keys and sign-ins are stored only on your machine, and the app checks them for you.
 
 ![API key settings](images/settings.jpg)

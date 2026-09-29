@@ -34,7 +34,7 @@ function turnOf(svg) {
 }
 
 class ModelButton extends IconButton {
- static get observedAttributes(){return [...super.observedAttributes,'expanded']}
+ static get observedAttributes(){return [...super.observedAttributes,'expanded','endpoint']}
  constructor(){
   super(`
    <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -61,9 +61,14 @@ class ModelButton extends IconButton {
   },random(TWINKLE.every));
  }
  get expanded(){return this.hasAttribute('expanded')}
+ // The server a custom model runs on, shown under the pointer; a locked button says why it is locked instead.
+ get endpoint(){return this.getAttribute('endpoint')||''}
  defaultLabel(){return I18n.t('model')}
  activate(e){this.dispatchEvent(new CustomEvent('model-open',{bubbles:true,composed:true,detail:{keyboard:e.detail===0}}))}
- sync(){this.button.setAttribute('aria-haspopup','dialog');this.button.setAttribute('aria-expanded',String(this.expanded))}
+ sync(){
+  this.button.setAttribute('aria-haspopup','dialog');this.button.setAttribute('aria-expanded',String(this.expanded));
+  this.button.title=this.endpoint&&!this.button.disabled?I18n.t('model.at',{host:this.endpoint}):'';
+ }
  // Where the glyph sits on screen, so the stage can fly it out of the button and back.
  glyphRect(){return this.icon.getBoundingClientRect()}
  away(hidden){this.icon.classList.toggle('is-away',hidden)}

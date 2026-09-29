@@ -25,6 +25,7 @@ const ROOM = { top: 52, right: 68, bottom: 10 };
 // Many models turn the list into a drum: rows away from its middle drift right, tilt and shrink a little.
 const DRUM = { reach: 320, shift: 34, tilt: 3.2, shrink: 0.07 };
 const GROUPS = { chatgpt: 'ChatGPT', openai: 'OpenAI API', anthropic: 'Anthropic', deepseek: 'DeepSeek' };
+const groupName = provider => GROUPS[provider] || (provider === 'custom' ? I18n.t('settings.custom.name') : provider);
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const escapeHtml = text => text.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -51,8 +52,10 @@ function size(tokens) {
  return `${Math.abs(m - whole) < 0.06 ? whole : m.toFixed(1)}M`;
 }
 
+// A model on a custom server is told with the server it runs on.
 function meta(model) {
  return [
+  model.host || '',
   model.context ? I18n.t('model.context', { size: size(model.context) }) : '',
   I18n.t(model.vision === false ? 'model.text' : 'model.vision'),
  ].filter(Boolean).join(' · ');
@@ -130,8 +133,10 @@ class ModelStage {
  }
 
  sync() {
-  const locked = this.chat.busy;
-  this.button.setAttribute('label', I18n.t('model.current', { name: this.name(this.chat.model) }));
+  const locked = this.chat.busy, host = this.settings.find(this.chat.model)?.host || '';
+  this.button.setAttribute('label', I18n.t(host ? 'model.currentAt' : 'model.current', { name: this.name(this.chat.model), host }));
+  if (host) this.button.setAttribute('endpoint', host);
+  else this.button.removeAttribute('endpoint');
   this.button.toggleAttribute('disabled', locked);
   this.button.title = locked ? I18n.t('model.locked') : '';
   if (locked && (this.state === 'open' || this.state === 'confirm')) this.cancel();
@@ -149,7 +154,7 @@ class ModelStage {
     const label = document.createElement('div');
     label.className = 'model-group';
     label.dataset.provider = provider;
-    label.textContent = GROUPS[provider] || provider;
+    label.textContent = groupName(provider);
     this.groups.push(label);
     slots.push(slot(label));
    }

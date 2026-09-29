@@ -6631,7 +6631,8 @@ h6.md-h {
   align-items: flex-end;
 }
 
-.settings-key {
+.settings-key,
+.settings-field {
   width: 260px;
   height: 36px;
   padding: 0 16px;
@@ -6644,20 +6645,76 @@ h6.md-h {
   caret-color: var(--fg-primary);
   font-family: var(--mono-font);
   font-size: 13px;
-  -webkit-text-security: disc;
   transition: box-shadow 0.2s ease;
+}
+
+/* A key is masked once typed; an address, a model name or a window is read back. */
+.settings-key {
+  -webkit-text-security: disc;
 }
 
 .settings-key:placeholder-shown {
   -webkit-text-security: none;
 }
 
-.settings-key::placeholder {
+.settings-key::placeholder,
+.settings-field::placeholder {
   color: rgb(var(--composer-fg-rgb));
 }
 
-.settings-key:focus {
+.settings-key:focus,
+.settings-field:focus {
   box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.2);
+}
+
+.settings-field::-webkit-inner-spin-button,
+.settings-field::-webkit-outer-spin-button {
+  appearance: none;
+}
+
+/* The presets sit where a field would, as a row of chips; the one the address matches is lit. */
+.settings-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 260px;
+  min-height: 36px;
+  align-items: center;
+}
+
+.settings-chip {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 15px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.2s var(--motion-easing);
+}
+
+.settings-chip:hover {
+  background: rgba(var(--fg-rgb), 0.11);
+  color: var(--fg-primary);
+}
+
+.settings-chip[aria-pressed="true"] {
+  background: rgba(var(--fg-rgb), 0.16);
+  color: var(--fg-primary);
+}
+
+.settings-chip:active {
+  transform: scale(0.96);
+}
+
+.settings-chip:focus-visible {
+  box-shadow: 0 0 0 2px var(--chat-bg), 0 0 0 4px var(--focus-ring);
 }
 
 .settings-status {

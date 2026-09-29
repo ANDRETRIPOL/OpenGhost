@@ -1,16 +1,18 @@
 'use strict';
 
-// Requests to OpenAI and Anthropic run here in the main process: the Codex backend and the ChatGPT sign-in are out of reach of the page.
+// Requests to OpenAI, Anthropic and custom servers run here in the main process: the Codex backend and the ChatGPT sign-in are
+// out of reach of the page, and a local server's cross-origin rules don't apply here.
 // The page starts a run by id and gets its deltas, then the result or the error, back as events.
 const { app, ipcMain } = require('electron');
 const OpenAI = require('./openai');
 const Claude = require('./anthropic');
 const ChatGPT = require('./chatgpt');
+const Compat = require('./compat');
 
 const runs = new Map();
-const PROVIDERS = new Set(['openai', 'chatgpt', 'anthropic']);
+const PROVIDERS = new Set(['openai', 'chatgpt', 'anthropic', 'custom']);
 
-const engine = provider => provider === 'anthropic' ? Claude : OpenAI;
+const engine = provider => provider === 'anthropic' ? Claude : provider === 'custom' ? Compat : OpenAI;
 
 async function start(sender, id, request) {
  const controller = new AbortController();
@@ -36,10 +38,11 @@ async function start(sender, id, request) {
 function register(fromApp) {
  ipcMain.on('llm:start', (event, id, request) => { if (fromApp(event)) start(event.sender, id, request); });
  ipcMain.on('llm:abort', (event, id) => { if (fromApp(event)) runs.get(id)?.abort(); });
- ipcMain.handle('llm:models', async (event, provider, key) => {
+ // A key provider is asked with its key; a custom server with its address and, when it wants one, a key.
+ ipcMain.handle('llm:models', async (event, provider, { key, baseURL } = {}) => {
   if (!fromApp(event) || !PROVIDERS.has(provider)) return { models: [] };
   try {
-   return { models: await engine(provider).models({ provider, key }) };
+   return { models: await engine(provider).models({ provider, key, baseURL }) };
   } catch (error) {
    return { error: { status: error.status || 0, code: error.code || '', message: error.message } };
   }
