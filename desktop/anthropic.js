@@ -163,7 +163,7 @@ async function stream(request, { signal, onEvent = () => {}, baseURL }) {
   reasoning: kept.filter(block => block.type === 'thinking').map(block => block.thinking).join('\n\n'),
   toolCalls: kept.filter(block => block.type === 'tool_use').map(block => ({ id: block.id, type: 'function', function: { name: block.name, arguments: JSON.stringify(block.input ?? {}) } })),
   finishReason: FINISH[message.stop_reason] || message.stop_reason || 'stop',
-  usage: { prompt_tokens: prompt, completion_tokens: usage.output_tokens || 0, total_tokens: prompt + (usage.output_tokens || 0) },
+  usage: { prompt_tokens: prompt, completion_tokens: usage.output_tokens || 0, total_tokens: prompt + (usage.output_tokens || 0), cached_tokens: usage.cache_read_input_tokens || 0, written_tokens: usage.cache_creation_input_tokens || 0 },
   native: { provider: 'anthropic', content: kept.filter(block => block.type !== 'fallback') },
  };
 }

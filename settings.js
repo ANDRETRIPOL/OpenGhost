@@ -22,7 +22,9 @@ const LINKS = {
 const MODES = ['ask', 'auto', 'full'];
 const DEFAULT_MODE = 'ask';
 const CHECK_DELAY = 400;
+const PAGE = { duration: 460, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const escapeHtml = text => String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 function keyRow(provider) {
@@ -35,7 +37,10 @@ function keyRow(provider) {
     <p class="settings-hint"><span>${escapeHtml(I18n.t(`settings.${provider}.hint`))}</span> <a href="${href}" target="_blank" rel="noopener noreferrer">${host}</a>.${note}</p>
    </div>
    <div class="settings-control">
-    <input id="settings-key-${provider}" class="settings-key" data-provider="${provider}" type="text" placeholder="${provider === 'anthropic' ? 'sk-ant-…' : 'sk-…'}" autocomplete="off" spellcheck="false">
+    <div class="settings-key-box">
+     <input id="settings-key-${provider}" class="settings-key" data-provider="${provider}" type="password" placeholder="${provider === 'anthropic' ? 'sk-ant-…' : 'sk-…'}" autocomplete="off" spellcheck="false">
+     <button type="button" class="settings-key-eye" aria-label="${escapeHtml(I18n.t('settings.key.show'))}" aria-pressed="false">${Glyphs.eye}</button>
+    </div>
     <p class="settings-status" data-provider="${provider}" role="status"></p>
    </div>
   </div>`;
@@ -76,7 +81,8 @@ class Settings {
  constructor(dialog) {
   this.dialog = dialog;
   this.list = dialog.querySelector('.settings-providers');
-  this.keys = Object.fromEntries(Object.entries(KEYS).map(([provider, key]) => [provider, localStorage.getItem(key) || '']));
+  this.unsaved = new Set();
+  this.keys = this.readKeys();
   this.account = { connected: false };
   this.catalog = this.readCatalog();
   this.models = [];
@@ -93,9 +99,79 @@ class Settings {
   // Keys saved in an earlier session count as working until a check says otherwise.
   this.accepted = new Set(Object.keys(KEYS).filter(provider => this.keys[provider]));
   this.build();
+  this.pager();
   this.collect();
   dialog.addEventListener('dismiss', () => dialog.close());
+  dialog.addEventListener('close', () => this.conceal());
+  // Mid-transition of the theme a click lands on <html>, outside the dialog, and must not close it.
+  dialog.addEventListener('cancel', event => {
+   if (window.Theme?.moving) event.preventDefault();
+  });
   this.refreshAll();
+ }
+
+ // The sections on the left: one highlight glides to the chosen section, and its page rises into view.
+ pager() {
+  const dialog = this.dialog;
+  this.tabs = [...dialog.querySelectorAll('.settings-tab')];
+  this.panels = Object.fromEntries([...dialog.querySelectorAll('.settings-panel')].map(panel => [panel.dataset.page, panel]));
+  this.glider = dialog.querySelector('.settings-glide');
+  this.title = dialog.querySelector('.settings-page-title');
+  this.scroller = dialog.querySelector('.settings-page');
+  this.current = 'general';
+  // As in the chat, the page fades into an edge while more of it lies scrolled out past that edge.
+  const edges = () => {
+   const page = this.scroller;
+   dialog.classList.toggle('can-up', page.scrollTop > 1);
+   dialog.classList.toggle('can-down', page.scrollTop + page.clientHeight < page.scrollHeight - 1);
+  };
+  this.scroller.addEventListener('scroll', edges, { passive: true });
+  const sizes = new ResizeObserver(edges);
+  sizes.observe(this.scroller);
+  for (const panel of dialog.querySelectorAll('.settings-panel')) sizes.observe(panel);
+  for (const tab of this.tabs) tab.addEventListener('click', () => this.page(tab.dataset.page));
+  dialog.querySelector('.settings-tabs').addEventListener('keydown', event => {
+   const step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
+   if (!step) return;
+   event.preventDefault();
+   const at = this.tabs.findIndex(tab => tab.dataset.page === this.current);
+   const next = this.tabs[(at + step + this.tabs.length) % this.tabs.length];
+   this.page(next.dataset.page);
+   next.focus();
+  });
+ }
+
+ page(name, instant = false) {
+  const panel = this.panels[name];
+  if (!panel) return;
+  const moved = name !== this.current;
+  this.current = name;
+  for (const tab of this.tabs) {
+   const on = tab.dataset.page === name;
+   tab.setAttribute('aria-selected', String(on));
+   tab.tabIndex = on ? 0 : -1;
+  }
+  this.glide(instant || !moved);
+  if (!moved) return;
+  for (const item of Object.values(this.panels)) item.hidden = item !== panel;
+  this.title.textContent = I18n.t(`settings.${name}`);
+  this.scroller.scrollTop = 0;
+  if (instant || reducedMotion()) return;
+  panel.animate([{ opacity: 0, transform: 'translateY(10px)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], PAGE);
+  this.title.animate([{ opacity: 0, transform: 'translateY(3px)', filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], { ...PAGE, duration: 320 });
+ }
+
+ glide(instant) {
+  const tab = this.tabs.find(item => item.dataset.page === this.current);
+  if (!tab || !this.dialog.open) return;
+  const style = this.glider.style;
+  if (instant) style.transition = 'none';
+  style.transform = `translateY(${tab.offsetTop}px)`;
+  style.height = `${tab.offsetHeight}px`;
+  style.opacity = '1';
+  if (!instant) return;
+  void this.glider.offsetHeight;
+  style.transition = '';
  }
 
  readCatalog() {
@@ -106,6 +182,52 @@ class Settings {
 
  saveCatalog() {
   try { localStorage.setItem(STORAGE.catalog, JSON.stringify(this.catalog)); } catch {}
+ }
+
+ // The keys live in the OS keychain through the main process. Ones an earlier version kept in localStorage are the newest word,
+ // so they move into the keychain once and leave localStorage only after it has them. Outside the desktop app they stay where they were.
+ readKeys() {
+  const vault = window.openghost?.keys, keys = { ...(vault?.read() || {}) };
+  for (const [provider, name] of Object.entries(KEYS)) {
+   const old = localStorage.getItem(name);
+   if (!vault) { keys[provider] = old || ''; continue; }
+   if (!old) continue;
+   keys[provider] = old;
+   vault.write(provider, old).then(saved => { if (saved) localStorage.removeItem(name); }).catch(() => {});
+  }
+  return Object.fromEntries(Object.keys(KEYS).map(provider => [provider, keys[provider] || '']));
+ }
+
+ // A key that could not be saved still works until the app closes; the line under its field says so rather than lose it quietly.
+ saveKey(provider, key) {
+  const vault = window.openghost?.keys;
+  if (!vault) {
+   if (key) localStorage.setItem(KEYS[provider], key);
+   else localStorage.removeItem(KEYS[provider]);
+   return;
+  }
+  vault.write(provider, key).then(saved => {
+   if (key !== this.keys[provider]) return;
+   if (saved) this.unsaved.delete(provider);
+   else throw new Error('not saved');
+  }).catch(() => {
+   if (key !== this.keys[provider]) return;
+   this.unsaved.add(provider);
+   this.setStatus(provider, I18n.t('settings.key.unsaved'), 'error');
+  });
+ }
+
+ // The eye beside a key shows it for a moment's check; closing the settings hides every key again.
+ reveal(provider, shown) {
+  const input = this.inputs[provider], eye = input.nextElementSibling;
+  input.type = shown ? 'text' : 'password';
+  input.parentElement.classList.toggle('is-revealed', shown);
+  eye.setAttribute('aria-pressed', String(shown));
+  eye.setAttribute('aria-label', I18n.t(shown ? 'settings.key.hide' : 'settings.key.show'));
+ }
+
+ conceal() {
+  for (const provider of Object.keys(this.inputs || {})) this.reveal(provider, false);
  }
 
  connected(provider) {
@@ -243,6 +365,7 @@ class Settings {
    this.inputs[provider] = input;
    input.value = this.keys[provider];
    input.addEventListener('input', () => this.onKeyInput(provider));
+   input.nextElementSibling.addEventListener('click', () => this.reveal(provider, input.type === 'password'));
   }
   this.statuses = Object.fromEntries([...this.list.querySelectorAll('.settings-status')].map(node => [node.dataset.provider, node]));
   this.accountBox = this.list.querySelector('.settings-account');
@@ -303,11 +426,15 @@ class Settings {
  }
 
  open(reason = '', provider = '') {
-  if (!this.dialog.open) {
+  const opening = !this.dialog.open;
+  if (opening) {
    this.dialog.showModal();
    this.dialog.focus();
    this.syncAccount();
   }
+  // A missing key opens straight on Providers; otherwise the settings always open on General.
+  if (reason) this.page('providers', opening);
+  else if (opening) this.page('general', true);
   if (reason) {
    const target = provider || 'deepseek';
    this.setStatus(target, reason, 'error');
@@ -324,8 +451,7 @@ class Settings {
  onKeyInput(provider) {
   const key = this.inputs[provider].value.trim();
   this.keys[provider] = key;
-  if (key) localStorage.setItem(KEYS[provider], key);
-  else localStorage.removeItem(KEYS[provider]);
+  this.saveKey(provider, key);
   clearTimeout(this.timer?.[provider]);
   this.timer = { ...this.timer };
   this.checked.delete(provider);
@@ -349,7 +475,8 @@ class Settings {
    if (!current || key !== this.keys[provider]) return;
    this.accepted.add(provider);
    this.checked.add(provider);
-   this.setStatus(provider, '');
+   if (this.unsaved.has(provider)) this.setStatus(provider, I18n.t('settings.key.unsaved'), 'error');
+   else this.setStatus(provider, '');
   } catch (error) {
    if (key !== this.keys[provider]) return;
    this.accepted.delete(provider);

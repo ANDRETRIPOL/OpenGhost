@@ -7,7 +7,9 @@ const TITLE_MAX = 60;
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const baseName = path => path.split(/[\\/]/).filter(Boolean).pop() || path;
-const samePath = (a, b) => a.toLowerCase() === b.toLowerCase();
+// Windows and macOS file systems ignore case, so C:\Work and c:\work are one folder there; on Linux Foo and foo are two.
+const pathKey = window.openghost?.platform === 'linux' ? path => path : path => path.toLowerCase();
+const samePath = (a, b) => pathKey(a) === pathKey(b);
 
 function titleFrom(text, attachments) {
  const lines = text.split('\n').map(part => part.trim()).filter(Boolean);
@@ -265,5 +267,7 @@ class Library {
  }
 }
 
+Library.pathKey = pathKey;
+Library.samePath = samePath;
 window.Library = Library;
 })();

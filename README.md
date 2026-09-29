@@ -1,18 +1,22 @@
 # OpenGhost
 
-**v1.1.0 beta**
+**v1.2.0 beta**
 
-[Windows version 1.1.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.1.0/OpenGhost-1.1.0-Setup.exe)
+[Windows version 1.2.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.2.0/OpenGhost-1.2.0-Setup.exe)
 
-[Linux version 1.1.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.1.0/OpenGhost-1.1.0-linux.tar.gz)
+[Linux version 1.2.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.2.0/OpenGhost-1.2.0-linux.tar.gz)
 
-[macOS version 1.1.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.1.0/OpenGhost-1.1.0-mac.dmg)
+[macOS version 1.2.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.2.0/OpenGhost-1.2.0-mac.dmg)
 
 What's new:
-- OpenAI and Claude join DeepSeek. Sign in with your ChatGPT account or use an API key, and pick the model per chat.
-- Put a password on any chat. It's real encryption on your computer, not just a lock screen.
-- A smoother, more polished UI.
-- Lots of bugs fixed.
+- Browser work is up to 10× cheaper on long sessions: the repeated part of each request comes from the provider's cache. The agent sees and does exactly what it did before.
+- A light theme.
+- Usage in the settings: tokens spent by day, week, month and all time, per provider and model, with your ChatGPT plan limits and DeepSeek balance.
+- Clear approvals: in Ask mode the agent says in plain words what it wants to do, and the card shows what the step does and where.
+- Rename chats right in the list. Effort shows its level name.
+- API keys are encrypted by the operating system instead of kept in plain text.
+- Cmd+A, C, V and Z work on Mac. On Linux, paths respect letter case, and approvals understand bash and zsh.
+- A long paste turns into a card, and one click turns it back into text. Esc stops the agent from anywhere, instantly.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 

@@ -1,30 +1,180 @@
-:root {
+/* Colors live in themes. Dark is the default; data-theme="light" on the root switches the whole app,
+   and on any element it restyles just that part, like the previews in Settings → Appearance. */
+:root,
+[data-theme="dark"] {
   color-scheme: dark;
 
   --app-bg: rgb(22, 22, 22);
   --chat-bg: rgb(25, 25, 25);
+  --titlebar-symbols: rgb(154, 154, 154);
 
   --contour-outer: rgb(17, 17, 17);
   --contour-inner: rgb(32, 32, 32);
-  --contour-width: 1.5px;
-  --contour:
-    inset 0 0 0 var(--contour-width) var(--contour-inner),
-    0 0 0 var(--contour-width) var(--contour-outer);
 
   --fg-rgb: 255, 255, 255;
   --fg-primary-opacity: 0.85;
   --fg-secondary-opacity: 0.55;
   --fg-tertiary-opacity: 0.25;
   --fg-quaternary-opacity: 0.1;
+
+  --danger-rgb: 255, 115, 105;
+  --success-rgb: 110, 205, 140;
+  --warn-rgb: 255, 180, 96;
+  --link-rgb: 140, 190, 255;
+  --control-hover-bg: rgb(36, 36, 36);
+  --row-active-bg: rgb(39, 39, 39);
+  --menu-bg: rgb(36, 36, 36);
+  --popover-bg: rgb(33, 33, 33);
+  --selection-rgb: 130, 180, 245;
+  --backdrop: rgba(0, 0, 0, 0.5);
+  --mini-backdrop: rgba(0, 0, 0, 0.42);
+  /* Every drop shadow's strength is multiplied by this: dark surfaces need deep shadows, light ones barely any. */
+  --shadow: 1;
+  --glow-rgb: 255, 255, 255;
+
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 55%, rgba(255, 255, 255, 0.05));
+  --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.14) 32%, rgba(255, 255, 255, 0.05) 62%, rgba(255, 255, 255, 0.38));
+  --glass-shade: inset 0 1px 1px rgba(255, 255, 255, 0.22), inset 0 -1px 2px rgba(0, 0, 0, 0.25);
+  --glass-drop: 0 3px 10px rgba(0, 0, 0, 0.35);
+  --glass-backdrop: blur(0.4px) saturate(1.6) brightness(1.08);
+  --lens-bg: rgba(24, 24, 24, 0.55);
+
+  /* What steps back behind a selection or a picker: blurred and dimmed here, blurred and washed out in the light. */
+  --veil: blur(5px) brightness(0.78) contrast(0.949);
+  --stage-veil: blur(24px) saturate(1.1) brightness(0.5);
+  --stage-veil-bg: rgba(10, 10, 10, 0.36);
+  --drop-veil-bg: rgba(25, 25, 25, 0.86);
+
+  --composer-bg: rgb(30, 30, 30);
+  --composer-border: rgb(34, 34, 34);
+  --field-bg: var(--composer-bg);
+  --composer-fg-rgb: 161, 161, 161;
+  --composer-accent-rgb: 250, 250, 250;
+  --composer-on-accent-rgb: 15, 15, 15;
+
+  --diff-removed: rgb(255, 188, 181);
+  --diff-added: rgb(192, 238, 206);
+  --well-bg: rgba(0, 0, 0, 0.28);
+  --tip-bg: rgba(36, 36, 38, 0.82);
+  --attachment-note-bg: rgb(60, 60, 60);
+  --attachment-note-hover-bg: rgb(80, 80, 80);
+  --media-bg: rgb(20, 20, 20);
+  --drop-icon-base: rgb(30, 30, 30);
+  --on-danger: rgb(20, 20, 20);
+  --stage-ring: rgba(10, 10, 10, 0.6);
+  --paint-shade-rgb: 0, 0, 0;
+  --browser-glass-bg: rgba(22, 22, 22, 0.82);
+  --browser-toast-bg: rgba(22, 22, 22, 0.88);
+  --browser-pill-hover-bg: rgb(255, 255, 255);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --app-bg: rgb(242, 242, 242);
+  --chat-bg: rgb(255, 255, 255);
+  --titlebar-symbols: rgb(92, 92, 92);
+
+  --contour-outer: rgb(226, 226, 226);
+  --contour-inner: rgb(255, 255, 255);
+
+  --fg-rgb: 0, 0, 0;
+  --fg-primary-opacity: 0.85;
+  --fg-secondary-opacity: 0.6;
+  --fg-tertiary-opacity: 0.32;
+  --fg-quaternary-opacity: 0.12;
+
+  --danger-rgb: 214, 48, 40;
+  --success-rgb: 22, 138, 70;
+  --warn-rgb: 200, 110, 0;
+  --link-rgb: 22, 106, 214;
+  --control-hover-bg: rgb(240, 240, 240);
+  --row-active-bg: rgb(228, 228, 228);
+  --menu-bg: rgb(255, 255, 255);
+  --popover-bg: rgb(255, 255, 255);
+  --selection-rgb: 40, 120, 235;
+  --backdrop: rgba(0, 0, 0, 0.2);
+  --mini-backdrop: rgba(0, 0, 0, 0.16);
+  --shadow: 0.32;
+  --glow-rgb: 0, 0, 0;
+
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55) 55%, rgba(255, 255, 255, 0.7));
+  --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 1), rgba(0, 0, 0, 0.1) 32%, rgba(0, 0, 0, 0.06) 62%, rgba(255, 255, 255, 0.8));
+  --glass-shade: inset 0 1px 1px rgba(255, 255, 255, 0.9), inset 0 -1px 2px rgba(0, 0, 0, 0.06);
+  --glass-drop: 0 3px 10px rgba(0, 0, 0, 0.12);
+  --glass-backdrop: blur(0.4px) saturate(1.4) brightness(1.02);
+  --lens-bg: rgba(255, 255, 255, 0.6);
+
+  --veil: blur(5px) contrast(0.6) brightness(1.25);
+  --stage-veil: blur(24px) saturate(1.1) brightness(1.08);
+  --stage-veil-bg: rgba(250, 250, 250, 0.5);
+  --drop-veil-bg: rgba(255, 255, 255, 0.84);
+
+  --composer-bg: rgb(255, 255, 255);
+  --composer-border: rgb(226, 226, 226);
+  --field-bg: rgb(245, 245, 245);
+  --composer-fg-rgb: 118, 118, 118;
+  --composer-accent-rgb: 23, 23, 23;
+  --composer-on-accent-rgb: 255, 255, 255;
+
+  --diff-removed: rgb(176, 40, 32);
+  --diff-added: rgb(18, 120, 60);
+  --well-bg: rgba(0, 0, 0, 0.04);
+  --tip-bg: rgba(255, 255, 255, 0.86);
+  --attachment-note-bg: rgb(228, 228, 228);
+  --attachment-note-hover-bg: rgb(212, 212, 212);
+  --media-bg: rgb(238, 238, 238);
+  --drop-icon-base: rgb(255, 255, 255);
+  --on-danger: rgb(255, 255, 255);
+  --stage-ring: rgba(250, 250, 250, 0.7);
+  --paint-shade-rgb: 255, 255, 255;
+  --browser-glass-bg: rgba(255, 255, 255, 0.82);
+  --browser-toast-bg: rgba(255, 255, 255, 0.9);
+  --browser-pill-hover-bg: rgb(0, 0, 0);
+}
+
+/* Tokens made of the ones above, worked out again wherever a theme starts. */
+:root,
+[data-theme] {
+  --contour:
+    inset 0 0 0 var(--contour-width) var(--contour-inner),
+    0 0 0 var(--contour-width) var(--contour-outer);
   --fg-primary: rgba(var(--fg-rgb), var(--fg-primary-opacity));
   --fg-secondary: rgba(var(--fg-rgb), var(--fg-secondary-opacity));
   --fg-tertiary: rgba(var(--fg-rgb), var(--fg-tertiary-opacity));
   --fg-quaternary: rgba(var(--fg-rgb), var(--fg-quaternary-opacity));
-
   --icon-rgb: var(--fg-rgb);
   --icon-opacity: var(--fg-secondary-opacity);
   --icon-hover-opacity: var(--fg-primary-opacity);
   --icon-disabled-opacity: var(--fg-tertiary-opacity);
+  --focus-ring: rgba(var(--fg-rgb), 0.35);
+  --bubble-bg: rgb(var(--composer-accent-rgb));
+  --bubble-fg-rgb: var(--composer-on-accent-rgb);
+}
+
+/* A theme picked by hand spreads from the pointer with a soft edge (theme.js grows the mask);
+   one changed by the system fades in. The edge is the last 16% of the circle, REVEAL.feather in theme.js. */
+.is-theme-reveal::view-transition-old(root),
+.is-theme-reveal::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+.is-theme-reveal::view-transition-new(root) {
+  -webkit-mask-image: radial-gradient(closest-side, #000 84%, transparent);
+  mask-image: radial-gradient(closest-side, #000 84%, transparent);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 0 0;
+  mask-size: 0 0;
+}
+
+.is-theme-fade::view-transition-group(root) {
+  animation-duration: 0.42s;
+}
+
+:root {
+  --contour-width: 1.5px;
   --icon-size: 22px;
   --icon-button-size: 32px;
 
@@ -35,19 +185,6 @@
   --line-height: 1.5;
   --message-line-height: 1.65;
 
-  --danger-rgb: 255, 115, 105;
-  --success-rgb: 110, 205, 140;
-  --warn-rgb: 255, 180, 96;
-  --control-hover-bg: rgb(36, 36, 36);
-  --focus-ring: rgba(var(--fg-rgb), 0.35);
-  --selection-rgb: 130, 180, 245;
-  --backdrop: rgba(0, 0, 0, 0.5);
-
-  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 55%, rgba(255, 255, 255, 0.05));
-  --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.14) 32%, rgba(255, 255, 255, 0.05) 62%, rgba(255, 255, 255, 0.38));
-  --glass-shade: inset 0 1px 1px rgba(255, 255, 255, 0.22), inset 0 -1px 2px rgba(0, 0, 0, 0.25);
-  --glass-drop: 0 3px 10px rgba(0, 0, 0, 0.35);
-  --glass-backdrop: blur(0.4px) saturate(1.6) brightness(1.08);
   --chat-radius: 12px;
   --chat-gap: 8px;
   --sidebar-width: 17.3%;
@@ -69,18 +206,10 @@
   --composer-side-gap: 24px;
   --composer-bottom-gap: 16px;
   --composer-radius: 24px;
-  --composer-bg: rgb(30, 30, 30);
-  --composer-border: rgb(34, 34, 34);
-  --composer-fg-rgb: 161, 161, 161;
-  --composer-accent-rgb: 250, 250, 250;
-  --composer-on-accent-rgb: 15, 15, 15;
   --composer-font-size: 16px;
   --composer-line-height: 24px;
   --composer-button-size: 34px;
   --composer-icon-size: 16px;
-
-  --bubble-bg: rgb(var(--composer-accent-rgb));
-  --bubble-fg-rgb: var(--composer-on-accent-rgb);
 
   --welcome-size: 96px;
   --welcome-gap: 16px;
@@ -261,12 +390,12 @@ body {
 
 .chats::before {
   top: 0;
-  background: linear-gradient(var(--app-bg), rgba(22, 22, 22, 0) 70%);
+  background: linear-gradient(var(--app-bg), transparent 70%);
 }
 
 .chats::after {
   bottom: 0;
-  background: linear-gradient(rgba(22, 22, 22, 0), var(--app-bg) 70%);
+  background: linear-gradient(transparent, var(--app-bg) 70%);
 }
 
 /* The fades run on the scroll only while there is one. In a list that fits, the timeline would be inactive and the fade
@@ -579,7 +708,7 @@ body {
 
 /* Opaque, so the hover glide sliding underneath never doubles up with it. */
 .chat-row.is-active {
-  background: rgb(39, 39, 39);
+  background: var(--row-active-bg);
 }
 
 .chat-mark {
@@ -672,7 +801,7 @@ body {
 .chat-row:hover .chat-meta,
 .chat-row:focus-within .chat-meta,
 .chat-row.is-confirming .chat-meta {
-  min-width: 78px;
+  min-width: 104px;
   transition-delay: 0.05s;
 }
 
@@ -739,6 +868,12 @@ body {
 .chat-row:focus-within .chat-action + .chat-action + .chat-action,
 .chat-row.is-confirming .chat-action + .chat-action + .chat-action {
   transition-delay: 0.11s, 0.11s, 0s, 0s;
+}
+
+.chat-row:hover .chat-action + .chat-action + .chat-action + .chat-action,
+.chat-row:focus-within .chat-action + .chat-action + .chat-action + .chat-action,
+.chat-row.is-confirming .chat-action + .chat-action + .chat-action + .chat-action {
+  transition-delay: 0.14s, 0.14s, 0s, 0s;
 }
 
 /* Locking waits while the chat is replying. */
@@ -809,6 +944,97 @@ body {
   transform: translate(-1px, -3px) rotate(-14deg);
 }
 
+/* Reached for, the pencil tips forward and writes a short line. */
+.glyph-pencil .pencil-body {
+  transform-origin: 44px 76px;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.glyph-pencil .pencil-line {
+  stroke-dasharray: 18;
+  stroke-dashoffset: 18;
+  transition: stroke-dashoffset 0.36s var(--motion-easing);
+}
+
+.chat-action.is-rename:not(:disabled):hover .pencil-body {
+  transform: translateX(3px) rotate(-8deg);
+}
+
+.chat-action.is-rename:not(:disabled):hover .pencil-line {
+  stroke-dashoffset: 0;
+}
+
+/* Renaming happens in the row: it turns into a field like the app's others, the title its text, and the time and the buttons
+   step aside for it. */
+.chat-row.is-renaming {
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.18);
+  cursor: text;
+  animation: chat-rename-in 0.3s var(--motion-easing);
+}
+
+@keyframes chat-rename-in {
+  from {
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+
+.chat-row.is-renaming .chat-title {
+  display: none;
+}
+
+.chat-rename {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--fg-primary);
+  caret-color: var(--fg-primary);
+  font: inherit;
+  user-select: text;
+  cursor: text;
+}
+
+.chat-rename::selection {
+  background: rgba(var(--selection-rgb), 0.3);
+}
+
+.chats-list .chat-row.is-renaming .chat-meta {
+  min-width: 0;
+  transition-delay: 0s;
+}
+
+.chats-list .chat-row.is-renaming .chat-time {
+  position: absolute;
+  right: 0;
+  opacity: 0;
+}
+
+.chats-list .chat-row.is-renaming .chat-action {
+  opacity: 0;
+  transform: scale(0.7);
+  pointer-events: none;
+  transition-delay: 0s;
+}
+
+/* A new title writes itself in, each letter rising out of a blur a moment after the one before, like the words typed in the composer. */
+.chat-letter {
+  position: relative;
+  animation: chat-letter 0.36s var(--motion-easing) both;
+}
+
+@keyframes chat-letter {
+  from {
+    top: 0.35em;
+    opacity: 0;
+    filter: blur(2px);
+  }
+}
+
 .sidebar {
   position: absolute;
   top: 0;
@@ -858,9 +1084,9 @@ body {
   height: 100%;
   border-radius: calc(var(--icon-button-size) / 2);
   background-color: rgba(var(--fg-rgb), 0.055);
-  background-image: linear-gradient(180deg, rgba(var(--fg-rgb), 0.035), transparent 60%, rgba(0, 0, 0, 0.06));
+  background-image: linear-gradient(180deg, rgba(var(--fg-rgb), 0.035), transparent 60%, rgba(0, 0, 0, calc(0.06 * var(--shadow))));
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 1px 2px rgba(0, 0, 0, calc(0.28 * var(--shadow))),
     0 0 0 7px rgba(var(--fg-rgb), 0);
   opacity: 0;
   transform-origin: calc(var(--icon-button-size) / 2) 50%;
@@ -889,7 +1115,7 @@ body {
 .sidebar-search:has(.sidebar-search-input:focus) .sidebar-search-shell {
   background-color: rgba(var(--fg-rgb), 0.08);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 1px 2px rgba(0, 0, 0, calc(0.28 * var(--shadow))),
     0 0 0 2.5px rgba(var(--fg-rgb), 0.16);
 }
 
@@ -897,7 +1123,7 @@ body {
   isolation: isolate;
   border-radius: 999px;
   background: var(--glass-fill);
-  box-shadow: var(--glass-shade), var(--glass-drop), 0 0 0 0.5px rgba(0, 0, 0, calc(var(--paint, 0) * 0.18));
+  box-shadow: var(--glass-shade), var(--glass-drop), 0 0 0 0.5px rgba(0, 0, 0, calc(var(--paint, 0) * 0.18 * var(--shadow)));
   -webkit-backdrop-filter: var(--glass-lens,) var(--glass-backdrop);
   backdrop-filter: var(--glass-lens,) var(--glass-backdrop);
 }
@@ -1070,12 +1296,12 @@ body {
 
 .thread-view::before {
   top: 0;
-  background: linear-gradient(var(--chat-bg), rgba(25, 25, 25, 0) 70%);
+  background: linear-gradient(var(--chat-bg), transparent 70%);
 }
 
 .thread-view::after {
   bottom: 0;
-  background: linear-gradient(rgba(25, 25, 25, 0), var(--chat-bg) 70%);
+  background: linear-gradient(transparent, var(--chat-bg) 70%);
 }
 
 .thread {
@@ -1316,16 +1542,38 @@ ghost-thinking {
   padding-top: 14px;
 }
 
+/* The card asking to approve a step. Its tone follows what the step does: green only looks, amber changes or installs,
+   red deletes or touches the system, blue goes online, grey runs a program or records history. The pieces come in one after another
+   by their --i: the words of the headline out of a blur, then the chips, then the buttons. */
 .approval {
+  --tone: var(--fg-rgb);
   margin-top: 14px;
-  padding: 12px 12px 12px 14px;
-  border-radius: 16px;
+  padding: 14px 14px 12px;
+  border-radius: 18px;
   background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px var(--composer-border), 0 10px 30px rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 10px 30px rgba(0, 0, 0, calc(0.22 * var(--shadow)));
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
-  animation: approval-in 0.45s var(--motion-easing) both;
+  animation: approval-in 0.5s var(--motion-easing) both;
+}
+
+.approval.is-read {
+  --tone: var(--success-rgb);
+}
+
+.approval.is-change,
+.approval.is-install {
+  --tone: var(--warn-rgb);
+}
+
+.approval.is-delete,
+.approval.is-system {
+  --tone: var(--danger-rgb);
+}
+
+.approval.is-online {
+  --tone: var(--link-rgb);
 }
 
 .message-content:empty + .approval,
@@ -1340,10 +1588,32 @@ ghost-thinking {
   }
 }
 
+@keyframes approval-word {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(0.35em);
+  }
+}
+
+@keyframes approval-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+@keyframes approval-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
+  }
+}
+
 .approval-head {
   display: flex;
-  align-items: center;
-  gap: 9px;
+  align-items: flex-start;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -1351,42 +1621,134 @@ ghost-thinking {
   flex: none;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  background: rgba(var(--fg-rgb), 0.07);
-  color: rgba(var(--fg-rgb), 0.82);
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(var(--tone), 0.12);
+  color: rgb(var(--tone));
 }
 
 .approval-icon .glyph {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
   overflow: visible;
 }
 
-.approval-title {
-  flex: none;
-  color: var(--fg-primary);
-  font-weight: 600;
+.approval-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 5px;
 }
 
-.approval-path {
+.approval-title {
+  margin: 0;
+  color: var(--fg-primary);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.approval-word {
+  display: inline-block;
+  animation: approval-word 0.45s var(--motion-easing) calc(60ms + var(--i) * 26ms) backwards;
+}
+
+.approval-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.approval-effect,
+.approval-place,
+.approval-quote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 24px;
+  white-space: nowrap;
+  animation: approval-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) calc(180ms + var(--i) * 45ms) backwards;
+}
+
+.approval-effect {
+  background: rgba(var(--tone), 0.12);
+  color: rgb(var(--tone));
+}
+
+.approval-effect::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.approval-effect.is-count {
+  background: rgba(var(--fg-rgb), 0.06);
+  color: var(--fg-secondary);
+}
+
+.approval-effect.is-count::before {
+  display: none;
+}
+
+.approval-place {
+  max-width: 240px;
+  padding-left: 8px;
+  background: rgba(var(--fg-rgb), 0.06);
+  color: var(--fg-primary);
+}
+
+.approval-place .glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--fg-secondary);
+  overflow: visible;
+}
+
+.approval-place-name {
   min-width: 0;
   overflow: hidden;
-  color: var(--fg-secondary);
-  font-family: var(--mono-font);
-  font-size: 12.5px;
-  white-space: nowrap;
   text-overflow: ellipsis;
 }
 
+/* What gets searched, clicked or typed: it may be long, so it wraps. */
+.approval-quote {
+  height: auto;
+  padding: 2px 10px;
+  background: rgba(var(--fg-rgb), 0.06);
+  color: var(--fg-primary);
+  line-height: 20px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.approval-details {
+  overflow: hidden;
+}
+
+.approval-details-inner {
+  padding-top: 12px;
+}
+
 .approval-code,
-.approval-diff,
-.approval-query,
-.approval-link {
-  margin: 10px 0 0;
+.approval-diff {
+  margin: 0;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--well-bg);
   box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.05);
 }
 
@@ -1438,7 +1800,7 @@ ghost-thinking {
 
 .approval-line.is-removed {
   background: rgba(var(--danger-rgb), 0.09);
-  color: rgb(255, 188, 181);
+  color: var(--diff-removed);
 }
 
 .approval-line.is-removed .approval-sign {
@@ -1447,7 +1809,7 @@ ghost-thinking {
 
 .approval-line.is-added {
   background: rgba(var(--success-rgb), 0.09);
-  color: rgb(192, 238, 206);
+  color: var(--diff-added);
 }
 
 .approval-line.is-added .approval-sign {
@@ -1461,37 +1823,59 @@ ghost-thinking {
   font-size: 12px;
 }
 
-.approval-query {
-  padding: 8px 12px;
-  color: var(--fg-primary);
-}
-
-.approval-link {
-  display: flex;
-  min-width: 0;
-  padding: 8px 12px;
-  font-size: 13.5px;
-  white-space: nowrap;
-}
-
-.approval-host {
-  flex: none;
-  color: var(--fg-primary);
-  font-weight: 600;
-}
-
-.approval-rest {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--fg-secondary);
-  text-overflow: ellipsis;
-}
-
 .approval-foot {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 14px;
+}
+
+.approval-foot > * {
+  animation: approval-rise 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) calc(240ms + var(--i) * 50ms) backwards;
+}
+
+.approval-reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  margin-right: auto;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: 15px;
+  outline: none;
+  background: none;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.approval-reveal:hover {
+  background: rgba(var(--fg-rgb), 0.06);
+  color: var(--fg-primary);
+}
+
+.approval-reveal:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.approval-reveal svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.4s var(--motion-easing);
+}
+
+.approval.is-open .approval-reveal svg {
+  transform: rotate(180deg);
 }
 
 .approval-button {
@@ -1529,7 +1913,8 @@ ghost-thinking {
   box-shadow: 0 0 0 2px var(--composer-bg), 0 0 0 4px var(--focus-ring);
 }
 
-.approval.is-answered .approval-button {
+.approval.is-answered .approval-button,
+.approval.is-answered .approval-reveal {
   opacity: 0.5;
   cursor: default;
 }
@@ -1597,8 +1982,8 @@ ghost-thinking {
   z-index: 1;
   right: 0;
   left: 0;
-  -webkit-backdrop-filter: blur(5px) brightness(0.78) contrast(0.949);
-  backdrop-filter: blur(5px) brightness(0.78) contrast(0.949);
+  -webkit-backdrop-filter: var(--veil);
+  backdrop-filter: var(--veil);
   pointer-events: none;
   user-select: none;
 }
@@ -1618,8 +2003,8 @@ ghost-thinking {
   overflow: visible;
   border: 0;
   border-radius: 13px;
-  background: rgb(36, 36, 36);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.09), 0 10px 30px rgba(0, 0, 0, 0.45);
+  background: var(--menu-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.09), 0 10px 30px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   color: var(--fg-primary);
   opacity: 0;
   scale: 0.94;
@@ -1713,7 +2098,7 @@ ghost-thinking {
   border: 0;
   border-radius: 22px;
   background: var(--chat-bg);
-  box-shadow: var(--contour), 0 30px 80px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--contour), 0 30px 80px rgba(0, 0, 0, calc(0.55 * var(--shadow)));
   color: var(--fg-primary);
   opacity: 0;
   transform: translateY(14px) scale(0.96);
@@ -1752,7 +2137,7 @@ ghost-thinking {
 }
 
 .mini[open]::backdrop {
-  background: rgba(0, 0, 0, 0.42);
+  background: var(--mini-backdrop);
 }
 
 .mini.is-closing::backdrop {
@@ -1825,7 +2210,7 @@ ghost-thinking {
   right: 0;
   left: 0;
   height: 14px;
-  background: linear-gradient(var(--chat-bg), rgba(25, 25, 25, 0));
+  background: linear-gradient(var(--chat-bg), transparent);
   pointer-events: none;
 }
 
@@ -1843,7 +2228,7 @@ ghost-thinking {
 }
 
 .mini .composer {
-  box-shadow: inset 0 0 0 1px var(--composer-border), 0 10px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 10px 30px rgba(0, 0, 0, calc(0.3 * var(--shadow)));
 }
 
 .mini .composer-mode {
@@ -1904,6 +2289,16 @@ ghost-thinking {
 .t-yellow { --tone: 255, 212, 96; }
 .t-orange { --tone: 255, 162, 98; }
 .t-green { --tone: 128, 218, 134; }
+
+/* On white the same tones go deeper, so text in them stays readable and fills keep their weight. */
+[data-theme="light"] .markdown { --tone: 112, 112, 112; }
+[data-theme="light"] .t-lilac { --tone: 128, 84, 226; }
+[data-theme="light"] .t-turquoise { --tone: 0, 146, 128; }
+[data-theme="light"] .t-blue { --tone: 36, 110, 226; }
+[data-theme="light"] .t-pink { --tone: 216, 48, 124; }
+[data-theme="light"] .t-yellow { --tone: 222, 156, 0; }
+[data-theme="light"] .t-orange { --tone: 230, 106, 20; }
+[data-theme="light"] .t-green { --tone: 30, 150, 70; }
 
 .md-w {
   position: relative;
@@ -1969,9 +2364,9 @@ ghost-thinking {
 }
 
 .markdown a {
-  color: rgb(140, 190, 255);
+  color: rgb(var(--link-rgb));
   text-decoration: underline;
-  text-decoration-color: rgba(140, 190, 255, 0.35);
+  text-decoration-color: rgba(var(--link-rgb), 0.35);
   text-underline-offset: 3px;
   overflow-wrap: anywhere;
   transition: text-decoration-color 0.2s ease;
@@ -2805,6 +3200,16 @@ h6.md-h {
 .hl-inserted { color: rgb(128, 218, 134); }
 .hl-deleted { color: rgb(255, 128, 128); }
 
+[data-theme="light"] .hl-keyword { color: rgb(136, 72, 214); }
+[data-theme="light"] .hl-string { color: rgb(28, 126, 56); }
+[data-theme="light"] .hl-number { color: rgb(192, 88, 0); }
+[data-theme="light"] .hl-comment { color: rgba(var(--fg-rgb), 0.45); }
+[data-theme="light"] .hl-function { color: rgb(22, 100, 208); }
+[data-theme="light"] .hl-type { color: rgb(158, 104, 0); }
+[data-theme="light"] .hl-property { color: rgb(0, 126, 116); }
+[data-theme="light"] .hl-inserted { color: rgb(28, 126, 56); }
+[data-theme="light"] .hl-deleted { color: rgb(200, 44, 44); }
+
 .md-table {
   position: relative;
   overflow-x: auto;
@@ -3238,6 +3643,10 @@ h6.md-h {
   --tone: 205, 205, 205;
 }
 
+[data-theme="light"] .t-neutral {
+  --tone: 88, 88, 88;
+}
+
 .md-diagram {
   position: relative;
 }
@@ -3432,7 +3841,7 @@ h6.md-h {
   margin: 8px auto 0;
   border-radius: 20px;
   background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px var(--composer-border), 0 18px 48px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 18px 48px rgba(0, 0, 0, calc(0.3 * var(--shadow)));
 }
 
 .dg-editor[hidden] {
@@ -3478,7 +3887,7 @@ h6.md-h {
   width: calc(50% - 2px);
   border-radius: 8px;
   background: rgba(var(--fg-rgb), 0.13);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, calc(0.3 * var(--shadow)));
   transition: translate 0.4s var(--motion-easing);
 }
 
@@ -3920,7 +4329,7 @@ h6.md-h {
   border-radius: 10px;
   outline: none;
   background: var(--composer-bg);
-  box-shadow: 0 0 0 1.5px rgba(var(--tone), 0.7), 0 10px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 1.5px rgba(var(--tone), 0.7), 0 10px 28px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   color: rgb(var(--fg-rgb));
   font: 650 13px var(--font);
   text-align: center;
@@ -3960,8 +4369,8 @@ h6.md-h {
   min-width: 128px;
   padding: 8px 12px 9px;
   border-radius: 14px;
-  background: rgba(36, 36, 38, 0.82);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 14px 34px rgba(0, 0, 0, 0.45);
+  background: var(--tip-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 14px 34px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   -webkit-backdrop-filter: blur(18px) saturate(1.6);
   backdrop-filter: blur(18px) saturate(1.6);
   color: var(--fg-primary);
@@ -4569,7 +4978,7 @@ h6.md-h {
 }
 
 .dg-today-tag text {
-  fill: rgb(20, 20, 20);
+  fill: var(--on-danger);
   font-size: 11px;
   font-weight: 750;
 }
@@ -4921,6 +5330,106 @@ h6.md-h {
   font-weight: 700;
 }
 
+/* Files: a folder as a card in the column, like a file attachment. One line with the folder, where it is and what it
+   holds; a thin line of the kinds inside, in the colors of their icons (--ft); then a quiet row for each entry. */
+.dg-fv-card {
+  fill: var(--composer-bg);
+  stroke: var(--composer-border);
+  stroke-width: 1;
+}
+
+.dg-fv-folder {
+  color: var(--fg-secondary);
+}
+
+.dg-svg .dg-fv-folder .folder-front {
+  d: path("M38 53L82 53L82 72A4 4 0 0 1 78 76L42 76A4 4 0 0 1 38 72Z");
+}
+
+.dg-fv-title {
+  fill: var(--fg-primary);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.dg-fv-path {
+  fill: rgba(var(--fg-rgb), 0.38);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dg-fv-total {
+  fill: var(--fg-primary);
+  font-size: 12.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-fv-sum {
+  fill: var(--fg-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.dg-fv-seg {
+  fill: rgb(var(--ft));
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+.dg-svg:has(.dg-fv-seg.is-hot) .dg-fv-seg:not(.is-hot) {
+  opacity: 0.3;
+}
+
+[data-theme="light"] .dg-fv-seg {
+  fill: color-mix(in oklab, rgb(var(--ft)) 85%, black);
+}
+
+/* A row catches the pointer across its whole width; the highlight itself is one for all rows and glides between them. */
+.dg-fv-hit {
+  fill: transparent;
+}
+
+.dg-glide {
+  fill: rgba(var(--fg-rgb), 0.05);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dg-fv-name {
+  fill: var(--fg-primary);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.dg-fv-note,
+.dg-fv-date,
+.dg-fv-count,
+.dg-fv-more {
+  fill: rgba(var(--fg-rgb), 0.4);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-fv-size {
+  fill: var(--fg-secondary);
+  font-size: 12.5px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-fv-rule {
+  stroke: rgba(var(--fg-rgb), 0.06);
+  stroke-width: 1;
+}
+
+.dg-fv-guide {
+  stroke: rgba(var(--fg-rgb), 0.09);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
 .thread-bottom {
   --icon-button-size: 36px;
   --icon-size: 17px;
@@ -4932,7 +5441,7 @@ h6.md-h {
   bottom: calc(var(--composer-space, 140px) + 14px);
   left: 50%;
   translate: -50% 0;
-  background: var(--glass-fill), rgba(24, 24, 24, 0.55);
+  background: var(--glass-fill), var(--lens-bg);
   -webkit-backdrop-filter: var(--glass-lens,) blur(3px) saturate(1.6) brightness(1.05);
   backdrop-filter: var(--glass-lens,) blur(3px) saturate(1.6) brightness(1.05);
   opacity: 0;
@@ -4951,7 +5460,7 @@ h6.md-h {
 }
 
 .is-veiled .thread-bottom {
-  filter: blur(5px) brightness(0.78) contrast(0.949);
+  filter: var(--veil);
 }
 .main.is-empty::after {
   flex-grow: 1;
@@ -4989,7 +5498,11 @@ h6.md-h {
   height: 64px;
   margin-bottom: 18px;
   color: rgb(var(--composer-accent-rgb));
-  filter: drop-shadow(0 0 22px rgba(255, 255, 255, 0.16));
+  filter: drop-shadow(0 0 22px rgba(var(--glow-rgb), 0.16));
+}
+
+[data-theme="light"] .lock-screen-glyph {
+  filter: drop-shadow(0 6px 16px rgba(var(--glow-rgb), 0.12));
 }
 
 .lock-screen-glyph .glyph {
@@ -5054,7 +5567,7 @@ h6.md-h {
   border-radius: 23px;
   outline: none;
   background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px var(--composer-border), 0 14px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 14px 40px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
   color: var(--fg-primary);
   caret-color: var(--fg-primary);
   font: inherit;
@@ -5069,7 +5582,7 @@ h6.md-h {
 }
 
 .lock-screen-input:focus {
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.2), 0 14px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.2), 0 14px 40px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
 }
 
 .lock-screen-go {
@@ -5134,8 +5647,8 @@ h6.md-h {
   overflow: visible;
   border: 0;
   border-radius: 18px;
-  background: rgb(33, 33, 33);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.09), 0 18px 50px rgba(0, 0, 0, 0.5);
+  background: var(--popover-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.09), 0 18px 50px rgba(0, 0, 0, calc(0.5 * var(--shadow)));
   color: var(--fg-primary);
 }
 
@@ -5269,7 +5782,7 @@ h6.md-h {
   padding: 13px 14px 10px;
   background: var(--composer-bg);
   border-radius: var(--composer-radius);
-  box-shadow: inset 0 0 0 1px var(--composer-border), 0 14px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 14px 40px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
   font-size: var(--composer-font-size);
   line-height: var(--composer-line-height);
   cursor: text;
@@ -5281,7 +5794,7 @@ h6.md-h {
 
 /* While a piece of a reply is selected the composer steps back with the feed, with the same blur and dimming as the veil. */
 .is-veiled > .composer {
-  filter: blur(5px) brightness(0.78) contrast(0.949);
+  filter: var(--veil);
   transition:
     margin-top var(--motion-duration) var(--motion-easing),
     margin-bottom var(--motion-duration) var(--motion-easing),
@@ -5307,7 +5820,7 @@ h6.md-h {
   border-radius: 16px;
   outline: none;
   background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px var(--composer-border), 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 8px 24px rgba(0, 0, 0, calc(0.25 * var(--shadow)));
   color: var(--fg-primary);
   font: inherit;
   font-size: var(--small-font-size);
@@ -5613,6 +6126,12 @@ h6.md-h {
   color: transparent;
 }
 
+/* A text too long for the mirror shows in the field itself, letters and selection alike. */
+.is-plain > .composer-input,
+.is-plain > .composer-input::selection {
+  color: var(--fg-primary);
+}
+
 .composer-input::-webkit-scrollbar {
   display: none;
 }
@@ -5770,7 +6289,7 @@ h6.md-h {
   border: 0;
   border-radius: 18px;
   background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 18px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 18px 48px rgba(0, 0, 0, calc(0.5 * var(--shadow)));
   color: var(--fg-primary);
   opacity: 0;
   transform: translateY(6px) scale(0.96);
@@ -5958,9 +6477,9 @@ h6.md-h {
 .model-veil {
   position: absolute;
   inset: 0;
-  background: rgba(10, 10, 10, 0.36);
-  -webkit-backdrop-filter: blur(24px) saturate(1.1) brightness(0.5);
-  backdrop-filter: blur(24px) saturate(1.1) brightness(0.5);
+  background: var(--stage-veil-bg);
+  -webkit-backdrop-filter: var(--stage-veil);
+  backdrop-filter: var(--stage-veil);
 }
 
 @property --fade-top {
@@ -6084,12 +6603,17 @@ h6.md-h {
   line-height: 1;
   letter-spacing: -0.025em;
   white-space: pre;
-  text-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  text-shadow: 0 0 0 rgba(var(--glow-rgb), 0);
   transition: text-shadow 0.5s ease;
 }
 
 .model-row.is-focus .model-name {
-  text-shadow: 0 0 34px rgba(255, 255, 255, 0.28);
+  text-shadow: 0 0 34px rgba(var(--glow-rgb), 0.28);
+}
+
+/* On the milky veil a dark glow of the same strength would read as a smudge; a faint one gives the name its depth. */
+[data-theme="light"] .model-row.is-focus .model-name {
+  text-shadow: 0 0 30px rgba(var(--glow-rgb), 0.1);
 }
 
 .model-letter {
@@ -6187,7 +6711,7 @@ h6.md-h {
 }
 
 .model-confirm .approval-button:focus-visible {
-  box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.6), 0 0 0 4px var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--stage-ring), 0 0 0 4px var(--focus-ring);
 }
 
 .composer-effort[expanded] {
@@ -6212,13 +6736,103 @@ h6.md-h {
   user-select: none;
 }
 
+/* The effort's stage: the model picker's veil behind the panel, and over the slider the level's name. Each name takes
+   its weight, spacing and glow from how high its level stands (--level-heat), strains toward the next level while the lens
+   is dragged (--strain), and leans as the lens moves (--lean). */
+@property --strain {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/* Windows 11's variable Segoe. Asked for as a system font, Chromium draws only its named weights (Light, Regular,
+   Semibold, Bold), so a name straining toward the next level jumped between them; declared as a face with a weight
+   range, it draws every weight in between. Where the font is missing, the name keeps the system font. */
+@font-face {
+  font-family: "OpenGhost Display";
+  src: local("Segoe UI Variable Display");
+  font-weight: 300 700;
+}
+
+/* The veil reaches only around the stage: a soft patch behind the name and the slider, the selection's veil,
+   whose edges (a mask from effort-stage.js) fade into the app, which stays sharp further off. Its box follows
+   the name, so it widens with a long one. */
+.effort-veil {
+  position: absolute;
+  z-index: -1;
+  mask-composite: intersect;
+  transition: left 0.5s var(--motion-easing), top 0.5s var(--motion-easing), width 0.5s var(--motion-easing), height 0.5s var(--motion-easing);
+}
+
+.effort-title {
+  --lean: 0deg;
+  --glow: 0.34;
+  position: absolute;
+  right: 18px;
+  bottom: calc(100% + 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  color: rgb(var(--composer-accent-rgb));
+  pointer-events: none;
+}
+
+[data-theme="light"] .effort-title {
+  --glow: 0.12;
+}
+
+/* The words stack in one line while one leaves and the next arrives. */
+.effort-word-box {
+  position: relative;
+  height: 1.1em;
+  font-family: "OpenGhost Display", var(--font);
+  font-size: clamp(32px, 3.4vw, 46px);
+  line-height: 1.1;
+  transform: skewX(var(--lean));
+  transform-origin: 100% 100%;
+}
+
+.effort-word {
+  --level-heat: 0;
+  --heat: clamp(0, var(--level-heat) + var(--strain), 1);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  font-weight: calc(300 + 400 * var(--heat));
+  letter-spacing: calc(-0.01em - 0.025em * var(--heat));
+  text-shadow: 0 0 calc(6px + 30px * var(--heat)) rgba(var(--glow-rgb), calc(var(--glow) * var(--heat)));
+  white-space: pre;
+  transition: --strain 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.effort-letter {
+  display: inline-block;
+}
+
+.effort-hint-box {
+  position: relative;
+  height: 16px;
+}
+
+.effort-hint {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  color: rgba(var(--fg-rgb), 0.55);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
 .effort-shell {
   position: absolute;
   border-radius: 999px;
   background: color-mix(in srgb, var(--composer-bg), rgb(var(--composer-accent-rgb)) calc(var(--shell-paint, 0) * 100%));
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--composer-border), transparent calc(var(--shell-paint, 0) * 100%)),
-    0 18px 48px rgba(0, 0, 0, 0.45);
+    0 18px 48px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   pointer-events: none;
 }
 
@@ -6276,7 +6890,7 @@ h6.md-h {
   position: absolute;
   inset: 0 -3px;
   border-radius: 3px;
-  background: color-mix(in srgb, rgba(var(--fg-rgb), 0.1), rgba(0, 0, 0, 0.1) calc(var(--paint) * 100%));
+  background: color-mix(in srgb, rgba(var(--fg-rgb), 0.1), rgba(var(--paint-shade-rgb), 0.1) calc(var(--paint) * 100%));
 }
 
 /* The end is cut by clip-path, not width: box sizes snap to device pixels and the lens magnifies each step. */
@@ -6288,7 +6902,7 @@ h6.md-h {
 }
 
 .effort-tick {
-  --bare: color-mix(in srgb, rgba(var(--fg-rgb), 0.3), rgba(0, 0, 0, 0.22) calc(var(--paint) * 100%));
+  --bare: color-mix(in srgb, rgba(var(--fg-rgb), 0.3), rgba(var(--paint-shade-rgb), 0.22) calc(var(--paint) * 100%));
   --covered: color-mix(in srgb, rgba(var(--composer-on-accent-rgb), 0.45), rgb(var(--composer-accent-rgb)) calc(var(--paint) * 100%));
   position: absolute;
   top: 50%;
@@ -6323,6 +6937,7 @@ h6.md-h {
 }
 
 .settings {
+  --settings-nav: 180px;
   position: fixed;
   inset: 0;
   width: min(780px, 100% - 48px);
@@ -6335,7 +6950,7 @@ h6.md-h {
   border: 0;
   background: var(--app-bg);
   border-radius: calc(var(--chat-radius) + var(--chat-gap));
-  box-shadow: var(--contour), 0 24px 64px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--contour), 0 24px 64px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   color: var(--fg-primary);
   opacity: 0;
   transform: translateY(8px) scale(0.98);
@@ -6381,12 +6996,43 @@ h6.md-h {
   }
 }
 
+/* As in the chat, the page fades into its top and bottom edges; each edge shows while more of the page is scrolled out past it. */
+.settings::before,
+.settings::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  right: var(--chat-gap);
+  left: var(--settings-nav);
+  height: calc(var(--composer-bottom-gap) + 12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.settings::before {
+  top: var(--chat-gap);
+  border-radius: var(--chat-radius) var(--chat-radius) 0 0;
+  background: linear-gradient(var(--chat-bg), transparent 70%);
+}
+
+.settings::after {
+  bottom: var(--chat-gap);
+  border-radius: 0 0 var(--chat-radius) var(--chat-radius);
+  background: linear-gradient(transparent, var(--chat-bg) 70%);
+}
+
+.settings.can-up::before,
+.settings.can-down::after {
+  opacity: 1;
+}
+
 .settings-nav {
   display: flex;
   flex: none;
   flex-direction: column;
   gap: 4px;
-  width: 180px;
+  width: var(--settings-nav);
   padding: calc(var(--chat-gap) + var(--toggle-inset)) var(--toggle-inset);
 }
 
@@ -6402,7 +7048,32 @@ h6.md-h {
   letter-spacing: -0.01em;
 }
 
+.settings-tabs {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* One highlight for all sections: it glides to the chosen one instead of blinking from row to row. */
+.settings-glide {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 34px;
+  border-radius: 17px;
+  background: rgba(var(--fg-rgb), 0.07);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.5s var(--motion-easing),
+    height 0.5s var(--motion-easing),
+    opacity 0.2s ease;
+}
+
 .settings-tab {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -6423,14 +7094,51 @@ h6.md-h {
   overflow: visible;
 }
 
-.settings-tab:hover {
+.settings-tab:hover,
+.settings-tab[aria-selected="true"] {
   color: var(--fg-primary);
 }
 
-.settings-tab[aria-current="page"] {
-  background: rgba(var(--fg-rgb), 0.07);
-  color: var(--fg-primary);
+/* Each section's icon moves a little as it is chosen: the sliders slide, the plug pushes in, the half moon turns over. */
+.settings-tab-icon :is(.slide-a1, .slide-a2, .slide-b1, .slide-b2, .knob-a, .knob-b) {
+  transition: d 0.6s var(--motion-easing), transform 0.6s var(--motion-easing);
 }
+
+.settings-tab[aria-selected="true"] .slide-a1 { d: path("M38 47H58"); }
+.settings-tab[aria-selected="true"] .slide-a2 { d: path("M70 47H82"); }
+.settings-tab[aria-selected="true"] .knob-a { transform: translateX(12px); }
+.settings-tab[aria-selected="true"] .slide-b1 { d: path("M38 73H50"); }
+.settings-tab[aria-selected="true"] .slide-b2 { d: path("M62 73H82"); }
+.settings-tab[aria-selected="true"] .knob-b { transform: translateX(-12px); }
+
+.settings-tab[aria-selected="true"] .plug {
+  animation: settings-plug 0.6s var(--motion-easing);
+}
+
+@keyframes settings-plug {
+  40% {
+    transform: translateY(-5px);
+  }
+}
+
+.settings-tab-icon .half {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  transition: transform 0.7s var(--motion-easing);
+}
+
+.settings-tab[aria-selected="true"] .half {
+  transform: rotate(180deg);
+}
+
+/* Usage: the three bars trade heights, like a chart catching up. */
+.settings-tab-icon :is(.bar-a, .bar-b, .bar-c) {
+  transition: d 0.6s var(--motion-easing);
+}
+
+.settings-tab[aria-selected="true"] .bar-a { d: path("M42 80V48"); }
+.settings-tab[aria-selected="true"] .bar-b { d: path("M60 80V60"); }
+.settings-tab[aria-selected="true"] .bar-c { d: path("M78 80V38"); }
 
 .settings-lead {
   margin: 0 0 4px;
@@ -6485,6 +7193,549 @@ h6.md-h {
 
 .provider .settings-row {
   padding: 14px 0;
+}
+
+/* Settings → Usage. On top a card with the periods, each split by provider in its color, and a column for each of the last
+   30 days; then a section for every provider in use. */
+.usage-summary {
+  margin: 18px 0 8px;
+  padding: 18px 18px 14px;
+  border-radius: 18px;
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px var(--composer-border);
+}
+
+.usage-periods {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.usage-period {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.usage-period-name,
+.usage-stat-name {
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.usage-period-value {
+  color: var(--fg-primary);
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 28px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-split {
+  display: flex;
+  gap: 2px;
+  height: 4px;
+  margin-top: 2px;
+}
+
+.usage-split.is-empty {
+  border-radius: 2px;
+  background: rgba(var(--fg-rgb), 0.07);
+}
+
+.usage-split i {
+  flex-basis: 0;
+  min-width: 4px;
+  border-radius: 2px;
+  background: rgb(var(--tone));
+  transform-origin: left;
+}
+
+/* Above the chart: what it shows, its total, and the arrows that turn it back through the months. */
+.usage-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.usage-range-title {
+  color: var(--fg-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.usage-range-total {
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-range-nav {
+  display: flex;
+  gap: 2px;
+  margin: -4px -6px -4px auto;
+}
+
+.usage-nav {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: none;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease, transform 0.2s var(--motion-easing);
+}
+
+.usage-nav svg {
+  width: 13px;
+  height: 13px;
+}
+
+.usage-nav.is-later svg {
+  transform: scaleX(-1);
+}
+
+.usage-nav:hover:not(:disabled),
+.usage-nav:focus-visible {
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+}
+
+.usage-nav:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.usage-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.usage-chart {
+  position: relative;
+  margin-top: 14px;
+}
+
+.usage-chart-plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 84px;
+}
+
+.usage-day {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.usage-day-bar {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1.5px;
+  width: 100%;
+  height: calc(var(--h) * 100%);
+  overflow: hidden;
+  border-radius: 4px 4px 2px 2px;
+  transform-origin: bottom;
+}
+
+.usage-day-bar i {
+  flex-basis: 0;
+  min-height: 2px;
+  background: rgb(var(--tone));
+}
+
+.usage-day.is-empty .usage-day-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(var(--fg-rgb), 0.08);
+}
+
+/* One highlight glides along the days under the pointer on the sidebar's springs, the way it moves along the chats. */
+.usage-chart-glide {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: -2px;
+  width: 0;
+  border-radius: 8px;
+  background: rgba(var(--fg-rgb), 0.06);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, width, opacity;
+}
+
+.usage-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--fg-tertiary);
+  font-size: 11.5px;
+}
+
+.usage-tip {
+  position: absolute;
+  z-index: 3;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 8px 12px 9px;
+  border-radius: 14px;
+  background: var(--tip-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 14px 34px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+  color: var(--fg-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.usage-tip-head {
+  color: var(--fg-secondary);
+  font-weight: 500;
+}
+
+.usage-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 500;
+}
+
+.usage-tip-row b {
+  margin-left: auto;
+  padding-left: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 14px;
+  font-size: 12.5px;
+}
+
+.usage-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--fg-secondary);
+}
+
+.usage-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.usage-key b {
+  color: var(--fg-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-key i,
+.usage-tip-row i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(var(--tone));
+}
+
+.usage-since {
+  color: var(--fg-tertiary);
+}
+
+/* What the account itself says, set quietly at the right of the provider's name: the plan, the balance. */
+.usage-account {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.usage-account[hidden] {
+  display: none;
+}
+
+.usage-account-label {
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.usage-account-value {
+  color: var(--fg-primary);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A provider that is no longer connected keeps its history, quieter. */
+.usage-provider.is-off :is(.usage-stats, .usage-facts, .usage-models) {
+  opacity: 0.55;
+}
+
+/* The subscription's limits: a meter per window in the provider's color, amber past 80%, red once it is used up. */
+/* One grid for all the rows, so every meter starts and ends in line whatever the window's name. */
+.usage-limits {
+  display: grid;
+  grid-template-columns: minmax(84px, max-content) minmax(60px, 1fr) 42px minmax(128px, max-content);
+  gap: 12px 14px;
+  margin-top: 16px;
+}
+
+.usage-limit {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: 20px;
+  font-size: 13px;
+}
+
+.usage-limit.is-high {
+  --tone: 255, 212, 96;
+}
+
+[data-theme="light"] .usage-limit.is-high {
+  --tone: 222, 156, 0;
+}
+
+.usage-limit.is-full {
+  --tone: var(--danger-rgb);
+}
+
+.usage-limit-name {
+  overflow: hidden;
+  color: var(--fg-primary);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-limit.is-model .usage-limit-name {
+  color: var(--fg-secondary);
+}
+
+.usage-meter {
+  position: relative;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(var(--fg-rgb), 0.08);
+}
+
+.usage-meter i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--used) * 100%);
+  border-radius: inherit;
+  background: rgb(var(--tone));
+}
+
+.usage-limit-used {
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-limit-reset {
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.usage-limit.is-full .usage-limit-reset {
+  color: rgb(var(--danger-rgb));
+}
+
+/* While the limits load, two quiet rows keep their place with a slow band running across. */
+.usage-limit.is-waiting span {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(var(--fg-rgb), 0.06) 30%, rgba(var(--fg-rgb), 0.13) 50%, rgba(var(--fg-rgb), 0.06) 70%) 100% 0 / 250% 100%;
+  animation: compact-wave 1.9s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin-top: 16px;
+}
+
+.usage-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.usage-stat-value {
+  color: var(--fg-primary);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-facts {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 12px 0 0;
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.usage-facts.is-last {
+  margin-bottom: 20px;
+}
+
+.usage-facts span + span::before {
+  content: "·";
+  margin: 0 8px;
+  color: var(--fg-tertiary);
+}
+
+.usage-models {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 20px;
+}
+
+.usage-model {
+  display: grid;
+  grid-template-columns: minmax(0, 190px) minmax(40px, 1fr) minmax(44px, max-content);
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+}
+
+.usage-model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-model-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(var(--fg-rgb), 0.06);
+}
+
+.usage-model-bar i {
+  display: block;
+  width: calc(var(--share) * 100%);
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(var(--tone), 0.75);
+}
+
+.usage-model-value {
+  color: var(--fg-secondary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-empty,
+.usage-note {
+  margin: 14px 0 20px;
+  color: var(--fg-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.usage-limits .usage-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* Coming in, the page rises out of a blur, the splits and the bars grow and the days rise one after another. */
+.is-entering .usage-period,
+.is-entering .usage-provider {
+  animation: usage-rise 0.6s var(--motion-easing) both;
+  animation-delay: calc(var(--k, 3) * 60ms);
+}
+
+.is-entering .usage-split i,
+.is-entering .usage-model-bar i {
+  animation: usage-grow-x 0.8s var(--motion-easing) 0.18s both;
+}
+
+.is-entering .usage-day-bar {
+  animation: usage-grow-y 0.7s var(--motion-easing) both;
+  animation-delay: calc(120ms + var(--k) * 16ms);
+}
+
+.usage-limits.is-filling .usage-meter i {
+  animation: usage-grow-x 0.9s var(--motion-easing) both;
+}
+
+/* Turning to another month, its days rise one after another and the numbers under them come in anew. */
+.is-flipping .usage-day-bar {
+  animation: usage-grow-y 0.55s var(--motion-easing) both;
+  animation-delay: calc(var(--k) * 10ms);
+}
+
+.is-flipping :is(.usage-range-title, .usage-range-total, .usage-legend, .usage-provider .usage-stats, .usage-provider .usage-facts, .usage-provider .usage-models, .usage-provider .usage-empty) {
+  animation: usage-rise 0.45s var(--motion-easing) both;
+}
+
+.usage-meter i,
+.usage-model-bar i {
+  transform-origin: left;
+}
+
+@keyframes usage-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+}
+
+@keyframes usage-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes usage-grow-y {
+  from {
+    transform: scaleY(0);
+  }
 }
 
 .settings-account-row {
@@ -6631,10 +7882,14 @@ h6.md-h {
   align-items: flex-end;
 }
 
+.settings-key-box {
+  position: relative;
+}
+
 .settings-key {
   width: 260px;
   height: 36px;
-  padding: 0 16px;
+  padding: 0 42px 0 16px;
   border: 0;
   outline: none;
   background: var(--composer-bg);
@@ -6644,12 +7899,60 @@ h6.md-h {
   caret-color: var(--fg-primary);
   font-family: var(--mono-font);
   font-size: 13px;
-  -webkit-text-security: disc;
   transition: box-shadow 0.2s ease;
 }
 
-.settings-key:placeholder-shown {
-  -webkit-text-security: none;
+/* The eye inside the field's end shows the key for a check; it is there only once the field holds one. */
+.settings-key-eye {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: transparent;
+  color: rgba(var(--fg-rgb), 0.42);
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+.settings-key-eye:hover,
+.settings-key-box.is-revealed .settings-key-eye {
+  color: rgba(var(--fg-rgb), 0.85);
+}
+
+.settings-key-eye:hover {
+  background: rgba(var(--fg-rgb), 0.06);
+}
+
+.settings-key-eye:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.settings-key-eye .glyph {
+  width: 20px;
+  height: 20px;
+}
+
+.settings-key:placeholder-shown + .settings-key-eye {
+  opacity: 0;
+  transform: scale(0.7);
+  pointer-events: none;
+}
+
+.glyph-eye .eye-slash {
+  stroke-dasharray: 51;
+  stroke-dashoffset: 51;
+  transition: stroke-dashoffset 0.32s var(--motion-easing);
+}
+
+.settings-key-box.is-revealed .eye-slash {
+  stroke-dashoffset: 0;
 }
 
 .settings-key::placeholder {
@@ -6670,6 +7973,443 @@ h6.md-h {
 
 .settings-status[data-tone="error"] {
   color: rgb(var(--danger-rgb));
+}
+
+/* Settings → General. */
+.general-block {
+  padding: 20px 0 18px;
+}
+
+.general-block + .general-block {
+  border-top: 1px solid rgba(var(--fg-rgb), 0.06);
+}
+
+.general-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.general-count {
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.general-field {
+  margin-top: 12px;
+  overflow: hidden;
+  background: var(--composer-bg);
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px var(--composer-border);
+  transition: box-shadow 0.2s ease;
+}
+
+.general-field:focus-within {
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.2);
+}
+
+.general-input {
+  display: block;
+  width: 100%;
+  min-height: 116px;
+  max-height: 320px;
+  field-sizing: content;
+  padding: 13px 16px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg-primary);
+  caret-color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 21px;
+  resize: none;
+  scrollbar-color: rgba(var(--fg-rgb), 0.2) transparent;
+  scrollbar-width: thin;
+}
+
+.general-input::placeholder {
+  color: rgb(var(--composer-fg-rgb));
+}
+
+.general-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.general-files:empty {
+  display: none;
+}
+
+.general-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 54px;
+  padding: 0 9px 0 12px;
+  overflow: hidden;
+  background: var(--composer-bg);
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--composer-border);
+}
+
+/* Icons and picture thumbnails take the same 32px, so the names line up. */
+.general-file .file-icon {
+  width: 25px;
+  height: 31px;
+  margin: 0 3.5px;
+}
+
+.general-file-thumb {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08);
+}
+
+.general-file-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.general-file-name {
+  overflow: hidden;
+  color: var(--fg-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.general-file-meta {
+  overflow: hidden;
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.general-file-remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.general-file-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.general-file:hover .general-file-remove,
+.general-file-remove:focus-visible {
+  opacity: 1;
+}
+
+.general-file-remove:hover,
+.general-file-remove:focus-visible {
+  background: rgba(var(--fg-rgb), 0.08);
+  color: var(--fg-primary);
+}
+
+/* Adding files: one wide dashed target, pressed to choose files or dropped onto; while files hover over the section it lights up. */
+.general-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 52px;
+  margin-top: 12px;
+  border: 1.5px dashed rgba(var(--fg-rgb), 0.16);
+  border-radius: 14px;
+  outline: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.35s var(--motion-easing);
+}
+
+.general-drop svg {
+  width: 15px;
+  height: 15px;
+  transition: transform 0.45s var(--motion-easing);
+}
+
+.general-drop:hover,
+.general-drop:focus-visible {
+  border-color: rgba(var(--fg-rgb), 0.3);
+  color: var(--fg-primary);
+}
+
+.general-drop:active {
+  transform: scale(0.99);
+}
+
+.general-files-block.is-dropping .general-drop {
+  border-color: rgba(var(--fg-rgb), 0.5);
+  background: rgba(var(--fg-rgb), 0.05);
+  color: var(--fg-primary);
+  transform: scale(1.015);
+}
+
+.general-files-block.is-dropping .general-drop svg {
+  transform: rotate(90deg) scale(1.15);
+}
+
+.general-status {
+  margin-right: 0;
+  text-align: left;
+}
+
+/* Settings → Appearance: each theme as a small window of the app, painted by that theme's own tokens. */
+.theme-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.25s ease;
+}
+
+.theme-option:hover,
+.theme-option[aria-checked="true"] {
+  color: var(--fg-primary);
+}
+
+.theme-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10.5;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(var(--fg-rgb), 0.1),
+    0 0 0 0 transparent,
+    0 6px 16px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
+  transition:
+    box-shadow 0.35s ease,
+    transform 0.5s var(--motion-easing);
+}
+
+.theme-option:hover .theme-frame {
+  transform: translateY(-2px);
+}
+
+.theme-option:active .theme-frame {
+  transform: scale(0.98);
+}
+
+.theme-option[aria-checked="true"] .theme-frame {
+  box-shadow:
+    0 0 0 2px var(--chat-bg),
+    0 0 0 4px rgb(var(--composer-accent-rgb)),
+    0 10px 24px rgba(0, 0, 0, calc(0.28 * var(--shadow)));
+}
+
+.theme-option:focus-visible .theme-frame {
+  box-shadow:
+    0 0 0 2px var(--chat-bg),
+    0 0 0 4px var(--focus-ring),
+    0 6px 16px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
+}
+
+.theme-option[aria-checked="true"]:focus-visible .theme-frame {
+  box-shadow:
+    0 0 0 2px var(--chat-bg),
+    0 0 0 4px rgb(var(--composer-accent-rgb)),
+    0 0 0 7px var(--focus-ring);
+}
+
+.theme-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 5%;
+  padding: 7% 0 0 5%;
+  background: var(--app-bg);
+}
+
+/* System: the light window with the dark one over its lower right half, split on the diagonal. */
+.theme-frame.is-split .theme-preview + .theme-preview {
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.theme-preview-side {
+  display: flex;
+  flex: 0 0 21%;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 13%;
+}
+
+.theme-preview-side i {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(var(--fg-rgb), 0.14);
+}
+
+.theme-preview-side i:nth-child(2) {
+  width: 78%;
+}
+
+.theme-preview-side i:nth-child(3) {
+  width: 88%;
+}
+
+.theme-preview-side i:nth-child(4) {
+  width: 64%;
+}
+
+.theme-preview-chat {
+  position: relative;
+  flex: 1;
+  background: var(--chat-bg);
+  border-radius: 8px 0 0;
+  box-shadow: var(--contour);
+}
+
+.theme-preview-bubble {
+  position: absolute;
+  top: 12%;
+  right: 10%;
+  width: 32%;
+  height: 12%;
+  border-radius: 999px;
+  background: var(--bubble-bg);
+}
+
+.theme-preview-ghost {
+  position: absolute;
+  top: 33%;
+  left: 10%;
+  width: 11%;
+  color: rgb(var(--composer-accent-rgb));
+  --ghost-eye: var(--chat-bg);
+}
+
+.theme-preview-ghost svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.theme-preview-ghost .glyph-ghost-eye {
+  fill: var(--chat-bg);
+}
+
+.theme-preview-line {
+  position: absolute;
+  top: 36%;
+  left: 26%;
+  width: 52%;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(var(--fg-rgb), 0.2);
+}
+
+.theme-preview-line.is-short {
+  top: calc(36% + 11px);
+  width: 34%;
+}
+
+.theme-preview-composer {
+  position: absolute;
+  right: 9%;
+  bottom: 11%;
+  left: 9%;
+  height: 19%;
+  border-radius: 999px;
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 4px 10px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
+}
+
+.theme-preview-send {
+  position: absolute;
+  top: 50%;
+  right: 4%;
+  height: 64%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgb(var(--composer-accent-rgb));
+  transform: translateY(-50%);
+}
+
+/* The chosen theme gets a small check in the corner, springing in as the ring settles around it. */
+.theme-check {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgb(var(--composer-accent-rgb));
+  box-shadow: 0 0 0 2px var(--chat-bg), 0 3px 8px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
+  color: rgb(var(--composer-on-accent-rgb));
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.2s ease,
+    transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-check svg {
+  width: 11px;
+  height: 11px;
+}
+
+.theme-option[aria-checked="true"] .theme-check {
+  opacity: 1;
+  transform: none;
 }
 
 .file-icon {
@@ -6705,6 +8445,27 @@ h6.md-h {
   font-family: var(--font);
   font-weight: 800;
   letter-spacing: 0.02em;
+}
+
+/* The file colors are bright for the dark theme; on white their lines and letters go deeper. */
+[data-theme="light"] .file-icon {
+  --ft-ink: color-mix(in oklab, rgb(var(--ft)) 70%, black);
+}
+
+[data-theme="light"] .file-icon-page {
+  stroke: color-mix(in srgb, var(--ft-ink) 45%, transparent);
+}
+
+[data-theme="light"] .file-icon-fold {
+  fill: color-mix(in srgb, var(--ft-ink) 36%, transparent);
+}
+
+[data-theme="light"] .file-icon-glyph .stroke {
+  stroke: var(--ft-ink);
+}
+
+[data-theme="light"] :is(.file-icon-glyph .fill, .file-icon-ext) {
+  fill: var(--ft-ink);
 }
 
 .composer-attachments {
@@ -6848,6 +8609,63 @@ h6.md-h {
   white-space: pre;
 }
 
+/* A pasted text is a card like a file; the whole card puts the text back into the message. Under the pointer it lifts
+   a little, and its line hands over to what a click does. */
+.attachment.is-pasted {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.attachment.is-pasted:hover {
+  background: rgba(var(--fg-rgb), 0.07);
+}
+
+button.attachment-text {
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.attachment.is-pasted .attachment-meta {
+  display: grid;
+}
+
+.attachment-meta-line,
+.attachment-unpaste {
+  display: flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  transition: opacity 0.2s ease, transform 0.3s var(--motion-easing), filter 0.3s var(--motion-easing);
+}
+
+.attachment-unpaste {
+  color: var(--fg-primary);
+  opacity: 0;
+  transform: translateY(7px);
+  filter: blur(2px);
+}
+
+.attachment.is-pasted:hover:not(:has(.attachment-note:hover, .attachment-remove:hover)) .attachment-meta-line,
+.attachment-text:focus-visible .attachment-meta-line {
+  opacity: 0;
+  transform: translateY(-7px);
+  filter: blur(2px);
+}
+
+.attachment.is-pasted:hover:not(:has(.attachment-note:hover, .attachment-remove:hover)) .attachment-unpaste,
+.attachment-text:focus-visible .attachment-unpaste {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
 .attachment-remove,
 .attachment-note {
   position: absolute;
@@ -6861,8 +8679,8 @@ h6.md-h {
   border: 0;
   border-radius: 50%;
   outline: none;
-  background: rgb(60, 60, 60);
-  box-shadow: 0 0 0 1.5px var(--composer-bg), 0 2px 6px rgba(0, 0, 0, 0.35);
+  background: var(--attachment-note-bg);
+  box-shadow: 0 0 0 1.5px var(--composer-bg), 0 2px 6px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
   color: rgba(var(--fg-rgb), 0.92);
   cursor: pointer;
   opacity: 0;
@@ -6910,7 +8728,7 @@ h6.md-h {
 
 .attachment-remove:hover,
 .attachment-note:hover {
-  background: rgb(80, 80, 80);
+  background: var(--attachment-note-hover-bg);
 }
 
 .attachment-remove:focus-visible,
@@ -6937,7 +8755,7 @@ h6.md-h {
   border: 0;
   border-radius: 18px;
   background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 18px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 18px 48px rgba(0, 0, 0, calc(0.5 * var(--shadow)));
   color: var(--fg-primary);
   font-size: var(--small-font-size);
   line-height: 20px;
@@ -7078,7 +8896,7 @@ h6.md-h {
   align-items: center;
   justify-content: center;
   border-radius: inherit;
-  background: rgba(25, 25, 25, 0.86);
+  background: var(--drop-veil-bg);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   backdrop-filter: blur(14px) saturate(1.2);
   opacity: 0;
@@ -7111,14 +8929,14 @@ h6.md-h {
 }
 
 .drop-art .file-icon {
-  --file-icon-base: rgb(30, 30, 30);
+  --file-icon-base: var(--drop-icon-base);
   position: absolute;
   top: 10px;
   left: 50%;
   width: 64px;
   height: 80px;
   margin-left: -32px;
-  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, calc(0.5 * var(--shadow))));
   transform: translateY(16px) scale(0.8);
   transition: transform 0.6s cubic-bezier(0.34, 1.5, 0.64, 1);
 }
@@ -7243,8 +9061,8 @@ h6.md-h {
   margin: 0;
   overflow: hidden;
   border-radius: inherit;
-  background: rgb(20, 20, 20);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  background: var(--media-bg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, calc(0.32 * var(--shadow)));
   transform-origin: 50% 120%;
 }
 
@@ -7890,7 +9708,7 @@ h6.md-h {
 }
 
 .browser-pill:hover {
-  background: rgb(255, 255, 255);
+  background: var(--browser-pill-hover-bg);
 }
 
 .browser-pill:active {
@@ -7938,8 +9756,8 @@ h6.md-h {
   height: 32px;
   padding: 0 14px 0 11px;
   border-radius: 16px;
-  background: rgba(22, 22, 22, 0.82);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.1), 0 8px 24px rgba(0, 0, 0, 0.35);
+  background: var(--browser-glass-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.1), 0 8px 24px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
   -webkit-backdrop-filter: blur(14px) saturate(1.4);
   backdrop-filter: blur(14px) saturate(1.4);
   color: var(--fg-primary);
@@ -7957,7 +9775,7 @@ h6.md-h {
 }
 
 .browser-badge .glyph-ghost-eye {
-  fill: rgb(22, 22, 22);
+  fill: var(--app-bg);
 }
 
 @keyframes browser-float {
@@ -7973,7 +9791,7 @@ h6.md-h {
   height: 40px;
   padding: 0 20px;
   border-radius: 20px;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, calc(0.4 * var(--shadow)));
   font-size: 14px;
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.92);
@@ -8080,8 +9898,8 @@ h6.md-h {
   padding: 8px 14px;
   overflow: hidden;
   border-radius: 14px;
-  background: rgba(22, 22, 22, 0.88);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.1), 0 10px 30px rgba(0, 0, 0, 0.4);
+  background: var(--browser-toast-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.1), 0 10px 30px rgba(0, 0, 0, calc(0.4 * var(--shadow)));
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   color: var(--fg-primary);
@@ -8139,6 +9957,11 @@ h6.md-h {
   .lock-screen.is-checking .lock-screen-glyph .glyph,
   .message-tools,
   .approval,
+  .approval-word,
+  .approval-effect,
+  .approval-place,
+  .approval-quote,
+  .approval-foot > *,
   .thread-compact,
   .thread-compact.is-live .thread-compact-text,
   .browser-agent::before,
@@ -8172,12 +9995,19 @@ h6.md-h {
   .chats-folder-body,
   .chats-folder-inner,
   .glyph-folder .folder-front,
-  .chat-dot {
+  .chat-dot,
+  .settings-glide,
+  .settings-tab-icon *,
+  .general-drop,
+  .general-drop svg,
+  .theme-frame,
+  .theme-check {
     transition: none;
   }
 
   .message.is-user,
-  .message-status {
+  .message-status,
+  .settings-tab .plug {
     animation: none;
   }
 

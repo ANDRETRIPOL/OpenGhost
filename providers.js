@@ -64,19 +64,25 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxT
  });
 }
 
-function stream(config, options) {
- if (config.provider !== 'deepseek') return viaMain(config, options);
+// Every answer's tokens go into the app's own count of usage, whatever the call was for.
+function counted(config, result) {
+ Usage.record(config, result.usage);
+ return result;
+}
+
+async function stream(config, options) {
+ if (config.provider !== 'deepseek') return counted(config, await viaMain(config, options));
  const { messages, tools, signal, onReasoning, onContent } = options;
- return DeepSeek.streamChat({ key: config.key, model: config.model, effort: config.effort, vision: config.vision, messages, tools, signal, onReasoning, onContent });
+ return counted(config, await DeepSeek.streamChat({ key: config.key, model: config.model, effort: config.effort, vision: config.vision, messages, tools, signal, onReasoning, onContent }));
 }
 
 // Short side jobs, such as naming a chat or compacting it, think as little as the model allows.
 async function complete(config, { messages, signal, maxTokens = 40 }) {
- if (config.provider === 'deepseek') return DeepSeek.complete({ key: config.key, model: config.model, messages, signal, maxTokens });
+ if (config.provider === 'deepseek') return counted(config, await DeepSeek.complete({ key: config.key, model: config.model, messages, signal, maxTokens })).content;
  const efforts = config.efforts || [];
  const effort = efforts.includes('none') ? 'none' : efforts[0] || 'low';
  const room = config.provider === 'anthropic' ? Math.max(maxTokens, 2048) : maxTokens;
- const result = await viaMain({ ...config, effort }, { messages, signal, maxTokens: room });
+ const result = counted(config, await viaMain({ ...config, effort }, { messages, signal, maxTokens: room }));
  return result.content.trim();
 }
 

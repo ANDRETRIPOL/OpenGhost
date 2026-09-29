@@ -14,6 +14,12 @@ const FIGURE = '\u2007';
 const THIN = '\u202f';
 const JOINER = '\u2060';
 const QUOTE_MAX = 6000;
+// The browser's own editing commands slow down with every line they put in, seconds for a few thousand lines,
+// so text longer than this goes straight into the field's value.
+const LONG_LINES = 50;
+// Past this the decorated mirror costs more than the field itself (by 5,000 lines a keystroke takes twice the frames),
+// so so long a text shows in the plain field; the mirror comes back a little below, so the edge doesn't flicker.
+const PLAIN = { lines: 3000, chars: 200000, back: 0.8 };
 const LINK_OUT = { duration: 260, easing: 'cubic-bezier(0.3, 0.7, 0.4, 1)', fill: 'forwards' };
 const MANUAL_DELETE = /^delete(Content|Word|SoftLine|HardLine)(Backward|Forward)$/;
 const TYPED_URL = /(?:^|\s)((?:https?:\/\/|www\.)\S+)$/i;
@@ -23,6 +29,7 @@ const escapeAttr = text => escapeHtml(text).replace(/"/g, '&quot;');
 const easeOut = t => 1 - (1 - t) ** 3;
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const isHighSurrogate = code => code >= 0xd800 && code < 0xdc00;
+const lineCount = text => { let n = 1; for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) n++; return n; };
 
 class ComposerText {
  constructor(input, mirror) {
@@ -45,9 +52,13 @@ class ComposerText {
   this.incoming = null;
   this.ruler = null;
   this.caret = null;
-  this.quotes = 0;
+  this.chips = 0;
+  this.plain = false;
+  this.placed = null;
+  this.placing = false;
   this.tick = this.tick.bind(this);
   this.selection = () => this.onSelection();
+  input.addEventListener('keydown', e => this.onKeyDown(e));
   input.addEventListener('beforeinput', e => this.onBeforeInput(e));
   input.addEventListener('input', () => this.onInput());
   input.addEventListener('scroll', () => this.onScroll());
@@ -62,9 +73,10 @@ class ComposerText {
  refresh() {
   this.value = this.input.value;
   this.seg = null;
+  this.placed = null;
   this.links = this.recall(0, this.value.length, []);
   this.index();
-  this.renderAll(performance.now());
+  if (!this.syncPlain() && !this.plain) this.renderAll(performance.now());
  }
 
  text(from = 0, to = this.value.length) {
@@ -89,7 +101,7 @@ class ComposerText {
    this.removeLink(link);
    return;
   }
-  if (type !== 'insertText' || e.data !== ' ') return;
+  if (type !== 'insertText' || e.data !== ' ' || this.plain) return;
   const m = input.value.slice(0, start).match(TYPED_URL);
   if (!m || !LinkChip.find(m[1]).length) return;
   e.preventDefault();
@@ -97,11 +109,27 @@ class ComposerText {
   this.insertLinks(`${m[1]} `, start - m[1].length, start);
  }
 
+ // A long text the attachments did not take as a card goes straight in; a short one with links gets its chips.
  onPaste(e) {
   const text = e.clipboardData?.getData('text/plain');
-  if (!text || !LinkChip.find(text).length) return;
+  if (!text || e.defaultPrevented) return;
+  const clean = text.replace(/\r\n?/g, '\n'), long = lineCount(clean) > LONG_LINES;
+  if (!long && (this.plain || !LinkChip.find(clean).length)) return;
   e.preventDefault();
-  this.insertLinks(text.replace(/\r\n?/g, '\n'), this.input.selectionStart, this.input.selectionEnd);
+  if (long) this.place(clean);
+  else this.insertLinks(clean, this.input.selectionStart, this.input.selectionEnd);
+ }
+
+ // Ctrl+Z right after text went straight in takes it out again, as the browser's own undo would have, and hands back what it replaced.
+ onKeyDown(e) {
+  const placed = this.placed;
+  if (!placed || e.code !== 'KeyZ' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+  this.placed = null;
+  if (this.value !== placed.value) return;
+  e.preventDefault();
+  this.apply(placed.before, placed.from, placed.to);
+  this.input.setSelectionRange(placed.from + placed.before.length, placed.from + placed.before.length);
+  placed.undo?.();
  }
 
  measure(text, weight, size) {
@@ -116,24 +144,32 @@ class ComposerText {
   cancelAnimationFrame(this.raf);
  }
 
- // Every quote has the same label, so a unique run of zero-width joiners keeps its piece distinct for undo and paste.
+ // Chips as wide as each other would share a piece, and undo or paste could then hand one chip another's address
+ // (every quote has the same label; two links to one site often do), so a run of zero-width joiners unique to each chip keeps it distinct.
  token(url, label = LinkChip.label(url), kind = 'link') {
   const wide = this.measure(FIGURE), thin = this.measure(THIN) || wide;
   const body = LINK_BOX.icon + LINK_BOX.gap + this.measure(label, LINK_BOX.weight, LINK_BOX.size), want = body + LINK_BOX.pad * 2;
   const wides = Math.max(LINK_BOX.min, Math.floor(want / wide)), thins = Math.max(0, Math.ceil((want - wides * wide) / thin));
-  const tag = kind === 'quote' ? JOINER.repeat(++this.quotes) : '';
+  const tag = JOINER.repeat(++this.chips);
   return { piece: FIGURE.repeat(wides) + THIN.repeat(thins) + tag, url: kind === 'quote' ? url : LinkChip.href(url), label, kind, pad: (wides * wide + thins * thin - body) / 2 };
  }
 
  insertQuote(text) {
   const quote = text.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, QUOTE_MAX);
   if (!quote) return;
-  const token = this.token(`\n${quote.split('\n').map(line => `> ${line}`.trimEnd()).join('\n')}\n\n`, I18n.t('quote.chip'), 'quote');
+  const markdown = `\n${quote.split('\n').map(line => `> ${line}`.trimEnd()).join('\n')}\n\n`;
+  const input = this.input;
+  input.focus({ preventScroll: true });
+  // The plain field has no chips to show, so there the quote goes in as the Markdown it stands for.
+  if (this.plain) {
+   input.setSelectionRange(0, 0);
+   this.place(markdown.trimStart());
+   return;
+  }
+  const token = this.token(markdown, I18n.t('quote.chip'), 'quote');
   this.known.set(token.piece, token);
   let at = 0;
   for (const link of this.links) if (link.kind === 'quote' && link.from === at) at = link.to + (this.value[link.to] === ' ' ? 1 : 0);
-  const input = this.input;
-  input.focus({ preventScroll: true });
   input.setSelectionRange(at, at);
   this.incoming = [{ ...token, offset: 0 }];
   document.execCommand('insertText', false, `${token.piece} `);
@@ -141,7 +177,8 @@ class ComposerText {
   input.setSelectionRange(input.value.length, input.value.length);
  }
 
- insertLinks(text, from, to) {
+ // The text with every link in it swapped for a chip's piece, and the chips with where they sit in it.
+ chipped(text) {
   const tokens = [];
   let out = '', last = 0;
   for (const { index, url } of LinkChip.find(text)) {
@@ -152,12 +189,40 @@ class ComposerText {
    out += token.piece;
    last = index + url.length;
   }
-  out += text.slice(last);
-  if (last === text.length && to === this.input.value.length) out += ' ';
+  return { out: out + text.slice(last), tokens, ends: tokens.length > 0 && last === text.length };
+ }
+
+ insertLinks(text, from, to) {
+  const { out, tokens, ends } = this.chipped(text);
   this.input.setSelectionRange(from, to);
   this.incoming = tokens;
-  document.execCommand('insertText', false, out);
+  document.execCommand('insertText', false, ends && to === this.input.value.length ? `${out} ` : out);
   this.incoming = null;
+ }
+
+ // Long text goes straight into the field's value, where the caret is, instead of through the browser's editing commands,
+ // which slow down with every line. Links become chips as when pasted, unless the text is long enough for the plain field.
+ // The browser's undo does not see this edit, so Ctrl+Z right after takes it out and runs `undo`.
+ place(text, undo = null) {
+  const input = this.input, from = input.selectionStart, to = input.selectionEnd, before = this.value.slice(from, to);
+  const plain = this.plain || this.tooLong(this.value.length - before.length + text.length, this.paraStarts.length + lineCount(text) - 1);
+  const { out, tokens } = plain ? { out: text, tokens: [] } : this.chipped(text);
+  // Turning plain spells out the chips before the caret, which moves the new text along by what they grew.
+  const shift = plain && !this.plain ? this.links.filter(link => link.to <= from).reduce((sum, link) => sum + link.url.length - (link.to - link.from), 0) : 0;
+  this.incoming = tokens;
+  this.apply(out, from, to);
+  this.incoming = null;
+  this.placed = { from: from + shift, to: from + shift + out.length, before, value: this.value, undo };
+ }
+
+ // Puts `text` in place of from…to and lets the field catch up as with any edit, knowing exactly what changed.
+ apply(text, from, to) {
+  const input = this.input;
+  this.pending = { type: text ? 'insertText' : 'deleteContent', collapsed: false, start: from, end: to };
+  this.placing = true;
+  input.setRangeText(text, from, to, 'end');
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  this.placing = false;
  }
 
  removeLink(link) {
@@ -262,6 +327,7 @@ class ComposerText {
  onInput() {
   const pending = this.pending;
   this.pending = null;
+  if (!this.placing) this.placed = null;
   const now = performance.now(), old = this.value, next = this.input.value;
   if (old === next) return;
   const min = Math.min(old.length, next.length);
@@ -270,7 +336,7 @@ class ComposerText {
   let tail = 0;
   while (tail < min - at && old.charCodeAt(old.length - 1 - tail) === next.charCodeAt(next.length - 1 - tail)) tail++;
   const removed = old.length - at - tail, inserted = next.length - at - tail;
-  const animate = pending !== null && !reducedMotion();
+  const animate = pending !== null && !reducedMotion() && !this.plain;
   const typed = animate && pending.type === 'insertText' && inserted > 0 && inserted <= 2;
   const erased = animate && !inserted && pending.collapsed && MANUAL_DELETE.test(pending.type) && removed <= MAX_MANUAL_DELETE;
   if (erased) {
@@ -282,9 +348,39 @@ class ComposerText {
   this.shiftLinks(this.editRange(pending, old, next) || { at, removed, inserted }, now);
   const full = this.applyEdit(at, removed, inserted, now, typed);
   this.index();
+  if (this.syncPlain() || this.plain) return;
   if (full) this.renderAll(now);
   else this.replaceParagraphs(first, oldLast, this.paraAt(at + inserted), now);
   this.wake();
+ }
+
+ tooLong(chars, lines) {
+  const k = this.plain ? PLAIN.back : 1;
+  return chars > PLAIN.chars * k || lines > PLAIN.lines * k;
+ }
+
+ // A text past the budget shows in the plain field: the mirror empties, the field shows its own letters, and links there
+ // read as their addresses. The mirror comes back once the text is short again. Answers whether the field changed over.
+ syncPlain() {
+  const plain = this.tooLong(this.value.length, this.paraStarts.length);
+  if (plain === this.plain) return false;
+  this.plain = plain;
+  this.input.parentElement.classList.toggle('is-plain', plain);
+  if (plain) {
+   this.seg = null;
+   this.wave = null;
+   this.flatten();
+   this.lines.replaceChildren();
+  } else this.renderAll(performance.now());
+  return true;
+ }
+
+ flatten() {
+  if (!this.links.length) return;
+  for (const link of [...this.links].reverse()) this.input.setRangeText(link.url, link.from, link.to, 'preserve');
+  this.links = [];
+  this.value = this.input.value;
+  this.index();
  }
 
  applyEdit(at, removed, inserted, now, typed) {

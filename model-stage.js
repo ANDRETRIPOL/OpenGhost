@@ -13,10 +13,13 @@ const EASE = {
  spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
  wave: 'cubic-bezier(0.33, 1, 0.68, 1)',
 };
-const VEIL = [
- { backdropFilter: 'blur(0px) saturate(1) brightness(1)', backgroundColor: 'rgba(10, 10, 10, 0)' },
- { backdropFilter: 'blur(24px) saturate(1.1) brightness(0.5)', backgroundColor: 'rgba(10, 10, 10, 0.36)' },
-];
+// The veil takes the theme's look (--stage-veil): darker and dimmer over the dark theme, milky over the light one.
+function veil() {
+ const style = getComputedStyle(document.documentElement);
+ const filter = style.getPropertyValue('--stage-veil').trim(), color = style.getPropertyValue('--stage-veil-bg').trim();
+ const rest = filter.replace(/blur\([^)]*\)/g, 'blur(0px)').replace(/(brightness|contrast|saturate)\([^)]*\)/g, '$1(1)');
+ return [{ backdropFilter: rest, backgroundColor: 'transparent' }, { backdropFilter: filter, backgroundColor: color }];
+}
 const ARC = { steps: 16, bend: -0.32, spin: -70 };
 const GAP = 26;
 const MARK = 30;
@@ -267,7 +270,7 @@ class ModelStage {
   this.rest(current);
   if (!current) return;
   if (reducedMotion()) { this.mark(current); return; }
-  this.veil.animate(VEIL, { duration: OPEN.veil, easing: EASE.motion, fill: 'both' });
+  this.veil.animate(veil(), { duration: OPEN.veil, easing: EASE.motion, fill: 'both' });
   const count = this.rows.length, pace = Math.min(OPEN.row, 480 / count);
   this.groups.forEach(label => {
    const first = this.rows.findIndex(row => row.dataset.provider === label.dataset.provider);
@@ -460,7 +463,7 @@ class ModelStage {
   }
   for (const label of this.groups) label.animate([{ opacity: 0, filter: 'blur(4px)' }], { duration: 200, fill: 'forwards' });
   this.ask.animate([{ opacity: 0, filter: 'blur(6px)', transform: 'translateY(-4px)' }], { duration: 240, easing: 'ease-in', fill: 'forwards' });
-  waits.push(quiet(this.veil.animate([VEIL[1], VEIL[0]], { duration: CLOSE.veil, delay: CLOSE.veilDelay, easing: EASE.motion, fill: 'both' })));
+  waits.push(quiet(this.veil.animate(veil().reverse(), { duration: CLOSE.veil, delay: CLOSE.veilDelay, easing: EASE.motion, fill: 'both' })));
   const mark = this.marked?.querySelector('.model-mark svg');
   if (mark) {
    const from = live ? center(live) : center(mark.getBoundingClientRect()), timing = { duration: CLOSE.flight, easing: EASE.motion };

@@ -8,6 +8,7 @@ const STRETCH = [520, 34];
 const PRESS = [420, 30];
 const LENS = { width: 36, height: 24 };
 const PRESS_GROW = 0.1;
+const KICK = 12;
 const TRACK_CAP = 3;
 const GRAB_SLOP = 6;
 const MAGNET = { reach: 0.22, pull: 0.45 };
@@ -51,6 +52,7 @@ class EffortSlider {
    onOpened: () => this.onOpened(),
    onClosed: () => this.onClosed(),
   });
+  this.stage = new EffortStage(panel, { onDismiss: () => this.close(), lens: () => this.thumb.getBoundingClientRect() });
   this.ticks = [];
   this.fillTicks();
   const saved = this.efforts.indexOf(settings.effort);
@@ -128,6 +130,7 @@ class EffortSlider {
   }
   this.button.setAttribute('expanded', '');
   this.button.hideSegments(true);
+  this.stage.open({ index: this.value, levels: this.efforts });
   this.morph.to(1);
   this.slider.focus({ preventScroll: true });
  }
@@ -138,6 +141,7 @@ class EffortSlider {
   if (this.drag) this.release();
   this.panel.style.setProperty('--shell-paint', 0);
   if (this.morph.settled) this.morph.measure(this.value);
+  this.stage.close();
   this.morph.to(0);
   if (focusButton) this.button.focus();
  }
@@ -161,6 +165,7 @@ class EffortSlider {
 
  onClosed() {
   this.panel.hidePopover();
+  this.stage.clear();
   this.button.hideSegments(false);
   this.button.removeAttribute('expanded');
   this.paint.park();
@@ -227,6 +232,7 @@ class EffortSlider {
    this.geo = { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
    this.morph.measure(this.value);
    this.paint.layout(this.paintBox());
+   this.stage.show({ index, levels: next, dir: 1 });
    this.render();
   }
  }
@@ -307,7 +313,7 @@ class EffortSlider {
  commit(i) {
   const value = this.efforts[i];
   if (!value) return;
-  const name = I18n.has(`effort.${value}`) ? I18n.t(`effort.${value}`) : value;
+  const name = EffortStage.nameOf(value);
   this.value = i;
   if (value !== this.settings.effort) this.settings.setEffort(value);
   this.slider.setAttribute('aria-valuenow', String(i));
@@ -352,7 +358,13 @@ class EffortSlider {
    this.press = [pressGoal, 0];
   }
   this.render();
-  if (moving) this.raf = requestAnimationFrame(this.tick);
+  if (moving && !this.raf) this.raf = requestAnimationFrame(this.tick);
+ }
+
+ kick() {
+  if (reducedMotion()) return;
+  this.press[1] += KICK;
+  this.wake();
  }
 
  spring(s, goal, [k, c], h) {
@@ -367,6 +379,10 @@ class EffortSlider {
   this.thumb.style.transform = `translate(${x - LENS.width / 2}px, ${-LENS.height / 2}px) scale(${grow * (1 + stretch)}, ${grow * (1 - 0.35 * stretch)})`;
   this.fill.style.setProperty('--fill-cut', `${this.geo.width + TRACK_CAP - Math.max(0, x - this.geo.left)}px`);
   this.ticks.forEach((tick, k) => tick.style.setProperty('--under', clamp((this.pos - k - 1) * 6 + 0.5, 0, 1).toFixed(3)));
+  // Only a hand on the lens strains the name; half a level at most, the rest is the next name's to show.
+  const strain = this.drag ? clamp(this.pos - this.stage.index, -0.5, 0.5) / (this.max || 1) : 0;
+  this.stage.follow(strain, this.vel);
+  if (this.stage.aim(this.goal, this.efforts, this.drag ? Math.abs(this.vel) : 0)) this.kick();
   this.button.setLevel(clamp(this.pos, 0, this.max));
  }
 }

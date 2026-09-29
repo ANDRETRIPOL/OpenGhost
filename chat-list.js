@@ -13,9 +13,24 @@ const CLOCK = 30000;
 const MINUTE = 60000, HOUR = 60 * MINUTE, DAY = 24 * HOUR, WEEK = 7 * DAY;
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const key = path => path.toLowerCase();
+const key = path => Library.pathKey(path);
 // A title blurs away before its stand-in takes its place.
 const VEIL_TIME = 420;
+// A new title writes itself in letter by letter, the whole of it within `spread`, like the words typed in the composer.
+const WRITE = { duration: 360, step: 18, spread: 420 };
+const TITLE_MAX = 60;
+
+// Each letter of a new title rises out of a blur a moment after the one before; then the title is plain text again.
+function write(el, text) {
+ const letters = [...text], step = Math.min(WRITE.step, WRITE.spread / Math.max(1, letters.length));
+ el.replaceChildren(...letters.map((letter, k) => {
+  const span = element('span', 'chat-letter', letter);
+  span.style.animationDelay = `${Math.round(k * step)}ms`;
+  return span;
+ }));
+ clearTimeout(el.__write);
+ el.__write = setTimeout(() => { if (el.textContent === text) el.textContent = text; }, WRITE.duration + WRITE.spread + 60);
+}
 
 // A locked chat's title is sealed; in its place stands a blurred line of made-up words, different for every chat.
 function veiled(id) {
@@ -158,12 +173,14 @@ class ChatList {
   const meta = element('span', 'chat-meta');
   const time = element('span', 'chat-time');
   const actions = element('span', 'chat-actions');
+  const rename = action('chat-action is-rename', 'rename', Glyphs.pencil);
   const lock = action('chat-action is-lock', 'lock', Glyphs.padlock), pin = action('chat-action', 'pin', Glyphs.pin), remove = action('chat-action is-delete', 'delete', Glyphs.trash);
+  label(rename, I18n.t('chat.rename'));
   label(remove, I18n.t('chat.delete'));
-  actions.append(lock, pin, remove);
+  actions.append(rename, lock, pin, remove);
   meta.append(time, actions);
   row.append(mark, title, meta);
-  return { row, mark, title, time, lock, pin, remove, ghost: null, pinned: null, guarded: null, locked: null, veil: 0, confirm: false, timer: 0 };
+  return { row, mark, title, time, rename, lock, pin, remove, ghost: null, pinned: null, guarded: null, locked: null, veil: 0, confirm: false, timer: 0, editing: null };
  }
 
  paint(item, chat) {
@@ -197,8 +214,12 @@ class ChatList {
   if (item.guarded !== guarded || item.locked !== locked) {
    item.lock.classList.toggle('is-on', guarded);
    label(item.lock, I18n.t(!guarded ? 'chat.lock' : locked ? 'chat.unlock' : 'chat.protected'));
+   // A sealed title can't be renamed until the chat is open.
+   item.rename.disabled = locked;
   }
   const closing = locked && item.locked === false && !first && !reducedMotion();
+  // The same open chat getting a new title, from the user or from the model that names it, writes it in.
+  const retitled = !first && !locked && item.locked === false && !!item.title.textContent && !reducedMotion();
   item.guarded = guarded;
   item.locked = locked;
   // A stand-in already on its way is left to arrive; one that is no longer wanted finds the chat open and stays away.
@@ -207,7 +228,47 @@ class ChatList {
   item.veil = 0;
   // Opening, the real title takes the stand-in's place while still blurred and comes into focus; closing, it blurs away first.
   if (closing) item.veil = setTimeout(() => { item.veil = 0; if (item.locked) item.title.textContent = veiled(chat.id); }, VEIL_TIME);
+  else if (retitled) write(item.title, text);
   else item.title.textContent = text;
+ }
+
+ // Renaming happens in the row: the title turns into a field with its words selected, the time and the buttons step aside,
+ // and Enter or clicking away keeps the new name while Esc keeps the old one.
+ rename(id) {
+  const item = this.rows.get(id), chat = this.library.chat(id);
+  if (!item || !chat || item.editing || this.library.isLocked(id)) return;
+  const input = element('input', 'chat-rename');
+  input.type = 'text';
+  input.value = this.library.titleOf(chat) || '';
+  input.maxLength = TITLE_MAX;
+  input.spellcheck = false;
+  input.setAttribute('aria-label', I18n.t('chat.rename'));
+  item.editing = input;
+  item.title.after(input);
+  item.row.classList.add('is-renaming');
+  input.focus({ preventScroll: true });
+  input.select();
+  // A press anywhere else keeps the name. Focus leaving counts only inside the window: stepping over to another app
+  // to copy a name leaves the field waiting.
+  const outside = event => { if (event.target !== input) finish(true); };
+  const finish = keep => {
+   if (item.editing !== input) return;
+   item.editing = null;
+   document.removeEventListener('pointerdown', outside, true);
+   const title = input.value.replace(/\s+/g, ' ').trim(), focused = document.activeElement === input;
+   item.row.classList.remove('is-renaming');
+   input.remove();
+   if (focused) item.row.focus({ preventScroll: true });
+   // Named by hand, the chat keeps its name: the model that names new chats leaves it alone, even with an answer on its way.
+   if (keep && title && title !== (this.library.titleOf(chat) || '')) this.library.update(id, { title, named: true, renamed: true });
+  };
+  input.addEventListener('keydown', event => {
+   event.stopPropagation();
+   if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); finish(true); }
+   else if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', () => { if (document.hasFocus()) finish(true); });
+  document.addEventListener('pointerdown', outside, true);
  }
 
  busy(item, on) {
@@ -325,20 +386,26 @@ class ChatList {
   }
  }
 
+ // Every half minute the times move on: one pass over the chats, and only the labels whose words changed are touched.
  clock() {
+  const chats = new Map(this.library.chats.map(chat => [chat.id, chat]));
   for (const [id, item] of this.rows) {
-   const chat = this.library.chat(id);
-   if (chat) item.time.textContent = ago(chat.updated);
+   const chat = chats.get(id);
+   if (!chat) continue;
+   const text = ago(chat.updated);
+   if (item.time.textContent !== text) item.time.textContent = text;
   }
  }
 
  onClick(event) {
+  if (event.target.closest('.chat-rename')) return;
   const button = event.target.closest('[data-action]');
   if (button) {
    const id = button.closest('.chat-row')?.dataset.id, group = button.closest('.chats-folder')?.__group;
    if (button.dataset.action === 'new-folder') this.onNewFolder();
    else if (button.dataset.action === 'new-chat') this.newChat(group);
    else if (button.dataset.action === 'delete-folder') this.askDeleteFolder(group);
+   else if (button.dataset.action === 'rename') this.rename(id);
    else if (button.dataset.action === 'pin') this.togglePin(id);
    else if (button.dataset.action === 'delete') this.askDelete(id);
    else if (button.dataset.action === 'lock') this.onLock?.(id, button.closest('.chat-row'));
@@ -354,6 +421,11 @@ class ChatList {
  }
 
  onKey(event) {
+  if (event.key === 'F2' && event.target.classList.contains('chat-row') && !event.target.classList.contains('is-draft')) {
+   event.preventDefault();
+   this.rename(event.target.dataset.id);
+   return;
+  }
   if ((event.key !== 'Enter' && event.key !== ' ') || event.target.closest('[data-action]')) return;
   if (event.target.classList.contains('chat-row')) {
    event.preventDefault();

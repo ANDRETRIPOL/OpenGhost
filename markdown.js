@@ -3,6 +3,8 @@
 
 const TONES = ['lilac', 'turquoise', 'blue', 'pink', 'yellow', 'orange', 'green'];
 const CALLOUTS = { note: 'blue', tip: 'green', important: 'lilac', warning: 'yellow', caution: 'pink' };
+// How deep quotes and lists nest before what is inside reads as plain text.
+const MAX_DEPTH = 24;
 const ART_LANGS = new Set(['', 'text', 'txt', 'plain', 'plaintext', 'ascii', 'diagram', 'art', 'tree']);
 const DIAGRAM_LANGS = new Set(['mermaid', 'mmd']);
 const DIAGRAM_KINDS = {
@@ -11,10 +13,15 @@ const DIAGRAM_KINDS = {
  candlestick: 'candlestick', candles: 'candlestick', ohlc: 'candlestick', timeline: 'timeline', gantt: 'gantt', mindmap: 'mindmap',
  quadrantchart: 'quadrantChart', quadrant: 'quadrantChart', radar: 'radar-beta', 'radar-beta': 'radar-beta',
  erdiagram: 'erDiagram', er: 'erDiagram', classdiagram: 'classDiagram', 'classdiagram-v2': 'classDiagram',
- wireframe: 'wireframe', mockup: 'wireframe',
+ wireframe: 'wireframe', mockup: 'wireframe', files: 'files', folder: 'files',
 };
-const DIAGRAM_HEADER = /^(graph|flowchart|stateDiagram(-v2)?|sequenceDiagram|pie|xychart(-beta)?|candlestick|candles|ohlc|timeline|gantt|mindmap|quadrantChart|radar(-beta)?|erDiagram|classDiagram(-v2)?|wireframe|mockup)\b/i;
+const DIAGRAM_HEADER = /^(graph|flowchart|stateDiagram(-v2)?|sequenceDiagram|pie|xychart(-beta)?|candlestick|candles|ohlc|timeline|gantt|mindmap|quadrantChart|radar(-beta)?|erDiagram|classDiagram(-v2)?|wireframe|mockup|files|folder)\b/i;
 const BARE_DIAGRAM = /^((flowchart|graph)\s+(TD|TB|LR|RL|BT)|(sequenceDiagram|stateDiagram(-v2)?|xychart(-beta)?|quadrantChart|radar-beta|erDiagram|classDiagram|mindmap|gantt|timeline|candlestick|wireframe)\b.*|pie(\s+(showData|title\b.*))?)\s*$/;
+// A folder drawn with the files block. Models sometimes write it without a fence: the word alone on a line, then its
+// title, path or an entry with | right under it, is such a block all the same, down to the next blank line.
+const FILES_HEADER = /^(files|folder)\b/i;
+const BARE_FILES = /^[ \t]*(files|folder)[ \t]*$/i;
+const FILES_LINE = /^[ \t]*((title|path|view|more)[ \t:]+\S|[^|\n]+\|)/i;
 const PLAIN_LANGS = new Set(['', 'text', 'txt', 'plain', 'plaintext']);
 const CALC_LANGS = new Set([...PLAIN_LANGS, 'math', 'calc', 'arithmetic', 'ascii']);
 const CALC_MATH = /^[ \d.,+\-−–×xхX*·÷:=|│─━—_‾]*$/;
@@ -374,6 +381,12 @@ function parse(lines, openLine = -1, top = false) {
    add({ type: 'code', lang: m[3].toLowerCase(), info: m[4].trim(), body: body.join('\n'), closed }, from, i);
    continue;
   }
+  if (top && BARE_FILES.test(line) && i + 1 < n && FILES_LINE.test(lines[i + 1])) {
+   const body = [];
+   for (; i < n && lines[i].trim(); i++) body.push(lines[i]);
+   add({ type: 'code', lang: 'files', info: '', body: body.join('\n'), closed: i < n }, from, i);
+   continue;
+  }
   if ((m = line.match(MATH_BLOCK))) {
    const close = m[1] === '$$' ? '$$' : '\\]', body = [];
    let closed = false;
@@ -448,6 +461,13 @@ function renderAll(blocks, state, live) {
  return blocks.map((block, k) => render(block, state, live && k === blocks.length - 1, false)).join('');
 }
 
+// Quotes and lists hold Markdown of their own, rendered one level deeper each time. Nesting past any sensible depth,
+// like a thousand '>' in a row, would run the renderer out of stack and lose the whole reply, so from there on it reads as plain text.
+function renderNested(lines, state, live) {
+ if (state.depth <= MAX_DEPTH) return renderAll(parse(lines), state, live);
+ return `<p>${inline(lines.join('\n'), live)}</p>`;
+}
+
 function renderCode(block, state, live) {
  const lang = block.lang, t = tone(state.tone || state.tones[0]);
  const kind = DIAGRAM_KINDS[lang] ? `${DIAGRAM_KINDS[lang]} ${block.info || ''}`.trim() : '';
@@ -456,7 +476,9 @@ function renderCode(block, state, live) {
   const open = !block.closed && live;
   const body = open ? block.body.split('\n').slice(0, -1).join('\n') : block.body;
   const header = (body.split('\n').find(line => line.trim()) || '').trim();
-  const wide = !state.depth && (kind || (header ? DIAGRAM_HEADER.test(header) : open));
+  // A folder is a card in the column, like an attachment; the other diagrams take the whole width.
+  const card = kind.startsWith('files') || FILES_HEADER.test(header);
+  const wide = !card && !state.depth && (kind || (header ? DIAGRAM_HEADER.test(header) : open));
   return `<div class="md-diagram ${t}${wide ? ' md-wide' : ''}" data-static data-diagram="${escapeHtml(body)}" data-kind="${escapeHtml(kind)}" data-tone="${Math.max(0, state.heading)}"${open ? ' data-live' : ''}>`
    + `<div class="md-diagram-status">${I18n.t('diagram.building')}</div></div>`;
  }
@@ -741,7 +763,7 @@ function renderList(block, state, live) {
  const inner = { ...state, depth: state.depth + 1 };
  const items = block.items.map((item, k) => {
   const last = live && k === block.items.length - 1;
-  const body = renderAll(parse(item.body), inner, last);
+  const body = renderNested(item.body, inner, last);
   const task = item.task === null ? '' : classes('md-task', item.task && 'is-done');
   return `<li${task}>${task ? '<span class="md-box" aria-hidden="true"></span>' : ''}${body}</li>`;
  }).join('');
@@ -753,9 +775,9 @@ function renderQuote(block, state, live) {
  const m = block.lines[0].match(CALLOUT);
  if (m) {
   const kind = m[1].toLowerCase(), body = [m[2], ...block.lines.slice(1)];
-  return `<blockquote class="md-callout is-${kind} t-${CALLOUTS[kind]}"><div class="md-callout-title">${I18n.t(`callout.${kind}`)}</div>${renderAll(parse(body), inner, live)}</blockquote>`;
+  return `<blockquote class="md-callout is-${kind} t-${CALLOUTS[kind]}"><div class="md-callout-title">${I18n.t(`callout.${kind}`)}</div>${renderNested(body, inner, live)}</blockquote>`;
  }
- if (state.depth) return `<blockquote>${renderAll(parse(block.lines), inner, live)}</blockquote>`;
+ if (state.depth) return `<blockquote>${renderNested(block.lines, inner, live)}</blockquote>`;
  const lines = [...block.lines];
  const trim = () => { while (lines.length && !lines[lines.length - 1].trim()) lines.pop(); };
  trim();
@@ -770,7 +792,7 @@ function renderQuote(block, state, live) {
    lines[lines.length - 1] = lines[lines.length - 1].trimEnd().slice(0, -1);
   }
  }
- return `<blockquote${classes('md-quote', tone(state.tone || state.tones[0]))}>${renderAll(parse(lines), inner, live && !cite)}${cite ? citeHtml(cite, live) : ''}</blockquote>`;
+ return `<blockquote${classes('md-quote', tone(state.tone || state.tones[0]))}>${renderNested(lines, inner, live && !cite)}${cite ? citeHtml(cite, live) : ''}</blockquote>`;
 }
 
 function citeHtml(text, live) {

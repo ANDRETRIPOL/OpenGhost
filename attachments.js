@@ -12,9 +12,20 @@ const REOPEN_GUARD = 350;
 const DROP_ART = ['photo.jpg', 'main.py', 'report.pdf'];
 const REMOVE_ICON = '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.6 2.6l4.8 4.8M7.4 2.6 2.6 7.4"/></svg>';
 const NOTE_ICON = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 9.5l.5-2 5.2-5.2a1.1 1.1 0 0 1 1.5 0 1.1 1.1 0 0 1 0 1.5L4.5 9z"/></svg>';
+// Lines of text beside a text cursor: the card goes back to being text you can edit.
+const UNPASTE_ICON = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 3.5h4.5M1.5 6.5h3M1.5 9.5h4"/><path d="M9 3v6.5M7.9 3h2.2M7.9 9.5h2.2"/></svg>';
+// A pasted text this long comes in as a card, like a file, rather than filling the message.
+const PASTE = { lines: 50, chars: 3000 };
+const PASTED = 'Pasted text.txt';
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files');
+const lineCount = text => { let n = 1; for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) n++; return n; };
+
+// What a pasted text's card says under its first line: how many lines, or for a single long one, its size.
+function pastedLabel(pasted, size) {
+ return pasted.lines > 1 ? I18n.t('attach.pastedLines', { n: pasted.lines.toLocaleString(I18n.lang) }) : I18n.t('attach.pastedSize', { size: FileKinds.formatSize(size) });
+}
 
 function element(tag, className, text) {
  const el = document.createElement(tag);
@@ -24,8 +35,10 @@ function element(tag, className, text) {
 }
 
 class Attachments {
- constructor({ tray, picker, panel, main, zone, input, onChange, isActive = () => true }) {
+ constructor({ tray, picker, panel, main, zone, input, onChange, onText, isActive = () => true }) {
   this.isActive = isActive;
+  this.onText = onText;
+  this.plainPaste = false;
   this.tray = tray;
   this.row = tray.querySelector('.attachments-row');
   this.picker = picker;
@@ -51,7 +64,9 @@ class Attachments {
    picker.value = '';
    input.focus();
   });
-  input.addEventListener('paste', e => this.onPaste(e));
+  // Ahead of the text's own paste handling, so a long text becomes a card before anything turns its links into chips.
+  input.addEventListener('paste', e => this.onPaste(e), true);
+  input.addEventListener('keydown', e => { this.plainPaste = e.code === 'KeyV' && e.shiftKey && (e.ctrlKey || e.metaKey); });
   panel.addEventListener('beforetoggle', e => { if (e.newState === 'closed') this.onNoteClosing(); });
   panel.addEventListener('toggle', e => { if (e.newState === 'closed' && !this.editing) this.restoreFocus(); });
   this.noteInput.addEventListener('keydown', e => this.onNoteKey(e));
@@ -79,13 +94,13 @@ class Attachments {
   this.picker.click();
  }
 
- add(files) {
+ add(files, extra = {}) {
   const list = Array.from(files || []).slice(0, Math.max(0, MAX_ITEMS - this.items.length));
   if (!list.length) return;
   const added = [];
   for (const file of list) {
    const info = FileKinds.describe(file.name, file.type);
-   const item = { file, name: file.name || 'image.png', size: file.size, info, image: info.glyph === 'image', url: '', note: '', payload: null };
+   const item = { file, name: file.name || 'image.png', size: file.size, info, image: info.glyph === 'image', url: '', note: '', payload: null, ...extra };
    if (item.image) item.url = URL.createObjectURL(file);
    item.ready = AttachmentReader.read(file, info).then(payload => this.loaded(item, payload));
    item.el = this.chip(item);
@@ -123,7 +138,7 @@ class Attachments {
  }
 
  chip(item, animate = true) {
-  const el = element('div', `attachment ${item.image ? 'is-image' : 'is-file'}${animate && !reducedMotion() ? ' is-entering' : ''}`);
+  const el = element('div', `attachment ${item.image ? 'is-image' : 'is-file'}${item.pasted ? ' is-pasted' : ''}${animate && !reducedMotion() ? ' is-entering' : ''}`);
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', item.name);
   if (item.image) {
@@ -134,9 +149,15 @@ class Attachments {
    el.append(img);
   } else {
    el.insertAdjacentHTML('beforeend', FileKinds.icon(item.info));
-   const text = element('div', 'attachment-text');
-   text.append(element('div', 'attachment-name', item.name), element('div', 'attachment-meta'));
+   // Pasted text shows its first line, and the whole card is a button that puts the text back into the message.
+   const text = element(item.pasted ? 'button' : 'div', 'attachment-text');
+   text.append(element('div', 'attachment-name', item.pasted?.preview || item.name), element('div', 'attachment-meta'));
    el.append(text);
+   if (item.pasted) {
+    text.type = 'button';
+    text.setAttribute('aria-label', `${I18n.t('attach.unpaste')}: ${item.pasted.preview}`);
+    el.addEventListener('click', e => { if (!e.target.closest('.attachment-note, .attachment-remove')) this.unpaste(item); });
+   }
   }
   const note = element('button', 'attachment-note');
   note.type = 'button';
@@ -162,13 +183,37 @@ class Attachments {
   note.setAttribute('aria-label', I18n.t(item.note ? 'note.edit' : 'note.add', { name: item.name }));
   if (!meta) return;
   meta.replaceChildren();
+  // A pasted text's line swaps, under the pointer, for what a click does.
+  const line = item.pasted ? element('span', 'attachment-meta-line') : meta;
   if (item.note) {
-   meta.insertAdjacentHTML('beforeend', NOTE_ICON);
-   meta.append(element('span', 'attachment-note-text', item.note));
+   line.insertAdjacentHTML('beforeend', NOTE_ICON);
+   line.append(element('span', 'attachment-note-text', item.note));
+  } else if (item.pasted) {
+   line.textContent = pastedLabel(item.pasted, item.size);
   } else {
    meta.textContent = `${item.info.name} · ${FileKinds.formatSize(item.size)}`;
    if (item.payload?.type === 'none') meta.append(element('span', 'attachment-flag', ` · ${I18n.t('attach.nameOnly')}`));
   }
+  if (!item.pasted) return;
+  const hint = element('span', 'attachment-unpaste');
+  hint.innerHTML = UNPASTE_ICON;
+  hint.append(I18n.t('attach.unpaste'));
+  meta.append(line, hint);
+ }
+
+ // A long pasted text comes in as a card of its own, with its first line and how long it is.
+ addText(text, note = '') {
+  const clean = text.replace(/\r\n?/g, '\n');
+  const preview = (clean.split('\n', 20).find(line => line.trim()) || clean).trim().replace(/\s+/g, ' ').slice(0, 160);
+  this.add([new File([clean], PASTED, { type: 'text/plain' })], { pasted: { text: clean, lines: lineCount(clean), preview }, note });
+ }
+
+ // The text goes back into the message where the caret is, and the card leaves the way a removed one does;
+ // Ctrl+Z right after brings the card back, note and all.
+ unpaste(item) {
+  const { text } = item.pasted, note = item.note;
+  this.remove(item);
+  this.onText?.(text, () => this.addText(text, note));
  }
 
  remove(item, keyboard = false) {
@@ -224,11 +269,18 @@ class Attachments {
   row.scrollLeft += e.deltaY;
  }
 
+ // Files paste in as cards; so does a long text, unless it came with Ctrl+Shift+V, which puts it in as it is.
  onPaste(e) {
-  const files = Array.from(e.clipboardData?.files || []);
-  if (!files.length || e.clipboardData.getData('text/plain')) return;
-  e.preventDefault();
-  this.add(files);
+  const plain = this.plainPaste;
+  this.plainPaste = false;
+  const files = Array.from(e.clipboardData?.files || []), text = e.clipboardData?.getData('text/plain') || '';
+  if (files.length && !text) {
+   e.preventDefault();
+   this.add(files);
+  } else if (text && !plain && this.onText && this.items.length < MAX_ITEMS && (text.length > PASTE.chars || lineCount(text) > PASTE.lines)) {
+   e.preventDefault();
+   this.addText(text);
+  }
  }
 
  openNote(item) {
@@ -239,7 +291,7 @@ class Attachments {
   this.editing = item;
   this.cancelled = false;
   item.el.style.setProperty('anchor-name', '--attachment-note');
-  this.noteTitle.textContent = item.name;
+  this.noteTitle.textContent = item.pasted?.preview || item.name;
   this.noteThumb.replaceChildren();
   if (item.image) {
    const img = element('img', '');
@@ -317,5 +369,6 @@ class Attachments {
  }
 }
 
+Attachments.pastedLabel = pastedLabel;
 window.Attachments = Attachments;
 })();

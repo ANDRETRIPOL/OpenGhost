@@ -51,6 +51,11 @@ class EffortPaint {
    <feComposite in="shade" in2="goo" operator="in" result="paint"/>
    <feComposite in="gloss" in2="goo" operator="in" result="shine"/>
    <feComposite in="shine" in2="paint" operator="arithmetic" k2="1" k3="1"/>`;
+  // The oil takes the theme's accent from the light that shades it: white over the dark theme, black over the light one.
+  const shade = this.filter.querySelector('feDiffuseLighting');
+  const tint = () => shade.setAttribute('lighting-color', `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--composer-accent-rgb').trim()})`);
+  tint();
+  window.Theme?.onChange(tint);
   const defs = svg('defs');
   defs.append(this.filter);
   this.group = svg('g', { filter: 'url(#effort-paint-oil)', fill: '#fff' });

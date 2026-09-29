@@ -62,6 +62,7 @@ class BrowserPanel {
   this.open = false;
   this.drivers = new Set();
   this.control = 'agent';
+  this.lent = null;
   this.waiters = [];
   this.cursorAt = null;
   this.accounts = read(ACCOUNTS) || [];
@@ -459,6 +460,8 @@ class BrowserPanel {
 
  handBack() {
   this.control = 'agent';
+  // The keyboard leaves the page with the user, and comes back to it for the agent's next step that types.
+  this.lent = this.active?.view || null;
   this.active?.view?.blur();
   this.sync();
   this.release();
@@ -493,11 +496,31 @@ class BrowserPanel {
   return this.tabs.map((tab, k) => `${k + 1}. ${tab.title || (blank(tab.url) ? 'New tab' : hostOf(tab.url))}${blank(tab.url) ? '' : ` (${tab.url})`}${tab === this.active ? ' active' : ''}`).join('\n');
  }
 
+ // A click of the agent's moves the keyboard into the page, as any click would, and the user's typing in the chat would
+ // then land in the page. So between the agent's steps the keyboard is back where the user was, and a step that types or
+ // presses keys where the page's focus is gets the keyboard back first, exactly as it would have had it without the user:
+ // what the agent does and sees stays the same, and Escape reaches the app during every other step.
  async run(name, args, { id, cwd }) {
   if (!tools) return { error: 'The browser is only available in the desktop app' };
-  if (name === 'browser_tabs') return this.tabsTool(args, { id, cwd });
-  const tab = await this.ensure();
-  return tools.run(id, name, { ...args, tab: tab.id }, cwd);
+  const back = document.activeElement;
+  try {
+   if (name === 'browser_tabs') return await this.tabsTool(args, { id, cwd });
+   const tab = await this.ensure();
+   const keys = name === 'browser_press' || (name === 'browser_type' && (args.ref === undefined || args.ref === null || args.ref === ''));
+   if (keys && this.lent === tab.view) tab.view.focus();
+   return await tools.run(id, name, { ...args, tab: tab.id }, cwd);
+  } finally {
+   this.giveBack(back);
+  }
+ }
+
+ giveBack(back) {
+  const view = document.activeElement;
+  if (this.control === 'user' || !this.tabs.some(tab => tab.view === view)) return;
+  if (!(back instanceof HTMLElement) || !back.isConnected || back === view || this.tabs.some(tab => tab.view === back)) return;
+  this.lent = view;
+  view.blur();
+  back.focus({ preventScroll: true });
  }
 
  async tabsTool(args, { id, cwd }) {
@@ -534,9 +557,11 @@ class BrowserPanel {
   return this.tabs.length > 1 ? `Tabs: ${this.tabs.map((tab, k) => `${k + 1}. ${tab.title || hostOf(tab.url) || 'New tab'}${tab === this.active ? ' (this one)' : ''}`).join(' · ')}` : '';
  }
 
+ // What the browser holds, for the note at the end of each request; a closed browser with nothing in it says nothing.
  context() {
-  const lines = [`- The browser panel is ${this.open ? 'open, the user sees the page' : 'closed; the browser still works, the user can open it with the globe button'}.`];
   const tabs = this.tabs.filter(tab => !blank(tab.url));
+  if (!this.open && !tabs.length && !this.accounts.length) return '';
+  const lines = [`- The browser panel is ${this.open ? 'open, the user sees the page' : 'closed; the browser still works, the user can open it with the globe button'}.`];
   if (tabs.length) lines.push(`- Open tabs:\n${this.tabsText().split('\n').map(line => `  ${line}`).join('\n')}`);
   else lines.push('- No pages are open in it yet.');
   if (this.accounts.length) lines.push(`- The user signed in with this browser to: ${this.accounts.map(item => `${item.host} (${shortDate(item.at)})`).join(', ')}. Logins stay between chats but can expire; check before relying on one.`);

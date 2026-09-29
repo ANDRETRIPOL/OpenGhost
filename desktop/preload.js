@@ -1,13 +1,18 @@
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('openghost', {
  desktop: true,
  platform: process.platform,
+ // Where a dropped or picked file lives on disk, so the agent can open it again later.
+ pathOf: file => {
+  try { return webUtils.getPathForFile(file) || ''; } catch { return ''; }
+ },
  pickFolder: () => ipcRenderer.invoke('folder:pick'),
  revealFolder: folder => ipcRenderer.invoke('folder:reveal', folder),
- setTitleBar: color => ipcRenderer.send('window:titlebar', color),
+ setTitleBar: (color, symbols) => ipcRenderer.send('window:titlebar', color, symbols),
+ setTheme: choice => ipcRenderer.invoke('theme:set', choice),
  store: {
   read: key => ipcRenderer.invoke('store:read', key),
   write: (key, value) => ipcRenderer.invoke('store:write', key, value),
@@ -28,10 +33,16 @@ contextBridge.exposeInMainWorld('openghost', {
   onEvent: callback => ipcRenderer.on('llm:event', (event, data) => callback(data)),
   models: (provider, key) => ipcRenderer.invoke('llm:models', provider, key),
  },
+ // The keys come from the main process's memory, read before the window opened, so asking for them never waits on the disk.
+ keys: {
+  read: () => ipcRenderer.sendSync('keys:read'),
+  write: (provider, key) => ipcRenderer.invoke('keys:write', provider, key),
+ },
  auth: {
   login: () => ipcRenderer.invoke('auth:login'),
   cancel: () => ipcRenderer.invoke('auth:cancel'),
   logout: () => ipcRenderer.invoke('auth:logout'),
   status: () => ipcRenderer.invoke('auth:status'),
+  limits: () => ipcRenderer.invoke('auth:limits'),
  },
 });

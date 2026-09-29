@@ -1,7 +1,6 @@
 (() => {
 'use strict';
 
-const APP_BAR = '#161616';
 const FLY = { delay: 160, duration: 980, x: 'cubic-bezier(0.2, 0.75, 0.3, 1)', y: 'cubic-bezier(0.55, 0, 0.25, 1)', turn: 'cubic-bezier(0.33, 0, 0.3, 1)' };
 const SHIFT = { duration: 640, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const WORD = { gap: 22, delay: 90, stagger: 34, duration: 480, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' };
@@ -11,12 +10,13 @@ const GAZE = { fly: [3.2, -2.2], word: [4, 0.4], land: [0, 1.4] };
 
 const root = document.documentElement;
 const splash = document.querySelector('.splash');
-const bar = color => window.openghost?.setTitleBar?.(color);
+// The window's title bar starts in the splash color and takes the app background once the app opens.
+const bar = () => window.Theme?.titleBar();
 
 function finish() {
  root.classList.remove('is-splash');
  splash?.remove();
- bar(APP_BAR);
+ bar();
 }
 
 if (!splash || !root.classList.contains('is-splash')) {
@@ -72,7 +72,7 @@ function open(fly, word, ghost) {
  word.animate([{ opacity: 1, filter: 'blur(0)' }, { opacity: 0, filter: 'blur(8px)' }], { duration: 320, easing: 'ease-in', fill: 'forwards' });
  splash.querySelector('.splash-bg').animate([{ opacity: 1 }, { opacity: 0 }], { duration: OPEN.duration, delay: 80, easing: 'ease', fill: 'forwards' });
  app.animate([{ opacity: 0, transform: 'scale(0.975)' }, { opacity: 1, transform: 'none' }], OPEN);
- setTimeout(() => bar(APP_BAR), OPEN.duration / 2);
+ setTimeout(bar, OPEN.duration / 2);
  if (!target) return fly.animate([{ opacity: 1 }, { opacity: 0, transform: 'scale(0.8)' }], { ...OPEN, fill: 'forwards' }).finished;
  const s = target.width / current.width, origin = { x: now.left + now.width / 2, y: now.top + now.height / 2 };
  const center = { x: current.left + current.width / 2, y: current.top + current.height / 2 };

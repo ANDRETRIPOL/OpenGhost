@@ -56,6 +56,14 @@ function register(fromApp) {
  ipcMain.handle('auth:logout', auth(() => ChatGPT.logout()));
  ipcMain.handle('auth:status', auth(() => ChatGPT.status()));
  ipcMain.handle('auth:cancel', auth(async () => { ChatGPT.cancel(); return ChatGPT.status(); }));
+ ipcMain.handle('auth:limits', async event => {
+  if (!fromApp(event)) return null;
+  try {
+   return { limits: await ChatGPT.limits() };
+  } catch (error) {
+   return { error: error.message, status: error.status || 0 };
+  }
+ });
 }
 
 function cancelAll() {

@@ -50,6 +50,7 @@ class SelectionMenu {
   // Escape lets the selection go along with the menu and the blur, the same as a click elsewhere.
   document.addEventListener('keydown', event => {
    if (event.key !== 'Escape' || !this.shown) return;
+   event.preventDefault();
    this.hide();
    document.getSelection().removeAllRanges();
   }, true);

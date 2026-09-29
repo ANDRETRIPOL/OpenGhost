@@ -11,7 +11,7 @@ button:hover,button:focus-visible{color:rgb(var(--icon-hover-rgb,var(--icon-rgb,
 button:hover .icon,button:focus-visible .icon{opacity:var(--icon-hover-opacity,.85)}
 button:disabled{cursor:default;color:rgb(var(--icon-rgb,255,255,255))}
 button:disabled .icon{opacity:var(--icon-disabled-opacity,.25)}
-button:focus-visible::after{content:"";position:absolute;inset:0;border-radius:inherit;border:2px solid rgba(255,255,255,.35);pointer-events:none}
+button:focus-visible::after{content:"";position:absolute;inset:0;border-radius:inherit;border:2px solid var(--focus-ring,rgba(255,255,255,.35));pointer-events:none}
 `;
 
 class IconButton extends HTMLElement {

@@ -141,8 +141,14 @@ async function complete({ key, model, messages, signal, maxTokens = 40 }) {
   body: JSON.stringify({ model, messages, stream: false, max_tokens: maxTokens, thinking: { type: 'disabled' }, reasoning_effort: 'none' }),
  });
  const body = await response.json();
- return body.choices?.[0]?.message?.content?.trim() || '';
+ return { content: body.choices?.[0]?.message?.content?.trim() || '', usage: body.usage || null };
 }
 
-window.DeepSeek = { listModels, streamChat, complete, DeepSeekError };
+// What is left on the DeepSeek account, in each currency it holds: DeepSeek's own figure, nothing worked out here.
+async function balance(key, signal) {
+ const body = await (await request('/user/balance', key, { signal })).json();
+ return (body.balance_infos || []).filter(item => item?.currency).map(item => ({ currency: item.currency, total: Number(item.total_balance) || 0 }));
+}
+
+window.DeepSeek = { listModels, streamChat, complete, balance, DeepSeekError };
 })();

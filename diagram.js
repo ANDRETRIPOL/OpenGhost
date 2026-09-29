@@ -9,6 +9,8 @@ const ARROW = { length: 7.5, half: 4.5 };
 const BULGE = 34;
 const SWEEPS = { order: 12, place: 24 };
 const SPRING = [170, 24];
+// The hover highlight moves on the sidebar's springs, so rows feel the same everywhere.
+const GLIDE = { move: [520, 40], fade: [320, 32] };
 const STAGGER = { reveal: 220, live: 90, cap: 1600 };
 const ENTER = { node: 560, label: 380, fade: 420, line: 700, grow: 720, arc: 950, speed: 0.6, drawMin: 220, drawMax: 650 };
 const EXIT = 260;
@@ -2698,6 +2700,246 @@ function wireframeScene(page, tones, { width }) {
  return { kind: 'wireframe', width: W, height: H, items, tips, corner, mobile: phone };
 }
 
+/* Files: what a folder holds, shown the way a file manager would */
+
+// A handful of entries become tiles with big icons, a longer list becomes rows, and nested entries become a tree.
+// Above them a bar shows what takes the space, each kind of file in the color of its icons.
+const FV = { max: 760, pad: 16, head: 42, meter: 4, row: 34, indent: 18, cap: 80 };
+const FV_KINDS = [
+ ['image', ['image'], 'mint'], ['video', ['video'], 'purple'], ['audio', ['audio'], 'pink'], ['archive', ['archive'], 'brown'],
+ ['app', ['binary'], 'steel'], ['doc', ['pdf', 'text', 'book', 'sheet', 'slides'], 'blue'], ['code', ['code', 'braces', 'terminal'], 'indigo'], ['font', ['font'], 'gray'],
+];
+const FV_FOLDER = 'gray';
+const FV_UNITS = { b: 1, byte: 1, bytes: 1, k: 1e3, kb: 1e3, kib: 1024, m: 1e6, mb: 1e6, mib: 1048576, g: 1e9, gb: 1e9, gib: 1073741824, t: 1e12, tb: 1e12, tib: 1099511627776, 'б': 1, 'байт': 1, 'кб': 1e3, 'мб': 1e6, 'гб': 1e9, 'тб': 1e12 };
+const FV_SIZE = /^(\d{1,3}(?:[ \u00a0,']\d{3})+|\d+(?:[.,]\d+)?)\s*([a-zа-яё]{0,5})\.?$/i;
+const FV_COUNT = /^(\d[\d \u00a0,]*)\s*(files?|items?|folders?|entries|objects?|файл\S*|элемент\S*|объект\S*|папк\S*)$/i;
+
+function fvSize(text) {
+ const m = FV_SIZE.exec(text.trim()), unit = (m?.[2] || 'b').toLowerCase();
+ if (!m || !(unit in FV_UNITS)) return null;
+ const digits = /^\d{1,3}([ \u00a0,']\d{3})+$/.test(m[1]) ? m[1].replace(/[ \u00a0,']/g, '') : m[1].replace(',', '.');
+ const value = parseFloat(digits);
+ return Number.isFinite(value) ? value * FV_UNITS[unit] : null;
+}
+
+// Dates as a listing writes them: 2026-09-27 14:05, 27.09.2026 14:05, 9/27/2026 2:05 PM, or words a date parser knows.
+function fvDate(text) {
+ const s = text.trim();
+ let m, y, mo, d, h, mi;
+ if ((m = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})(?:[ T,]+(\d{1,2}):(\d{2}))?/.exec(s))) [, y, mo, d, h, mi] = m;
+ else if ((m = /^(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?:[ ,]+(\d{1,2}):(\d{2}))?/.exec(s))) [, d, mo, y, h, mi] = m;
+ else if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:[ ,]+(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]\.?m\.?)?)?/i.exec(s))) {
+  [, mo, d, y, h, mi] = m;
+  if (h !== undefined && m[6]) h = +h % 12 + (/p/i.test(m[6]) ? 12 : 0);
+ } else if (/\p{L}/u.test(s) && /\d/.test(s) && Number.isFinite(Date.parse(s))) return { t: Date.parse(s), timed: /\d:\d\d/.test(s) };
+ else return null;
+ if (+mo < 1 || +mo > 12 || +d < 1 || +d > 31) return null;
+ const date = new Date(+y < 100 ? 2000 + +y : +y, mo - 1, +d, +(h || 0), +(mi || 0));
+ return { t: date.getTime(), timed: h !== undefined };
+}
+
+// Today and yesterday say so, with the time; other days are a short date, with the year once it isn't this one.
+function fvWhen({ t, timed }) {
+ const date = new Date(t), now = new Date(), midnight = value => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+ const ago = Math.round((midnight(now) - midnight(date)) / DAY);
+ if (ago === 0 || ago === 1) {
+  const word = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(-ago, 'day');
+  const day = word.charAt(0).toUpperCase() + word.slice(1);
+  return timed ? `${day}, ${new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date)}` : day;
+ }
+ return new Intl.DateTimeFormat(undefined, date.getFullYear() === now.getFullYear() ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+}
+
+// One entry: the name first (a folder ends with / or \), then in any order its size, a count of what it holds,
+// the date it changed and any note, separated by |, by · or by tabs.
+function fvEntry(line) {
+ const parts = line.split(/\s*\|\s*|\s+·\s+|\t+/).map(part => part.trim()).filter(Boolean);
+ const raw = cleanLabel(parts.shift() || ''), folder = /[\\/]$/.test(raw);
+ const entry = { name: raw.replace(/[\\/]+$/, '') || raw, folder, size: null, count: null, when: null, note: '', children: [] };
+ const field = text => {
+  const count = FV_COUNT.exec(text);
+  if (count) { entry.count = parseInt(count[1].replace(/\D/g, ''), 10); return true; }
+  const when = !entry.when && fvDate(text);
+  if (when) { entry.when = when; return true; }
+  const size = entry.size === null ? fvSize(text) : null;
+  if (size !== null) { entry.size = size; return true; }
+  return false;
+ };
+ for (const part of parts) {
+  if (field(part)) continue;
+  const pieces = part.split(/\s*,\s*/);
+  if (pieces.length > 1 && pieces.every(piece => FV_COUNT.test(piece) || fvSize(piece) !== null)) pieces.forEach(field);
+  else entry.note = entry.note ? `${entry.note} · ${part}` : part;
+ }
+ return entry;
+}
+
+// Lines under the header: title, path, view (grid, list or tree), more (how many were left out), and the entries,
+// nested by indentation under their folders.
+function parseFiles(lines) {
+ const page = { title: '', path: '', view: '', more: 0, entries: [] }, open = [];
+ for (const raw of lines.slice(1)) {
+  const indent = raw.length - raw.trimStart().length, line = raw.trim().replace(/^[-*•]\s+/, '');
+  const directive = !/[|·\t]/.test(line) && /^(title|path|view|more)(?:\s*:\s*|\s+)(.+)$/i.exec(line);
+  if (directive) {
+   const key = directive[1].toLowerCase(), value = cleanLabel(directive[2]);
+   if (key === 'more') page.more = parseInt(value.replace(/\D/g, ''), 10) || 0;
+   else page[key] = key === 'view' ? value.toLowerCase() : value;
+   continue;
+  }
+  const entry = fvEntry(line);
+  if (!entry.name) continue;
+  while (open.length && open[open.length - 1].indent >= indent) open.pop();
+  const parent = open[open.length - 1]?.entry;
+  if (parent) { parent.folder = true; parent.children.push(entry); } else page.entries.push(entry);
+  open.push({ indent, entry });
+ }
+ return page.entries.length || page.title || page.path ? page : null;
+}
+
+const fvTotal = entry => entry.size ?? (entry.children.length ? entry.children.reduce((sum, child) => sum + (fvTotal(child) || 0), 0) || null : null);
+
+function fvFlatten(entries, depth = 0, out = []) {
+ for (const entry of entries) {
+  out.push({ entry, depth });
+  fvFlatten(entry.children, depth + 1, out);
+ }
+ return out;
+}
+
+function fvKind(entry) {
+ if (entry.folder) return 'folder';
+ const glyph = FileKinds.describe(entry.name).glyph;
+ return FV_KINDS.find(([, glyphs]) => glyphs.includes(glyph))?.[0] || 'other';
+}
+
+const fvTone = kind => FileKinds.tones[kind === 'folder' ? FV_FOLDER : FV_KINDS.find(([key]) => key === kind)?.[2] || 'gray'];
+
+// How much an entry is (a folder tells what it holds, a file its size) and when it changed.
+function fvMeta(entry) {
+ const size = entry.size !== null ? FileKinds.formatSize(Math.round(entry.size)) : '';
+ const count = entry.count !== null ? I18n.t(entry.count === 1 ? 'files.item' : 'files.items', { n: format(entry.count) }) : '';
+ return { amount: entry.folder ? count || size : size, when: entry.when ? fvWhen(entry.when) : '' };
+}
+
+const fvFits = (text, max, size, weight) => textWidth(text, size, weight) <= max;
+
+// The end of a text that fits after an ellipsis, like the tail of a long path.
+function fvTail(text, max, size, weight) {
+ if (fvFits(text, max, size, weight)) return text;
+ let from = 0;
+ while (from < text.length - 1 && !fvFits(`…${text.slice(from)}`, max, size, weight)) from++;
+ return `…${text.slice(from)}`;
+}
+
+// A file name on one line keeps its extension: the middle gives way first.
+function fvShort(text, max, size, weight) {
+ if (fvFits(text, max, size, weight)) return text;
+ const dot = text.lastIndexOf('.'), tail = text.slice(dot > 0 && text.length - dot <= 8 ? Math.max(0, dot - 3) : Math.max(0, text.length - 5));
+ let head = text.length - tail.length;
+ while (head > 1 && !fvFits(`${text.slice(0, head).trimEnd()}…${tail}`, max, size, weight)) head--;
+ return `${text.slice(0, head).trimEnd()}…${tail}`;
+}
+
+// A file name on two lines: it breaks at a space or after . _ - where it can, and a name too long for both
+// keeps its end on the second line, where the extension is.
+function fvLines(text, max, size, weight) {
+ if (fvFits(text, max, size, weight)) return [text];
+ let cut = text.length;
+ while (cut > 1 && !fvFits(text.slice(0, cut).trimEnd(), max, size, weight)) cut--;
+ const soft = Math.max(text.lastIndexOf(' ', cut), ...['.', '_', '-'].map(c => text.lastIndexOf(c, cut - 1) + 1));
+ if (soft > cut * 0.3) cut = soft;
+ const rest = text.slice(cut).trimStart();
+ return [text.slice(0, cut).trimEnd(), fvTail(rest, max, size, weight)];
+}
+
+function filesScene(page, tones, { width }) {
+ if (!page) return null;
+ // The card fills the column like a code block: the scene keeps the usual margin, the card reaches into it.
+ const W = clamp(width - PAD * 2, 280, FV.max), left = -PAD + FV.pad, right = W + PAD - FV.pad, items = [], tips = new Map();
+ const flat = fvFlatten(page.entries), shown = flat.slice(0, FV.cap), hidden = flat.length - shown.length + page.more;
+ const tree = page.view === 'tree' || (page.view !== 'list' && flat.some(row => row.depth));
+ const files = flat.filter(row => !row.entry.folder).length, folders = flat.length - files;
+ const total = page.entries.reduce((sum, entry) => sum + (fvTotal(entry) || 0), 0);
+
+ // One line on top: the folder, its name and where it is, and on the right what it holds.
+ const title = page.title || page.path.split(/[\\/]/).filter(Boolean).pop() || I18n.t('files.title');
+ const counts = [
+  files ? I18n.t(files === 1 ? 'files.file' : 'files.files', { n: format(files) }) : '',
+  folders ? I18n.t(folders === 1 ? 'files.folder' : 'files.folders', { n: format(folders) }) : '',
+ ].filter(Boolean).join(' · ');
+ const size = total ? FileKinds.formatSize(Math.round(total)) : '';
+ const sumW = (size ? textWidth(size, 12.5, 650) + (counts ? 16 : 0) : 0) + (counts ? textWidth(counts, 12.5, 500) : 0);
+ const nameRoom = right - left - 28 - (sumW ? sumW + 20 : 0), name = truncate(title, Math.max(60, nameRoom * 0.6), 14, 650);
+ const pathRoom = nameRoom - textWidth(name, 14, 650) - 10;
+ items.push({
+  key: 'fv:head', type: 'fhead', order: 0, props: { x: 0, y: 0 },
+  fixed: { name, path: page.path && pathRoom > 60 ? fvTail(page.path, pathRoom, 12, 500) : '', size, counts, left, right, nameW: textWidth(name, 14, 650) },
+ });
+ let y = FV.head;
+
+ // What takes the space: a thin line of the kinds inside, in the colors of their icons, parting the head from the list.
+ const kinds = new Map();
+ for (const { entry, depth } of flat) {
+  const bytes = entry.folder ? (depth === 0 && !entry.children.length ? entry.size : null) : entry.size;
+  if (bytes) kinds.set(fvKind(entry), (kinds.get(fvKind(entry)) || 0) + bytes);
+ }
+ const sized = [...kinds.values()].reduce((sum, bytes) => sum + bytes, 0), list = [...kinds].sort((a, b) => b[1] - a[1]);
+ if (sized > 0 && flat.filter(row => row.entry.size).length >= 2) {
+  const room = right - left - 2 * (list.length - 1), widths = list.map(([, bytes]) => Math.max(3, bytes / sized * room));
+  const fit = room / widths.reduce((sum, w) => sum + w, 0);
+  let x = left;
+  list.forEach(([kind, bytes], i) => {
+   const key = `fv:seg:${kind}`, w = widths[i] * fit;
+   items.push({ key, type: 'fseg', order: 0.3 + i * 0.08, props: { x, w }, fixed: { y, h: FV.meter, tone: fvTone(kind) } });
+   tips.set(key, { title: I18n.t(`files.kind.${kind}`), rows: [{ name: I18n.t('files.size'), value: FileKinds.formatSize(Math.round(bytes)) }, { name: I18n.t('files.share'), value: `${format(Math.round(bytes / sized * 1000) / 10)}%` }] });
+   x += w + 2;
+  });
+ } else items.push({ key: 'fv:rule', type: 'line', order: 0.3, props: { x1: left, y1: y + FV.meter / 2, x2: right, y2: y + FV.meter / 2 }, fixed: { cls: 'dg-fv-rule' } });
+ y += FV.meter + 6;
+
+ // The entries: name, then the date and the size in columns on the right; a tree steps folders in.
+ const metas = shown.map(({ entry }) => fvMeta(entry));
+ const sizeW = Math.max(0, ...metas.map(meta => meta.amount ? textWidth(meta.amount, 12.5, 550) : 0));
+ const dateW = tree ? 0 : Math.max(0, ...metas.map(meta => meta.when ? textWidth(meta.when, 12, 500) : 0));
+ const sizeX = right, dateX = right - (sizeW ? sizeW + 22 : 0);
+ shown.forEach(({ entry, depth }, i) => {
+  const key = `fv:row:${i}:${entry.name}`, indent = tree ? depth * FV.indent : 0, x = left + indent + 26;
+  const end = (dateW ? dateX - dateW : sizeW ? sizeX - sizeW : right) - 18;
+  const label = fvShort(entry.name, Math.max(40, end - x), 13.5, 500);
+  const note = entry.note && textWidth(label, 13.5, 500) + 24 < end - x ? fvShort(entry.note, end - x - textWidth(label, 13.5, 500) - 12, 12, 500) : '';
+  items.push({
+   key, type: 'frow', order: 0.6 + i * 0.1, props: { x: 0, y: y + i * FV.row },
+   fixed: {
+    name: entry.name, folder: entry.folder, label, note, labelW: textWidth(label, 13.5, 500), iconX: left + indent, textX: x,
+    amount: metas[i].amount, when: dateW ? metas[i].when : '', sizeX, dateX, h: FV.row, plateX: -PAD + 6, plateW: W + PAD * 2 - 12,
+    rule: i < shown.length - 1 || hidden > 0 ? x : 0, right,
+   },
+  });
+  // The row already says what a tip would, so it only lights up.
+  tips.set(key, { silent: true });
+ });
+ // In a tree a quiet line runs down from each open folder along what it holds.
+ if (tree) {
+  shown.forEach(({ entry, depth }, i) => {
+   let end = i;
+   while (end + 1 < shown.length && shown[end + 1].depth > depth) end++;
+   if (end === i) return;
+   const x = left + depth * FV.indent + 8;
+   items.push({ key: `fv:guide:${i}:${entry.name}`, type: 'line', order: 0.8 + i * 0.1, props: { x1: x, y1: y + i * FV.row + FV.row - 7, x2: x, y2: y + end * FV.row + FV.row / 2 }, fixed: { cls: 'dg-fv-guide', draw: true } });
+  });
+ }
+ y += shown.length * FV.row;
+ if (hidden > 0) {
+  items.push({ key: 'fv:more', type: 'label', order: 0.6 + shown.length * 0.1, props: { x: left + 26, y: y + FV.row / 2 }, fixed: { lines: [I18n.t('files.more', { n: format(hidden) })], cls: 'dg-fv-more', anchor: 'start' } });
+  y += FV.row;
+ }
+ y += 6;
+ // The card goes under everything and grows with the list as the reply comes in.
+ items.push({ key: 'fv:card', type: 'fcard', order: 0, props: { x: -PAD, y: -6, w: W + PAD * 2, h: y + 6 }, fixed: {} });
+ return { kind: 'files', width: W, height: y, items, tips };
+}
+
 function clean(source) {
  return source.replace(/%%\{[\s\S]*?\}%%/g, '').split('\n').map(line => line.replace(/%%.*$/, '').replace(/\s+$/, '')).filter(line => line.trim());
 }
@@ -2717,6 +2959,7 @@ const KINDS = [
  [/^erDiagram\b/i, (lines, tones, options) => flowScene(parseER(lines), tones, options, 'er')],
  [/^classDiagram(-v2)?\b/i, (lines, tones, options) => flowScene(parseClass(lines), tones, options, 'class')],
  [/^(wireframe|mockup)\b/i, (lines, tones, options) => wireframeScene(parseWireframe(lines), tones, options)],
+ [/^(files|folder)\b/i, (lines, tones, options) => filesScene(parseFiles(lines), tones, options)],
 ];
 
 function withHeader(source, kind) {
@@ -3273,7 +3516,101 @@ const TYPES = {
    fade(item.body, a, 3);
   },
  },
+ // Files: a card in the column like a file attachment, a line of what takes the space, and a row for each entry.
+ fcard: {
+  // Under everything, the rule and a tree's lines too, though it comes last so it can grow with the list.
+  create(item, scene) {
+   item.el = svg('rect', { class: 'dg-fv-card', rx: 16 });
+   scene.layer('back').prepend(item.el);
+   return item.el;
+  },
+  enter: () => ENTER.fade,
+  apply(item, a) {
+   const { x, y, w, h } = item.cur;
+   setAttrs(item.el, { x: f(x), y: f(y), width: f(Math.max(0, w)), height: f(Math.max(0, h)) });
+   item.el.style.opacity = a >= 1 ? '' : easeOut(a).toFixed(3);
+  },
+ },
+ fhead: {
+  create(item, scene) {
+   item.g = svg('g', { class: 'dg-fv-head' }, scene.layer('labels'));
+   item.body = svg('g', { class: 'dg-body' }, item.g);
+   this.refresh(item);
+   return item.g;
+  },
+  refresh(item) {
+   const fx = item.spec.fixed, body = item.body, cy = FV.head / 2 - 3;
+   body.replaceChildren();
+   fvIcon(body, { folder: true }, fx.left, cy - 9, 18);
+   const text = (value, cls, x, anchor = 'start') => svg('text', { class: cls, x: f(x), y: f(cy), 'text-anchor': anchor, 'dominant-baseline': 'central' }, body).textContent = value;
+   text(fx.name, 'dg-fv-title', fx.left + 28);
+   if (fx.path) text(fx.path, 'dg-fv-path', fx.left + 28 + fx.nameW + 10);
+   if (fx.counts) text(fx.counts, 'dg-fv-sum', fx.right, 'end');
+   if (fx.size) text(fx.size, 'dg-fv-total', fx.counts ? fx.right - textWidth(fx.counts, 12.5, 500) - 16 : fx.right, 'end');
+  },
+  enter: () => ENTER.label,
+  apply(item, a) {
+   item.g.setAttribute('transform', `translate(${f(item.cur.x)} ${f(item.cur.y)})`);
+   fade(item.body, a, 3);
+  },
+ },
+ fseg: {
+  create(item, scene) {
+   item.el = svg('rect', { class: 'dg-fv-seg' }, scene.layer('nodes'));
+   this.refresh(item);
+   return item.el;
+  },
+  refresh(item) {
+   const fx = item.spec.fixed;
+   item.el.style.setProperty('--ft', fx.tone);
+   setAttrs(item.el, { y: f(fx.y), height: fx.h, rx: fx.h / 2 });
+  },
+  enter: () => ENTER.grow,
+  apply(item, a) {
+   const { x, w } = item.cur;
+   setAttrs(item.el, { x: f(x), width: f(Math.max(0, w * (a >= 1 ? 1 : easeOut(a)))) });
+  },
+ },
+ frow: {
+  create(item, scene) {
+   item.g = svg('g', { class: 'dg-fv-row' }, scene.layer('nodes'));
+   item.body = svg('g', { class: 'dg-body' }, item.g);
+   this.refresh(item);
+   return item.g;
+  },
+  refresh(item) {
+   const fx = item.spec.fixed, body = item.body, cy = fx.h / 2;
+   body.replaceChildren();
+   svg('rect', { class: 'dg-fv-hit', x: f(fx.plateX), y: 0, width: f(fx.plateW), height: fx.h }, body);
+   if (fx.folder) fvIcon(body, fx, fx.iconX, cy - 8, 16);
+   else fvIcon(body, fx, fx.iconX + 1, cy - 10, 20);
+   const text = (value, cls, x, anchor = 'start') => svg('text', { class: cls, x: f(x), y: f(cy), 'text-anchor': anchor, 'dominant-baseline': 'central' }, body).textContent = value;
+   text(fx.label, 'dg-fv-name', fx.textX);
+   if (fx.note) text(fx.note, 'dg-fv-note', fx.textX + fx.labelW + 12);
+   if (fx.when) text(fx.when, 'dg-fv-date', fx.dateX, 'end');
+   if (fx.amount) text(fx.amount, fx.folder ? 'dg-fv-count' : 'dg-fv-size', fx.sizeX, 'end');
+   if (fx.rule) svg('line', { class: 'dg-fv-rule', x1: f(fx.rule), x2: f(fx.right), y1: f(fx.h - 0.5), y2: f(fx.h - 0.5) }, body);
+  },
+  enter: () => ENTER.label,
+  apply(item, a) {
+   item.g.setAttribute('transform', `translate(${f(item.cur.x)} ${f(item.cur.y)})`);
+   fade(item.body, a, 4);
+  },
+  glide(item) {
+   const fx = item.spec.fixed;
+   return { x: item.to.x + fx.plateX, y: item.to.y + 1, w: fx.plateW, h: fx.h - 2 };
+  },
+ },
 };
+
+// Files wear the icons attachments have; folders the outline folder of the sidebar. Returns how wide the icon is.
+function fvIcon(parent, { name = '', folder }, x, y, h) {
+ const holder = svg('g', {}, parent), w = folder ? h : h * 0.8;
+ if (folder) holder.setAttribute('class', 'dg-fv-folder');
+ holder.innerHTML = folder ? Glyphs.folder : FileKinds.icon(FileKinds.describe(name));
+ setAttrs(holder.firstElementChild, { x: f(x), y: f(y), width: f(w), height: f(h) });
+ return w;
+}
 
 /* Scene: reconciles keyed items and animates them */
 
@@ -3299,10 +3636,10 @@ function sameFixed(a, b) {
  return true;
 }
 
-function springTo(obj, vel, key, goal, dt) {
+function springTo(obj, vel, key, goal, dt, [k, c] = SPRING) {
  let x = obj[key], v = vel[key];
  if (x === goal && !v) return false;
- const [k, c] = SPRING, steps = Math.max(1, Math.ceil(dt / 0.008)), h = dt / steps;
+ const steps = Math.max(1, Math.ceil(dt / 0.008)), h = dt / steps;
  for (let i = 0; i < steps; i++) { v += ((goal - x) * k - v * c) * h; x += v * h; }
  if (Math.abs(goal - x) < 0.02 && Math.abs(v) < 0.05) { obj[key] = goal; vel[key] = 0; return false; }
  obj[key] = x;
@@ -3447,6 +3784,48 @@ class Scene {
   item.el?.remove();
   for (const extra of item.extra) extra.remove();
   this.items.delete(item.key);
+ }
+}
+
+// One highlight for rows that light up under the pointer, like the sidebar's: it glides from row to row instead of
+// blinking, comes out where the pointer enters and fades where it leaves.
+class Glide {
+ constructor(parent) {
+  this.el = svg('rect', { class: 'dg-glide', rx: 9 }, parent);
+  this.cur = { x: 0, y: 0, w: 0, h: 0, o: 0 };
+  this.vel = { x: 0, y: 0, w: 0, h: 0, o: 0 };
+  this.box = null;
+  this.raf = 0;
+  this.last = 0;
+  this.tick = this.tick.bind(this);
+ }
+
+ to(box) {
+  this.box = box;
+  if (box && this.cur.o < 0.02) {
+   Object.assign(this.cur, box);
+   Object.assign(this.vel, { x: 0, y: 0, w: 0, h: 0 });
+  }
+  if (this.raf) return;
+  this.last = performance.now();
+  this.raf = requestAnimationFrame(this.tick);
+ }
+
+ tick(now) {
+  this.raf = 0;
+  const dt = clamp((now - this.last) / 1000, 0, 0.032), box = this.box, cur = this.cur;
+  this.last = now;
+  let moving = false;
+  if (reducedMotion()) {
+   if (box) Object.assign(cur, box);
+   cur.o = box ? 1 : 0;
+  } else {
+   if (box) for (const key in box) moving = springTo(cur, this.vel, key, box[key], dt, GLIDE.move) || moving;
+   moving = springTo(cur, this.vel, 'o', box ? 1 : 0, dt, GLIDE.fade) || moving;
+  }
+  setAttrs(this.el, { x: f(cur.x), y: f(cur.y), width: f(Math.max(0, cur.w)), height: f(Math.max(0, cur.h)) });
+  this.el.style.opacity = clamp(cur.o, 0, 1).toFixed(3);
+  if (moving) this.raf = requestAnimationFrame(this.tick);
  }
 }
 
@@ -3948,6 +4327,7 @@ class DiagramView {
   this.timer = 0;
   this.hotKeys = [];
   this.hotSig = '';
+  this.glide = null;
   this.lit = '';
   this.measured = null;
   new ResizeObserver(entries => this.resize(entries[entries.length - 1].contentRect.width)).observe(this.stage);
@@ -4083,6 +4463,7 @@ class DiagramView {
    this.hotKeys = keys;
    this.hotSig = sig;
    this.svg.classList.toggle('is-probing', keys.length > 0);
+   this.glideTo(keys);
   }
   if (!tip || !at || (!at.el && at.x === undefined)) {
    this.tipEl?.classList.remove('is-shown');
@@ -4116,6 +4497,15 @@ class DiagramView {
   this.tipEl.classList.toggle('is-gliding', !fresh);
   this.tipEl.style.transform = `translate(${f(clamp(x, 0, Math.max(0, v.w - w)))}px, ${f(y)}px)`;
   this.tipEl.classList.add('is-shown');
+ }
+
+ // A row that says where its highlight goes gets the shared one; anything else lets it fade.
+ glideTo(keys) {
+  const item = keys.length === 1 ? this.scene.items.get(keys[0]) : null;
+  const box = item?.type.glide?.(item) || null;
+  if (!box && !this.glide) return;
+  this.glide ??= new Glide(this.scene.layer('back'));
+  this.glide.to(box);
  }
 
  hideStatus() {

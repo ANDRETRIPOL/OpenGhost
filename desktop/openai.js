@@ -164,7 +164,7 @@ async function stream(request, context) {
   } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
    const done = event.response || {};
    const usage = done.usage || {};
-   result.usage = { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0, total_tokens: usage.total_tokens || 0 };
+   result.usage = { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0, total_tokens: usage.total_tokens || 0, cached_tokens: usage.input_tokens_details?.cached_tokens || 0 };
    const reason = done.incomplete_details?.reason;
    result.finishReason = reason === 'max_output_tokens' ? 'length' : reason === 'content_filter' ? 'content_filter' : result.toolCalls.length ? 'tool_calls' : 'stop';
   } else if (event.type === 'response.failed' || event.type === 'error') {

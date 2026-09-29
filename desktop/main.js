@@ -6,19 +6,42 @@ const path = require('node:path');
 const Tools = require('./tools');
 const Browser = require('./browser');
 const LLM = require('./llm');
+const Keys = require('./keys');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
 // Windows takes the .ico; macOS and Linux take the .png.
 const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
-const CHAT_BG = '#191919';
-const TITLE_BAR = { height: 36, symbolColor: '#9a9a9a' };
+const TITLE_BAR = { height: 36 };
+// The theme picked in Settings → Appearance. The window is painted before the page loads,
+// so these colors repeat --chat-bg and --titlebar-symbols from styles.css.
+const THEMES = {
+ choices: ['system', 'light', 'dark'],
+ dark: { background: '#191919', symbols: '#9a9a9a' },
+ light: { background: '#ffffff', symbols: '#5c5c5c' },
+};
 const STORE_KEY = /^[a-z0-9-]+(\/[a-z0-9-]+)?$/;
 
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 app.setAppUserModelId(APP_ID);
-nativeTheme.themeSource = 'dark';
-Menu.setApplicationMenu(null);
+// Windows and Linux show no menu bar: copying, pasting and undo work in the page by themselves. macOS delivers Cmd+C, Cmd+V,
+// Cmd+A, Cmd+Z, Cmd+Q, Cmd+H and Cmd+M only through the menu at the top of the screen, so there the app keeps the standard
+// app, edit and window menus.
+Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
+
+const themeFile = () => path.join(app.getPath('userData'), 'theme.json');
+
+function readTheme() {
+ try {
+  const { choice } = JSON.parse(fs.readFileSync(themeFile(), 'utf8'));
+  if (THEMES.choices.includes(choice)) return choice;
+ } catch {}
+ return 'dark';
+}
+
+// 'system' lets the page and the sites in the built-in browser follow the computer; light and dark hold them to one look.
+nativeTheme.themeSource = readTheme();
+const look = () => THEMES[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
 
 function createShortcut() {
  const link = path.join(app.getPath('desktop'), 'OpenGhost.lnk');
@@ -83,11 +106,11 @@ function createWindow() {
   show: false,
   title: 'OpenGhost',
   icon: ICON,
-  backgroundColor: CHAT_BG,
+  backgroundColor: look().background,
   // Linux window managers draw their own title bar; Windows and macOS get the app's own.
   ...(process.platform === 'linux' ? {} : {
    titleBarStyle: 'hidden',
-   titleBarOverlay: { color: CHAT_BG, symbolColor: TITLE_BAR.symbolColor, height: TITLE_BAR.height },
+   titleBarOverlay: { color: look().background, symbolColor: look().symbols, height: TITLE_BAR.height },
   }),
   webPreferences: {
    preload: path.join(__dirname, 'preload.js'),
@@ -141,18 +164,33 @@ ipcMain.handle('folder:reveal', (event, folder) => typeof folder === 'string' &&
 ipcMain.handle('store:read', (event, key) => readStore(key));
 ipcMain.handle('store:write', (event, key, value) => writeStore(key, value));
 ipcMain.handle('store:remove', (event, key) => removeStore(key));
-ipcMain.on('window:titlebar', (event, color) => {
+// The page sends its background once it opens and whenever the theme changes: the title bar buttons sit on it,
+// and the window shows it wherever the page has not painted yet, as while resizing.
+ipcMain.on('window:titlebar', (event, color, symbols) => {
  const win = BrowserWindow.fromWebContents(event.sender);
- if (process.platform === 'linux') return;
- if (win && typeof win.setTitleBarOverlay === 'function' && typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) win.setTitleBarOverlay({ color, symbolColor: TITLE_BAR.symbolColor, height: TITLE_BAR.height });
+ const hex = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+ if (!win || !hex(color)) return;
+ win.setBackgroundColor(color);
+ if (process.platform === 'linux' || typeof win.setTitleBarOverlay !== 'function') return;
+ win.setTitleBarOverlay({ color, symbolColor: hex(symbols) ? symbols : look().symbols, height: TITLE_BAR.height });
 });
 
 const fromApp = event => event.sender.getType() === 'window' && event.senderFrame?.url.startsWith('file:');
+
+// Answers whether the app ends up dark: for 'system' only this side knows what the computer uses right now.
+ipcMain.handle('theme:set', (event, choice) => {
+ if (fromApp(event) && THEMES.choices.includes(choice) && nativeTheme.themeSource !== choice) {
+  nativeTheme.themeSource = choice;
+  fs.promises.writeFile(themeFile(), JSON.stringify({ choice })).catch(() => {});
+ }
+ return nativeTheme.shouldUseDarkColors;
+});
 ipcMain.handle('tool:run', (event, id, name, args, cwd) => fromApp(event) ? Tools.runTool(id, name, args, cwd, event.sender) : { error: 'Not allowed' });
 ipcMain.on('browser:shown', (event, value) => { if (fromApp(event)) Browser.setShown(value); });
 ipcMain.handle('tool:cancel', (event, id) => { if (fromApp(event)) Tools.cancel(id); });
 ipcMain.handle('tool:environment', event => fromApp(event) ? Tools.environment() : null);
 LLM.register(fromApp);
+Keys.register(fromApp);
 
 if (process.argv.includes('--create-shortcut')) {
  app.whenReady().then(() => {
@@ -170,6 +208,7 @@ if (process.argv.includes('--create-shortcut')) {
  });
  app.whenReady().then(() => {
   Browser.setup();
+  Keys.load();
   win = createWindow();
   win.on('closed', () => {
    win = null;

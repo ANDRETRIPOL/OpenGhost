@@ -3,10 +3,6 @@
 
 // While a piece of a reply is selected, the rest of the feed steps back behind a soft blur.
 // The veil lives inside the scrolled feed and the selection is cut out of it, so scrolling moves both together with no work per frame.
-const VEIL = [
- { backdropFilter: 'blur(0px) brightness(1) contrast(1)' },
- { backdropFilter: 'blur(5px) brightness(0.78) contrast(0.949)' },
-];
 const IN = { duration: 520, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const OUT = { duration: 420, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
 const PAD = { x: 2, y: 3 };
@@ -16,6 +12,12 @@ const JOIN = 16;
 const STEPS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// How the feed steps back comes from the theme (--veil); the same filters at rest start and end it, so they blend smoothly.
+function veilFilters() {
+ const full = getComputedStyle(document.documentElement).getPropertyValue('--veil').trim();
+ const rest = full.replace(/blur\([^)]*\)/g, 'blur(0px)').replace(/(brightness|contrast|saturate)\([^)]*\)/g, '$1(1)');
+ return [{ backdropFilter: rest }, { backdropFilter: full }];
+}
 const px = value => `${Math.round(value * 2) / 2}px`;
 const shade = t => `rgba(0, 0, 0, ${(t * t * (3 - 2 * t)).toFixed(3)})`;
 // The edges of a cut-out follow a smoothstep: beside the first and last letters the blur eases in over FEATHER.x instead of starting at a line.
@@ -82,9 +84,10 @@ class SelectionFocus {
   // The composer and the floating scroll button blur along with the feed, through CSS filters on the same timing.
   this.room?.classList.add('is-veiled');
   if (reducedMotion()) { veil.getAnimations().forEach(animation => animation.cancel()); return; }
-  const from = back ? getComputedStyle(veil).backdropFilter : VEIL[0].backdropFilter;
+  const [rest, full] = veilFilters();
+  const from = back ? getComputedStyle(veil).backdropFilter : rest.backdropFilter;
   veil.getAnimations().forEach(animation => animation.cancel());
-  veil.animate([{ backdropFilter: from }, VEIL[1]], IN);
+  veil.animate([{ backdropFilter: from }, full], IN);
  }
 
  hide() {
@@ -100,7 +103,7 @@ class SelectionFocus {
   this.leaving = veil;
   const from = getComputedStyle(veil).backdropFilter;
   veil.getAnimations().forEach(animation => animation.cancel());
-  veil.animate([{ backdropFilter: from }, VEIL[0]], { ...OUT, fill: 'forwards' }).finished.then(() => {
+  veil.animate([{ backdropFilter: from }, veilFilters()[0]], { ...OUT, fill: 'forwards' }).finished.then(() => {
    if (this.leaving === veil) this.drop(veil);
   }, () => {});
  }

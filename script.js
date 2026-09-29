@@ -32,11 +32,19 @@ const composerText = new ComposerText(composerInput, document.querySelector('.co
 LinkChip.watch(document.querySelector('.composer-mirror'));
 LinkChip.watch(thread);
 const settings = new Settings(document.querySelector('.settings'));
-new Scrollbar(document.querySelector('.settings-page'), document.querySelector('.settings-scrollbar')).observe(document.querySelector('.settings-providers'));
+new GeneralSettings({ root: document.querySelector('#settings-general'), context: UserContext });
+new AppearanceSettings(document.querySelector('#settings-appearance'));
+new UsageSettings({ root: document.querySelector('#settings-usage'), settings, dialog: settings.dialog });
+const settingsScrollbar = new Scrollbar(document.querySelector('.settings-page'), document.querySelector('.settings-scrollbar'));
+for (const panel of document.querySelectorAll('.settings-panel')) settingsScrollbar.observe(panel);
 const threadBottom = document.querySelector('.thread-bottom');
 new LiquidGlass(threadBottom, { width: 36, height: 36 });
 const library = new Library(ChatStore, syncAll);
-window.addEventListener('pagehide', () => library.flush());
+window.addEventListener('pagehide', () => {
+  library.flush();
+  UserContext.flush();
+  Usage.flush();
+});
 const chat = new Chat({ main, thread, bottom: threadBottom, settings, library, onChange: syncAll, onList: list => threadScrollbar.observe(list) });
 const lockScreen = new LockScreen({ main, chat, composer, onOpen: () => composerInput.focus({ preventScroll: true }) });
 const lockCard = new LockCard({ chat, library, scroller: document.querySelector('.chats-scroll') });
@@ -76,7 +84,9 @@ const attachments = new Attachments({
   zone: document.querySelector('.drop-zone'),
   input: composerInput,
   onChange: syncComposer,
-  isActive: () => !MiniChat.current && !chat.active?.locked,
+  onText: (text, undo) => composerText.place(text, undo),
+  // Files dropped on the open settings go to the settings' own list, not into the message.
+  isActive: () => !MiniChat.current && !chat.active?.locked && !settings.dialog.open,
 });
 new SelectionMenu({
   onAsk: (text, box) => {
@@ -177,14 +187,18 @@ async function send() {
 composerInput.addEventListener('input', syncComposer);
 
 composerInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && chat.busy && !event.isComposing && !document.querySelector(':popover-open, dialog[open]')) {
-    event.preventDefault();
-    chat.stop();
-    return;
-  }
   if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
   event.preventDefault();
   send();
+});
+
+// Escape stops the agent from anywhere in the window, not only from the message field. An open menu or dialog, and
+// fields that use Escape themselves (renaming, search, the address bar), get it first.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || !chat.busy) return;
+  if (document.querySelector(':popover-open, dialog[open]')) return;
+  event.preventDefault();
+  chat.stop();
 });
 
 composerSend.addEventListener('composer-send', () => send());

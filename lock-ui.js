@@ -111,8 +111,9 @@ class LockScreen {
   });
   if (reducedMotion()) return;
   // Locking the chat on screen, the feed blurs away under the screen as it comes up; opening a locked chat, it just appears.
+  const cover = getComputedStyle(document.documentElement).getPropertyValue('--chat-bg').trim();
   root.animate(shutting
-   ? [{ backgroundColor: 'rgba(25, 25, 25, 0)', backdropFilter: 'blur(0px)' }, { backgroundColor: 'rgba(25, 25, 25, 1)', backdropFilter: 'blur(14px)' }]
+   ? [{ backgroundColor: 'transparent', backdropFilter: 'blur(0px)' }, { backgroundColor: cover, backdropFilter: 'blur(14px)' }]
    : [{ opacity: 0 }, { opacity: 1 }], { duration: shutting ? 460 : 200, easing: EASE.motion });
   this.glyph.animate([{ opacity: 0, transform: 'scale(0.7)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], { duration: 560, easing: EASE.spring });
   rise([...root.querySelectorAll('.lock-word'), root.querySelector('.lock-screen-text'), this.form], shutting ? 140 : 60);

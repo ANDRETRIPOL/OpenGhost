@@ -7,6 +7,7 @@
   <link rel="icon" href="desktop/icon.png">
   <link rel="stylesheet" href="styles.css">
   <script src="desktop.js"></script>
+  <script src="theme.js"></script>
 </head>
 <body>
   <div class="titlebar" aria-hidden="true"><div class="titlebar-name"></div></div>
@@ -98,18 +99,38 @@
   <dialog class="settings" closedby="any" aria-labelledby="settings-title" tabindex="-1">
     <nav class="settings-nav" aria-label="Settings sections" data-i18n-attr="aria-label:settings.sections">
       <div class="settings-heading" id="settings-title" data-i18n="settings">Settings</div>
-      <button type="button" class="settings-tab" aria-current="page">
-        <svg class="settings-tab-icon" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M52 36v10M68 36v10"/><path d="M44 46h32v7a15 15 0 0 1-15 15h-2a15 15 0 0 1-15-15z"/><path d="M60 68v8a6 6 0 0 1-6 6h-4"/></svg>
-        <span data-i18n="settings.providers">Providers</span>
-      </button>
+      <div class="settings-tabs" role="tablist" aria-orientation="vertical" aria-labelledby="settings-title">
+        <span class="settings-glide" aria-hidden="true"></span>
+        <button type="button" class="settings-tab" role="tab" data-page="general" aria-controls="settings-general" aria-selected="true">
+          <svg class="settings-tab-icon is-sliders" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="slide-a1" d="M38 47H46"/><path class="slide-a2" d="M58 47H82"/><path class="slide-b1" d="M38 73H62"/><path class="slide-b2" d="M74 73H82"/><circle class="knob-a" cx="52" cy="47" r="6"/><circle class="knob-b" cx="68" cy="73" r="6"/></svg>
+          <span data-i18n="settings.general">General</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab" data-page="providers" aria-controls="settings-providers" aria-selected="false" tabindex="-1">
+          <svg class="settings-tab-icon is-plug" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="plug"><path d="M52 36v10M68 36v10"/><path d="M44 46h32v7a15 15 0 0 1-15 15h-2a15 15 0 0 1-15-15z"/></g><path d="M60 68v8a6 6 0 0 1-6 6h-4"/></svg>
+          <span data-i18n="settings.providers">Providers</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab" data-page="usage" aria-controls="settings-usage" aria-selected="false" tabindex="-1">
+          <svg class="settings-tab-icon is-bars" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="bar-a" d="M42 80V62"/><path class="bar-b" d="M60 80V40"/><path class="bar-c" d="M78 80V52"/></svg>
+          <span data-i18n="settings.usage">Usage</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab" data-page="appearance" aria-controls="settings-appearance" aria-selected="false" tabindex="-1">
+          <svg class="settings-tab-icon is-contrast" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="60" cy="60" r="21"/><path class="half" d="M60 39a21 21 0 0 1 0 42z" fill="currentColor"/></svg>
+          <span data-i18n="settings.appearance">Appearance</span>
+        </button>
+      </div>
     </nav>
     <section class="settings-page" aria-labelledby="settings-page-title">
       <header class="settings-page-header">
-        <h2 class="settings-page-title" id="settings-page-title" data-i18n="settings.providers">Providers</h2>
+        <h2 class="settings-page-title" id="settings-page-title" data-i18n="settings.general">General</h2>
         <close-button class="settings-close"></close-button>
       </header>
-      <p class="settings-lead" data-i18n="settings.lead">Connect the services whose models OpenGhost can use. Keys and sign-ins stay on this computer.</p>
-      <div class="settings-providers"></div>
+      <div class="settings-panel" id="settings-general" role="tabpanel" data-page="general" aria-labelledby="settings-page-title"></div>
+      <div class="settings-panel" id="settings-providers" role="tabpanel" data-page="providers" aria-labelledby="settings-page-title" hidden>
+        <p class="settings-lead" data-i18n="settings.lead">Connect the services whose models OpenGhost can use. Keys and sign-ins stay on this computer.</p>
+        <div class="settings-providers"></div>
+      </div>
+      <div class="settings-panel" id="settings-usage" role="tabpanel" data-page="usage" aria-labelledby="settings-page-title" hidden></div>
+      <div class="settings-panel" id="settings-appearance" role="tabpanel" data-page="appearance" aria-labelledby="settings-page-title" hidden></div>
     </section>
     <div class="scrollbar settings-scrollbar" aria-hidden="true"><div class="scrollbar-thumb"></div></div>
   </dialog>
@@ -152,12 +173,18 @@
   <script src="attachments.js"></script>
   <script src="media-slider.js"></script>
   <script src="settings.js"></script>
+  <script src="settings-general.js"></script>
+  <script src="settings-appearance.js"></script>
   <script src="effort-paint.js"></script>
   <script src="effort-morph.js"></script>
+  <script src="effort-stage.js"></script>
   <script src="effort-slider.js"></script>
   <script src="glyphs.js"></script>
   <script src="model-button.js"></script>
   <script src="chat-store.js"></script>
+  <script src="usage.js"></script>
+  <script src="settings-usage.js"></script>
+  <script src="user-context.js"></script>
   <script src="chat-lock.js"></script>
   <script src="library.js"></script>
   <script src="agent-tools.js"></script>

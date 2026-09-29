@@ -50,7 +50,8 @@ class WelcomeGhost {
 
  leave() {
   const generation = this.generation, ghost = this.ghost, status = this.status();
-  if (!ghost || reducedMotion()) { this.reset(); return; }
+  // A window too low for the welcome hides it; with nothing on screen to fly, the thread's own ghost shows at once.
+  if (!ghost || reducedMotion() || !this.flight.getBoundingClientRect().width) { this.reset(); return; }
   if (!status) {
    this.root.classList.replace('is-shown', 'is-leaving');
    ghost.look(0, -EYES.up, LEAVE_TIME);

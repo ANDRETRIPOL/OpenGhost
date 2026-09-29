@@ -111,7 +111,7 @@ class MiniChat {
   });
   this.space.observe(this.composer);
   const context = source.context();
-  this.chat = new Chat({ main: this.main, thread, bottom, settings, library: memoryLibrary(), onChange: () => this.sync(), onList: list => scrollbar.observe(list), note: NOTE });
+  this.chat = new Chat({ main: this.main, thread, bottom, settings, library: memoryLibrary(), onChange: () => this.sync(), onList: list => scrollbar.observe(list), brief: NOTE });
   this.chat.newChat(context.folder || { path: '', name: '' });
   this.chat.active.model = context.model;
   this.chat.active.messages = context.messages;
@@ -124,6 +124,7 @@ class MiniChat {
    zone: $('.drop-zone'),
    input: this.input,
    onChange: () => this.sync(),
+   onText: (text, undo) => this.text.place(text, undo),
    isActive: () => dialog.open,
   });
   $('.composer-add').addEventListener('add', () => this.attachments.pick());

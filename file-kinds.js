@@ -167,5 +167,5 @@ function formatSize(bytes) {
  return `${value < 10 ? value.toFixed(1).replace(/\.0$/, '') : Math.round(value)} ${units[unit]}`;
 }
 
-window.FileKinds = { describe, icon, formatSize };
+window.FileKinds = { describe, icon, formatSize, tones: TONES };
 })();

@@ -5,6 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
+const os = require('node:os');
 const path = require('node:path');
 const { app, safeStorage, shell } = require('electron');
 
@@ -14,6 +15,7 @@ const PORT = 1455;
 const REDIRECT = `http://localhost:${PORT}/auth/callback`;
 const ORIGINATOR = 'openghost';
 const LOGIN_TIMEOUT = 5 * 60 * 1000;
+const USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage';
 const EARLY_REFRESH = 60 * 1000;
 const HOSTS = ['127.0.0.1', '::1'];
 
@@ -182,4 +184,33 @@ async function credentials() {
  return refreshing;
 }
 
-module.exports = { login, cancel, logout, status, credentials, ORIGINATOR };
+// A limit window as the app shows it: how long it runs, how much of it is used, and when it starts over.
+function span(raw) {
+ if (!raw) return null;
+ const resets = Number(raw.reset_at) * 1000 || (raw.reset_after_seconds != null ? Date.now() + Number(raw.reset_after_seconds) * 1000 : 0);
+ return { seconds: Number(raw.limit_window_seconds) || 0, used: Math.max(0, Math.min(100, Number(raw.used_percent) || 0)), resets };
+}
+
+const windows = limit => [span(limit?.primary_window), span(limit?.secondary_window)].filter(Boolean);
+
+// The subscription's limits as ChatGPT keeps them: the plan, each window with how much of it is used and when it starts over,
+// limits of their own for some models, and credits. It is the read the Codex CLI makes for its usage screen and uses nothing up.
+// Which windows a plan has changes over time (a five-hour one comes and goes), so they are taken as they come.
+async function limits() {
+ const account = await credentials();
+ const headers = { Authorization: `Bearer ${account.access}`, originator: ORIGINATOR, 'User-Agent': `OpenGhost/${app.getVersion()} (${os.platform()} ${os.release()}; ${os.arch()})` };
+ if (account.account) headers['ChatGPT-Account-Id'] = account.account;
+ const response = await fetch(USAGE_URL, { headers });
+ if (!response.ok) throw failure(`ChatGPT limits are unavailable (${response.status})`, response.status);
+ const body = await response.json();
+ const credits = body.credits || {};
+ return {
+  plan: body.plan_type || account.plan || '',
+  windows: windows(body.rate_limit),
+  reached: !!body.rate_limit?.limit_reached,
+  models: (body.additional_rate_limits || []).map(item => ({ name: item.limit_name || item.metered_feature || '', windows: windows(item.rate_limit) })).filter(item => item.name && item.windows.length),
+  credits: credits.unlimited ? { unlimited: true } : credits.has_credits ? { balance: String(credits.balance ?? '') } : null,
+ };
+}
+
+module.exports = { login, cancel, logout, status, credentials, limits, ORIGINATOR };
