@@ -28,6 +28,10 @@ contextBridge.exposeInMainWorld('openghost', {
   onEvent: callback => ipcRenderer.on('llm:event', (event, data) => callback(data)),
   models: (provider, options) => ipcRenderer.invoke('llm:models', provider, options),
  },
+ keys: {
+  read: () => ipcRenderer.invoke('keys:read'),
+  write: (name, value) => ipcRenderer.invoke('keys:write', name, value),
+ },
  auth: {
   login: () => ipcRenderer.invoke('auth:login'),
   cancel: () => ipcRenderer.invoke('auth:cancel'),

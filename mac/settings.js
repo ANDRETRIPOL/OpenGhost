@@ -2,7 +2,10 @@
 'use strict';
 
 const STORAGE = { effort: 'deepseek.effort', mode: 'openghost.mode', model: 'openghost.model', catalog: 'openghost.catalog', custom: 'openghost.custom' };
+// Where the page kept keys before they moved to the main process, and where they stay on the web, which has no main process.
 const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey' };
+// On the desktop, keys live in the main process, encrypted with the OS keychain.
+const vault = window.openghost?.keys || null;
 // The order providers appear in, in the settings and in the model picker.
 const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek', 'custom'];
 const DEFAULT_MODEL = 'deepseek-flash';
@@ -129,7 +132,48 @@ class Settings {
   this.build();
   this.collect();
   dialog.addEventListener('dismiss', () => dialog.close());
-  this.refreshAll();
+  this.ready = this.unlock().then(() => this.refreshAll());
+ }
+
+ // On the desktop the keys come from the main process. Keys the page kept before this move there and leave the page's storage.
+ async unlock() {
+  if (!vault) return;
+  let stored;
+  try { stored = await vault.read(); } catch { return; }
+  const moved = [];
+  const take = (name, kept) => {
+   if (kept && !stored[name]) {
+    stored[name] = kept;
+    moved.push(name);
+   }
+  };
+  for (const [provider, name] of Object.entries(KEYS)) {
+   take(provider, localStorage.getItem(name));
+   localStorage.removeItem(name);
+  }
+  take('custom', this.custom.key);
+  for (const provider of Object.keys(KEYS)) {
+   this.keys[provider] = stored[provider] || '';
+   this.inputs[provider].value = this.keys[provider];
+  }
+  this.custom.key = stored.custom || '';
+  this.fields.key.value = this.custom.key;
+  this.saveCustom();
+  await Promise.all(moved.map(name => vault.write(name, stored[name]).catch(() => {})));
+  this.accepted = new Set(this.configured());
+  this.paintCustom();
+  this.changed();
+ }
+
+ // A key goes to the main process on the desktop; on the web it stays in the page's storage, the custom one inside its settings.
+ storeKey(name, key) {
+  if (vault) {
+   vault.write(name, key).catch(() => {});
+   return;
+  }
+  if (name === 'custom') return;
+  if (key) localStorage.setItem(KEYS[name], key);
+  else localStorage.removeItem(KEYS[name]);
  }
 
  readCatalog() {
@@ -149,8 +193,11 @@ class Settings {
   return { baseURL: text(saved.baseURL), key: text(saved.key), model: text(saved.model), context: Math.max(0, Math.round(Number(saved.context))) || 0 };
  }
 
+ // The page's storage holds the address, the model and the window; the key too only on the web.
  saveCustom() {
-  if (this.customSet()) localStorage.setItem(STORAGE.custom, JSON.stringify(this.custom));
+  const { key, ...plain } = this.custom;
+  const saved = vault ? plain : this.custom;
+  if (Object.values(saved).some(Boolean)) localStorage.setItem(STORAGE.custom, JSON.stringify(saved));
   else localStorage.removeItem(STORAGE.custom);
  }
 
@@ -460,8 +507,7 @@ class Settings {
  onKeyInput(provider) {
   const key = this.inputs[provider].value.trim();
   this.keys[provider] = key;
-  if (key) localStorage.setItem(KEYS[provider], key);
-  else localStorage.removeItem(KEYS[provider]);
+  this.storeKey(provider, key);
   this.forget(provider);
   if (!key) {
    this.setStatus(provider, '');
@@ -477,7 +523,9 @@ class Settings {
  onCustomInput() {
   const was = this.customSet(), server = this.stamp('custom');
   const text = name => this.fields[name].value.trim();
-  this.custom = { baseURL: text('baseURL'), key: text('key'), model: text('model'), context: Math.max(0, Math.round(Number(text('context')))) || 0 };
+  const key = text('key');
+  if (key !== this.custom.key) this.storeKey('custom', key);
+  this.custom = { baseURL: text('baseURL'), key, model: text('model'), context: Math.max(0, Math.round(Number(text('context')))) || 0 };
   this.saveCustom();
   const moved = this.stamp('custom') !== server;
   // A model list belongs to the server it came from.
