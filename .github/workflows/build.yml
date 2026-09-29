@@ -19,15 +19,12 @@ jobs:
         with:
           node-version: 22
       - name: Install
-        working-directory: mac
         run: npm ci
       - name: Build
-        working-directory: mac
         run: npm run dist:mac
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
       - name: Screenshot
-        working-directory: mac
         continue-on-error: true
         run: |
           app=$(find dist -name 'OpenGhost.app' -type d | head -1)
@@ -39,7 +36,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: OpenGhost-mac
-          path: mac/dist/*.dmg
+          path: dist/*.dmg
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
@@ -56,13 +53,10 @@ jobs:
         with:
           node-version: 22
       - name: Install
-        working-directory: linux
         run: npm ci
       - name: Build
-        working-directory: linux
         run: npm run dist:linux
       - name: Screenshot
-        working-directory: linux
         continue-on-error: true
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb imagemagick > /dev/null
@@ -71,7 +65,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: OpenGhost-linux
-          path: linux/dist/*.tar.gz
+          path: dist/*.tar.gz
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

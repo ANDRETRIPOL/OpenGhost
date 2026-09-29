@@ -16,6 +16,8 @@ const MEDIA_ERRORS = {
  3: 'the video could not be decoded, the file may be damaged',
  4: 'its format or codec is not supported by the built-in decoder (mp4, webm, mov and mkv with H.264, VP8, VP9 or AV1 work)',
 };
+// How ffmpeg gets onto this computer, for the formats the built-in decoder can't read.
+const FFMPEG = { win32: 'winget install Gyan.FFmpeg', darwin: 'brew install ffmpeg' }[process.platform] || 'sudo apt install ffmpeg';
 
 // Runs inside the helper page. Web security is off there, so canvases drawn from local files stay readable.
 const PAGE = `(() => {
@@ -122,7 +124,7 @@ function explainMedia(error, file) {
  const name = path.basename(file);
  if (error.message === 'image') return plain(`${name} can't be decoded as an image. PNG, JPEG, WebP, GIF, BMP, ICO and AVIF work; convert other formats first.`);
  const code = Number(error.message.split(' ')[1]);
- return plain(`${name} can't be opened as a video: ${MEDIA_ERRORS[code] || 'the decoder failed'}. For other formats install ffmpeg (winget install Gyan.FFmpeg), extract PNG frames with it and look at them with read_file.`);
+ return plain(`${name} can't be opened as a video: ${MEDIA_ERRORS[code] || 'the decoder failed'}. For other formats install ffmpeg (${FFMPEG}), extract PNG frames with it and look at them with read_file.`);
 }
 
 async function stat(file) {

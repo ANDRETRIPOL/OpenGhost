@@ -1,6 +1,18 @@
 (() => {
 'use strict';
 
+// The agent works in the computer's own shell: PowerShell on Windows, zsh on a Mac, bash on Linux.
+const POSIX_SERVERS = 'Start them with nohup, redirect their output to a log file, background them with &, then check them, for example with curl to localhost';
+const SYSTEMS = {
+ win32: {
+  computer: 'Windows computer', os: 'Windows', shell: 'PowerShell', tool: 'run_powershell', installer: 'winget', search: 'Select-String', fallback: 'Windows PowerShell 5.1', clock: 'Get-Date',
+  servers: 'Start them with Start-Process -WindowStyle Hidden, redirect their output to a log file, then check them, for example with Invoke-WebRequest to localhost',
+ },
+ darwin: { computer: 'Mac', os: 'macOS', shell: 'zsh', tool: 'run_zsh', installer: 'brew', search: 'grep', fallback: 'zsh', clock: 'date', servers: POSIX_SERVERS },
+ linux: { computer: 'Linux computer', os: 'Linux', shell: 'bash', tool: 'run_bash', installer: 'apt, dnf', search: 'grep', fallback: 'bash', clock: 'date', servers: POSIX_SERVERS },
+};
+const SYSTEM = SYSTEMS[window.openghost?.platform] || SYSTEMS.win32;
+
 const MODES = {
  ask: 'Ask. The user approves every command, file change, git change and web request in the app before it runs; reading files inside the project folder needs no approval. Group related work into fewer, meaningful steps so the user is not flooded with requests.',
  auto: 'Auto. You edit files in the project folder and run ordinary commands on your own. Deleting files, installing software system-wide, touching other folders, changing system settings, pushing and other risky steps wait for the user\'s approval.',
@@ -8,13 +20,13 @@ const MODES = {
 };
 
 const AGENT = [
- 'You are OpenGhost, an AI agent in the OpenGhost desktop app on the user\'s Windows computer. You don\'t only answer, you get things done: you run PowerShell, read, create and edit files, keep projects in git and use the internet.',
+ `You are OpenGhost, an AI agent in the OpenGhost desktop app on the user's ${SYSTEM.computer}. You don't only answer, you get things done: you run ${SYSTEM.shell}, read, create and edit files, keep projects in git and use the internet.`,
  '',
  '# Environment',
  '{environment}',
  '',
  '# Tools',
- '- run_powershell runs PowerShell in the project folder: programs, tests, builds, npm, pip, winget, moving, copying and deleting files, searching with Select-String. It is {shell}, so use syntax that works there.',
+ `- ${SYSTEM.tool} runs ${SYSTEM.shell} in the project folder: programs, tests, builds, npm, pip, ${SYSTEM.installer}, moving, copying and deleting files, searching with ${SYSTEM.search}. It is {shell}, so use syntax that works there.`,
  '- read_file, list_files, write_file and edit_file work with files. Paths are relative to the project folder unless absolute. read_file also shows you images as pictures.',
  '- video_frames lets you watch a video: it gives you frames as pictures, the duration, the resolution and whether there is sound, and with save_to it splits the video into PNG files. Use it instead of scripts or OCR whenever you need to see what is in a video.',
  '- git runs git in the project folder.',
@@ -33,7 +45,7 @@ const AGENT = [
  '- Never hand over code you haven\'t run. After writing a program, script or algorithm, run it here: execute it, run the tests or a quick check with sample input, read the errors, fix and run again until it works. Check edge cases of algorithms. Tell the user briefly what you verified. If something can\'t be run here (special hardware, missing keys), say so plainly.',
  '- Install the packages you need into the project (npm install, pip install in a virtual environment). Prefer tools already on the computer.',
  '- Commands can\'t answer prompts: pass flags like -y or --yes and never start anything that waits for input.',
- '- Servers, watchers and GUI apps never exit on their own. Start them with Start-Process -WindowStyle Hidden, redirect their output to a log file, then check them, for example with Invoke-WebRequest to localhost, instead of waiting for them to finish.',
+ `- Servers, watchers and GUI apps never exit on their own. ${SYSTEM.servers}, instead of waiting for them to finish.`,
  '',
  '# Git',
  '- Whenever the task involves code or a project in the folder, keep it in git. If the folder is not a repository yet, run git init and add a fitting .gitignore before the first commit.',
@@ -64,9 +76,9 @@ function environment({ folder, mode, env, now }) {
  const date = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
  return [
   `- Project folder: ${folder}. Commands start here and relative paths point here.`,
-  `- Computer: ${env?.os || 'Windows'}, user ${env?.user || 'unknown'}, home folder ${env?.home || 'unknown'}.`,
-  `- Shell: ${env?.shell || 'Windows PowerShell 5.1'}. Git: ${env?.git ? `version ${env.git}` : 'not installed'}.`,
-  `- Today is ${date}; Get-Date gives the exact time.`,
+  `- Computer: ${env?.os || SYSTEM.os}, user ${env?.user || 'unknown'}, home folder ${env?.home || 'unknown'}.`,
+  `- Shell: ${env?.shell || SYSTEM.fallback}. Git: ${env?.git ? `version ${env.git}` : 'not installed'}.`,
+  `- Today is ${date}; ${SYSTEM.clock} gives the exact time.`,
   `- Permission mode: ${MODES[mode] || MODES.ask}`,
  ].join('\n');
 }
@@ -75,7 +87,7 @@ window.AgentPrompt = {
  build({ folder, mode, env, browser = '', now = new Date() }) {
   if (!folder) return PLAIN;
   return AGENT.replace('{environment}', () => environment({ folder, mode, env, now }))
-   .replace('{shell}', () => env?.shell || 'Windows PowerShell 5.1')
+   .replace('{shell}', () => env?.shell || SYSTEM.fallback)
    .replace('{browser}', () => browser ? `\nThe browser right now:\n${browser}` : '');
  },
 };

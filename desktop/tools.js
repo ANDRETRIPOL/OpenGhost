@@ -16,7 +16,19 @@ const FETCH_BYTES = 5 * 1024 * 1024;
 const LIST = { depth: 2, max: 6, entries: 400 };
 const HEAVY = new Set(['node_modules', '.git', '__pycache__', '.venv', 'venv', '.next', '.nuxt', '.cache', '.idea', '.vs', '.gradle', 'target', 'dist', 'build', 'bin', 'obj', 'coverage']);
 const IDENTITY = new Set(['commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'tag', 'stash', 'am', 'pull']);
-const UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+
+// The agent's shell follows the computer: PowerShell on Windows, zsh on a Mac, bash on Linux.
+const SYSTEMS = {
+ win32: { os: 'Windows', tool: 'run_powershell', ua: 'Windows NT 10.0; Win64; x64', readParts: 'Get-Content -TotalCount, Select-String' },
+ darwin: { os: 'macOS', tool: 'run_zsh', ua: 'Macintosh; Intel Mac OS X 10_15_7', readParts: 'sed -n, grep', shell: { exe: '/bin/zsh', name: 'zsh', version: '' }, versionVar: '$ZSH_VERSION', lang: 'en_US.UTF-8' },
+ linux: { os: 'Linux', tool: 'run_bash', ua: 'X11; Linux x86_64', readParts: 'sed -n, grep', shell: { exe: '/bin/bash', name: 'bash', version: '' }, versionVar: '$BASH_VERSION', lang: 'C.UTF-8' },
+};
+const SYSTEM = SYSTEMS[process.platform] || SYSTEMS.linux;
+const WINDOWS = process.platform === 'win32';
+// No console window flashes up on Windows; elsewhere a command leads its own process group, so kill() stops all of it.
+const SPAWN = WINDOWS ? { windowsHide: true } : { detached: true };
+
+const UA = `Mozilla/5.0 (${SYSTEM.ua}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 const WINDOWS_POWERSHELL = { exe: 'powershell.exe', name: 'Windows PowerShell', version: '5.1' };
 
 const PRELUDE = [
@@ -71,14 +83,17 @@ class Output {
 
 function kill(child) {
  if (!child.pid || child.exitCode !== null) return;
- spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => child.kill());
+ if (WINDOWS) spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => child.kill());
+ else {
+  try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
+ }
 }
 
 function run(id, exe, args, { cwd, timeout }) {
  return new Promise(resolve => {
   let child;
   try {
-   child = spawn(exe, args, { cwd, env: ENV, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+   child = spawn(exe, args, { cwd, env: ENV, ...SPAWN, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
    resolve({ missing: error.code === 'ENOENT', error: error.message });
    return;
@@ -106,14 +121,23 @@ function run(id, exe, args, { cwd, timeout }) {
  });
 }
 
-// The Microsoft Store pwsh.exe is an execution alias that takes seconds to start and blocks the main process meanwhile, so only a regular install is used.
 function detectShell() {
+ shell ||= WINDOWS ? detectPowerShell() : detectUnixShell();
+ return shell;
+}
+
+// The Microsoft Store pwsh.exe is an execution alias that takes seconds to start and blocks the main process meanwhile, so only a regular install is used.
+function detectPowerShell() {
  const exe = path.join(process.env.ProgramFiles || 'C:\\Program Files', 'PowerShell', '7', 'pwsh.exe');
- shell ||= (fs.existsSync(exe)
+ return (fs.existsSync(exe)
   ? run('', exe, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$PSVersionTable.PSVersion.ToString()'], { cwd: os.homedir(), timeout: TIMEOUT.probe })
   : Promise.resolve({ code: 1 }))
   .then(result => result.code === 0 && /^\d/.test(result.output) ? { exe, name: 'PowerShell', version: result.output.trim() } : WINDOWS_POWERSHELL);
- return shell;
+}
+
+function detectUnixShell() {
+ return run('', SYSTEM.shell.exe, ['-c', `printf %s "${SYSTEM.versionVar}"`], { cwd: os.homedir(), timeout: TIMEOUT.probe })
+  .then(result => result.code === 0 && result.output ? { ...SYSTEM.shell, version: result.output.trim() } : SYSTEM.shell);
 }
 
 function detectGit() {
@@ -157,10 +181,12 @@ async function runShell(id, { command, timeout }, cwd) {
  const { exe } = await detectShell();
  const dir = path.join(os.tmpdir(), 'openghost');
  await fs.promises.mkdir(dir, { recursive: true });
- const file = path.join(dir, `command-${process.pid}-${String(id).replace(/[^\w-]/g, '')}.ps1`);
- await fs.promises.writeFile(file, `\ufeff${PRELUDE}${command}${EPILOGUE}`, 'utf8');
+ const file = path.join(dir, `command-${process.pid}-${String(id).replace(/[^\w-]/g, '')}.${WINDOWS ? 'ps1' : 'sh'}`);
+ if (WINDOWS) await fs.promises.writeFile(file, `\ufeff${PRELUDE}${command}${EPILOGUE}`, 'utf8');
+ else await fs.promises.writeFile(file, `#!${SYSTEM.shell.exe}\nexport LANG=${SYSTEM.lang}\n${command}\n`, { mode: 0o700 });
  const seconds = clampSeconds(timeout, TIMEOUT.shell);
- const result = await run(id, exe, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file], { cwd, timeout: seconds });
+ const args = WINDOWS ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file] : [file];
+ const result = await run(id, exe, args, { cwd, timeout: seconds });
  fs.promises.rm(file, { force: true }).catch(() => {});
  if (result.error && result.code === null) return { error: result.error };
  return { code: result.code, output: result.output, timedOut: result.timedOut, cancelled: result.cancelled, seconds: result.seconds, timeout: seconds };
@@ -184,7 +210,7 @@ async function readFile(id, { path: file, offset, limit }, cwd) {
   const picture = await cancellable(id, signal => Media.image(full, signal));
   return { path: full, image: picture.url, width: picture.width, height: picture.height, size: formatSize(stat.size) };
  }
- if (stat.size > READ.max) return { error: `${file} is ${formatSize(stat.size)}, too big to read at once. Read parts of it with run_powershell (Get-Content -TotalCount, Select-String).` };
+ if (stat.size > READ.max) return { error: `${file} is ${formatSize(stat.size)}, too big to read at once. Read parts of it with ${SYSTEM.tool} (${SYSTEM.readParts}).` };
  const buffer = await fs.promises.readFile(full);
  if (isBinary(buffer)) return { binary: true, size: formatSize(stat.size), path: full };
  const lines = decode(buffer).split(/\r?\n/);
@@ -328,7 +354,7 @@ function videoFrames(id, { path: file, count, start, end, times, save_to: saveTo
 }
 
 const TOOLS = {
- run_powershell: runShell,
+ [SYSTEM.tool]: runShell,
  read_file: readFile,
  video_frames: videoFrames,
  write_file: writeFile,
@@ -370,7 +396,7 @@ function cancelAll() {
 async function environment() {
  const [found, gitVersion] = await Promise.all([detectShell(), detectGit()]);
  return {
-  os: `Windows ${os.release()}`,
+  os: `${SYSTEM.os} ${os.release()}`,
   shell: `${found.name} ${found.version}`,
   git: gitVersion,
   home: os.homedir(),

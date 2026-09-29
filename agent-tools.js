@@ -7,14 +7,40 @@ const MODES = ['ask', 'auto', 'full'];
 
 const bridge = window.openghost?.tools || null;
 
+// The agent's shell follows the computer: PowerShell on Windows, zsh on a Mac, bash on Linux.
+const SHELLS = {
+ win32: {
+  tool: 'run_powershell',
+  about: 'Run PowerShell code on the user\'s Windows computer. It starts in the project folder, is non-interactive (it can never wait for input) and returns the exit code with the combined output. Both output streams are captured already, so never add 2>&1 or *>&1: in Windows PowerShell that wraps every stderr line of a program in an error record. Use it to run programs, scripts and tests, builds, package managers (npm, pip, winget), to inspect the system, and for file work other tools don\'t cover: moving, copying, deleting, searching with Select-String. Servers and watchers never exit: start them with Start-Process -WindowStyle Hidden and send their output to a log file.',
+  command: 'PowerShell code, several lines are fine',
+  noGit: 'Error: Git is not installed on this computer. It can be installed with: winget install --id Git.Git -e --source winget',
+ },
+ darwin: {
+  tool: 'run_zsh',
+  about: 'Run a zsh script on the user\'s Mac. It starts in the project folder, is non-interactive (it can never wait for input) and returns the exit code with the combined output. Use it to run programs, scripts and tests, builds, package managers (npm, pip, brew), to inspect the system, and for file work other tools don\'t cover: moving, copying, deleting, searching with grep. Servers and watchers never exit: start them with nohup, send their output to a log file, and put them in the background with &.',
+  command: 'Zsh script, several lines are fine',
+  noGit: 'Error: Git is not installed. Install it with Homebrew: brew install git',
+  installs: /\bbrew\b[^\n;|]*\s(install|uninstall|upgrade|remove)\b/,
+ },
+ linux: {
+  tool: 'run_bash',
+  about: 'Run a bash script on the user\'s Linux computer. It starts in the project folder, is non-interactive (it can never wait for input) and returns the exit code with the combined output. Use it to run programs, scripts and tests, builds, package managers (npm, pip, apt, dnf), to inspect the system, and for file work other tools don\'t cover: moving, copying, deleting, searching with grep. Servers and watchers never exit: start them with nohup, send their output to a log file, and put them in the background with &.',
+  command: 'Bash script, several lines are fine',
+  noGit: 'Error: Git is not installed. Install it with the system package manager, for example: sudo apt install git',
+  installs: /\b(apt|apt-get|dnf|yum|pacman|zypper)\b[^\n;|]*\s(install|remove|purge|upgrade|dist-upgrade)\b/,
+ },
+};
+const SHELL = SHELLS[window.openghost?.platform] || SHELLS.win32;
+const WINDOWS = SHELL === SHELLS.win32;
+
 const fn = (name, description, properties, required = []) => ({
  type: 'function',
  function: { name, description, parameters: { type: 'object', properties, required } },
 });
 
 const SCHEMAS = [
- fn('run_powershell', 'Run PowerShell code on the user\'s Windows computer. It starts in the project folder, is non-interactive (it can never wait for input) and returns the exit code with the combined output. Both output streams are captured already, so never add 2>&1 or *>&1: in Windows PowerShell that wraps every stderr line of a program in an error record. Use it to run programs, scripts and tests, builds, package managers (npm, pip, winget), to inspect the system, and for file work other tools don\'t cover: moving, copying, deleting, searching with Select-String. Servers and watchers never exit: start them with Start-Process -WindowStyle Hidden and send their output to a log file.', {
-  command: { type: 'string', description: 'PowerShell code, several lines are fine' },
+ fn(SHELL.tool, SHELL.about, {
+  command: { type: 'string', description: SHELL.command },
   timeout: { type: 'integer', description: 'Seconds before the command is stopped, 120 by default, 900 at most' },
  }, ['command']),
  fn('read_file', 'Read a text file, or look at an image: PNG, JPEG, WebP, GIF, BMP, ICO and AVIF files come back as a picture you can see. Text comes as up to 2000 lines; for longer files pass offset (first line, starting at 1) and limit.', {
@@ -109,7 +135,7 @@ let refs = {};
 const READ_GIT = new Set(['status', 'log', 'diff', 'show', 'rev-parse', 'ls-files', 'blame', 'shortlog', 'describe', 'grep', 'help', 'version']);
 const LIST_GIT = { branch: /^(-a|-r|-v|-vv|--list|--all|--show-current|--no-color)$/, remote: /^(-v|--verbose)$/, tag: /^(-l|--list)$/ };
 const RISKY_GIT = /^(push|pull|clean|rebase|filter-branch|filter-repo|gc|prune|update-ref|reflog|restore)$/;
-const RISKY_SHELL = [
+const RISKY_SHELL = WINDOWS ? [
  /\b(Remove-Item|rm|rmdir|rd|del|erase|ri|Clear-Content|Clear-Item)\b/i,
  /\b(Format-Volume|Format-Disk|Clear-Disk|Initialize-Disk|diskpart|bcdedit|cipher)\b/i,
  /\b(Stop-Computer|Restart-Computer|shutdown|logoff)\b/i,
@@ -125,30 +151,53 @@ const RISKY_SHELL = [
  /\b(netsh|New-NetFirewallRule|Set-NetFirewallProfile|Disable-|Enable-WindowsOptionalFeature)\b/i,
  /\bgit\s+(push|pull|clean|rebase|reset\s+--hard|checkout\s+(--|-f|\.)|restore|filter-branch)\b/i,
  /\b(Send-MailMessage|New-PSSession|Enter-PSSession|Invoke-Command)\b/i,
+] : [
+ /\brm\b/, /\bshred\b/, /\bmkfs\b/, /\bdd\b/, /\bshutdown\b/, /\breboot\b/, /\bhalt\b/, /\bpoweroff\b/,
+ /\bsudo\b/, /\bsu\b/, /\bkill\b/, /\bkillall\b/, /\bpkill\b/, /\bsystemctl\b/, /\bservice\b/,
+ SHELL.installs,
+ /\b(npm|pnpm|yarn)\s+(i|install|add|remove|uninstall)\b[^\n;|]*\s(-g|--global)\b/,
+ /\bpip3?\s+(install|uninstall)\b[^\n;|]*--user\b/,
+ /\b(chmod|chown)\b/, /\b(ufw|iptables|nft)\b/,
+ /\bgit\s+(push|pull|clean|rebase|reset\s+--hard|checkout\s+(--|-f|\.)|restore|filter-branch)\b/,
+ /\b(curl|wget)\b[^\n|]*\|\s*(ba)?sh\b/,
 ];
-const OUTSIDE_SHELL = [/(^|[^\w.])\.\.[\\/]/, /\$env:(USERPROFILE|HOMEPATH|APPDATA|LOCALAPPDATA|ProgramData|ProgramFiles|windir|SystemRoot|SystemDrive|OneDrive|PUBLIC)/i, /\$HOME\b/i, /(^|[\s'"(=,])~[\\/]/, /(^|[\s'"(=,])\\\\[\w.$-]+\\/];
-const ABSOLUTE = /(?:^|[\s'"(=,;|@])([a-zA-Z]:[\\/][^\s'"|;,)<>`]*)/g;
+const OUTSIDE_SHELL = WINDOWS
+ ? [/(^|[^\w.])\.\.[\\/]/, /\$env:(USERPROFILE|HOMEPATH|APPDATA|LOCALAPPDATA|ProgramData|ProgramFiles|windir|SystemRoot|SystemDrive|OneDrive|PUBLIC)/i, /\$HOME\b/i, /(^|[\s'"(=,])~[\\/]/, /(^|[\s'"(=,])\\\\[\w.$-]+\\/]
+ : [/(^|[^\w.])\.\.\//, /\$HOME\b/, /(^|[\s'"(=,])~\//, /(^|[\s'"(=,])\/(etc|usr|bin|sbin|boot|root|proc|sys|dev)\b/];
+const ABSOLUTE = WINDOWS ? /(?:^|[\s'"(=,;|@])([a-zA-Z]:[\\/][^\s'"|;,)<>`]*)/g : /(?:^|[\s'"(=,;|@])(\/(?:[^\s'"|;,)<>`]|\\ )*)/g;
 
-const norm = path => path.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+// Windows paths ignore case and take either slash; elsewhere they keep their case and use /.
+const PATHS = WINDOWS ? {
+ sep: '\\', split: /[\\/]+/, home: /^~([\\/]|$)/, here: /^\.[\\/]/,
+ norm: path => path.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase(),
+ absolute: path => /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('\\\\'),
+ part: part => part.toLowerCase(),
+} : {
+ sep: '/', split: /\/+/, home: /^~(\/|$)/, here: /^\.\//,
+ norm: path => path.replace(/\\/g, '/').replace(/\/+$/, ''),
+ absolute: path => path.startsWith('/'),
+ part: part => part,
+};
+const norm = PATHS.norm;
 
 function resolve(cwd, path) {
  const raw = String(path ?? '.').trim() || '.';
- if (/^[a-zA-Z]:[\\/]/.test(raw) || raw.startsWith('\\\\')) return raw;
- if (/^~([\\/]|$)/.test(raw)) return null;
- const parts = norm(cwd).split('\\');
- for (const part of raw.split(/[\\/]+/)) {
+ if (PATHS.absolute(raw)) return raw;
+ if (PATHS.home.test(raw)) return null;
+ const parts = norm(cwd).split(PATHS.sep);
+ for (const part of raw.split(PATHS.split)) {
   if (!part || part === '.') continue;
   if (part === '..') parts.pop();
-  else parts.push(part.toLowerCase());
+  else parts.push(PATHS.part(part));
  }
- return parts.join('\\');
+ return parts.join(PATHS.sep);
 }
 
 function inside(cwd, path) {
  const full = resolve(cwd, path);
  if (!full || !cwd) return false;
  const root = norm(cwd), target = norm(full);
- return target === root || target.startsWith(`${root}\\`);
+ return target === root || target.startsWith(`${root}${PATHS.sep}`);
 }
 
 function gitArgs(args) {
@@ -203,7 +252,7 @@ function needsApproval(name, args, { mode, cwd }) {
   case 'write_file':
   case 'edit_file': return ask || !inside(cwd, args.path);
   case 'video_frames': return (ask && !inside(cwd, args.path)) || (!!args.save_to && (ask || !inside(cwd, args.save_to)));
-  case 'run_powershell': return ask || riskyShell(args.command, cwd);
+  case SHELL.tool: return ask || riskyShell(args.command, cwd);
   case 'git': return !readOnlyGit(args.args) && (ask || riskyGit(args.args));
   case 'web_search':
   case 'fetch_url': return ask;
@@ -213,14 +262,14 @@ function needsApproval(name, args, { mode, cwd }) {
 
 function relative(cwd, path) {
  const raw = String(path ?? '.').trim() || '.';
- if (!/^[a-zA-Z]:[\\/]|^\\\\/.test(raw)) return raw.replace(/^\.[\\/]/, '');
+ if (!PATHS.absolute(raw)) return raw.replace(PATHS.here, '');
  return inside(cwd, raw) ? raw.slice(norm(cwd).length).replace(/^[\\/]+/, '') || '.' : raw;
 }
 
 function describe(name, args, cwd) {
  const path = relative(cwd, args.path || '.');
  switch (name) {
-  case 'run_powershell': return { kind: 'command', title: I18n.t('approve.command'), code: String(args.command || '') };
+  case SHELL.tool: return { kind: 'command', title: I18n.t('approve.command'), code: String(args.command || '') };
   case 'git': return { kind: 'command', title: I18n.t('approve.git'), code: `git ${gitArgs(args.args).map(arg => /\s/.test(arg) ? `"${arg}"` : arg).join(' ')}` };
   case 'write_file': return { kind: 'file', title: I18n.t('approve.write'), path, added: String(args.content || '') };
   case 'edit_file': return { kind: 'file', title: I18n.t('approve.edit'), path, removed: String(args.old_string || ''), added: String(args.new_string || '') };
@@ -359,12 +408,12 @@ async function search(query, id, cwd) {
 function format(name, args, result) {
  if (result?.error) return `Error: ${result.error}`;
  switch (name) {
-  case 'run_powershell': {
+  case SHELL.tool: {
    const notes = [result.timedOut && `stopped after the ${result.timeout} s timeout`, result.cancelled && 'stopped by the user'].filter(Boolean);
    return `Exit code ${result.code ?? 'unknown'}${notes.length ? ` (${notes.join(', ')})` : ''}\n${result.output || '(no output)'}`;
   }
   case 'git':
-   if (result.missing) return 'Error: Git is not installed on this computer. It can be installed with: winget install --id Git.Git -e --source winget';
+   if (result.missing) return SHELL.noGit;
    return `Exit code ${result.code ?? 'unknown'}${result.timedOut ? ' (timed out)' : ''}\n${result.output || '(no output)'}`;
   case 'read_file': {
    if (result.image) return { text: `Image ${result.path}, ${result.width}×${result.height}, ${result.size}. It follows as a picture.`, images: [{ label: result.path, url: result.image }] };

@@ -26,6 +26,8 @@
     "files": [
       "**/*",
       "!dist/**",
+      "!images/**",
+      "!.github/**",
       "!**/*.md"
     ],
     "asar": true,
