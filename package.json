@@ -8,9 +8,9 @@
   "scripts": {
     "start": "electron .",
     "shortcut": "electron . --create-shortcut",
-    "dist": "electron-builder --win nsis",
-    "dist:mac": "electron-builder --mac dmg --universal",
-    "dist:linux": "electron-builder --linux tar.gz"
+    "dist": "electron-builder --win nsis --publish never",
+    "dist:mac": "electron-builder --mac dmg --universal --publish never",
+    "dist:linux": "electron-builder --linux tar.gz --publish never"
   },
   "devDependencies": {
     "electron": "^44.4.5",
