@@ -67,3 +67,20 @@ Ask waits for approval before commands, file changes, and the web. Auto works in
 OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek. Keys and sign-ins are stored only on your machine, and the app checks them for you.
 
 ![API key settings](images/settings.jpg)
+
+## Build it yourself
+
+The same code runs on Windows, macOS and Linux. You need Node.js 22 or newer.
+
+```
+npm ci
+npm start
+```
+
+`npm start` runs the app straight from the code. To make an installer, run the command for your system on that system:
+
+- Windows: `npm run dist` makes `dist/OpenGhost-<version>-Setup.exe`
+- macOS: `npm run dist:mac` makes `dist/OpenGhost-<version>-mac.dmg`
+- Linux: `npm run dist:linux` makes `dist/OpenGhost-<version>-linux.tar.gz`
+
+No Mac or Linux machine at hand? A fork can build both on GitHub: turn on Actions, open Build and press Run workflow. The files appear on the page of that run.
