@@ -88,3 +88,7 @@ npm start
 - Linux: `npm run dist:linux` makes `dist/OpenGhost-<version>-linux.tar.gz`
 
 No Mac or Linux machine at hand? A fork can build both on GitHub: turn on Actions, open Build and press Run workflow. The files appear on the page of that run.
+
+## Thanks
+
+[@kodachromez](https://github.com/kodachromez) found eight real bugs in a single report, and [@Bruno8R](https://github.com/Bruno8R) noticed that API keys were kept in plain text. All of it is fixed in v1.2.0. Thank you both.
