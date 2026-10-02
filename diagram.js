@@ -1769,6 +1769,13 @@ function flowScene(graph, tones, { width, hints, sideways }, dialect) {
  let turned = !!sideways && sideways === graph.dir;
  const room = width - PAD * 2;
  let layout = layoutGraph(graph, turned ? alt : graph.dir, hints, room);
+ // A scheme stood on end lies down again the way it was written once the room takes it whole, at full size: a
+ // window made wider, or a saved chat that was first measured narrow. Between that and the width that stood it up
+ // it stays as it is, so it does not flip at every small change.
+ if (turned) {
+  const lying = layoutGraph(graph, graph.dir, hints, room);
+  if (lying.width <= room) { layout = lying; turned = false; }
+ }
  if (turned && layout.width > room) {
   const packed = layoutGraph(graph, alt, hints, room, true), back = layoutGraph(graph, graph.dir, hints, room, true);
   if (packed.width < layout.width) layout = packed;
@@ -7321,9 +7328,10 @@ class DiagramView {
   this.frame.addEventListener('pointerleave', () => this.pointer(null));
  }
 
+ // A stage that is not on the page yet has no width to tell: it is asked again until it has one.
  available() {
-  this.measured ??= this.stage.clientWidth;
-  return Math.max(260, this.measured);
+  this.measured ??= this.stage.clientWidth || null;
+  return Math.max(260, this.measured || 0);
  }
 
  // The column of text inside the stage. A drawing has the whole width of the chat to itself, and the text runs
@@ -7350,7 +7358,11 @@ class DiagramView {
  }
 
  render() {
-  const result = safeCompile(this.source, this.tones, { width: this.available(), column: this.column().width, zoom: this.zoom(), hints: this.hints, sideways: this.sideways, kind: this.kind });
+  // A saved chat is drawn before it is put on the page, so its first layout does not know the width and takes the
+  // narrowest. What that layout decided, to stand a scheme on end or where its blocks go, is a guess and is not
+  // kept: once the width is known, the scheme is laid out for it afresh.
+  const width = this.available(), blind = !this.measured;
+  const result = safeCompile(this.source, this.tones, { width, column: this.column().width, zoom: this.zoom(), hints: this.hints, sideways: this.sideways, kind: this.kind });
   if (!result) {
    if (this.editing) this.setHint(I18n.t('diagram.error'));
    else if (!this.live && !this.result) this.fallback();
@@ -7361,8 +7373,8 @@ class DiagramView {
   const first = !this.result;
   this.result = result;
   this.good = this.source;
-  this.hints = result.hints || null;
-  this.sideways = result.sideways || false;
+  this.hints = blind ? null : result.hints || null;
+  this.sideways = blind ? false : result.sideways || false;
   this.svg.dataset.kind = result.kind;
   // Said aloud, a drawing is its title, or what it is when it has none.
   this.svg.setAttribute('aria-label', result.items.find(item => item.key === 'title')?.fixed.lines[0] || I18n.t('diagram.label'));
