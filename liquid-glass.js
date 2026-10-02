@@ -69,6 +69,22 @@ function paintMap(width, height, radius, { zoom, edge, band }) {
  return { href: canvas.toDataURL(), scale: max * 2 };
 }
 
+// Maps already painted, by size and look: the same lens at the same size, like the toolbar of every diagram, is painted
+// once. The oldest go first once there are many.
+const maps = new Map();
+const MAPS_KEPT = 64;
+
+function mapFor(width, height, radius, options) {
+ const key = [width, height, radius, options.zoom, options.edge, options.band].join(' ');
+ let map = maps.get(key);
+ if (!map) {
+  map = paintMap(width, height, radius, options);
+  maps.set(key, map);
+  if (maps.size > MAPS_KEPT) maps.delete(maps.keys().next().value);
+ }
+ return map;
+}
+
 class LiquidGlass {
  constructor(element, options = {}) {
   this.element = element;
@@ -97,7 +113,7 @@ class LiquidGlass {
   if (!width || !height || size === this.size) return;
   this.size = size;
   const radius = Math.min(this.options.radius ?? height / 2, width / 2, height / 2);
-  const { href, scale } = paintMap(width, height, radius, this.options);
+  const { href, scale } = mapFor(width, height, radius, this.options);
   for (const el of [this.filter, this.image]) { el.setAttribute('width', width); el.setAttribute('height', height); }
   this.image.setAttribute('href', href);
   this.displace.setAttribute('scale', scale.toFixed(2));

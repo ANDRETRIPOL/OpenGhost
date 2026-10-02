@@ -82,6 +82,10 @@ class GhostThinking extends HTMLElement {
   this.gazeUntil = performance.now() + hold;
  }
 
+ blink() {
+  this.blinkAt = performance.now();
+ }
+
  pickPose() {
   if (this.pose !== POSES[0] && Math.random() < 0.3) return POSES[0];
   let pose;
@@ -90,7 +94,7 @@ class GhostThinking extends HTMLElement {
  }
 
  tick(now) {
-  const dt = Math.min((now - this.last) / 1000, 0.032);
+  const dt = Math.min(Math.max((now - this.last) / 1000, 0), 0.032);
   this.last = now;
   if (this.gaze && now >= this.gazeUntil) {
    this.gaze = null;

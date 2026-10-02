@@ -64,6 +64,15 @@ function textOnly(messages) {
  });
 }
 
+// The messages as DeepSeek takes them: the system prompt's parts as one message, and nothing on a message that is meant
+// for another provider (its own blocks, a cache mark). DeepSeek matches a request against its cache from the first word
+// on, by itself, so the order of the parts is all it needs.
+function plain(messages) {
+ const lead = messages.findIndex(message => message.role !== 'system'), count = lead < 0 ? messages.length : lead;
+ const rest = messages.slice(count).map(({ native, cache, ...message }) => message);
+ return count ? [{ role: 'system', content: messages.slice(0, count).map(message => message.content).join('\n\n') }, ...rest] : rest;
+}
+
 async function streamChat({ key, model, effort, vision = true, messages, tools, signal, onReasoning, onContent }) {
  const response = await request('/chat/completions', key, {
   method: 'POST',
@@ -71,8 +80,7 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
    model,
-   // Blocks another provider left on a message mean nothing here.
-   messages: (vision ? messages : textOnly(messages)).map(({ native, ...message }) => message),
+   messages: plain(vision ? messages : textOnly(messages)),
    ...(tools?.length ? { tools } : {}),
    stream: true,
    stream_options: { include_usage: true },

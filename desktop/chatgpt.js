@@ -83,7 +83,9 @@ async function token(params) {
  return response.json();
 }
 
+// The text may come from the address the browser was sent back to, so it goes into the page as text only.
 function page(title, text) {
+ text = String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
  return `<!doctype html><meta charset="utf-8"><title>${title}</title><style>
   html{color-scheme:dark;background:#161616}body{margin:0;min-height:100vh;display:grid;place-items:center;font:500 15px system-ui,"Segoe UI",sans-serif;color:rgba(255,255,255,.85)}
   main{text-align:center}h1{margin:0 0 8px;font-size:22px;font-weight:650;letter-spacing:-.01em;color:#fafafa}p{margin:0;color:rgba(255,255,255,.55)}

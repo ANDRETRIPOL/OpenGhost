@@ -42,14 +42,20 @@ class AppearanceSettings {
    <p class="settings-lead">${escapeHtml(I18n.t('settings.appearance.lead'))}</p>
    <div class="theme-options" role="radiogroup" aria-label="${escapeHtml(I18n.t('settings.theme'))}">${CHOICES.map(option).join('')}</div>`;
   this.options = [...root.querySelectorAll('.theme-option')];
-  for (const item of this.options) item.addEventListener('click', () => this.pick(item));
+  this.held = null;
+  for (const item of this.options) item.addEventListener('click', event => this.pick(item, event));
   root.querySelector('.theme-options').addEventListener('keydown', event => this.onKey(event));
   // Mid-transition a click reaches only <html>, so the card under the pointer is found by where it landed.
   document.addEventListener('click', event => {
    if (event.target !== document.documentElement || !Theme.moving) return;
    const item = this.options.find(option => within(option.querySelector('.theme-frame'), event));
-   if (item) this.pick(item);
+   if (item) this.pick(item, event);
   });
+  // For the same reason the card under the pointer loses its hover while the theme spreads, at the hand's slightest move,
+  // and would sink and rise again once the theme is in. The card picked by the pointer keeps the hover's look instead,
+  // until the pointer is seen off it or leaves the window.
+  document.addEventListener('pointermove', event => { if (this.held && !within(this.held, event)) this.hold(null); });
+  document.addEventListener('pointerout', event => { if (!event.relatedTarget) this.hold(null); });
   this.paint();
  }
 
@@ -61,11 +67,20 @@ class AppearanceSettings {
   }
  }
 
- pick(item) {
+ pick(item, event = null) {
   if (item.dataset.choice === Theme.choice) return;
+  // A click from the keyboard has no pointer to keep the hover for.
+  if (event?.detail && within(item, event)) this.hold(item);
   const box = item.querySelector('.theme-frame').getBoundingClientRect();
   Theme.set(item.dataset.choice, { x: box.left + box.width / 2, y: box.top + box.height / 2 });
   this.paint();
+ }
+
+ hold(item) {
+  if (item === this.held) return;
+  this.held?.classList.remove('is-held');
+  this.held = item;
+  item?.classList.add('is-held');
  }
 
  onKey(event) {

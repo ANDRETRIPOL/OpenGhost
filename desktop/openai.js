@@ -5,47 +5,81 @@
 const os = require('node:os');
 
 const API_URL = 'https://api.openai.com/v1';
-const CODEX_URL = 'https://chatgpt.com/backend-api/codex/responses';
+const CODEX_URL = 'https://chatgpt.com/backend-api/codex';
 const NO_VISION = '[A picture was here, but the selected model can\'t see pictures]';
-const EFFORTS = ['none', 'low', 'medium', 'high', 'xhigh'];
-
-// Models the app offers, newest first; an API key shows the ones its /models lists.
-const CATALOG = [
- { api: 'gpt-6-sol', name: 'GPT-6 Sol', context: 1050000, vision: true },
- { api: 'gpt-6-luna', name: 'GPT-6 Luna', context: 1050000, vision: true },
- { api: 'gpt-5.5', name: 'GPT-5.5', context: 1050000, vision: true },
- { api: 'gpt-5.4', name: 'GPT-5.4', context: 1050000, vision: true },
- { api: 'gpt-5.4-mini', name: 'GPT-5.4 mini', context: 400000, vision: true },
-];
-// Through a ChatGPT subscription the Codex backend serves these, each with a 272K input window.
-const SUBSCRIPTION = [
- { api: 'gpt-6-sol', name: 'GPT-6 Sol', vision: true },
- { api: 'gpt-6-luna', name: 'GPT-6 Luna', vision: true },
- { api: 'gpt-5.5', name: 'GPT-5.5', vision: true },
- { api: 'gpt-5.4', name: 'GPT-5.4', vision: true },
- { api: 'gpt-5.4-mini', name: 'GPT-5.4 mini', vision: true },
- { api: 'gpt-5.3-codex-spark', name: 'GPT-5.3-Codex-Spark', vision: false, efforts: ['low', 'medium', 'high', 'xhigh'] },
-];
-
-const model = provider => entry => ({
- id: `${provider}:${entry.api}`,
- provider,
- api: entry.api,
- name: entry.name,
- context: entry.context || 272000,
- vision: entry.vision,
- efforts: entry.efforts || EFFORTS,
- defaultEffort: 'medium',
-});
+// The catalogue asks which version of Codex is asking and leaves out models too new for it. The app is not Codex and
+// takes every model there is.
+const CLIENT_VERSION = '99.0.0';
+// What is taken of a model nothing more is known about: the window Codex itself works in, and the effort levels every
+// reasoning model has.
+const UNKNOWN = { context: 272000, efforts: ['low', 'medium', 'high'] };
+// With names alone to go by: which of them are chat models, and how many of the newest the picker gets.
+const NAMED = { chat: /^gpt-\d[\w.-]*$/, other: /audio|realtime|image|tts|transcribe|search|embedding|moderation|instruct|-\d{4}-\d{2}-\d{2}$/, max: 12 };
 
 const error = (message, status = 0, code = '') => Object.assign(new Error(message), { status, code });
 
-async function models({ provider, key, apiUrl = API_URL }) {
- if (provider === 'chatgpt') return SUBSCRIPTION.map(model('chatgpt'));
+// No model is named in this file. OpenAI serves its own Codex a catalogue of the models an account can use, each with
+// its name, its window, its effort levels and what it takes in, already picked and ordered for a model picker, and the
+// same catalogue answers an API key. A model OpenAI adds, or takes away from a plan, is in or out of the list the next
+// time it is read. The public /models only names models, so it says which of the catalogue's a key may use.
+const levelsOf = entry => (entry.supported_reasoning_levels || []).map(level => typeof level === 'string' ? level : level?.effort).filter(Boolean);
+const offered = list => list.filter(entry => entry?.slug && entry.visibility === 'list').sort((a, b) => (a.priority ?? Infinity) - (b.priority ?? Infinity));
+
+const describe = provider => entry => {
+ const levels = levelsOf(entry), efforts = levels.length ? levels : UNKNOWN.efforts;
+ return {
+  id: `${provider}:${entry.slug}`,
+  provider,
+  api: entry.slug,
+  name: entry.display_name || entry.slug,
+  context: Number(entry.context_window) || UNKNOWN.context,
+  vision: !Array.isArray(entry.input_modalities) || entry.input_modalities.includes('image'),
+  efforts,
+  defaultEffort: efforts.includes(entry.default_reasoning_level) ? entry.default_reasoning_level : efforts.includes('medium') ? 'medium' : efforts[0],
+ };
+};
+
+const client = version => ({ originator: 'openghost', 'User-Agent': `OpenGhost/${version} (${os.platform()} ${os.release()}; ${os.arch()})` });
+
+// What the Codex backend wants of a signed-in ChatGPT account.
+function signed(account, version) {
+ const headers = { Authorization: `Bearer ${account.access}`, ...client(version) };
+ if (account.account) headers['ChatGPT-Account-Id'] = account.account;
+ if (account.residency) headers['x-openai-internal-codex-residency'] = account.residency;
+ return headers;
+}
+
+// The catalogue is big and changes rarely: an unchanged one answers "not modified", and the copy kept here is used.
+const catalogs = new Map();
+
+async function catalog(who, headers, codexUrl) {
+ const had = catalogs.get(who);
+ const response = await fetch(`${codexUrl}/models?client_version=${CLIENT_VERSION}`, { headers: { ...headers, ...(had ? { 'If-None-Match': had.etag } : {}) } });
+ if (response.status === 304 && had) return had.models;
+ if (!response.ok) throw await failure(response);
+ const list = (await response.json()).models;
+ if (!Array.isArray(list)) throw error('OpenAI sent no list of models');
+ const etag = response.headers.get('etag');
+ if (etag) catalogs.set(who, { etag, models: list });
+ return list;
+}
+
+// Without the catalogue only names are known: the chat models among them, the newest first.
+const title = id => id.replace(/^gpt/, 'GPT').replace(/-([a-z])/g, (match, letter) => `-${letter.toUpperCase()}`);
+const named = list => list.filter(item => NAMED.chat.test(item.id) && !NAMED.other.test(item.id)).sort((a, b) => (b.created || 0) - (a.created || 0))
+ .slice(0, NAMED.max).map(item => describe('openai')({ slug: item.id, display_name: title(item.id) }));
+
+async function models({ provider, key }, { chatgpt, version = '', apiUrl = API_URL, codexUrl = CODEX_URL } = {}) {
+ if (provider === 'chatgpt') {
+  const account = await chatgpt();
+  return offered(await catalog(`chatgpt ${account.account || ''}`, signed(account, version), codexUrl)).map(describe('chatgpt'));
+ }
  const response = await fetch(`${apiUrl}/models`, { headers: { Authorization: `Bearer ${key}` } });
  if (!response.ok) throw await failure(response);
- const ids = new Set(((await response.json()).data || []).map(item => item.id));
- return CATALOG.filter(entry => ids.has(entry.api)).map(model('openai'));
+ const usable = new Map(((await response.json()).data || []).map(item => [item.id, item]));
+ const listed = await catalog(`key ${key}`, { Authorization: `Bearer ${key}`, ...client(version) }, codexUrl).catch(() => null);
+ if (!listed) return named([...usable.values()]);
+ return offered(listed).filter(entry => entry.supported_in_api !== false && usable.has(entry.slug)).map(describe('openai'));
 }
 
 const text = content => typeof content === 'string' ? content : (content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
@@ -106,16 +140,9 @@ async function* events(body) {
 
 async function target({ provider, key, session }, { chatgpt, version, apiUrl = API_URL, codexUrl = CODEX_URL }) {
  if (provider !== 'chatgpt') return { url: `${apiUrl}/responses`, headers: { Authorization: `Bearer ${key}` } };
- const account = await chatgpt();
- const headers = {
-  Authorization: `Bearer ${account.access}`,
-  originator: 'openghost',
-  'User-Agent': `OpenGhost/${version} (${os.platform()} ${os.release()}; ${os.arch()})`,
- };
- if (account.account) headers['ChatGPT-Account-Id'] = account.account;
- if (account.residency) headers['x-openai-internal-codex-residency'] = account.residency;
+ const headers = signed(await chatgpt(), version);
  if (session) headers['session-id'] = session;
- return { url: codexUrl, headers };
+ return { url: `${codexUrl}/responses`, headers };
 }
 
 async function stream(request, context) {
@@ -136,6 +163,9 @@ async function stream(request, context) {
   body.tool_choice = 'auto';
   body.parallel_tool_calls = true;
  }
+ // One key for all of a chat's requests keeps them on the servers that already hold the chat's cache. OpenAI's own Codex
+ // sends the same key; the ChatGPT backend also reads it from the session-id header.
+ if (request.session) body.prompt_cache_key = request.session;
  const { url, headers } = await target(request, context);
  let response;
  try {
@@ -164,7 +194,8 @@ async function stream(request, context) {
   } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
    const done = event.response || {};
    const usage = done.usage || {};
-   result.usage = { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0, total_tokens: usage.total_tokens || 0, cached_tokens: usage.input_tokens_details?.cached_tokens || 0 };
+   const details = usage.input_tokens_details || {};
+   result.usage = { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0, total_tokens: usage.total_tokens || 0, cached_tokens: details.cached_tokens || 0, written_tokens: details.cache_write_tokens || 0 };
    const reason = done.incomplete_details?.reason;
    result.finishReason = reason === 'max_output_tokens' ? 'length' : reason === 'content_filter' ? 'content_filter' : result.toolCalls.length ? 'tool_calls' : 'stop';
   } else if (event.type === 'response.failed' || event.type === 'error') {

@@ -47,7 +47,7 @@ window.addEventListener('pagehide', () => {
 });
 const chat = new Chat({ main, thread, bottom: threadBottom, settings, library, onChange: syncAll, onList: list => threadScrollbar.observe(list) });
 const lockScreen = new LockScreen({ main, chat, composer, onOpen: () => composerInput.focus({ preventScroll: true }) });
-const lockCard = new LockCard({ chat, library, scroller: document.querySelector('.chats-scroll') });
+const lockCard = new LockCard({ chat, library, scroller: document.querySelector('.chats-scroll'), screen: lockScreen });
 new WelcomeGhost({ main, root: document.querySelector('.welcome'), input: composerInput });
 folderPill = new FolderPill({ button: document.querySelector('.composer-folder'), library, chat });
 chatList = new ChatList({
@@ -72,7 +72,7 @@ const browserToggle = document.querySelector('.browser-toggle');
 let browserPanel = null;
 if (AgentTools.available) {
   modeButton.hidden = false;
-  new ModePicker({ button: modeButton, menu: document.querySelector('.mode-menu'), settings, onChange: () => chat.onModeChange() });
+  new ModePicker({ button: modeButton, settings, onChange: () => chat.onModeChange() });
   browserToggle.hidden = false;
   browserPanel = window.browserPanel = new BrowserPanel({ app, main, toggle: browserToggle });
 }
@@ -95,9 +95,9 @@ new SelectionMenu({
     composerText.insertQuote(text);
     syncComposer();
   },
-  onMini: text => MiniChat.open({ settings, source: chat, quote: text }),
+  onMini: text => { if (chat.active?.record) MiniChat.open({ settings, source: chat, library, quote: text }); },
 });
-document.querySelector('.composer-add').addEventListener('add', () => attachments.pick());
+new AddMenu({ button: document.querySelector('.composer-add'), attachments, chat, input: composerInput });
 settings.show(chat.model);
 modelStage = new ModelStage({
   button: document.querySelector('.composer-model'),
@@ -170,12 +170,7 @@ function syncAll() {
   effortSlider?.lock(chat.busy);
 }
 
-async function send() {
-  if (!composerText.text().trim() && !attachments.count) return;
-  if (chat.needsFolder && !(await folderPill.pick())) {
-    folderPill.nudge();
-    return;
-  }
+function send() {
   const text = composerText.text().trim();
   if ((!text && !attachments.count) || !chat.send(text, attachments.items)) return;
   attachments.take();

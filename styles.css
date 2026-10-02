@@ -4,11 +4,44 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --app-bg: rgb(22, 22, 22);
+  /* The window's backdrop under the sidebar and around the chat: soft light falls from the left corners onto --app-bg.
+     --app-bg alone is the backdrop where no light reaches, as under the title bar buttons on the right. */
+  --app-bg: rgb(18, 19, 23);
+  --frame:
+    radial-gradient(58% 72% at 0% 0%, rgba(62, 76, 106, 0.5), rgba(62, 76, 106, 0.26) 38%, rgba(62, 76, 106, 0.08) 68%, transparent),
+    radial-gradient(52% 64% at 0% 100%, rgba(58, 55, 94, 0.42), rgba(58, 55, 94, 0.2) 38%, rgba(58, 55, 94, 0.06) 68%, transparent),
+    radial-gradient(26% 36% at 6% 50%, rgba(50, 64, 82, 0.2), rgba(50, 64, 82, 0.07) 50%, transparent);
+  /* What sits on the backdrop: the chat lifts off it, the chosen row is a small card of its own. */
+  --card-lift: 0 18px 48px -18px rgba(0, 0, 0, 0.7);
+  --row-hover-bg: rgba(255, 255, 255, 0.055);
+  --row-active-bg: rgb(43, 46, 54);
+  --row-active-lift: inset 0 0.5px 0 rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.35);
+  /* The chat's padlock, drawn in thin lines, and the glass card that sets its password. */
+  --seal-ink: rgba(255, 255, 255, 0.94);
+  --pass-bg: rgba(255, 255, 255, 0.06);
+  --pass-edge: rgba(255, 255, 255, 0.1);
+  --pass-lift: 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+  --pass-focus-bg: rgba(255, 255, 255, 0.08);
+  --pass-focus-edge: rgba(255, 255, 255, 0.2);
   --chat-bg: rgb(25, 25, 25);
   --titlebar-symbols: rgb(154, 154, 154);
+  /* The opening: the night it falls into; its mist, deep where little light reaches it and lit where much does; the light
+     around the ghost, and how much of it the trail takes on; the motes in the air and how bright they are; how far the
+     edges sink into shade; and the soft light that stands in without WebGL. */
+  --splash-night: rgb(13, 14, 22);
+  --splash-mist-deep: rgb(26, 30, 48);
+  --splash-mist-lit: rgb(150, 168, 240);
+  --splash-glow: rgb(150, 170, 255);
+  --splash-core: rgb(232, 238, 255);
+  --splash-mist-alpha: 0.55;
+  --splash-glow-alpha: 0.5;
+  --splash-trail: 0.35;
+  --splash-motes: 1;
+  --splash-shade: 0.5;
+  --splash-aura: rgba(86, 104, 172, 0.34);
+  --splash-glow-rgb: 150, 172, 255;
 
-  --contour-outer: rgb(17, 17, 17);
+  --contour-outer: rgba(0, 0, 0, 0.5);
   --contour-inner: rgb(32, 32, 32);
 
   --fg-rgb: 255, 255, 255;
@@ -22,7 +55,6 @@
   --warn-rgb: 255, 180, 96;
   --link-rgb: 140, 190, 255;
   --control-hover-bg: rgb(36, 36, 36);
-  --row-active-bg: rgb(39, 39, 39);
   --menu-bg: rgb(36, 36, 36);
   --popover-bg: rgb(33, 33, 33);
   --selection-rgb: 130, 180, 245;
@@ -66,16 +98,70 @@
   --browser-glass-bg: rgba(22, 22, 22, 0.82);
   --browser-toast-bg: rgba(22, 22, 22, 0.88);
   --browser-pill-hover-bg: rgb(255, 255, 255);
+
+  /* Chat stats: a card with a frosted rim; its bars in pink, violet, sky and amber. */
+  --stats-rim: rgba(255, 255, 255, 0.035);
+  --stats-rim-edge: rgba(255, 255, 255, 0.085);
+  --stats-card: rgb(29, 28, 34);
+  --stats-card-lift: 0 18px 40px -20px rgba(0, 0, 0, 0.8);
+  --stats-line: rgba(255, 255, 255, 0.1);
+  --stats-wash: rgba(24, 22, 30, 0.42);
+  --stats-1: 244, 88, 176;
+  --stats-2: 160, 126, 255;
+  --stats-3: 96, 176, 255;
+  --stats-4: 250, 178, 72;
+  --stats-neutral: 164, 162, 180;
+
+  /* Drawings: how strong their ink is, and the palette of their series. The slots keep one order in both themes;
+     it was picked so that neighbours stay apart for every kind of colour vision, and no slot is too pale or too
+     loud for its surface. --s0 is what is left over: "other". */
+  --dg-ink: 0.92;
+  --dg-ink-2: 0.64;
+  --dg-ink-3: 0.48;
+  --s0: 122, 122, 122;
+  --s1: 72, 133, 223;
+  --s2: 202, 103, 25;
+  --s3: 9, 148, 133;
+  --s4: 134, 99, 198;
+  --s5: 185, 137, 24;
+  --s6: 215, 95, 148;
+  --s7: 58, 143, 76;
 }
 
 [data-theme="light"] {
   color-scheme: light;
 
-  --app-bg: rgb(242, 242, 242);
+  --app-bg: rgb(240, 243, 248);
+  --frame:
+    radial-gradient(58% 72% at 0% 0%, rgba(198, 213, 236, 0.9), rgba(198, 213, 236, 0.48) 38%, rgba(198, 213, 236, 0.13) 68%, transparent),
+    radial-gradient(52% 64% at 0% 100%, rgba(210, 207, 238, 0.85), rgba(210, 207, 238, 0.42) 38%, rgba(210, 207, 238, 0.11) 68%, transparent),
+    radial-gradient(26% 36% at 6% 50%, rgba(250, 252, 255, 0.75), rgba(250, 252, 255, 0.28) 50%, transparent);
+  --card-lift: 0 1px 2px rgba(30, 48, 88, 0.04), 0 18px 44px -20px rgba(30, 48, 88, 0.16);
+  --row-hover-bg: rgba(255, 255, 255, 0.5);
+  --row-active-bg: rgb(255, 255, 255);
+  --row-active-lift: 0 0 0 0.5px rgba(30, 48, 88, 0.07), 0 1px 3px rgba(30, 48, 88, 0.08);
+  --seal-ink: rgba(20, 24, 32, 0.9);
+  --pass-bg: rgba(30, 48, 88, 0.045);
+  --pass-edge: rgba(30, 48, 88, 0.1);
+  --pass-lift: 0 0 0 0 transparent;
+  --pass-focus-bg: rgb(255, 255, 255);
+  --pass-focus-edge: rgba(30, 48, 88, 0.22);
   --chat-bg: rgb(255, 255, 255);
   --titlebar-symbols: rgb(92, 92, 92);
+  --splash-night: rgb(243, 244, 250);
+  --splash-mist-deep: rgb(200, 203, 230);
+  --splash-mist-lit: rgb(255, 255, 255);
+  --splash-glow: rgb(124, 116, 228);
+  --splash-core: rgb(88, 80, 204);
+  --splash-mist-alpha: 0.75;
+  --splash-glow-alpha: 0.42;
+  --splash-trail: 0.9;
+  --splash-motes: 0;
+  --splash-shade: 0.07;
+  --splash-aura: rgba(166, 186, 242, 0.4);
+  --splash-glow-rgb: 92, 118, 230;
 
-  --contour-outer: rgb(226, 226, 226);
+  --contour-outer: rgba(30, 48, 88, 0.1);
   --contour-inner: rgb(255, 255, 255);
 
   --fg-rgb: 0, 0, 0;
@@ -89,7 +175,6 @@
   --warn-rgb: 200, 110, 0;
   --link-rgb: 22, 106, 214;
   --control-hover-bg: rgb(240, 240, 240);
-  --row-active-bg: rgb(228, 228, 228);
   --menu-bg: rgb(255, 255, 255);
   --popover-bg: rgb(255, 255, 255);
   --selection-rgb: 40, 120, 235;
@@ -131,6 +216,30 @@
   --browser-glass-bg: rgba(255, 255, 255, 0.82);
   --browser-toast-bg: rgba(255, 255, 255, 0.9);
   --browser-pill-hover-bg: rgb(0, 0, 0);
+
+  --stats-rim: rgba(34, 32, 48, 0.022);
+  --stats-rim-edge: rgba(34, 32, 48, 0.045);
+  --stats-card: rgb(255, 255, 255);
+  --stats-card-lift: 0 1px 2px rgba(30, 30, 50, 0.05), 0 16px 36px -16px rgba(30, 30, 50, 0.22);
+  --stats-line: rgba(40, 30, 60, 0.1);
+  --stats-wash: rgba(255, 255, 255, 0.46);
+  --stats-1: 226, 52, 156;
+  --stats-2: 134, 86, 240;
+  --stats-3: 44, 140, 238;
+  --stats-4: 230, 140, 20;
+  --stats-neutral: 124, 122, 142;
+
+  --dg-ink: 0.9;
+  --dg-ink-2: 0.64;
+  --dg-ink-3: 0.56;
+  --s0: 140, 140, 140;
+  --s1: 28, 101, 200;
+  --s2: 202, 91, 4;
+  --s3: 11, 142, 127;
+  --s4: 109, 60, 179;
+  --s5: 191, 134, 16;
+  --s6: 209, 65, 134;
+  --s7: 7, 120, 47;
 }
 
 /* Tokens made of the ones above, worked out again wherever a theme starts. */
@@ -236,7 +345,7 @@ body {
 }
 
 body {
-  background: var(--app-bg);
+  background: var(--frame), var(--app-bg);
   color: var(--fg-primary);
   font-family: var(--font);
   font-size: var(--font-size);
@@ -322,10 +431,36 @@ body {
   pointer-events: none;
 }
 
+/* The app is drawn ahead, under the opening, so it can fade in at once when the opening gives way to it. */
+.is-splash .app {
+  will-change: transform, opacity;
+}
+
+/* The opening's stage: night falls over the window's own color and mist drifts through it, all drawn by the mist's
+   canvas. Without WebGL a soft light in the middle stands in for it. */
 .splash-bg {
   position: absolute;
   inset: 0;
+  overflow: hidden;
   background: var(--chat-bg);
+}
+
+.splash-aura {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1200px;
+  height: 1200px;
+  margin: -600px 0 0 -600px;
+  background: radial-gradient(closest-side, var(--splash-aura), transparent);
+  opacity: 0;
+}
+
+.splash-mist {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .splash-fly {
@@ -335,12 +470,12 @@ body {
   width: var(--splash-size);
   height: calc(var(--splash-size) * 70 / 64);
   margin: calc(var(--splash-size) * -35 / 64) 0 0 calc(var(--splash-size) / -2);
+  opacity: 0;
 }
 
 .splash-ghost {
   width: 100%;
   height: 100%;
-  translate: calc(-50vw - 2 * var(--splash-size)) 0;
 }
 
 .splash-ghost-body,
@@ -354,12 +489,26 @@ body {
   top: 50%;
   left: 50%;
   color: rgb(var(--composer-accent-rgb));
-  font-size: 46px;
-  font-weight: 650;
+  font-family: "OpenGhost Display", var(--font);
+  font-size: 48px;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: -0.025em;
   white-space: pre;
   transform: translateY(-54%);
+  text-shadow: 0 0 34px rgba(var(--splash-glow-rgb), 0.2);
+  /* Hidden until the letters are set up, so the page never shows the bare word while it loads. */
+  visibility: hidden;
+}
+
+.splash-word.is-set {
+  visibility: visible;
+}
+
+/* The name out of focus, under the sharp one: each letter drawn only as its own soft glow, painted once. */
+.splash-haze span {
+  color: transparent;
+  text-shadow: 0 0 10px rgb(var(--composer-accent-rgb));
 }
 
 .splash-word span {
@@ -375,7 +524,8 @@ body {
 }
 
 /* Chats slip under the header and the footer through the same soft fade as the messages in the chat.
-   Each fade follows the scroll: it comes in once there is something past that edge, so the first and last rows stay clear at the ends. */
+   Each fade follows the scroll: it comes in once there is something past that edge, so the first and last rows stay clear at the ends.
+   A fade is a piece of the window's backdrop, pinned to the window so it lines up with the light around it. */
 .chats::before,
 .chats::after {
   content: "";
@@ -384,18 +534,22 @@ body {
   right: 0;
   left: 0;
   height: 28px;
+  background: var(--frame), var(--app-bg);
+  background-attachment: fixed;
   opacity: 0;
   pointer-events: none;
 }
 
 .chats::before {
   top: 0;
-  background: linear-gradient(var(--app-bg), transparent 70%);
+  -webkit-mask-image: linear-gradient(#000, transparent 70%);
+  mask-image: linear-gradient(#000, transparent 70%);
 }
 
 .chats::after {
   bottom: 0;
-  background: linear-gradient(transparent, var(--app-bg) 70%);
+  -webkit-mask-image: linear-gradient(transparent, #000 70%);
+  mask-image: linear-gradient(transparent, #000 70%);
 }
 
 /* The fades run on the scroll only while there is one. In a list that fits, the timeline would be inactive and the fade
@@ -472,7 +626,7 @@ body {
   left: 0;
   height: 0;
   border-radius: 9px;
-  background: rgba(var(--fg-rgb), 0.055);
+  background: var(--row-hover-bg);
   opacity: 0;
   pointer-events: none;
   will-change: transform, height, opacity;
@@ -524,6 +678,11 @@ body {
 
 .chats-folder + .chats-folder {
   margin-top: 4px;
+}
+
+/* The chats without a folder open the list, or follow the pinned ones a section apart. */
+.chat-row + .chats-folder.is-home {
+  margin-top: 12px;
 }
 
 .chats-folder-head,
@@ -648,6 +807,31 @@ body {
   d: path("M38 53L82 53L82 72A4 4 0 0 1 78 76L42 76A4 4 0 0 1 38 72Z");
 }
 
+/* The chats' bubble is empty while they show and fills with three dots, one after another, when they fold away:
+   the way a folder closes. */
+.glyph-bubble .bubble-dot {
+  stroke-width: 6.5;
+  opacity: 0;
+  transform: scale(0.2);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 0.2s ease, transform 0.3s var(--motion-easing);
+}
+
+.chats-folder.is-collapsed .glyph-bubble .bubble-dot {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.2s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.chats-folder.is-collapsed .glyph-bubble .bubble-dot:nth-child(3) {
+  transition-delay: 0.05s;
+}
+
+.chats-folder.is-collapsed .glyph-bubble .bubble-dot:nth-child(4) {
+  transition-delay: 0.1s;
+}
+
 .chats-folder-name,
 .chat-title {
   flex: 1;
@@ -709,6 +893,11 @@ body {
 /* Opaque, so the hover glide sliding underneath never doubles up with it. */
 .chat-row.is-active {
   background: var(--row-active-bg);
+  box-shadow: var(--row-active-lift);
+}
+
+.chat-row.is-active:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring), var(--row-active-lift);
 }
 
 .chat-mark {
@@ -800,7 +989,8 @@ body {
 
 .chat-row:hover .chat-meta,
 .chat-row:focus-within .chat-meta,
-.chat-row.is-confirming .chat-meta {
+.chat-row.is-confirming .chat-meta,
+.chat-row.is-carding .chat-meta {
   min-width: 104px;
   transition-delay: 0.05s;
 }
@@ -822,14 +1012,16 @@ body {
 }
 
 .chat-row:hover .chat-time,
-.chat-row:focus-within .chat-time {
+.chat-row:focus-within .chat-time,
+.chat-row.is-carding .chat-time {
   opacity: 0;
   transform: scale(0.85);
   transition-delay: 0.05s;
 }
 
 .chat-row:hover .chat-actions,
-.chat-row:focus-within .chat-actions {
+.chat-row:focus-within .chat-actions,
+.chat-row.is-carding .chat-actions {
   pointer-events: auto;
 }
 
@@ -852,7 +1044,8 @@ body {
 
 .chat-row:hover .chat-action,
 .chat-row:focus-within .chat-action,
-.chat-row.is-confirming .chat-action {
+.chat-row.is-confirming .chat-action,
+.chat-row.is-carding .chat-action {
   opacity: 1;
   transform: none;
   transition-delay: 0.05s, 0.05s, 0s, 0s;
@@ -860,19 +1053,22 @@ body {
 
 .chat-row:hover .chat-action + .chat-action,
 .chat-row:focus-within .chat-action + .chat-action,
-.chat-row.is-confirming .chat-action + .chat-action {
+.chat-row.is-confirming .chat-action + .chat-action,
+.chat-row.is-carding .chat-action + .chat-action {
   transition-delay: 0.08s, 0.08s, 0s, 0s;
 }
 
 .chat-row:hover .chat-action + .chat-action + .chat-action,
 .chat-row:focus-within .chat-action + .chat-action + .chat-action,
-.chat-row.is-confirming .chat-action + .chat-action + .chat-action {
+.chat-row.is-confirming .chat-action + .chat-action + .chat-action,
+.chat-row.is-carding .chat-action + .chat-action + .chat-action {
   transition-delay: 0.11s, 0.11s, 0s, 0s;
 }
 
 .chat-row:hover .chat-action + .chat-action + .chat-action + .chat-action,
 .chat-row:focus-within .chat-action + .chat-action + .chat-action + .chat-action,
-.chat-row.is-confirming .chat-action + .chat-action + .chat-action + .chat-action {
+.chat-row.is-confirming .chat-action + .chat-action + .chat-action + .chat-action,
+.chat-row.is-carding .chat-action + .chat-action + .chat-action + .chat-action {
   transition-delay: 0.14s, 0.14s, 0s, 0s;
 }
 
@@ -916,9 +1112,7 @@ body {
 }
 
 .chat-row.is-protected:not(.is-locked) .chat-guard .lock-shackle,
-.chat-action.is-lock:not(.is-on) .lock-shackle,
-.lock-card-glyph.is-open .lock-shackle,
-.lock-screen.is-open .lock-shackle {
+.chat-action.is-lock:not(.is-on) .lock-shackle {
   transform: rotate(-32deg);
 }
 
@@ -929,6 +1123,18 @@ body {
 
 .chat-row.is-confirming .chat-time {
   opacity: 0;
+}
+
+/* While its card is out the row stays as it is under the pointer (the rules above), with the lock button pressed; the
+   button's padlock has flown to the card. A padlock flying back to the row lands where its small one stands, hidden until then. */
+.chat-row.is-carding .chat-action.is-lock {
+  background: rgba(var(--fg-rgb), 0.08);
+  color: rgba(var(--fg-rgb), 0.92);
+}
+
+.chat-action.is-away .glyph,
+.chat-row.is-guard-away .chat-guard {
+  visibility: hidden;
 }
 
 .chat-row.is-confirming .chat-actions {
@@ -1119,6 +1325,24 @@ body {
     0 0 0 2.5px rgba(var(--fg-rgb), 0.16);
 }
 
+/* On the light backdrop the capsule is frosted glass, like the rows: white, lit along its top edge. */
+[data-theme="light"] .sidebar-search-shell {
+  background-color: rgba(255, 255, 255, 0.5);
+  background-image: none;
+}
+
+[data-theme="light"] .sidebar-search-shell::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.4) 45%, rgba(30, 48, 88, 0.05) 75%, rgba(30, 48, 88, 0.1));
+}
+
+[data-theme="light"] .sidebar-search:hover .sidebar-search-shell {
+  background-color: rgba(255, 255, 255, 0.66);
+}
+
+[data-theme="light"] .sidebar-search:has(.sidebar-search-input:focus) .sidebar-search-shell {
+  background-color: rgba(255, 255, 255, 0.85);
+}
+
 .glass-lens {
   isolation: isolate;
   border-radius: 999px;
@@ -1257,7 +1481,7 @@ body {
   flex-direction: column;
   background: var(--chat-bg);
   border-radius: var(--chat-radius);
-  box-shadow: var(--contour);
+  box-shadow: var(--contour), var(--card-lift);
   transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing);
 }
 
@@ -1958,6 +2182,350 @@ ghost-thinking {
   }
 }
 
+/* Chat stats: a card in the thread, the user's only, in a frosted rim: the total in large type, a chart of the replies,
+   and a line a model with a meter of its cache, then the context. */
+.stats-item {
+  align-self: center;
+  width: min(468px, 100%);
+}
+
+.stats {
+  position: relative;
+  padding: 12px;
+}
+
+.stats-card {
+  position: relative;
+  margin: 8px;
+  padding: 14px 20px 16px;
+  border-radius: 18px;
+  background: var(--stats-card);
+  box-shadow: 0 0 0 8px var(--stats-rim), 0 0 0 9px var(--stats-rim-edge), var(--stats-card-lift);
+  color: var(--fg-primary);
+  font-size: 13.5px;
+  line-height: 18px;
+}
+
+.stats-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 20px;
+  margin-bottom: 4px;
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.stats-mark {
+  display: grid;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: rgb(var(--stats-1));
+}
+
+.stats-mark .glyph {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.stats-remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: -2px -10px -2px auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: none;
+  color: var(--fg-tertiary);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.stats-item:hover .stats-remove,
+.stats-remove:focus-visible {
+  opacity: 1;
+}
+
+.stats-remove:hover,
+.stats-remove:focus-visible {
+  background: rgba(var(--fg-rgb), 0.06);
+  color: var(--fg-primary);
+}
+
+.stats-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+.stats-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stats-value {
+  font-size: 32px;
+  font-weight: 650;
+  line-height: 38px;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-unit {
+  color: var(--fg-secondary);
+  font-size: 13.5px;
+}
+
+.stats-chart {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 108px auto;
+  column-gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* The scale's numbers sit on its lines: the top, two thirds, one third and the floor. */
+.stats-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin: -7px 0;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-plot {
+  position: relative;
+  border-bottom: 1px solid var(--stats-line);
+  border-left: 1px solid var(--stats-line);
+}
+
+.stats-grid i {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 0;
+  border-top: 1px dashed var(--stats-line);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.stats-grid i:nth-child(2) {
+  top: 33.333%;
+}
+
+.stats-grid i:nth-child(3) {
+  top: 66.667%;
+}
+
+.stats-bars {
+  position: absolute;
+  inset: 0 4px;
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  grid-template-rows: 100%;
+}
+
+/* A bar is the tokens of one reply; its lower, paler part is what the provider read from its cache. */
+.stats-bar {
+  position: relative;
+  align-self: end;
+  justify-self: center;
+  width: min(22px, 62%);
+  height: calc(var(--h) * 100%);
+  min-height: 2px;
+  overflow: hidden;
+  border-radius: 5px 5px 2px 2px;
+  background: rgb(var(--c));
+  transform-origin: 50% 100%;
+  transition: opacity 0.25s ease;
+}
+
+.stats-bar i {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(var(--cache) * 100%);
+  background: var(--stats-wash);
+}
+
+.stats-plot.is-probing .stats-bar:not(.is-lit),
+.stats-bar.is-dim,
+.stats-row.is-dim {
+  opacity: 0.3;
+}
+
+.stats-tip {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  background: var(--tip-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 8px 20px rgba(0, 0, 0, calc(0.25 * var(--shadow)));
+  font-size: 11.5px;
+  line-height: 15px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, translate 0.28s var(--motion-easing);
+}
+
+.stats-tip.is-shown {
+  opacity: 1;
+}
+
+.stats-tip b {
+  font-weight: 600;
+}
+
+.stats-tip span {
+  color: var(--fg-secondary);
+}
+
+.stats-x {
+  position: relative;
+  grid-column: 2;
+  height: 20px;
+  margin: 0 4px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-x span {
+  position: absolute;
+  top: 6px;
+  left: calc(var(--at) * 100%);
+  translate: -50% 0;
+}
+
+/* One line a model, all lines on shared columns: the name, what it spent, a meter of its cache and the share, so every meter is
+   as long as the others and the numbers stand in columns. */
+.stats-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(44px, 76px) auto;
+  column-gap: 12px;
+  row-gap: 11px;
+  padding-top: 14px;
+  border-top: 1px solid var(--stats-line);
+}
+
+.stats-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  transition: opacity 0.25s ease;
+}
+
+.stats-row-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 550;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stats-row-value {
+  justify-self: end;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-row-value em {
+  color: var(--fg-tertiary);
+  font-style: normal;
+  font-weight: 500;
+}
+
+.stats-meter {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(var(--fg-rgb), 0.07);
+}
+
+.stats-meter b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--p) * 100%);
+  border-radius: inherit;
+  background: rgb(var(--c));
+  transform-origin: 0 50%;
+}
+
+.stats-row-meta {
+  justify-self: end;
+  color: var(--fg-tertiary);
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-row.is-context {
+  --c: var(--stats-neutral);
+}
+
+.stats-row.is-context.is-high {
+  --c: var(--warn-rgb);
+}
+
+.stats-row.is-context .stats-row-name {
+  color: var(--fg-secondary);
+  font-weight: 500;
+}
+
+.stats-note {
+  margin: 12px 0 0;
+  color: var(--fg-tertiary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+/* The chart glyph on its way from the menu into the card, above everything. */
+.stats-flyer {
+  position: fixed;
+  inset: 0 auto auto 0;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: none;
+  pointer-events: none;
+}
+
+.stats-flyer .glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
 @property --selection-alpha {
   syntax: "<number>";
   inherits: true;
@@ -2177,16 +2745,32 @@ ghost-thinking {
   fill: var(--chat-bg);
 }
 
-.mini-hint {
-  color: var(--fg-tertiary);
-  font-size: 12.5px;
-  font-weight: 500;
+.mini-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }
 
-.mini-close {
+.mini-close,
+.mini-clear {
   --icon-button-size: 30px;
   --icon-size: 16px;
-  margin-left: auto;
+}
+
+/* The trash shows only while there is something to clear. */
+.mini-clear {
+  opacity: 0;
+  transform: scale(0.6);
+  visibility: hidden;
+  transition: opacity 0.18s ease, transform 0.3s var(--motion-easing), visibility 0s linear 0.3s;
+}
+
+.mini-clear.is-shown {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition: opacity 0.25s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), visibility 0s;
 }
 
 .mini-main {
@@ -2235,10 +2819,6 @@ ghost-thinking {
   anchor-name: --mini-mode;
 }
 
-.mini .mode-menu {
-  position-anchor: --mini-mode;
-}
-
 .mini-empty {
   position: absolute;
   top: calc((100% - var(--composer-space, 120px)) / 2);
@@ -2265,6 +2845,12 @@ ghost-thinking {
   transition-delay: 0.08s;
 }
 
+/* While its kept messages are being read, an empty mini chat doesn't say it is empty. */
+.mini-main.is-loading .mini-empty {
+  opacity: 0;
+  transition: none;
+}
+
 .mini-empty ghost-thinking {
   width: 44px;
   height: 48px;
@@ -2272,6 +2858,7 @@ ghost-thinking {
 
 .mini-empty p {
   margin: 0;
+  text-wrap: balance;
 }
 
 .markdown {
@@ -3664,8 +4251,8 @@ h6.md-h {
   gap: 12px;
   height: 56px;
   color: var(--fg-secondary);
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 500;
   animation: dg-breathe 1.6s ease-in-out infinite;
 }
 
@@ -3680,12 +4267,12 @@ h6.md-h {
 .md-diagram-status::before,
 .dg-status::before {
   content: "";
-  width: 8px;
-  height: 8px;
-  margin-right: 28px;
+  width: 5px;
+  height: 5px;
+  margin-right: 20px;
   border-radius: 50%;
-  background: rgb(var(--tone));
-  box-shadow: 14px 0 rgba(var(--tone), 0.6), 28px 0 rgba(var(--tone), 0.3);
+  background: rgba(var(--fg-rgb), 0.7);
+  box-shadow: 10px 0 rgba(var(--fg-rgb), 0.4), 20px 0 rgba(var(--fg-rgb), 0.2);
   animation: dg-dots 1.2s ease-in-out infinite;
 }
 
@@ -3698,13 +4285,13 @@ h6.md-h {
 @keyframes dg-dots {
   0%,
   100% {
-    box-shadow: 14px 0 rgba(var(--tone), 0.6), 28px 0 rgba(var(--tone), 0.3);
+    box-shadow: 10px 0 rgba(var(--fg-rgb), 0.4), 20px 0 rgba(var(--fg-rgb), 0.2);
   }
   33% {
-    box-shadow: 14px 0 rgba(var(--tone), 1), 28px 0 rgba(var(--tone), 0.6);
+    box-shadow: 10px 0 rgba(var(--fg-rgb), 0.7), 20px 0 rgba(var(--fg-rgb), 0.4);
   }
   66% {
-    box-shadow: 14px 0 rgba(var(--tone), 0.6), 28px 0 rgba(var(--tone), 1);
+    box-shadow: 10px 0 rgba(var(--fg-rgb), 0.4), 20px 0 rgba(var(--fg-rgb), 0.7);
   }
 }
 
@@ -4329,9 +4916,9 @@ h6.md-h {
   border-radius: 10px;
   outline: none;
   background: var(--composer-bg);
-  box-shadow: 0 0 0 1.5px rgba(var(--tone), 0.7), 0 10px 28px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
+  box-shadow: 0 0 0 1.5px rgba(var(--s1), 0.8), 0 10px 28px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   color: rgb(var(--fg-rgb));
-  font: 650 13px var(--font);
+  font: 500 12.5px var(--font);
   text-align: center;
   animation: md-pop 0.3s var(--motion-easing) both;
 }
@@ -4366,17 +4953,17 @@ h6.md-h {
   z-index: 3;
   top: 0;
   left: 0;
-  min-width: 128px;
-  padding: 8px 12px 9px;
-  border-radius: 14px;
+  min-width: 120px;
+  padding: 7px 11px 8px;
+  border-radius: 11px;
   background: var(--tip-bg);
   box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 14px 34px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   -webkit-backdrop-filter: blur(18px) saturate(1.6);
   backdrop-filter: blur(18px) saturate(1.6);
   color: var(--fg-primary);
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 20px;
+  font-size: 13.5px;
+  font-weight: 550;
+  line-height: 19px;
   white-space: nowrap;
   opacity: 0;
   scale: 0.96;
@@ -4394,10 +4981,10 @@ h6.md-h {
 }
 
 .dg-tip-title {
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   color: var(--fg-secondary);
-  font-size: 11.5px;
-  font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 550;
 }
 
 .dg-tip-row {
@@ -4406,12 +4993,23 @@ h6.md-h {
   gap: 8px;
 }
 
+/* The key of a row repeats how its series is drawn: a stroke for a line, a block for bars, a dot for points. */
 .dg-tip-row i {
   flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: rgb(var(--tone));
+}
+
+.dg-tip-row i.is-bar {
+  border-radius: 2.5px;
+}
+
+.dg-tip-row i.is-line {
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
 }
 
 .dg-tip-row span {
@@ -4421,7 +5019,7 @@ h6.md-h {
 
 .dg-tip-row b {
   color: rgb(var(--fg-rgb));
-  font-weight: 750;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -4433,34 +5031,121 @@ h6.md-h {
   color: rgb(var(--danger-rgb));
 }
 
+/* A drawing is ink on the chat's surface. Its structure is the text colour at low strength, in hairlines; its text
+   comes in three strengths and nothing heavier than semibold. Colour stands for data alone: each series takes a slot
+   of the palette, always in the same order, and a lone series takes the first. */
+.dg-svg {
+  --tone: var(--s1);
+  --ink: rgba(var(--fg-rgb), var(--dg-ink));
+  --ink-2: rgba(var(--fg-rgb), var(--dg-ink-2));
+  --ink-3: rgba(var(--fg-rgb), var(--dg-ink-3));
+  --hair: rgba(var(--fg-rgb), 0.08);
+  --rule: rgba(var(--fg-rgb), 0.16);
+  --plate: rgba(var(--fg-rgb), 0.04);
+  --plate-edge: rgba(var(--fg-rgb), 0.12);
+}
+
+.md-diagram .t-s1 { --tone: var(--s1); }
+.md-diagram .t-s2 { --tone: var(--s2); }
+.md-diagram .t-s3 { --tone: var(--s3); }
+.md-diagram .t-s4 { --tone: var(--s4); }
+.md-diagram .t-s5 { --tone: var(--s5); }
+.md-diagram .t-s6 { --tone: var(--s6); }
+.md-diagram .t-s7 { --tone: var(--s7); }
+.md-diagram .t-mute { --tone: var(--s0); }
+
 .dg-body,
 .dg-head {
   transform-box: fill-box;
   transform-origin: center;
 }
 
+/* Text that every kind of drawing shares. A number set over a mark keeps a rim of the surface around it. */
+.dg-title-text {
+  fill: var(--ink);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.dg-eyebrow,
+.dg-cluster-title,
+.dg-frame-kind,
+.dg-quad-label,
+.dg-today-tag {
+  fill: var(--ink-3);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.dg-tick,
+.dg-unit,
+.dg-axis-title,
+.dg-zone-label {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-value,
+.dg-end,
+.dg-goal-label {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.dg-end {
+  fill: var(--ink);
+}
+
+.dg-value,
+.dg-goal-label,
+.dg-zone-label,
+.dg-tick.is-radar,
+.dg-q-name,
+.dg-sankey-name,
+.dg-sankey-value,
+.dg-cluster-title,
+.dg-task-meta,
+.dg-eyebrow.is-over {
+  paint-order: stroke;
+  stroke: var(--chat-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* Blocks of a scheme: a plate barely off the surface with a hairline edge. Where a scheme begins and ends, the plate
+   takes the accent; the text stays ink. */
 .dg-shape {
-  fill: color-mix(in srgb, rgb(var(--fg-rgb)) 5.5%, var(--chat-bg));
-  stroke: rgba(var(--fg-rgb), 0.12);
+  fill: color-mix(in srgb, rgb(var(--fg-rgb)) 4%, var(--chat-bg));
+  stroke: var(--plate-edge);
   stroke-width: 1;
   stroke-linejoin: round;
   transition: fill 0.3s ease, stroke 0.3s ease;
 }
 
 .dg-node:hover .dg-shape {
-  fill: color-mix(in srgb, rgb(var(--fg-rgb)) 8.5%, var(--chat-bg));
-  stroke: rgba(var(--fg-rgb), 0.3);
+  fill: color-mix(in srgb, rgb(var(--fg-rgb)) 7%, var(--chat-bg));
+  stroke: rgba(var(--fg-rgb), 0.28);
 }
 
-.dg-node.is-key .dg-shape,
-.dg-node.is-root .dg-shape {
-  fill: color-mix(in srgb, rgb(var(--tone)) 14%, var(--chat-bg));
-  stroke: rgba(var(--tone), 0.45);
+.dg-node.is-key .dg-shape {
+  fill: color-mix(in srgb, rgb(var(--tone)) 9%, var(--chat-bg));
+  stroke: rgba(var(--tone), 0.62);
 }
 
 .dg-node.is-key:hover .dg-shape {
-  fill: color-mix(in srgb, rgb(var(--tone)) 20%, var(--chat-bg));
-  stroke: rgba(var(--tone), 0.8);
+  fill: color-mix(in srgb, rgb(var(--tone)) 14%, var(--chat-bg));
+  stroke: rgb(var(--tone));
+}
+
+.dg-node.is-root .dg-shape {
+  fill: color-mix(in srgb, rgb(var(--fg-rgb)) 7%, var(--chat-bg));
+  stroke: rgba(var(--fg-rgb), 0.22);
 }
 
 .dg-host:not(.is-live) .dg-node {
@@ -4474,44 +5159,49 @@ h6.md-h {
 
 .dg-shape-line {
   fill: none;
-  stroke: rgba(var(--fg-rgb), 0.12);
+  stroke: var(--plate-edge);
   stroke-width: 1;
 }
 
 .dg-label {
-  fill: var(--fg-primary);
-  font-size: 13px;
-  font-weight: 600;
+  fill: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
 }
 
-.dg-node.is-key .dg-label {
-  fill: rgb(var(--tone));
-  font-weight: 700;
+/* A block that says what it is and what it does: the name strong, the rest quiet under it. */
+.dg-label-head {
+  font-weight: 650;
+}
+
+.dg-label-detail {
+  fill: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 450;
 }
 
 .dg-node.is-root .dg-label {
-  font-size: 15px;
-  font-weight: 750;
-}
-
-.dg-node.is-branch .dg-label {
-  fill: rgb(var(--fg-rgb));
   font-size: 13.5px;
   font-weight: 650;
 }
 
+.dg-node.is-branch .dg-label {
+  font-weight: 600;
+}
+
 .dg-dot {
-  fill: rgb(var(--tone));
+  fill: var(--ink-2);
 }
 
 .dg-ring {
   fill: none;
-  stroke: rgb(var(--tone));
-  stroke-width: 1.6;
+  stroke: var(--ink-2);
+  stroke-width: 1.25;
 }
 
+/* A table of a database or a class of code: the name on a faint band, then its fields, their types in the code face. */
 .dg-card-head {
-  fill: rgba(var(--fg-rgb), 0.035);
+  fill: rgba(var(--fg-rgb), 0.03);
 }
 
 .dg-card-rule {
@@ -4523,63 +5213,65 @@ h6.md-h {
 }
 
 .dg-card-title {
-  fill: rgb(var(--fg-rgb));
-  font-size: 13.5px;
-  font-weight: 750;
-}
-
-.dg-card-sub {
-  fill: var(--fg-tertiary);
-  font-size: 11px;
+  fill: var(--ink);
+  font-size: 12.5px;
   font-weight: 650;
 }
 
-.dg-card-text {
-  fill: var(--fg-primary);
-  font-size: 12.5px;
-  font-weight: 600;
+.dg-card-sub {
+  fill: var(--ink-3);
+  font-size: 10.5px;
+  font-weight: 500;
 }
 
-.dg-card-meta {
-  fill: var(--fg-tertiary);
+.dg-card-text {
+  fill: var(--ink);
   font-size: 12px;
   font-weight: 500;
 }
 
+.dg-card-meta,
 .dg-card-lead {
-  fill: var(--fg-tertiary);
-  font-size: 12.5px;
-  font-weight: 800;
+  fill: var(--ink-3);
+  font-family: var(--mono-font);
+  font-size: 11px;
+  font-weight: 450;
 }
 
 .dg-card-badge {
-  fill: rgb(var(--tone));
-  font-size: 10px;
-  font-weight: 800;
+  fill: var(--ink-3);
+  font-size: 9.5px;
+  font-weight: 650;
   letter-spacing: 0.04em;
 }
 
+.dg-card-badge.is-key {
+  fill: rgb(var(--tone));
+}
+
+/* Arrows */
 .dg-edge > path {
   transition: stroke 0.25s ease, fill 0.25s ease, opacity 0.25s ease;
 }
 
 .dg-edge > path:first-child {
   fill: none;
-  stroke: rgba(var(--fg-rgb), 0.28);
-  stroke-width: 1.4;
+  stroke: rgba(var(--fg-rgb), 0.3);
+  stroke-width: 1.25;
   stroke-linecap: round;
 }
 
 .dg-edge.is-thick > path:first-child {
-  stroke-width: 2.6;
+  stroke: rgba(var(--fg-rgb), 0.44);
+  stroke-width: 2;
 }
 
 .dg-edge.is-dotted > path:first-child {
-  stroke-dasharray: 2 5;
+  stroke-dasharray: 1.5 4.5;
 }
 
 .dg-edge.is-dashed > path:first-child {
-  stroke-dasharray: 5 5;
+  stroke-dasharray: 4 4;
 }
 
 .dg-head {
@@ -4589,14 +5281,14 @@ h6.md-h {
 .dg-head.is-hollow {
   fill: var(--chat-bg);
   stroke: rgba(var(--fg-rgb), 0.5);
-  stroke-width: 1.3;
+  stroke-width: 1.25;
   stroke-linejoin: round;
 }
 
 .dg-mark {
   fill: none;
   stroke: rgba(var(--fg-rgb), 0.5);
-  stroke-width: 1.4;
+  stroke-width: 1.25;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -4626,18 +5318,40 @@ h6.md-h {
   opacity: 0.35;
 }
 
+.dg-edge-label rect {
+  fill: var(--chat-bg);
+}
+
+.dg-edge-label text {
+  fill: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* Groups of a scheme: a hairline frame with the name in small capitals. */
+.dg-cluster > rect {
+  fill: rgba(var(--fg-rgb), 0.018);
+  stroke: rgba(var(--fg-rgb), 0.09);
+  stroke-width: 1;
+}
+
+.dg-cluster.is-nested > rect {
+  fill: rgba(var(--fg-rgb), 0.022);
+}
+
+/* A mind map: the branches carry the colour, thin; the words stay ink. */
 .dg-edge.dg-branch > path:first-child {
-  stroke: rgba(var(--tone), 0.6);
-  stroke-width: 1.8;
+  stroke: rgba(var(--tone), 0.8);
+  stroke-width: 1.5;
 }
 
 .dg-edge.dg-branch.is-d2 > path:first-child {
-  stroke-width: 1.4;
+  stroke-width: 1.25;
 }
 
 .dg-edge.dg-branch.is-d3 > path:first-child {
-  stroke: rgba(var(--tone), 0.45);
-  stroke-width: 1.2;
+  stroke: rgba(var(--tone), 0.6);
+  stroke-width: 1;
 }
 
 .dg-mind-dot {
@@ -4645,86 +5359,117 @@ h6.md-h {
 }
 
 .dg-mind-leaf {
-  fill: var(--fg-primary);
-  font-size: 13px;
-  font-weight: 550;
+  fill: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 450;
+}
+
+/* Charts: a hairline grid that stays back, the floor a little stronger, and thin marks in flat colour. */
+.dg-grid {
+  stroke: var(--hair);
+}
+
+.dg-grid.is-zero,
+.dg-line {
+  stroke: var(--rule);
+}
+
+.dg-bar {
+  fill: rgb(var(--tone));
+  transition: opacity 0.2s ease;
+}
+
+.dg-svg.is-probing .dg-bar:not(.is-hot) {
+  opacity: 0.45;
+}
+
+.dg-edge.dg-stroke > path:first-child {
+  stroke: rgb(var(--tone));
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+}
+
+.dg-edge.dg-stroke.is-ma > path:first-child {
+  stroke-width: 1.25;
+}
+
+.dg-point {
+  fill: rgb(var(--tone));
+  stroke: var(--chat-bg);
+  stroke-width: 2;
+  transition: r 0.25s var(--motion-easing);
+}
+
+.dg-point.is-hot {
+  r: 5px;
 }
 
 .dg-stop {
   stop-color: rgb(var(--tone));
-  transition: stop-color 0.35s ease;
-}
-
-.dg-stop.is-faint {
-  stop-color: rgba(var(--tone), 0.35);
 }
 
 .dg-stop.is-area {
-  stop-color: rgba(var(--tone), 0.24);
+  stop-color: rgba(var(--tone), 0.17);
 }
 
 .dg-stop.is-clear {
   stop-color: rgba(var(--tone), 0);
 }
 
-.dg-edge-label rect {
-  fill: var(--chat-bg);
-  stroke: rgba(var(--fg-rgb), 0.1);
+.dg-zone {
+  fill: rgba(var(--tone), 0.08);
 }
 
-.dg-edge-label text {
-  fill: var(--fg-secondary);
-  font-size: 12px;
-  font-weight: 600;
+/* Among several series a band takes no side: it is a tint of the ink, not of one of their colours. */
+.dg-zone.is-plain {
+  fill: rgba(var(--fg-rgb), 0.045);
 }
 
-.dg-title-text {
-  fill: rgb(var(--fg-rgb));
-  font-size: 14.5px;
-  font-weight: 800;
+.dg-goal {
+  stroke: var(--ink-2);
+  stroke-dasharray: 3 3;
 }
 
-.dg-chip circle {
+.dg-chip rect {
   fill: rgb(var(--tone));
 }
 
 .dg-chip text {
-  fill: var(--fg-secondary);
-  font-size: 12.5px;
-  font-weight: 650;
+  fill: var(--ink-2);
+  font-size: 11.5px;
+  font-weight: 500;
 }
 
+/* Shares: a thin ring parted by the surface, and a small table of what it holds. */
 .dg-slice {
   fill: none;
   stroke: rgb(var(--tone));
-  cursor: pointer;
-  transition: stroke-width 0.35s var(--motion-easing);
+  transition: stroke-width 0.3s var(--motion-easing), opacity 0.2s ease;
 }
 
 .dg-slice.is-active {
-  stroke-width: 32px;
+  stroke-width: 16px;
 }
 
 .dg-center-value {
-  fill: rgb(var(--fg-rgb));
-  font-size: 26px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.dg-center-label {
-  fill: var(--fg-secondary);
-  font-size: 12px;
+  fill: var(--ink);
+  font-size: 20px;
   font-weight: 650;
 }
 
+.dg-center-label {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
+}
+
 .dg-legend-bg {
-  fill: rgba(var(--tone), 0);
-  transition: fill 0.25s ease;
+  fill: rgba(var(--fg-rgb), 0);
+  transition: fill 0.2s ease;
 }
 
 .dg-legend-row.is-active .dg-legend-bg {
-  fill: rgba(var(--tone), 0.12);
+  fill: rgba(var(--fg-rgb), 0.05);
 }
 
 .dg-swatch {
@@ -4732,92 +5477,697 @@ h6.md-h {
 }
 
 .dg-legend-label {
-  fill: var(--fg-primary);
-  font-size: 14px;
-  font-weight: 650;
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .dg-legend-value {
-  fill: rgb(var(--tone));
-  font-size: 14px;
-  font-weight: 800;
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.dg-grid {
-  stroke: rgba(var(--fg-rgb), 0.07);
-  stroke-dasharray: 3 4;
+.dg-legend-share {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
 }
 
-.dg-grid.is-zero,
-.dg-grid.is-solid {
-  stroke: rgba(var(--fg-rgb), 0.14);
-  stroke-dasharray: none;
+/* A ledger: names, thin bars and a column of numbers. */
+.dg-hit {
+  fill: transparent;
 }
 
-.dg-tick {
-  fill: rgba(var(--fg-rgb), 0.45);
+.dg-row-name {
+  fill: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.dg-row-note,
+.dg-row-share {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-row-value {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-row-total {
+  fill: var(--ink);
+  font-size: 12.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-ledger-bar {
+  fill: rgb(var(--tone));
+}
+
+/* Where a whole row answers the pointer, the row is what it meets: the marks over it let it through. */
+.dg-svg[data-kind="ledger"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="ranges"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="git"] .dg-layer:not(.is-back) {
+  pointer-events: none;
+}
+
+/* Figures: a number to read, its unit beside it, and under it how it moved or how far it has come. */
+.dg-metric-name {
+  fill: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dg-figure-num {
+  fill: var(--ink);
+  font-weight: 650;
+}
+
+.dg-figure-unit {
+  fill: var(--ink-2);
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.dg-metric-change {
+  fill: var(--ink-2);
   font-size: 11.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.dg-axis-title {
-  fill: var(--fg-secondary);
+.dg-metric-change.is-good {
+  fill: rgb(var(--success-rgb));
+}
+
+.dg-metric-change.is-bad {
+  fill: rgb(var(--danger-rgb));
+}
+
+.dg-metric-note {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-meter-track {
+  fill: rgba(var(--tone), 0.2);
+}
+
+.dg-meter-fill {
+  fill: rgb(var(--tone));
+}
+
+.dg-edge.dg-spark > path:first-child {
+  stroke-width: 1.5;
+}
+
+/* A value against what is normal for it: the normal stretch is the same grey band in every row, the value a dot on
+   it. Out of the band the dot turns amber and an arrow by the number says which way. */
+.dg-range-track {
+  stroke: rgba(var(--fg-rgb), 0.12);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.dg-range-zone {
+  fill: rgba(var(--fg-rgb), 0.24);
+}
+
+.dg-range-mark {
+  fill: rgb(var(--tone));
+  stroke: var(--chat-bg);
+  stroke-width: 2;
+}
+
+.dg-range-mark.is-out {
+  fill: rgb(var(--warn-rgb));
+}
+
+.dg-range-way {
+  fill: rgb(var(--warn-rgb));
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 650;
 }
 
-.dg-bar {
-  transition: filter 0.2s ease, opacity 0.2s ease;
+/* Columns of cards: a plan for the week, a board of tasks. */
+.dg-col-name {
+  fill: var(--ink);
+  font-size: 12.5px;
+  font-weight: 650;
 }
 
-.dg-bar.is-hot {
-  filter: brightness(1.25);
+.dg-col-sub {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
 }
 
-.dg-svg.is-probing .dg-bar:not(.is-hot) {
-  opacity: 0.5;
+.dg-plate {
+  fill: var(--plate);
+  transition: fill 0.2s ease;
 }
 
-.dg-value {
-  fill: rgb(var(--fg-rgb));
-  font-size: 11.5px;
-  font-weight: 800;
+.dg-plate.is-hot {
+  fill: rgba(var(--fg-rgb), 0.075);
+}
+
+/* Steps of a procedure down a hairline, each under its number. */
+.dg-step-mark {
+  fill: var(--chat-bg);
+  stroke: rgba(var(--fg-rgb), 0.24);
+  stroke-width: 1;
+}
+
+.dg-step-mark.is-done {
+  stroke: rgba(var(--tone), 0.7);
+}
+
+.dg-wf-glyph.is-done path {
+  stroke: rgb(var(--tone));
+  stroke-width: 2;
+}
+
+.dg-step-text.is-done {
+  fill: var(--ink-2);
+}
+
+.dg-step-n {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-step-text {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dg-step-meta {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-step-note,
+.dg-step-warn {
+  fill: var(--ink-2);
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.dg-step-warn {
+  fill: var(--ink);
+}
+
+.dg-rail {
+  stroke: rgba(var(--fg-rgb), 0.14);
+}
+
+.dg-wf-glyph.is-warn path {
+  stroke: rgb(var(--warn-rgb));
+  stroke-width: 1.7;
+}
+
+/* How a sum comes about: what adds is green, what takes away is red, where it stands is the accent. */
+.dg-bar.is-up,
+.dg-bar.is-down {
+  fill: rgba(var(--c), 0.86);
+}
+
+.dg-bridge {
+  stroke: rgba(var(--fg-rgb), 0.24);
+}
+
+.dg-funnel-bar {
+  fill: rgb(var(--tone));
+  transition: opacity 0.2s ease;
+}
+
+.dg-funnel-rate {
+  fill: var(--ink-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Flows: bands in one colour, as wide as what they carry. */
+.dg-ribbon {
+  fill: rgba(var(--tone), 0.24);
+  transition: fill 0.2s ease;
+}
+
+.dg-ribbon.is-hot {
+  fill: rgba(var(--tone), 0.55);
+}
+
+.dg-sankey-node {
+  fill: rgb(var(--tone));
+}
+
+.dg-sankey-name {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dg-sankey-value {
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cells: the more there is, the more of the one colour, in steps far enough apart to tell. In a table the steps
+   stay soft, so the number in the cell reads. */
+.dg-cell {
+  fill: rgba(var(--fg-rgb), 0.06);
+}
+
+.dg-cell.is-l1 {
+  fill: rgba(var(--tone), 0.3);
+}
+
+.dg-cell.is-l2 {
+  fill: rgba(var(--tone), 0.52);
+}
+
+.dg-cell.is-l3 {
+  fill: rgba(var(--tone), 0.76);
+}
+
+.dg-cell.is-l4 {
+  fill: rgb(var(--tone));
+}
+
+.dg-cell.is-soft.is-l1 {
+  fill: rgba(var(--tone), 0.14);
+}
+
+.dg-cell.is-soft.is-l2 {
+  fill: rgba(var(--tone), 0.3);
+}
+
+.dg-cell.is-soft.is-l3 {
+  fill: rgba(var(--tone), 0.46);
+}
+
+.dg-cell.is-soft.is-l4 {
+  fill: rgba(var(--tone), 0.64);
+}
+
+.dg-cell.is-hot {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.dg-cell-dot {
+  fill: rgb(var(--tone));
+}
+
+.dg-cell-off {
+  stroke: rgba(var(--fg-rgb), 0.22);
+  stroke-linecap: round;
+}
+
+.dg-cell-text {
+  fill: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
-.dg-end {
-  fill: rgb(var(--tone));
+.dg-grid.is-faint {
+  stroke: rgba(var(--fg-rgb), 0.045);
+}
+
+.dg-q-point.is-bubble {
+  fill: rgba(var(--tone), 0.32);
+  stroke: rgb(var(--tone));
+  stroke-width: 1.25;
+}
+
+/* What a whole is made of: tiles in the colour of their group, parted by the surface. */
+.dg-tile {
+  fill: rgba(var(--tone), 0.3);
+  transition: fill 0.2s ease;
+}
+
+.dg-tile.is-hot {
+  fill: rgba(var(--tone), 0.5);
+}
+
+.dg-tile-name,
+.dg-tile-value {
+  fill: var(--ink);
   font-size: 11.5px;
-  font-weight: 800;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.dg-tile-value {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-weight: 450;
   font-variant-numeric: tabular-nums;
 }
 
-.dg-edge.dg-stroke > path:first-child {
+/* The history of a repository: a lane for each branch, a dot for each commit; a merge is a ring. */
+.dg-edge.dg-lane > path:first-child {
+  stroke-width: 1.75;
+}
+
+.dg-commit {
+  fill: rgb(var(--tone));
+  stroke: var(--chat-bg);
+  stroke-width: 2;
+}
+
+.dg-commit.is-merge {
+  fill: var(--chat-bg);
   stroke: rgb(var(--tone));
-  stroke-width: 2.4;
+  stroke-width: 1.75;
+}
+
+.dg-row-name.is-quiet {
+  fill: var(--ink-3);
+}
+
+.dg-tag rect {
+  fill: rgba(var(--fg-rgb), 0.08);
+}
+
+.dg-tag text {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dg-tag.is-branch rect {
+  fill: none;
+  stroke: rgba(var(--tone), 0.75);
+}
+
+/* Cells of an algorithm: small plates in a row, the marked ones in the accent; a pointer is a stroke and a name. */
+.dg-acell {
+  fill: rgba(var(--fg-rgb), 0.055);
+}
+
+.dg-acell.is-lit {
+  fill: rgba(var(--tone), 0.2);
+  stroke: rgba(var(--tone), 0.75);
+}
+
+.dg-acell-text {
+  fill: var(--ink);
+  font-family: var(--mono-font);
+  font-size: 12px;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+.dg-apoint {
+  stroke: rgb(var(--tone));
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.dg-apoint-name {
+  fill: var(--ink-2);
+  font-family: var(--mono-font);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* A knockout: who went through is ink, who went out steps back. */
+.dg-team {
+  fill: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.dg-score {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-team.is-out,
+.dg-score.is-out {
+  fill: var(--ink-3);
+}
+
+.dg-edge.dg-tie > path:first-child {
+  stroke: rgba(var(--fg-rgb), 0.2);
+  stroke-width: 1;
   stroke-linejoin: round;
 }
 
-.dg-edge.dg-stroke.is-ma > path:first-child {
-  stroke-width: 1.5;
-  opacity: 0.8;
+/* How a thing stands, said by colour and by a sign: the dot before a value, the count over a list of checks. */
+.dg-state {
+  fill: var(--ink-3);
 }
 
-.dg-point {
+.dg-state.is-good {
+  fill: rgb(var(--success-rgb));
+}
+
+.dg-state.is-warn {
+  fill: rgb(var(--warn-rgb));
+}
+
+.dg-state.is-bad {
+  fill: rgb(var(--danger-rgb));
+}
+
+.dg-state.is-open {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.25;
+}
+
+/* Food: a ring for the day's energy over its faint track, then what it is made of. */
+.dg-slice.is-track {
+  stroke: rgba(var(--fg-rgb), 0.09);
+}
+
+.dg-value.is-over {
+  fill: rgb(var(--danger-rgb));
+}
+
+/* A list of checks: the mark of each row says how it stands, in a colour and a sign of its own. */
+.dg-check-mark {
   fill: var(--chat-bg);
+  stroke: rgba(var(--fg-rgb), 0.24);
+  stroke-width: 1.25;
+}
+
+.dg-check-mark.is-good {
+  fill: rgba(var(--success-rgb), 0.14);
+  stroke: rgba(var(--success-rgb), 0.7);
+}
+
+.dg-check-mark.is-warn {
+  fill: rgba(var(--warn-rgb), 0.14);
+  stroke: rgba(var(--warn-rgb), 0.75);
+}
+
+.dg-check-mark.is-bad {
+  fill: rgba(var(--danger-rgb), 0.14);
+  stroke: rgba(var(--danger-rgb), 0.7);
+}
+
+.dg-wf-glyph.dg-check-icon path {
+  stroke-width: 2;
+}
+
+.dg-wf-glyph.dg-check-icon.is-good path {
+  stroke: rgb(var(--success-rgb));
+}
+
+.dg-wf-glyph.dg-check-icon.is-warn path {
+  stroke: rgb(var(--warn-rgb));
+}
+
+.dg-wf-glyph.dg-check-icon.is-bad path {
+  stroke: rgb(var(--danger-rgb));
+}
+
+.dg-wf-glyph.dg-check-icon.is-ask path {
+  stroke: var(--ink-2);
+}
+
+/* What a value was, before the arrow to what it is now. */
+.dg-was {
+  fill: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-edge.dg-turn > path:first-child {
+  stroke: rgba(var(--fg-rgb), 0.34);
+  stroke-width: 1.25;
+}
+
+.dg-edge.dg-turn > path:last-child {
+  fill: rgba(var(--fg-rgb), 0.46);
+}
+
+/* The parts of a paper: their numbers stand in a column, the parts of a part hang on a rail. */
+.dg-outline-mark {
+  fill: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-outline-mark.is-head {
+  fill: var(--ink-2);
+}
+
+.dg-outline-dot {
+  fill: var(--ink-3);
+}
+
+.dg-wf-glyph.is-sheet path {
+  stroke: rgb(var(--tone));
+  stroke-width: 1.5;
+}
+
+/* Matches: the hour in its own column, the two sides facing each other across the score. */
+.dg-match-time {
+  fill: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-row-total.is-quiet {
+  fill: var(--ink-3);
+}
+
+/* Languages: a word of a sentence over a rule that ties it to what it means; the rule of the word to look at
+   takes the colour. In a table of forms the part that changes is strong and underlined in it. */
+.dg-gloss-word {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.dg-gloss-means {
+  fill: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.dg-gloss-rule {
+  stroke: rgba(var(--fg-rgb), 0.2);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.dg-gloss-rule.is-key {
   stroke: rgb(var(--tone));
   stroke-width: 2;
-  transition: r 0.25s var(--motion-easing), fill 0.2s ease;
 }
 
-.dg-point.is-hot {
-  r: 5.5px;
+.dg-form {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dg-form-end {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.dg-form-rule {
+  stroke: rgb(var(--tone));
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* Cooking: a row of dots leads from what goes in to how much of it, as on a menu. */
+.dg-leader {
+  stroke: rgba(var(--fg-rgb), 0.26);
+  stroke-width: 1.25;
+  stroke-dasharray: 0.1 4;
+  stroke-linecap: round;
+}
+
+/* Devices: a switch drawn as it should stand, or the value to choose on a small plate. */
+.dg-toggle {
+  fill: rgba(var(--fg-rgb), 0.1);
+  stroke: rgba(var(--fg-rgb), 0.22);
+  stroke-width: 1;
+}
+
+.dg-toggle.is-on {
+  fill: rgb(var(--tone));
+  stroke: none;
+}
+
+.dg-toggle-knob {
+  fill: rgba(var(--fg-rgb), 0.5);
+}
+
+.dg-toggle-knob.is-on {
+  fill: #fff;
+}
+
+.dg-set-value rect {
+  fill: rgba(var(--fg-rgb), 0.07);
+}
+
+.dg-set-value text {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Travel: the line of the way from stop to stop; where it starts and where it ends are rings. */
+.dg-route-rail {
+  stroke: rgba(var(--tone), 0.6);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.dg-route-stop {
   fill: rgb(var(--tone));
 }
 
+.dg-route-stop.is-end {
+  fill: var(--chat-bg);
+  stroke: rgb(var(--tone));
+  stroke-width: 2;
+}
+
+.dg-route-leg {
+  fill: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* Prices: candles in the two colours a rise and a fall always have. */
 .dg-candle,
 .dg-vol {
   transition: opacity 0.2s ease;
@@ -4825,7 +6175,7 @@ h6.md-h {
 
 .dg-wick {
   stroke: rgb(var(--c));
-  stroke-width: 1.2;
+  stroke-width: 1;
 }
 
 .dg-candle-body {
@@ -4833,7 +6183,7 @@ h6.md-h {
 }
 
 .dg-vol {
-  fill: rgba(var(--c), 0.3);
+  fill: rgba(var(--c), 0.28);
 }
 
 .dg-svg.is-probing .dg-candle:not(.is-hot),
@@ -4842,7 +6192,7 @@ h6.md-h {
 }
 
 .dg-last {
-  stroke: rgba(var(--c), 0.75);
+  stroke: rgba(var(--c), 0.7);
   stroke-width: 1;
   stroke-dasharray: 2 3;
 }
@@ -4853,277 +6203,232 @@ h6.md-h {
 
 .dg-last-tag text {
   fill: var(--chat-bg);
-  font-size: 11.5px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .dg-price {
-  fill: rgb(var(--fg-rgb));
-  font-size: 26px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  fill: var(--ink);
+  font-size: 24px;
+  font-weight: 650;
 }
 
 .dg-change {
   fill: rgb(var(--c));
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.dg-eyebrow {
-  fill: var(--fg-tertiary);
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-}
-
+/* A history along a hairline. */
 .dg-bracket {
-  stroke: rgba(var(--fg-rgb), 0.14);
+  stroke: rgba(var(--fg-rgb), 0.12);
 }
 
 .dg-axis-line {
-  stroke: rgba(var(--fg-rgb), 0.16);
-  stroke-width: 1.5;
-  stroke-linecap: round;
+  stroke: var(--rule);
+  stroke-width: 1;
 }
 
 .dg-period {
-  fill: rgb(var(--fg-rgb));
-  font-size: 15px;
-  font-weight: 750;
-}
-
-.dg-period.is-side {
-  font-size: 14px;
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .dg-event {
-  fill: var(--fg-secondary);
-  font-size: 13px;
-  font-weight: 550;
+  fill: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 450;
 }
 
 .dg-event.is-lead {
-  fill: var(--fg-primary);
+  fill: var(--ink);
 }
 
 .dg-tl-dot {
-  fill: rgb(var(--tone));
-  stroke: var(--chat-bg);
-  stroke-width: 3;
+  fill: var(--chat-bg);
+  stroke: rgb(var(--tone));
+  stroke-width: 1.5;
 }
 
+/* A plan in time: thin bars. What is under way is full, what is ahead is lighter, what is done turns grey. */
 .dg-sep {
-  stroke: rgba(var(--fg-rgb), 0.08);
+  stroke: var(--hair);
 }
 
 .dg-task {
-  fill: rgba(var(--tone), 0.85);
-  transition: filter 0.2s ease;
+  fill: rgba(var(--tone), 0.6);
+  transition: fill 0.2s ease;
 }
 
 .dg-task.is-crit {
   --tone: var(--danger-rgb);
+  fill: rgba(var(--tone), 0.85);
 }
 
-.dg-task.is-active {
+.dg-task.is-active,
+.dg-task.is-hot {
   fill: rgb(var(--tone));
 }
 
 .dg-task.is-done {
-  fill: rgba(var(--tone), 0.28);
+  fill: rgba(var(--fg-rgb), 0.2);
 }
 
 .dg-task.is-milestone {
-  fill: rgb(var(--tone));
+  fill: var(--ink);
   stroke: var(--chat-bg);
   stroke-width: 2;
 }
 
-.dg-task.is-hot {
-  filter: brightness(1.2);
-}
-
 .dg-task-name {
-  fill: var(--fg-primary);
-  font-size: 13px;
-  font-weight: 600;
-  transition: fill 0.2s ease;
+  fill: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
 }
 
 .dg-task-name.is-done {
-  fill: var(--fg-tertiary);
-}
-
-.dg-task-name.is-hot {
-  fill: rgb(var(--fg-rgb));
+  fill: var(--ink-3);
 }
 
 .dg-task-meta {
-  fill: var(--fg-tertiary);
-  font-size: 11.5px;
-  font-weight: 650;
+  fill: var(--ink-3);
+  font-size: 11px;
+  font-weight: 450;
   font-variant-numeric: tabular-nums;
 }
 
 .dg-today {
   stroke: rgb(var(--danger-rgb));
-  stroke-width: 1.5;
+  stroke-width: 1;
 }
 
-.dg-today-tag rect {
+.dg-today-tag {
   fill: rgb(var(--danger-rgb));
 }
 
-.dg-today-tag text {
-  fill: var(--on-danger);
-  font-size: 11px;
-  font-weight: 750;
-}
-
+/* Two axes and four corners. */
 .dg-quad {
   fill: rgba(var(--fg-rgb), 0.035);
 }
 
-.dg-quad.is-lead {
-  fill: rgba(var(--tone), 0.09);
-}
-
-.dg-quad-label {
-  fill: var(--fg-tertiary);
-  font-size: 12.5px;
-  font-weight: 700;
+.dg-quad-axis {
+  stroke: var(--rule);
 }
 
 .dg-quad-label.is-lead {
-  fill: rgb(var(--tone));
+  fill: var(--ink-2);
 }
 
 .dg-q-point {
   fill: rgb(var(--tone));
   stroke: var(--chat-bg);
-  stroke-width: 2.5;
+  stroke-width: 2;
   transition: r 0.25s var(--motion-easing);
 }
 
 .dg-q-point.is-hot {
-  r: 7.5px;
+  r: 6px;
 }
 
 .dg-q-name {
-  fill: var(--fg-primary);
-  font-size: 12.5px;
-  font-weight: 650;
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
 }
 
+/* A web of criteria. */
 .dg-radar-grid {
   fill: none;
-  stroke: rgba(var(--fg-rgb), 0.08);
+  stroke: var(--hair);
 }
 
 .dg-radar-grid.is-outer {
-  stroke: rgba(var(--fg-rgb), 0.16);
+  stroke: var(--rule);
 }
 
 .dg-radar-spoke {
-  stroke: rgba(var(--fg-rgb), 0.08);
+  stroke: var(--hair);
 }
 
 .dg-radar-axis {
-  fill: var(--fg-secondary);
-  font-size: 12.5px;
-  font-weight: 650;
-}
-
-.dg-tick.is-radar {
-  paint-order: stroke;
-  stroke: var(--chat-bg);
-  stroke-width: 3px;
-  stroke-linejoin: round;
+  fill: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .dg-radar-curve {
-  fill: rgba(var(--tone), 0.09);
+  fill: rgba(var(--tone), 0.1);
   stroke: rgb(var(--tone));
-  stroke-width: 2;
+  stroke-width: 1.5;
   stroke-linejoin: round;
   transition: fill 0.25s ease;
 }
 
 .dg-radar-curve:hover {
-  fill: rgba(var(--tone), 0.26);
+  fill: rgba(var(--tone), 0.22);
 }
 
+/* Who says what to whom. */
 .dg-life {
-  stroke: rgba(var(--fg-rgb), 0.14);
+  stroke: rgba(var(--fg-rgb), 0.12);
   stroke-width: 1;
-  stroke-dasharray: 3 5;
+}
+
+.dg-edge.dg-message > path:first-child {
+  stroke: rgba(var(--fg-rgb), 0.46);
+}
+
+.dg-edge.dg-message > .dg-head {
+  fill: rgba(var(--fg-rgb), 0.62);
 }
 
 .dg-message-label {
-  fill: var(--fg-primary);
-  font-size: 12.5px;
-  font-weight: 600;
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .dg-badge circle {
-  fill: rgb(var(--tone));
+  fill: var(--chat-bg);
+  stroke: rgba(var(--fg-rgb), 0.3);
 }
 
 .dg-badge text {
-  fill: var(--chat-bg);
-  font-size: 10.5px;
-  font-weight: 800;
+  fill: var(--ink-2);
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .dg-note rect {
-  fill: rgba(var(--fg-rgb), 0.04);
-  stroke: rgba(var(--fg-rgb), 0.1);
+  fill: var(--plate);
 }
 
 .dg-note text {
-  fill: var(--fg-secondary);
-  font-size: 12.5px;
-  font-weight: 600;
+  fill: var(--ink-2);
+  font-size: 12px;
+  font-weight: 450;
 }
 
 .dg-frame > rect {
-  fill: rgba(var(--fg-rgb), 0.015);
+  fill: none;
   stroke: rgba(var(--fg-rgb), 0.14);
-  stroke-dasharray: 4 4;
-}
-
-.dg-frame-tab {
-  fill: rgba(var(--fg-rgb), 0.07);
 }
 
 .dg-frame-label {
-  fill: var(--fg-secondary);
+  fill: var(--ink-2);
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .dg-divider {
   stroke: rgba(var(--fg-rgb), 0.14);
-  stroke-dasharray: 4 4;
-}
-
-.dg-cluster > rect {
-  fill: rgba(var(--fg-rgb), 0.022);
-  stroke: rgba(var(--fg-rgb), 0.08);
-  stroke-width: 1;
-}
-
-.dg-cluster.is-nested > rect {
-  fill: rgba(var(--fg-rgb), 0.03);
-}
-
-.dg-cluster-title {
-  fill: var(--fg-secondary);
-  font-size: 12px;
-  font-weight: 700;
+  stroke-dasharray: 3 3;
 }
 
 .dg-wf-window {
@@ -5167,14 +6472,12 @@ h6.md-h {
 
 .dg-wf-rule.is-step {
   stroke: rgba(var(--fg-rgb), 0.16);
-  stroke-dasharray: 2 5;
-  stroke-linecap: round;
 }
 
 .dg-wf-glyph path {
   fill: none;
   stroke: rgba(var(--fg-rgb), 0.55);
-  stroke-width: 1.7;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -5186,21 +6489,21 @@ h6.md-h {
 
 .dg-wf-glyph.is-icon path {
   stroke: var(--fg-primary);
-  stroke-width: 1.9;
+  stroke-width: 1.6;
 }
 
 .dg-wf-glyph.is-check path {
   stroke: var(--fg-secondary);
-  stroke-width: 2.2;
+  stroke-width: 1.8;
 }
 
 .dg-wf-glyph.is-lock path {
   stroke: rgba(var(--fg-rgb), 0.4);
-  stroke-width: 2.4;
+  stroke-width: 2;
 }
 
 .dg-wf-mark {
-  fill: rgb(var(--tone));
+  fill: rgba(var(--fg-rgb), 0.82);
 }
 
 .dg-wf-strong {
@@ -5262,8 +6565,8 @@ h6.md-h {
 
 .dg-wf-card.is-featured {
   fill: rgba(var(--fg-rgb), 0.045);
-  stroke: rgba(var(--tone), 0.75);
-  stroke-width: 1.5;
+  stroke: rgba(var(--fg-rgb), 0.5);
+  stroke-width: 1;
 }
 
 .dg-wf-icon {
@@ -5281,11 +6584,11 @@ h6.md-h {
 }
 
 .dg-wf-pill {
-  fill: rgba(var(--tone), 0.14);
+  fill: rgba(var(--fg-rgb), 0.08);
 }
 
 .dg-wf-pill-text {
-  fill: rgb(var(--tone));
+  fill: var(--fg-secondary);
 }
 
 .dg-wf-banner {
@@ -5327,7 +6630,7 @@ h6.md-h {
 .dg-wf-sectag text {
   fill: var(--chat-bg);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Files: a folder as a card in the column, like a file attachment. One line with the folder, where it is and what it
@@ -5466,7 +6769,8 @@ h6.md-h {
   flex-grow: 1;
 }
 
-/* Over a locked chat: the chat's own background, a glowing padlock, a line of big type and a single field. */
+/* Over a locked chat: frost in the chat's own color, the padlock, one line of big type and «View chat», which the field
+   for the password grows out of, the way Notes shows a locked note. */
 .lock-screen {
   position: absolute;
   z-index: 2;
@@ -5474,121 +6778,342 @@ h6.md-h {
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow: hidden;
   border-radius: inherit;
-  background: var(--chat-bg);
 }
 
 .lock-screen[hidden] {
   display: none;
 }
 
+/* At rest the frost is just the chat's color; while the chat locks or opens, lock-ui.js blurs whatever lies under it. */
+.lock-frost {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--chat-bg);
+}
+
 .lock-screen-body {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: min(360px, 100%);
-  margin-bottom: 6vh;
+  width: min(460px, 100%);
+  margin-bottom: 5vh;
   text-align: center;
 }
 
-.lock-screen-glyph {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  margin-bottom: 18px;
-  color: rgb(var(--composer-accent-rgb));
-  filter: drop-shadow(0 0 22px rgba(var(--glow-rgb), 0.16));
+/* The padlock, drawn in thin lines like the system's symbols: bare, in the card and on a locked chat alike. */
+.seal {
+  --seal: 64px;
+  position: relative;
+  display: block;
+  flex: none;
+  width: var(--seal);
+  height: var(--seal);
 }
 
-[data-theme="light"] .lock-screen-glyph {
-  filter: drop-shadow(0 6px 16px rgba(var(--glow-rgb), 0.12));
+/* The padlock is drawn in thin lines; how thin is set where it stands, in the symbol's own units. */
+.seal-symbol {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--seal-stroke, 3.6);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--seal-ink);
 }
 
-.lock-screen-glyph .glyph {
-  width: 56px;
-  height: 56px;
+/* The shackle's legs meet the body; it lifts and turns about its left leg to open. */
+.seal-shackle {
+  transform-box: view-box;
+  transform-origin: 23px 30px;
+}
+
+/* A padlock on its way between places, over everything. */
+.seal-flyer {
+  position: fixed;
+  z-index: 10;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* The list's small padlock, which a flying one turns into or out of, drawn to the same size. */
+.seal-outline {
+  position: absolute;
+  top: 3.125%;
+  left: 3.125%;
+  width: 93.75%;
+  height: 93.75%;
+  color: rgba(var(--fg-rgb), 0.85);
+  opacity: 0;
+}
+
+.seal-outline .glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
   overflow: visible;
 }
 
-/* While the password is being checked the padlock gently rocks. */
-.lock-screen.is-checking .lock-screen-glyph .glyph {
-  animation: lock-think 0.9s ease-in-out infinite;
-}
-
-@keyframes lock-think {
-  0%,
-  100% {
-    transform: rotate(0);
-  }
-
-  25% {
-    transform: rotate(-6deg);
-  }
-
-  75% {
-    transform: rotate(6deg);
-  }
+/* On a locked chat the padlock is as thin in its lines as the title in its strokes. */
+.lock-screen-seal {
+  --seal: 64px;
+  --seal-stroke: 2.1;
+  margin-bottom: 20px;
 }
 
 .lock-screen-title {
   margin: 0;
-  color: rgba(var(--fg-rgb), 0.95);
+  color: var(--fg-primary);
+  font-family: "OpenGhost Display", var(--font);
   font-size: 26px;
-  font-weight: 650;
-  line-height: 1.2;
+  font-weight: 640;
+  line-height: 32px;
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
+/* A title's words keep together while each of their letters rises on its own. */
 .lock-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.lock-letter {
   display: inline-block;
 }
 
-.lock-screen-text {
-  margin: 8px 0 0;
+/* One line under the title says what to do, or what went wrong; the two cross over through a blur. */
+.lock-say {
+  display: grid;
+  margin-top: 8px;
+}
+
+.lock-say > * {
+  grid-area: 1 / 1;
+  margin: 0;
   color: var(--fg-secondary);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 13.5px;
+  line-height: 19px;
+  text-wrap: balance;
+  transition: opacity 0.3s ease, filter 0.35s ease, transform 0.5s var(--motion-easing), color 0.3s ease;
 }
 
-.lock-screen-form {
+.lock-say.is-alt .lock-say-text {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(-6px);
+}
+
+.lock-say-alt {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(6px);
+}
+
+.lock-say.is-alt .lock-say-alt {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.lock-say.is-wrong .lock-say-alt {
+  color: rgba(var(--danger-rgb), 0.95);
+}
+
+/* Under the title: «View chat», and in its place, once pressed, the field; a line under that for what went wrong. */
+.lock-entry {
   position: relative;
-  width: 100%;
-  max-width: 300px;
-  margin-top: 26px;
+  width: min(280px, 100%);
+  margin-top: 20px;
 }
 
-.lock-screen-input {
-  width: 100%;
-  height: 46px;
-  box-sizing: border-box;
-  padding: 0 54px 0 20px;
+.lock-screen:not(.is-asking) .lock-screen-form {
+  visibility: hidden;
+}
+
+.lock-view {
+  position: absolute;
+  top: 5px;
+  right: 0;
+  left: 0;
+  width: fit-content;
+  height: 34px;
+  margin: 0 auto;
+  padding: 0 16px;
   border: 0;
-  border-radius: 23px;
+  border-radius: 17px;
   outline: none;
-  background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px var(--composer-border), 0 14px 40px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
+  background: transparent;
   color: var(--fg-primary);
-  caret-color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.25s var(--motion-easing);
+}
+
+.lock-view:hover {
+  background: rgba(var(--fg-rgb), 0.07);
+}
+
+.lock-view:active {
+  transform: scale(0.96);
+}
+
+.lock-view:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.lock-screen.is-asking .lock-view {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lock-screen-error {
+  min-height: 18px;
+  margin: 10px 0 0;
+  color: rgba(var(--danger-rgb), 0.95);
+  font-size: 13px;
+  line-height: 18px;
+  opacity: 0;
+  filter: blur(3px);
+  transform: translateY(-4px);
+  transition: opacity 0.25s ease, filter 0.3s ease, transform 0.4s var(--motion-easing);
+}
+
+.lock-screen-error.is-shown {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+/* A capsule for the password. The dots, the caret and the arrow are the field's own. */
+.pass {
+  position: relative;
+  height: 44px;
+  border-radius: 22px;
+  background: var(--pass-bg);
+  box-shadow: inset 0 0 0 0.5px var(--pass-edge), var(--pass-lift);
+  cursor: text;
+  transition: background-color 0.25s ease, box-shadow 0.3s ease;
+}
+
+.pass:focus-within {
+  background: var(--pass-focus-bg);
+  box-shadow: inset 0 0 0 0.5px var(--pass-focus-edge), var(--pass-lift);
+}
+
+.pass-input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 52px 0 20px;
+  border: 0;
+  border-radius: inherit;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
   font: inherit;
   font-size: 15px;
-  letter-spacing: 0.04em;
-  transition: box-shadow 0.2s ease;
 }
 
-.lock-screen-input::placeholder {
-  color: rgb(var(--composer-fg-rgb));
-  letter-spacing: 0;
+.pass-input::selection {
+  background: transparent;
+  color: transparent;
 }
 
-.lock-screen-input:focus {
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.2), 0 14px 40px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
-}
-
-.lock-screen-go {
+.pass-dots {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  inset: 0 52px 0 20px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pass-track {
+  flex: none;
+  display: flex;
+  align-items: center;
+  transition: transform 0.3s var(--motion-easing);
+}
+
+.pass-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--fg-primary);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pass-dot.is-selected {
+  background: rgb(var(--selection-rgb));
+  box-shadow: 0 0 0 2.5px rgba(var(--selection-rgb), 0.28);
+}
+
+.pass-caret {
+  flex: none;
+  width: 1.5px;
+  height: 18px;
+  border-radius: 1px;
+  background: var(--fg-primary);
+  opacity: 0;
+}
+
+.pass:focus-within .pass-caret {
+  animation: pass-blink 1.1s steps(1) infinite;
+}
+
+@keyframes pass-blink {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+/* The hint stands in the middle of the empty field, the way the login window's does, and steps aside for the first character. */
+.pass-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 48px;
+  color: var(--fg-tertiary);
+  font-size: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.pass-dots:not(.is-empty) ~ .pass-hint {
+  opacity: 0;
+}
+
+/* The arrow comes in with the first character and turns into a spinner while the password is being checked. */
+.pass-go {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  right: 6px;
   display: grid;
   place-items: center;
   width: 32px;
@@ -5600,167 +7125,282 @@ h6.md-h {
   background: rgb(var(--composer-accent-rgb));
   color: rgb(var(--composer-on-accent-rgb));
   cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.2s ease, transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
-.lock-screen-go:not(:disabled):active {
+.pass-go > * {
+  grid-area: 1 / 1;
+}
+
+.pass-go:disabled {
+  opacity: 0;
+  transform: scale(0.4);
+  pointer-events: none;
+}
+
+.pass-go:not(:disabled):active {
   transform: scale(0.9);
 }
 
-.lock-screen-go:disabled {
-  opacity: 0.25;
-  cursor: default;
+.pass-go:focus-visible {
+  box-shadow: 0 0 0 2px var(--chat-bg), 0 0 0 4px var(--focus-ring);
 }
 
-.lock-screen-go:focus-visible {
-  box-shadow: 0 0 0 2px var(--composer-bg), 0 0 0 4px var(--focus-ring);
-}
-
-.lock-screen-go .glyph {
+.pass-go .glyph {
   width: 16px;
   height: 16px;
+  transition: opacity 0.2s ease, transform 0.35s var(--motion-easing);
 }
 
-.lock-screen-error {
-  min-height: 18px;
-  margin: 12px 0 0;
-  color: rgb(var(--danger-rgb));
-  font-size: 13px;
-  line-height: 18px;
+.pass-spin {
+  width: 14px;
+  height: 14px;
+  border: 1.75px solid rgba(var(--composer-on-accent-rgb), 0.22);
+  border-top-color: rgb(var(--composer-on-accent-rgb));
+  border-radius: 50%;
   opacity: 0;
-  filter: blur(3px);
-  transition: opacity 0.25s ease, filter 0.3s ease;
+  transform: scale(0.4);
+  transition: opacity 0.2s ease, transform 0.35s var(--motion-easing);
 }
 
-.lock-screen-error.is-shown {
+.is-checking .pass-go .glyph,
+.is-busy .pass-go .glyph {
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.is-checking .pass-spin,
+.is-busy .pass-spin {
   opacity: 1;
-  filter: none;
+  transform: none;
+  animation: pass-spin 0.8s linear infinite;
 }
 
-/* The card beside a chat in the list, cut from the same cloth as the selection menu. */
+@keyframes pass-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+/* The password beside a chat in the list, in the manner of the effort's stage (lock-ui.js): a capsule grown out of the chat's
+   lock button holds the padlock and the field, the step stands over it in large type with a line under it, and a soft patch
+   of the selection's veil stands behind. */
 .lock-card {
   position: fixed;
   inset: auto;
-  width: 300px;
+  width: 320px;
   margin: 0;
   padding: 0;
   overflow: visible;
   border: 0;
-  border-radius: 18px;
-  background: var(--popover-bg);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.09), 0 18px 50px rgba(0, 0, 0, calc(0.5 * var(--shadow)));
+  background: none;
   color: var(--fg-primary);
 }
 
+.lock-veil {
+  position: absolute;
+  z-index: -1;
+  mask-composite: intersect;
+  transition: left 0.5s var(--motion-easing), top 0.5s var(--motion-easing), width 0.5s var(--motion-easing), height 0.5s var(--motion-easing);
+}
+
 .lock-card-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.lock-head {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px;
+  width: max-content;
+  max-width: 400px;
+  margin: 0 0 16px;
+  padding: 0 14px;
 }
 
-.lock-card-head {
+.lock-card-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The steps stack in one line while one leaves and the next arrives. */
+.lock-card-title {
+  position: relative;
+  height: 1.1em;
+  color: rgb(var(--composer-accent-rgb));
+  font-family: "OpenGhost Display", var(--font);
+  font-size: clamp(26px, 2.6vw, 34px);
+  line-height: 1.1;
+}
+
+/* Room for two lines, so the capsule stays where it is whatever the line says. */
+.lock-card .lock-say {
+  min-height: 34px;
+  margin: 0;
+  align-items: start;
+}
+
+.lock-card .lock-say > * {
+  max-width: 320px;
+  color: rgba(var(--fg-rgb), 0.55);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 17px;
+}
+
+.lock-card .lock-say.is-wrong .lock-say-alt {
+  color: rgba(var(--danger-rgb), 0.95);
+}
+
+/* The capsule is the effort's: it holds the padlock, and the field or what can be done with the password. */
+.lock-capsule {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.lock-card-glyph {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  color: rgb(var(--composer-accent-rgb));
-}
-
-.lock-card-glyph .glyph {
-  width: 20px;
-  height: 20px;
-  overflow: visible;
-}
-
-.lock-card-title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.lock-card-text {
-  margin: 0 0 2px;
-  color: var(--fg-secondary);
-  font-size: 13px;
-  line-height: 18px;
-}
-
-.lock-card-field {
   width: 100%;
+  height: 48px;
+  padding: 5px;
+}
+
+.lock-card:not(.is-set) .lock-capsule {
+  width: max-content;
+}
+
+.lock-shell {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 18px 48px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
+  pointer-events: none;
+  transition: box-shadow 0.3s ease;
+}
+
+.lock-capsule:focus-within .lock-shell {
+  box-shadow: inset 0 0 0 1px var(--pass-focus-edge), 0 18px 48px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
+}
+
+.lock-card .seal {
+  --seal: 38px;
+  --seal-stroke: 3.4;
+  z-index: 1;
+}
+
+.lock-card-form {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The field is the capsule itself: no box of its own, the dots start right after the padlock. */
+.lock-card .pass,
+.lock-card .pass:focus-within {
   height: 38px;
-  box-sizing: border-box;
+  border-radius: 19px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lock-card .pass-input {
+  padding: 0 44px 0 6px;
+  font-size: 14px;
+}
+
+.lock-card .pass-dots {
+  inset: 0 44px 0 6px;
+}
+
+.lock-card .pass-dot {
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+}
+
+.lock-card .pass-caret {
+  height: 17px;
+}
+
+/* The hint starts just after the caret, the way a field's own does. */
+.lock-card .pass-hint {
+  justify-items: start;
+  padding: 0 44px 0 10px;
+  font-size: 14px;
+}
+
+.lock-card .pass-go {
+  top: 3px;
+  right: 3px;
+}
+
+.lock-card-note {
+  max-width: 300px;
+  margin: 12px 14px 0;
+  color: var(--fg-tertiary);
+  font-size: 11.5px;
+  line-height: 16px;
+  text-wrap: balance;
+}
+
+/* On a chat that has a password: lock it now, or take the password off. The second asks again before it goes. */
+.lock-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.lock-act {
+  height: 38px;
   padding: 0 16px;
   border: 0;
   border-radius: 19px;
   outline: none;
-  background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px var(--composer-border);
-  color: var(--fg-primary);
-  caret-color: var(--fg-primary);
+  background: transparent;
+  color: var(--fg-secondary);
   font: inherit;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  transition: box-shadow 0.2s ease;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.25s var(--motion-easing);
 }
 
-.lock-card-field::placeholder {
-  color: rgb(var(--composer-fg-rgb));
-  letter-spacing: 0;
+.lock-act.is-primary {
+  color: rgb(var(--composer-accent-rgb));
 }
 
-.lock-card-field:focus {
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.22);
+.lock-act:hover,
+.lock-act:focus-visible {
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
 }
 
-.lock-card-note {
-  margin: 0;
-  color: rgba(var(--fg-rgb), 0.45);
-  font-size: 12px;
-  line-height: 16px;
+.lock-act:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 
-.lock-card-error {
-  display: none;
-  margin: 0;
+.lock-act:active {
+  transform: scale(0.96);
+}
+
+.lock-act.is-confirming {
+  background: rgba(var(--danger-rgb), 0.14);
   color: rgb(var(--danger-rgb));
-  font-size: 12.5px;
-  line-height: 16px;
 }
 
-.lock-card-error.is-shown {
-  display: block;
-}
-
-.lock-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.lock-card .settings-button {
-  height: 32px;
-  padding: 0 14px;
-  font-size: 13px;
-  transition: background-color 0.15s ease, color 0.2s ease, opacity 0.2s ease, transform 0.2s var(--motion-easing);
-}
-
-.lock-card .settings-button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.lock-card .settings-button.is-confirming {
-  background: rgba(var(--danger-rgb), 0.16);
-  color: rgb(var(--danger-rgb));
+.lock-divider {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: rgba(var(--fg-rgb), 0.1);
 }
 
 .sidebar-toggle {
@@ -5868,12 +7508,17 @@ h6.md-h {
   transition: opacity 0.25s ease, transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
+/* Without a folder the pill shows the chats, where the new chat will go, and under the pointer turns into what it does:
+   a folder with a plus. With a folder picked it shows that folder. */
+.composer-folder-icons .glyph-folder-add,
 .composer-folder-icons .glyph-folder,
-.composer-folder.is-picked .composer-folder-icons .glyph:first-child {
+.composer-folder.is-picked .composer-folder-icons .glyph-bubble,
+.composer-folder:is(:hover, :focus-visible) .composer-folder-icons .glyph-bubble {
   opacity: 0;
   transform: scale(0.6);
 }
 
+.composer-folder:not(.is-picked):is(:hover, :focus-visible) .composer-folder-icons .glyph-folder-add,
 .composer-folder.is-picked .composer-folder-icons .glyph-folder {
   opacity: 1;
   transform: none;
@@ -6226,15 +7871,14 @@ h6.md-h {
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, opacity 0.34s ease, filter 0.4s ease;
 }
 
 .composer-mode[hidden] {
   display: none;
 }
 
-.composer-mode:hover,
-.composer-mode.is-open {
+.composer-mode:hover {
   background: rgba(var(--fg-rgb), 0.06);
   color: rgb(var(--composer-accent-rgb));
 }
@@ -6276,136 +7920,288 @@ h6.md-h {
   transform: none;
 }
 
-.mode-menu {
+/* A dock grown out of a composer button, in the manner of the effort's stage (dock.js): its choices as icons in a capsule,
+   a glass lens over the one in focus, and above it that one's name in large type over a soft patch of the selection's veil.
+   The first icon stands over the button's own glyph; the capsule is as tall as the effort's. */
+.dock {
   position: fixed;
-  position-anchor: --mode;
   position-area: top span-right;
   position-try-fallbacks: flip-block;
   inset: auto;
-  width: 316px;
-  margin: 0 0 10px -6px;
-  padding: 6px;
+  margin: 0 0 10px;
+  padding: 5px;
   overflow: visible;
   border: 0;
-  border-radius: 18px;
-  background: var(--composer-bg);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 18px 48px rgba(0, 0, 0, calc(0.5 * var(--shadow)));
+  background: none;
   color: var(--fg-primary);
-  opacity: 0;
-  transform: translateY(6px) scale(0.96);
-  transform-origin: 24px 100%;
-  transition:
-    opacity 0.18s ease,
-    transform 0.4s var(--motion-easing),
-    overlay 0.4s allow-discrete,
-    display 0.4s allow-discrete;
+  user-select: none;
 }
 
-.mode-menu:popover-open {
-  opacity: 1;
-  transform: none;
-}
-
-@starting-style {
-  .mode-menu:popover-open {
-    opacity: 0;
-    transform: translateY(6px) scale(0.96);
-  }
-}
-
-.mode-glide {
+/* The veil reaches only around the stage, as the effort's does: its edges (a mask from dock.js) fade into the app. Its box
+   follows the name, so it widens with a long one. */
+.dock-veil {
   position: absolute;
-  top: 0;
-  right: 6px;
-  left: 6px;
-  height: 0;
-  border-radius: 12px;
-  background: rgba(var(--fg-rgb), 0.06);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 0.32s var(--motion-easing), height 0.32s var(--motion-easing), opacity 0.2s ease;
+  z-index: -1;
+  mask-composite: intersect;
+  transition: left 0.5s var(--motion-easing), top 0.5s var(--motion-easing), width 0.5s var(--motion-easing), height 0.5s var(--motion-easing);
 }
 
-.mode-option {
+.dock-shell {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 18px 48px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
+  pointer-events: none;
+}
+
+.dock-row {
   position: relative;
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 18px;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 10px 9px 8px;
+  height: 38px;
+}
+
+.dock-item {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 46px;
+  height: 38px;
+  padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 19px;
   outline: none;
   background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
+  color: rgb(var(--composer-fg-rgb));
   cursor: pointer;
+  transition: color 0.25s ease;
 }
 
-.mode-option:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--focus-ring);
+.dock-item[hidden],
+.dock-divider[hidden],
+.dock-dot[hidden] {
+  display: none;
 }
 
-.mode-option .mode-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: rgba(var(--fg-rgb), 0.06);
-  color: rgba(var(--fg-rgb), 0.82);
+.dock-item.is-focus {
+  color: rgb(var(--composer-accent-rgb));
 }
 
-.mode-option .mode-icon .glyph {
-  width: 17px;
-  height: 17px;
-}
-
-.mode-option[data-mode="full"] .mode-icon {
-  background: rgba(var(--warn-rgb), 0.12);
+.dock-item[data-tone="warn"] {
   color: rgb(var(--warn-rgb));
 }
 
-.mode-option-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.dock-item[aria-disabled="true"] {
+  cursor: default;
 }
 
-.mode-option-title {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 18px;
+.dock-glyph {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  transition: opacity 0.25s ease;
 }
 
-.mode-option-hint {
-  color: var(--fg-secondary);
-  font-size: 12.5px;
-  line-height: 16px;
+.dock-item[aria-disabled="true"] .dock-glyph {
+  opacity: 0.32;
 }
 
-.mode-option-check {
-  width: 16px;
-  height: 16px;
-  color: rgba(var(--fg-rgb), 0.9);
-  opacity: 0;
-  transform: scale(0.6);
-  transition: opacity 0.2s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.mode-option-check .glyph {
-  display: block;
+.dock-glyph .glyph {
   width: 100%;
   height: 100%;
   overflow: visible;
 }
 
-.mode-option[aria-checked="true"] .mode-option-check {
+/* The glyphs drawn on the 60 grid, the modes' own, come in the same weight of line as the rest. */
+.dock-glyph svg[viewBox="30 30 60 60"] {
+  stroke-width: 4.6;
+}
+
+.dock-divider {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: rgba(var(--fg-rgb), 0.1);
+}
+
+/* The current choice, the way the Dock marks an open app: a small dot under it, which glides to a new one. */
+.dock-dot {
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--composer-accent-rgb), 0.6);
+  transition: translate 0.7s cubic-bezier(0.34, 1.25, 0.64, 1), background-color 0.3s ease;
+}
+
+.dock-dot.is-warn {
+  background: rgb(var(--warn-rgb));
+}
+
+/* The lens over the icon in focus magnifies it. Over the light theme the glass keeps a thinner white, so what it holds stays
+   dark enough to read. */
+.dock-lens {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-theme="light"] .dock-lens {
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.12) 55%, rgba(255, 255, 255, 0.26));
+}
+
+.dock:has(.dock-item:focus-visible) .dock-lens {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.dock-title {
+  position: absolute;
+  bottom: calc(100% + 16px);
+  left: 14px;
+  width: max-content;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  color: rgb(var(--composer-accent-rgb));
+  pointer-events: none;
+}
+
+/* The words stack in one line while one leaves and the next arrives. */
+.dock-word-box {
+  position: relative;
+  height: 1.1em;
+  font-family: "OpenGhost Display", var(--font);
+  font-size: clamp(28px, 2.9vw, 38px);
+  line-height: 1.1;
+}
+
+.stage-word {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  font-weight: 560;
+  letter-spacing: -0.022em;
+  white-space: pre;
+  text-shadow: 0 0 28px rgba(var(--glow-rgb), 0.22);
+  transition: opacity 0.3s ease;
+}
+
+[data-theme="light"] .stage-word {
+  text-shadow: 0 0 26px rgba(var(--glow-rgb), 0.08);
+}
+
+.stage-word.is-off {
+  opacity: 0.45;
+}
+
+.stage-letter {
+  display: inline-block;
+}
+
+/* Every line stands in the same place, so the box is as tall as the longest and the name above never moves. The old line is
+   gone before the new one comes, so they never read on top of each other. */
+.dock-hint-box {
+  --hint-delay: 140ms;
+  display: grid;
+}
+
+.dock-hint {
+  grid-area: 1 / 1;
+  max-width: 300px;
+  color: rgba(var(--fg-rgb), 0.55);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 17px;
+  text-wrap: balance;
+  opacity: 0;
+  filter: blur(3px);
+  translate: 0 5px;
+  transition: opacity 0.2s ease, filter 0.2s ease, translate 0.2s ease;
+}
+
+.dock-hint.is-shown {
   opacity: 1;
-  transform: none;
+  filter: blur(0);
+  translate: none;
+  transition: opacity 0.48s ease var(--hint-delay), filter 0.48s ease var(--hint-delay), translate 0.48s cubic-bezier(0.22, 1, 0.36, 1) var(--hint-delay);
+}
+
+.dock-hint[data-tone="warn"] {
+  color: rgba(var(--warn-rgb), 0.9);
+}
+
+/* Under the lens each icon gives a small sign of what it does: the sun rises and the picture behind slides out, the clip tips
+   over, the chevrons press the line, the bars trade heights. */
+.dock-item :is(.photo-sun, .photo-back, .compact-a, .compact-b) {
+  transition: transform 0.5s var(--motion-easing);
+}
+
+.dock-item.is-focus .photo-sun {
+  transform: translateY(-1.3px);
+}
+
+.dock-item.is-focus .photo-back {
+  transform: translate(0.9px, -0.9px);
+}
+
+.dock-item .clip-wire {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dock-item.is-focus .clip-wire {
+  transform: rotate(-14deg);
+}
+
+.dock-item.is-focus .compact-a {
+  transform: translateY(1.3px);
+}
+
+.dock-item.is-focus .compact-b {
+  transform: translateY(-1.3px);
+}
+
+.dock-item :is(.bar-a, .bar-b, .bar-c) {
+  transition: y 0.6s var(--motion-easing), height 0.6s var(--motion-easing);
+}
+
+.dock-item.is-focus .bar-a {
+  y: 7.6px;
+  height: 12.4px;
+}
+
+.dock-item.is-focus .bar-b {
+  y: 10px;
+  height: 10px;
+}
+
+.dock-item.is-focus .bar-c {
+  y: 5.6px;
+  height: 14.4px;
+}
+
+/* While its dock is out, the button has turned into the dock: it dissolves as the capsule grows out of it and comes back
+   as the capsule folds into it. It keeps its size, since the dock is placed by it. */
+.composer-add {
+  transition: opacity 0.34s ease, filter 0.4s ease;
+}
+
+.composer-add.is-away,
+.composer-mode.is-away {
+  opacity: 0;
+  filter: blur(3px);
+  pointer-events: none;
+  transition: opacity 0.16s ease, filter 0.2s ease;
 }
 
 .composer-actions {
@@ -6948,7 +8744,7 @@ h6.md-h {
   padding: 0;
   overflow: hidden;
   border: 0;
-  background: var(--app-bg);
+  background: var(--frame), var(--app-bg);
   border-radius: calc(var(--chat-radius) + var(--chat-gap));
   box-shadow: var(--contour), 0 24px 64px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   color: var(--fg-primary);
@@ -6959,6 +8755,11 @@ h6.md-h {
     transform 0.35s var(--motion-easing),
     overlay 0.35s allow-discrete,
     display 0.35s allow-discrete;
+}
+
+/* In the light the contour's white inner line stood out as a bright frame around the pale backdrop; a thin cool line outside draws the edge. */
+[data-theme="light"] .settings {
+  box-shadow: 0 0 0 1px rgba(30, 48, 88, 0.18), 0 24px 64px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
 }
 
 .settings[open] {
@@ -7063,7 +8864,8 @@ h6.md-h {
   left: 0;
   height: 34px;
   border-radius: 17px;
-  background: rgba(var(--fg-rgb), 0.07);
+  background: var(--row-active-bg);
+  box-shadow: var(--row-active-lift);
   opacity: 0;
   pointer-events: none;
   transition:
@@ -7398,8 +9200,6 @@ h6.md-h {
   border-radius: 14px;
   background: var(--tip-bg);
   box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 14px 34px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
-  -webkit-backdrop-filter: blur(18px) saturate(1.6);
-  backdrop-filter: blur(18px) saturate(1.6);
   color: var(--fg-primary);
   font-size: 12.5px;
   font-weight: 600;
@@ -7408,6 +9208,13 @@ h6.md-h {
   opacity: 0;
   pointer-events: none;
   will-change: transform, opacity;
+}
+
+/* Frosted only while it shows. On the hidden tip, which waits on the page the whole time, the glass still made the window
+   blur everything behind it on every frame, and it rebuilt the whole picture as the page settled in, which could blink the settings. */
+.usage-tip.is-shown {
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
 }
 
 .usage-tip-head {
@@ -8218,7 +10025,9 @@ h6.md-h {
   transition: color 0.25s ease;
 }
 
+/* .is-held: the card just picked by the pointer keeps the hover's look while the theme spreads (settings-appearance.js). */
 .theme-option:hover,
+.theme-option.is-held,
 .theme-option[aria-checked="true"] {
   color: var(--fg-primary);
 }
@@ -8238,7 +10047,7 @@ h6.md-h {
     transform 0.5s var(--motion-easing);
 }
 
-.theme-option:hover .theme-frame {
+.theme-option:is(:hover, .is-held) .theme-frame {
   transform: translateY(-2px);
 }
 
@@ -8273,7 +10082,7 @@ h6.md-h {
   display: flex;
   gap: 5%;
   padding: 7% 0 0 5%;
-  background: var(--app-bg);
+  background: var(--frame), var(--app-bg);
 }
 
 /* System: the light window with the dark one over its lower right half, split on the diagonal. */
@@ -8400,6 +10209,9 @@ h6.md-h {
   transition:
     opacity 0.2s ease,
     transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Kept on its own layer for good: the settings window often stands between whole pixels, and a mark dropped from its layer
+     as the pop ends was drawn again half a pixel off, a twitch right after it landed. */
+  will-change: transform;
 }
 
 .theme-check svg {
@@ -8545,6 +10357,49 @@ h6.md-h {
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
+}
+
+/* A video's card is a photo's: a frame of it, which comes in once it is taken, and the video's length over a soft shade
+   at the bottom. The length sits on the left, clear of the note's button. */
+.attachment.is-video {
+  background: rgba(var(--fg-rgb), 0.06);
+}
+
+.attachment.is-video .attachment-thumb {
+  animation: attachment-frame-in 0.4s ease both;
+}
+
+@keyframes attachment-frame-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.attachment.is-video:has(.attachment-thumb)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent 58%);
+  pointer-events: none;
+}
+
+.attachment-duration {
+  position: absolute;
+  bottom: 4px;
+  left: 6px;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 13px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.attachment-duration:empty,
+.attachment.is-video:not(:has(.attachment-thumb)) .attachment-duration {
+  display: none;
 }
 
 .attachment.is-file {
@@ -8979,6 +10834,12 @@ button.attachment-text {
   line-height: 18px;
 }
 
+/* The cards fanned behind a stack of photos and videos reach a little below it: what follows lies over them. */
+.media ~ :is(.message-files, .message-quote, .message-bubble) {
+  position: relative;
+  z-index: 1;
+}
+
 .message-files {
   display: flex;
   flex-wrap: wrap;
@@ -9216,6 +11077,330 @@ button.attachment-text {
   font-variant-numeric: tabular-nums;
 }
 
+/* A video's length, on the same frosted pill as the dots. */
+.media-duration {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  backdrop-filter: blur(10px) saturate(1.4);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* Pictures and videos a reply shows. The pictures are the stack an attachment has, leafed through the same way;
+   under it stand the caption and the source of the picture on top. */
+.md-media {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 4px 0 calc(var(--md-gap) + 4px);
+}
+
+.md-media:empty {
+  display: none;
+}
+
+.md-gallery {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.md-gallery .media.is-linked {
+  cursor: pointer;
+}
+
+.md-gallery .media.is-linked.is-many {
+  cursor: grab;
+}
+
+.md-gallery .media.is-linked.is-dragging {
+  cursor: grabbing;
+}
+
+/* The pictures behind fan out below the one on top: what is written under the stack starts below their corners. */
+.md-gallery .media.is-many {
+  margin-bottom: 26px;
+}
+
+/* While the pictures are on their way, a quiet plate keeps their place. */
+.md-gallery-wait {
+  width: min(100%, 380px);
+  aspect-ratio: 4 / 3;
+  border-radius: 18px;
+  background: rgba(var(--fg-rgb), 0.04);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.07);
+  animation: md-media-wait 1.8s ease-in-out infinite;
+}
+
+@keyframes md-media-wait {
+  50% { background: rgba(var(--fg-rgb), 0.075); }
+}
+
+.md-gallery-caption {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  max-width: 100%;
+  color: rgba(var(--fg-rgb), var(--fg-secondary-opacity));
+  font-size: 0.875em;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.md-gallery-caption[hidden] {
+  display: none;
+}
+
+.md-gallery-held {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+}
+
+/* A picture from a place the app does not load by itself: it comes on a click. */
+.md-gallery-ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  height: 30px;
+  padding: 0 11px 0 9px;
+  border: 0;
+  border-radius: 10px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: rgba(var(--fg-rgb), 0.9);
+  font: inherit;
+  font-size: 0.875em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.md-gallery-ask:hover {
+  background: rgba(var(--fg-rgb), 0.12);
+}
+
+.md-gallery-ask:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.md-gallery-ask svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  opacity: 0.75;
+}
+
+.md-gallery-ask-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.md-gallery-ask-host {
+  flex: none;
+  color: rgba(var(--fg-rgb), var(--fg-secondary-opacity));
+}
+
+/* A video: its preview with a play mark on it, its name under it, and who made it. */
+.md-videos {
+  display: grid;
+  grid-template-columns: minmax(0, 380px);
+  gap: 20px 14px;
+}
+
+/* Several stand in rows; in a narrow window still two to a row, as long as a card keeps a readable width. */
+.md-videos.is-many {
+  grid-template-columns: repeat(auto-fill, minmax(max(170px, min(210px, 46%)), 1fr));
+}
+
+.md-video,
+.markdown a.md-video {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  outline: none;
+  color: inherit;
+  text-decoration: none;
+}
+
+.md-video-thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  background: var(--media-bg);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, calc(0.26 * var(--shadow)));
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
+}
+
+.md-video-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.07);
+  pointer-events: none;
+}
+
+.md-video-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.md-video.is-loaded .md-video-img {
+  opacity: 1;
+}
+
+.md-video:hover .md-video-thumb {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, calc(0.34 * var(--shadow)));
+}
+
+.md-video:hover .md-video-img {
+  transform: scale(1.03);
+}
+
+.md-video:focus-visible .md-video-thumb {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.md-video-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.38);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  backdrop-filter: blur(10px) saturate(1.4);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.28);
+  color: #fff;
+  translate: -50% -50%;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s ease;
+}
+
+.md-video-play svg {
+  width: 22px;
+  height: 22px;
+}
+
+.md-video:hover .md-video-play {
+  transform: scale(1.08);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.md-video:active .md-video-play {
+  transform: scale(0.94);
+}
+
+/* A video's length, on the same frosted pill as on an attached video. */
+.md-video-time {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.42);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  backdrop-filter: blur(10px) saturate(1.4);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-video-title {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 10px;
+  color: rgba(var(--fg-rgb), 0.92);
+  font-size: 0.9em;
+  font-weight: 600;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.md-video-title:empty {
+  display: none;
+}
+
+.md-video-meta {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-top: 5px;
+  color: rgba(var(--fg-rgb), var(--fg-secondary-opacity));
+  font-size: 0.8em;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.md-video-meta .link-chip-icon {
+  flex: none;
+  vertical-align: 0;
+}
+
+.md-video-by {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A video that is not there keeps its link and loses the plate: there is nothing to show on it. */
+.md-video.is-missing .md-video-thumb {
+  display: none;
+}
+
+.md-video.is-missing .md-video-title {
+  margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-gallery-wait {
+    animation: none;
+  }
+
+  .md-video-thumb,
+  .md-video-img,
+  .md-video-play {
+    transition: none;
+  }
+
+  .md-video:hover .md-video-thumb,
+  .md-video:hover .md-video-img,
+  .md-video:hover .md-video-play {
+    transform: none;
+  }
+}
+
 .browser-toggle {
   position: absolute;
   z-index: 3;
@@ -9305,7 +11490,7 @@ button.attachment-text {
   overflow: hidden;
   background: var(--chat-bg);
   border-radius: var(--chat-radius);
-  box-shadow: var(--contour);
+  box-shadow: var(--contour), var(--card-lift);
 }
 
 .browser-tabs {
@@ -9925,10 +12110,11 @@ button.attachment-text {
   .attachment-note,
   .media-arrow,
   .message.is-user .message-tools,
-  .mode-menu,
-  .mode-glide,
   .composer-mode-icons .mode-icon,
-  .mode-option-check,
+  .composer-add,
+  .composer-mode,
+  .composer-add.is-away,
+  .composer-mode.is-away,
   .model-slot,
   .model-row,
   .model-name,
@@ -9939,12 +12125,38 @@ button.attachment-text {
   .chat-title,
   .chat-guard,
   .lock-shackle,
+  .lock-say > *,
+  .lock-veil,
+  .lock-shell,
+  .lock-act,
+  .lock-view,
   .lock-screen-error,
+  .pass,
+  .pass-track,
+  .pass-dot,
+  .pass-hint,
+  .pass-go,
+  .pass-go .glyph,
+  .pass-spin,
   .trash-lid,
   .select-menu,
   .mini,
   .mini::backdrop,
   .mini-empty,
+  .mini-clear,
+  .mini-clear.is-shown,
+  .dock-veil,
+  .dock-item,
+  .dock-glyph,
+  .dock-dot,
+  .stage-word,
+  .dock-hint,
+  .dock-hint.is-shown,
+  .dock-item :is(.photo-sun, .photo-back, .compact-a, .compact-b, .clip-wire, .bar-a, .bar-b, .bar-c),
+  .stats-remove,
+  .stats-bar,
+  .stats-row,
+  .stats-tip,
   .browser,
   .browser-take,
   .browser-user,
@@ -9954,7 +12166,7 @@ button.attachment-text {
   }
 
   .attachment.is-entering,
-  .lock-screen.is-checking .lock-screen-glyph .glyph,
+  .attachment.is-video .attachment-thumb,
   .message-tools,
   .approval,
   .approval-word,
@@ -9995,6 +12207,8 @@ button.attachment-text {
   .chats-folder-body,
   .chats-folder-inner,
   .glyph-folder .folder-front,
+  .glyph-bubble .bubble-dot,
+  .chats-folder.is-collapsed .glyph-bubble .bubble-dot,
   .chat-dot,
   .settings-glide,
   .settings-tab-icon *,

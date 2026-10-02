@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { net } = require('electron');
 const Media = require('./media');
+const Pdf = require('./pdf');
 const Browser = require('./browser');
 
 const OUTPUT = { head: 12000, tail: 18000 };
@@ -27,6 +28,14 @@ const SYSTEM = SYSTEMS[process.platform] || SYSTEMS.linux;
 const WINDOWS = process.platform === 'win32';
 // No console window flashes up on Windows; elsewhere a command leads its own process group, so kill() stops all of it.
 const SPAWN = WINDOWS ? { windowsHide: true } : { detached: true };
+
+// A chat started without a project folder works in a folder of its own in here. It sits in the home folder, not next to the app:
+// an update replaces the app's own folder whole, and Documents and the desktop are often synced by OneDrive or iCloud.
+const CHATS = path.join(os.homedir(), 'OpenGhost', 'Chats');
+const inChats = dir => {
+ const rest = path.relative(CHATS, dir);
+ return !!rest && !rest.startsWith('..') && !path.isAbsolute(rest);
+};
 
 const UA = `Mozilla/5.0 (${SYSTEM.ua}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 const WINDOWS_POWERSHELL = { exe: 'powershell.exe', name: 'Windows PowerShell', version: '5.1' };
@@ -202,6 +211,17 @@ async function cancellable(id, work) {
  }
 }
 
+// The text a file holds. A PDF's comes from the viewer built into the app; any other file is read as it is.
+async function fileText(id, full, file, stat) {
+ if (Pdf.isPdf(full)) {
+  const text = await cancellable(id, signal => Pdf.text(full, signal));
+  return text ? { text } : { error: `${file} has no text in it: its pages are pictures, such as scans` };
+ }
+ if (stat.size > READ.max) return { error: `${file} is ${formatSize(stat.size)}, too big to read at once. Read parts of it with ${SYSTEM.tool} (${SYSTEM.readParts}).` };
+ const buffer = await fs.promises.readFile(full);
+ return isBinary(buffer) ? { binary: true, size: formatSize(stat.size), path: full } : { text: decode(buffer) };
+}
+
 async function readFile(id, { path: file, offset, limit }, cwd) {
  const full = resolvePath(cwd, file);
  const stat = await fs.promises.stat(full).catch(error => { throw Object.assign(error, { file }); });
@@ -210,10 +230,9 @@ async function readFile(id, { path: file, offset, limit }, cwd) {
   const picture = await cancellable(id, signal => Media.image(full, signal));
   return { path: full, image: picture.url, width: picture.width, height: picture.height, size: formatSize(stat.size) };
  }
- if (stat.size > READ.max) return { error: `${file} is ${formatSize(stat.size)}, too big to read at once. Read parts of it with ${SYSTEM.tool} (${SYSTEM.readParts}).` };
- const buffer = await fs.promises.readFile(full);
- if (isBinary(buffer)) return { binary: true, size: formatSize(stat.size), path: full };
- const lines = decode(buffer).split(/\r?\n/);
+ const found = await fileText(id, full, file, stat);
+ if (found.text === undefined) return found;
+ const lines = found.text.split(/\r?\n/);
  const start = Math.max(1, Math.floor(Number(offset) || 1));
  const count = Math.min(READ.lines, Math.max(1, Math.floor(Number(limit) || READ.lines)));
  const slice = lines.slice(start - 1, start - 1 + count);
@@ -375,7 +394,9 @@ async function runTool(id, name, args, cwd, sender) {
  const tool = TOOLS[name];
  if (!tool) return { error: `Unknown tool ${name}` };
  if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return { error: 'This chat has no project folder' };
- const stat = await fs.promises.stat(cwd).catch(() => null);
+ let stat = await fs.promises.stat(cwd).catch(() => null);
+ // A chat's own folder is made the first time the agent needs it, so chats that only talk leave nothing on disk.
+ if (!stat && inChats(cwd)) stat = await fs.promises.mkdir(cwd, { recursive: true }).then(() => fs.promises.stat(cwd)).catch(() => null);
  if (!stat?.isDirectory()) return { error: `The project folder ${cwd} doesn't exist anymore` };
  try {
   return await tool(String(id || ''), args && typeof args === 'object' ? args : {}, cwd);
@@ -404,4 +425,10 @@ async function environment() {
  };
 }
 
-module.exports = { runTool, cancel, cancelAll, environment };
+// A deleted chat takes its own folder along only while nothing is in it: what the agent made there stays the user's.
+async function release(dir) {
+ if (typeof dir !== 'string' || !path.isAbsolute(dir) || !inChats(dir)) return false;
+ return fs.promises.rmdir(dir).then(() => true, () => false);
+}
+
+module.exports = { runTool, cancel, cancelAll, environment, release, CHATS };

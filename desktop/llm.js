@@ -39,7 +39,7 @@ function register(fromApp) {
  ipcMain.handle('llm:models', async (event, provider, key) => {
   if (!fromApp(event) || !PROVIDERS.has(provider)) return { models: [] };
   try {
-   return { models: await engine(provider).models({ provider, key }) };
+   return { models: await engine(provider).models({ provider, key }, { chatgpt: ChatGPT.credentials, version: app.getVersion() }) };
   } catch (error) {
    return { error: { status: error.status || 0, code: error.code || '', message: error.message } };
   }

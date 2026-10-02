@@ -14,12 +14,19 @@ const DIAGRAM_KINDS = {
  quadrantchart: 'quadrantChart', quadrant: 'quadrantChart', radar: 'radar-beta', 'radar-beta': 'radar-beta',
  erdiagram: 'erDiagram', er: 'erDiagram', classdiagram: 'classDiagram', 'classdiagram-v2': 'classDiagram',
  wireframe: 'wireframe', mockup: 'wireframe', files: 'files', folder: 'files',
+ metrics: 'metrics', bars: 'bars', ledger: 'bars', ranges: 'ranges', range: 'ranges', plan: 'plan', board: 'plan', kanban: 'kanban', steps: 'steps',
+ waterfall: 'waterfall', funnel: 'funnel', sankey: 'sankey-beta', 'sankey-beta': 'sankey-beta', heatmap: 'heatmap', calendar: 'heatmap', scatter: 'scatter',
+ treemap: 'treemap-beta', 'treemap-beta': 'treemap-beta', gitgraph: 'gitGraph', journey: 'journey', array: 'array', cells: 'array', bracket: 'bracket',
+ nutrition: 'nutrition', facts: 'facts', checklist: 'checklist', changes: 'changes', outline: 'outline', matches: 'matches',
+ words: 'words', vocab: 'words', gloss: 'gloss', forms: 'forms', recipe: 'recipe', parts: 'parts', settings: 'settings', route: 'route',
 };
-const DIAGRAM_HEADER = /^(graph|flowchart|stateDiagram(-v2)?|sequenceDiagram|pie|xychart(-beta)?|candlestick|candles|ohlc|timeline|gantt|mindmap|quadrantChart|radar(-beta)?|erDiagram|classDiagram(-v2)?|wireframe|mockup|files|folder)\b/i;
-const BARE_DIAGRAM = /^((flowchart|graph)\s+(TD|TB|LR|RL|BT)|(sequenceDiagram|stateDiagram(-v2)?|xychart(-beta)?|quadrantChart|radar-beta|erDiagram|classDiagram|mindmap|gantt|timeline|candlestick|wireframe)\b.*|pie(\s+(showData|title\b.*))?)\s*$/;
+const DIAGRAM_HEADER = /^(graph|flowchart|stateDiagram(-v2)?|sequenceDiagram|pie|xychart(-beta)?|candlestick|candles|ohlc|timeline|gantt|mindmap|quadrantChart|radar(-beta)?|erDiagram|classDiagram(-v2)?|wireframe|mockup|files|folder|metrics|bars|ledger|ranges?|plan|board|kanban|steps|waterfall|funnel|sankey(-beta)?|heatmap|calendar|scatter|treemap(-beta)?|gitGraph|journey|array|cells|bracket|nutrition|food|meals?|facts|passport|checklist|checks|changes|diff|outline|contents|matches|fixtures|words|vocab|vocabulary|glossary|gloss|interlinear|forms|conjugation|declension|paradigm|recipe|cooking|parts|build|components|bom|settings|setup|toggles|route|itinerary|trip)\b/i;
+const BARE_DIAGRAM = /^((flowchart|graph)\s+(TD|TB|LR|RL|BT)|(sequenceDiagram|stateDiagram(-v2)?|xychart(-beta)?|quadrantChart|radar-beta|erDiagram|classDiagram|mindmap|gantt|timeline|candlestick|wireframe|gitGraph|sankey-beta|treemap-beta|kanban|journey)\b.*|pie(\s+(showData|title\b.*))?)\s*$/;
+// A folder is a card like an attachment and stands in the column of the text. Every drawing has the whole width of
+// the chat: the engine keeps a figure on the text's edge while it fits there and lets it grow when it needs room.
+const COLUMN_DIAGRAM = /^(files|folder)\b/i;
 // A folder drawn with the files block. Models sometimes write it without a fence: the word alone on a line, then its
 // title, path or an entry with | right under it, is such a block all the same, down to the next blank line.
-const FILES_HEADER = /^(files|folder)\b/i;
 const BARE_FILES = /^[ \t]*(files|folder)[ \t]*$/i;
 const FILES_LINE = /^[ \t]*((title|path|view|more)[ \t:]+\S|[^|\n]+\|)/i;
 const PLAIN_LANGS = new Set(['', 'text', 'txt', 'plain', 'plaintext']);
@@ -72,6 +79,16 @@ const COPY_ICON = '<svg class="md-copy-icon" viewBox="0 0 16 16" fill="none" str
  + '<svg class="md-check-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>';
 
 const escapeHtml = text => text.replace(/[&<>"]/g, c => ENTITIES[c]);
+// A paragraph made of nothing but pictures and links to videos is shown as what it holds: the pictures as a
+// stack to leaf through, each video as a card with its preview. A picture is ![caption](address), or the same
+// inside a link to the page it is from; a video is a link to it, with words or bare.
+const MEDIA_ADDRESS = '<?([^\\s<>()]*(?:\\([^\\s<>()]*\\)[^\\s<>()]*)*)>?', MEDIA_NAME = '(?:\\s+(?:"[^"]*"|\'[^\']*\'))?';
+const MEDIA_TOKEN = new RegExp(`^(?:\\[!\\[([^\\]]*)\\]\\(\\s*${MEDIA_ADDRESS}${MEDIA_NAME}\\s*\\)\\]\\(\\s*${MEDIA_ADDRESS}\\s*\\)`
+ + `|!\\[([^\\]]*)\\]\\(\\s*${MEDIA_ADDRESS}${MEDIA_NAME}\\s*\\)|\\[([^\\]]+)\\]\\(\\s*${MEDIA_ADDRESS}\\s*\\)|(https?:\\/\\/[^\\s<>"'\`]+))`);
+// A picture still being written, from its very first sign: the pictures before it wait for it and are not shown
+// as a stack that would be built again a moment later.
+const MEDIA_OPEN = /^(?:\[!?|!|(?:\[!\[|!\[)[^\n]*)$/;
+const MEDIA_VIDEO = /^https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?(?:[^#\s]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)[\w-]{11}(?![\w-])/i;
 const isSpace = c => c === undefined || /\s/.test(c);
 const isPunct = c => c !== undefined && PUNCT.test(c);
 const classes = (...names) => {
@@ -241,6 +258,11 @@ function inline(src, live = false) {
    const link = parseLink(src, i, live);
    if (link) { emit(link.html); i = link.end; continue; }
   }
+  // A picture written in the middle of a line is a link to it: only a paragraph of its own shows it.
+  if (c === '!' && src[i + 1] === '[') {
+   const link = parseLink(src, i + 1, live);
+   if (link) { emit(link.html); i = link.end; continue; }
+  }
   if ((c === 'h' || c === 'w') && (src.startsWith('http', i) || src.startsWith('www.', i))) {
    const link = autolink(src, i, live);
    if (link) { emit(link.html); i = link.end; continue; }
@@ -271,6 +293,37 @@ function inline(src, live = false) {
  }
  flush();
  return emphasis(tokens, live);
+}
+
+// What a paragraph shows when it is all pictures and videos, or null when it is a paragraph like any other. While
+// the reply is still being written its last picture may be half there: what came before it is shown and waits.
+function mediaItems(text, live) {
+ const items = [];
+ let rest = text.trim();
+ if (!/^(?:\[|!\[|https?:\/\/)/i.test(rest)) return null;
+ while (rest) {
+  // A picture inside a link is whole only with the link closed: until then its start reads as a link of its own.
+  const m = MEDIA_TOKEN.exec(rest);
+  if (!m || (rest.startsWith('[![') && m[2] === undefined)) return live && MEDIA_OPEN.test(rest) ? { items, open: true } : null;
+  if (m[2] !== undefined || m[5] !== undefined) {
+   const src = m[2] ?? m[5], href = m[3] || '';
+   if (!/^https?:\/\//i.test(src)) return null;
+   items.push({ k: 'i', src, alt: (m[1] ?? m[4]).trim(), href: SAFE_URL.test(href) ? href : '' });
+  } else {
+   let url = m[7] ?? m[8];
+   while (m[8] && /[.,;:!?»"'…*_~)]$/.test(url)) url = url.slice(0, -1);
+   if (!MEDIA_VIDEO.test(url)) return null;
+   items.push({ k: 'v', url, title: (m[6] || '').trim() });
+  }
+  rest = rest.slice(m[0].length).trimStart();
+ }
+ return items.length ? { items, open: false } : null;
+}
+
+// The placeholder the app turns into the stack and the cards; until it does, and wherever it can't, the links.
+function mediaHtml({ items }, live) {
+ const links = items.map(item => window.LinkChip ? LinkChip.html(item.k === 'i' ? item.href || item.src : item.url) : '').join(' ');
+ return `<div class="md-media" data-static data-nowave data-media="${escapeHtml(JSON.stringify(items))}"${live ? ' data-live' : ''}>${links}</div>`;
 }
 
 function insideFence(lines, end) {
@@ -451,6 +504,17 @@ function parse(lines, openLine = -1, top = false) {
    }
    const parts = para.length === 1 && i - 1 !== openLine && flowParts(para[0]);
    if (parts) { add({ type: 'flow', parts }, i - 1, i); continue; }
+   // A picture or a video alone on its line is shown as itself even right under a line of words: the paragraph
+   // parts there, and the lines of pictures and videos make a paragraph of their own.
+   const first = i - para.length, shown = para.length > 1 ? para.map((text, k) => !!mediaItems(text, first + k === openLine)) : [];
+   if (shown.includes(true) && shown.includes(false)) {
+    for (let start = 0, k = 1; k <= para.length; k++) {
+     if (k < para.length && shown[k] === shown[start]) continue;
+     add({ type: 'para', lines: para.slice(start, k) }, first + start, first + k);
+     start = k;
+    }
+    continue;
+   }
   }
   add({ type: 'para', lines: para }, i - para.length, i);
  }
@@ -468,6 +532,24 @@ function renderNested(lines, state, live) {
  return `<p>${inline(lines.join('\n'), live)}</p>`;
 }
 
+// The line of a diagram that names its kind: the first one past the block between two lines of --- that Mermaid
+// lets a diagram open with, and past its %% remarks and settings.
+function diagramHeader(body) {
+ const lines = body.split('\n');
+ let i = lines.findIndex(line => line.trim());
+ if (i < 0) return '';
+ if (lines[i].trim() === '---') {
+  const close = lines.findIndex((line, k) => k > i && line.trim() === '---');
+  if (close < 0) return '';
+  i = close + 1;
+ }
+ for (; i < lines.length; i++) {
+  const line = lines[i].trim();
+  if (line && !line.startsWith('%%')) return line;
+ }
+ return '';
+}
+
 function renderCode(block, state, live) {
  const lang = block.lang, t = tone(state.tone || state.tones[0]);
  const kind = DIAGRAM_KINDS[lang] ? `${DIAGRAM_KINDS[lang]} ${block.info || ''}`.trim() : '';
@@ -475,11 +557,12 @@ function renderCode(block, state, live) {
  if (DIAGRAM_LANGS.has(lang) || kind || bare) {
   const open = !block.closed && live;
   const body = open ? block.body.split('\n').slice(0, -1).join('\n') : block.body;
-  const header = (body.split('\n').find(line => line.trim()) || '').trim();
-  // A folder is a card in the column, like an attachment; the other diagrams take the whole width.
-  const card = kind.startsWith('files') || FILES_HEADER.test(header);
-  const wide = !card && !state.depth && (kind || (header ? DIAGRAM_HEADER.test(header) : open));
-  return `<div class="md-diagram ${t}${wide ? ' md-wide' : ''}" data-static data-diagram="${escapeHtml(body)}" data-kind="${escapeHtml(kind)}" data-tone="${Math.max(0, state.heading)}"${open ? ' data-live' : ''}>`
+  const header = diagramHeader(body);
+  // A figure stands in the column, on the text's own edge, and so does a folder, a card like an attachment;
+  // schemes and whatever else needs the room take the whole width.
+  const column = COLUMN_DIAGRAM.test(kind || header);
+  const wide = !column && !state.depth && (kind || (header ? DIAGRAM_HEADER.test(header) : open));
+  return `<div class="md-diagram ${t}${wide ? ' md-wide' : ''}" data-static data-diagram="${escapeHtml(body)}" data-kind="${escapeHtml(kind)}"${open ? ' data-live' : ''}>`
    + `<div class="md-diagram-status">${I18n.t('diagram.building')}</div></div>`;
  }
  if (CALC_LANGS.has(lang)) {
@@ -758,6 +841,9 @@ function artHtml(body) {
 }
 
 function renderList(block, state, live) {
+ // A list whose every item is a picture or a video is those pictures and videos, not a list of links.
+ const shown = block.items.map(item => item.task === null ? mediaItems(item.body.join('\n'), false) : null);
+ if (shown.every(Boolean)) return mediaHtml({ items: shown.flatMap(media => media.items) }, live);
  const tag = block.ordered ? 'ol' : 'ul';
  const start = block.ordered && block.start !== 1 ? ` start="${block.start}" style="counter-reset:md-ol ${block.start - 1}"` : '';
  const inner = { ...state, depth: state.depth + 1 };
@@ -829,8 +915,12 @@ function render(block, state, live) {
    const level = Math.min(block.level, 6), own = tone(state.tone || state.tones[0]);
    return `<h${level}${classes('md-h', own, block.pseudo && 'is-pseudo')}>${inline(block.text, live)}</h${level}>`;
   }
-  case 'para':
+  case 'para': {
+   // Inside a list or a quote a link stays a link: only a list that is all pictures and videos is shown as them.
+   const media = state.depth ? null : mediaItems(block.lines.join('\n'), live);
+   if (media) return mediaHtml(media, live);
    return `<p${classes(t)}>${inline(block.lines.join('\n'), live)}</p>`;
+  }
   case 'flow': {
    const base = Math.max(0, state.heading), tones = state.tones;
    const parts = block.parts.map((part, k) => (k ? `<span class="md-arrow" style="--k:${k}" aria-hidden="true"></span>` : '')

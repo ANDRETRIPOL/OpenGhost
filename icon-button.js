@@ -55,7 +55,7 @@ class IconButton extends HTMLElement {
  wake(){if(!this.isConnected||this.raf)return;this.last=performance.now();this.raf=requestAnimationFrame(this.tick)}
  tick(now){
   this.raf=0;const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const dt=Math.min((now-this.last)/1000,.032);this.last=now;
+  const dt=Math.min(Math.max((now-this.last)/1000,0),.032);this.last=now;
   const hover=this.hover&&!this.button.disabled?1:0;
   const target={press:this.down?1:0,...this.targets(hover,reduced)};
   let moving=false;

@@ -29,12 +29,13 @@ function explain(provider, { status = 0, code = '', message = '' }) {
 
 const aborted = partial => Object.assign(new DOMException('Aborted', 'AbortError'), { partial });
 
-function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxTokens, session }) {
+// `once`: a request nothing will follow, so there is no point in paying a provider to keep its start in a cache.
+function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxTokens, session, once = false }) {
  if (!bridge) return Promise.reject(new ProviderError(I18n.t('error.desktop', { provider: NAMES[config.provider] })));
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
   provider: config.provider, key: config.key, model: config.model, effort: config.effort, vision: config.vision,
-  thinking: config.thinking, output: config.output, messages, tools, maxTokens, session,
+  thinking: config.thinking, output: config.output, messages, tools, maxTokens, session, once,
  };
  return new Promise((resolve, reject) => {
   const partial = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
@@ -53,6 +54,8 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxT
     onReasoning?.(event.delta, partial);
    } else if (event.type === 'done') {
     finish();
+    // The provider learned something about the model on the way: what the picker and the effort control show is out of date.
+    if (event.result?.stale) window.dispatchEvent(new CustomEvent('models-stale', { detail: config.provider }));
     resolve({ ...partial, ...event.result });
    } else if (event.type === 'error') {
     finish();
@@ -76,13 +79,19 @@ async function stream(config, options) {
  return counted(config, await DeepSeek.streamChat({ key: config.key, model: config.model, effort: config.effort, vision: config.vision, messages, tools, signal, onReasoning, onContent }));
 }
 
-// Short side jobs, such as naming a chat or compacting it, think as little as the model allows.
-async function complete(config, { messages, signal, maxTokens = 40 }) {
- if (config.provider === 'deepseek') return counted(config, await DeepSeek.complete({ key: config.key, model: config.model, messages, signal, maxTokens })).content;
+// Short side jobs, such as naming a chat or compacting it, think as little as the model allows. `onUsage` hears what the job
+// cost, for a chat that keeps count of its own tokens.
+async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
+ if (config.provider === 'deepseek') {
+  const result = counted(config, await DeepSeek.complete({ key: config.key, model: config.model, messages, signal, maxTokens }));
+  onUsage?.(result.usage);
+  return result.content;
+ }
  const efforts = config.efforts || [];
  const effort = efforts.includes('none') ? 'none' : efforts[0] || 'low';
  const room = config.provider === 'anthropic' ? Math.max(maxTokens, 2048) : maxTokens;
- const result = counted(config, await viaMain({ ...config, effort }, { messages, signal, maxTokens: room }));
+ const result = counted(config, await viaMain({ ...config, effort }, { messages, signal, maxTokens: room, once: true }));
+ onUsage?.(result.usage);
  return result.content.trim();
 }
 

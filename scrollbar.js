@@ -110,7 +110,7 @@ class Scrollbar {
  wake(){if(this.raf)return;this.last=performance.now();this.raf=requestAnimationFrame(this.tick)}
  tick(now){
   this.raf=0;
-  const dt=Math.min((now-this.last)/1000,.032);this.last=now;
+  const dt=Math.min(Math.max((now-this.last)/1000,0),.032);this.last=now;
   const s=this.size,[sk,sc]=SIZE_SPRING,sizeGoal=this.target?this.target.h:s[0];
   if(reducedMotion()){s[0]=sizeGoal;s[1]=0}
   const steps=Math.max(1,Math.ceil(dt/.008)),step=dt/steps;

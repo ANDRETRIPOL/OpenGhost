@@ -14,6 +14,8 @@ const MINUTE = 60000, HOUR = 60 * MINUTE, DAY = 24 * HOUR, WEEK = 7 * DAY;
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const key = path => Library.pathKey(path);
+// Where a new chat without a folder waits: among the chats.
+const HOME = Symbol('home');
 // A title blurs away before its stand-in takes its place.
 const VEIL_TIME = 420;
 // A new title writes itself in letter by letter, the whole of it within `spread`, like the words typed in the composer.
@@ -138,24 +140,25 @@ class ChatList {
   return head;
  }
 
- group(folder, collapsed) {
-  const section = element('section', `chats-folder${collapsed ? ' is-collapsed' : ''}`);
+ // A folder of the list, or with `home` the chats without a folder: a speech bubble instead of the folder, and nothing to delete.
+ group(folder, collapsed, home = false) {
+  const section = element('section', `chats-folder${home ? ' is-home' : ''}${collapsed ? ' is-collapsed' : ''}`);
   const head = element('div', 'chats-folder-head');
   head.setAttribute('role', 'button');
   head.tabIndex = 0;
   head.setAttribute('aria-expanded', String(!collapsed));
   const icon = element('span', 'chats-folder-icon');
-  icon.innerHTML = Glyphs.folder;
+  icon.innerHTML = home ? Glyphs.bubble : Glyphs.folder;
   const name = element('span', 'chats-folder-name', folder.name);
   const add = action('chats-folder-action', 'new-chat', Glyphs.plus);
-  const remove = action('chats-folder-action is-delete', 'delete-folder', Glyphs.trash);
-  head.append(icon, name, add, remove);
+  const remove = home ? null : action('chats-folder-action is-delete', 'delete-folder', Glyphs.trash);
+  head.append(icon, name, add, ...(remove ? [remove] : []));
   const body = element('div', 'chats-folder-body');
   const inner = element('div', 'chats-folder-inner');
   body.inert = collapsed;
   body.append(inner);
   section.append(head, body);
-  const group = { section, head, name, add, remove, body, inner, empty: null, path: folder.path, confirm: false, timer: 0 };
+  const group = { section, head, name, add, remove, body, inner, empty: null, path: folder.path, home, confirm: false, timer: 0 };
   section.__group = group;
   return group;
  }
@@ -305,18 +308,21 @@ class ChatList {
   const recent = (a, b) => b.updated - a.updated;
   const live = lib.chats.filter(match);
   const pinned = live.filter(chat => chat.pinned).sort(recent);
+  const loose = live.filter(chat => !chat.pinned && lib.isHome(chat)).sort(recent);
   const folders = lib.folders
-   .map(folder => ({ folder, chats: live.filter(chat => !chat.pinned && key(chat.folder) === key(folder.path)).sort(recent) }))
+   .map(folder => ({ folder, chats: live.filter(chat => !chat.pinned && lib.within(chat, folder.path)).sort(recent) }))
    .filter(entry => !query || entry.chats.length || entry.folder.name.toLowerCase().includes(query))
    .sort((a, b) => lib.activity(b.folder) - lib.activity(a.folder));
   const primed = this.rows.size > 0, before = this.measure();
-  const draft = !query && this.chat.folder;
+  // The stand-in row of a new chat stands where its first message will put it: in its folder, or among the chats.
+  const draft = !query && this.chat.isDraft ? this.chat.folder || HOME : null;
   const order = [this.glide];
   if (pinned.length) order.push(this.pinnedHead, ...pinned.map(chat => this.item(chat, seen)));
+  if (!query || loose.length || I18n.t('chats.home').toLowerCase().includes(query)) order.push(this.home(loose, !!query, seen, draft === HOME));
   order.push(this.foldersHead);
-  for (const { folder, chats } of folders) order.push(this.folder(folder, chats, !!query, seen, !!draft && key(draft.path) === key(folder.path)));
+  for (const { folder, chats } of folders) order.push(this.folder(folder, chats, !!query, seen, !!draft?.path && key(draft.path) === key(folder.path)));
   for (const [path, group] of this.groups) if (!lib.folders.some(folder => key(folder.path) === path)) { clearTimeout(group.timer); this.groups.delete(path); }
-  if (!folders.length && !pinned.length) {
+  if (!folders.length && (!query || !pinned.length && !loose.length)) {
    this.hint.textContent = I18n.t(query ? 'chats.nothing' : 'chats.noFolders');
    order.push(this.hint);
   }
@@ -346,13 +352,28 @@ class ChatList {
   group.head.title = folder.path;
   label(group.add, I18n.t('folder.newChat', { name: folder.name }));
   if (!group.confirm) label(group.remove, I18n.t('folder.delete'));
-  this.collapse(group, !searching && folder.collapsed && !draft);
+  return this.fill(group, folder.collapsed, chats, searching, seen, draft);
+ }
+
+ // The chats without a folder. The group stays even when empty: its plus starts one, and a new chat waits in it.
+ home(chats, searching, seen, draft) {
+  const home = this.library.home;
+  if (!this.homeGroup) {
+   this.homeGroup = this.group({ path: null, name: I18n.t('chats.home') }, home.collapsed, true);
+   label(this.homeGroup.add, I18n.t('chat.new'));
+  }
+  this.homeGroup.head.title = home.path;
+  return this.fill(this.homeGroup, home.collapsed, chats, searching, seen, draft);
+ }
+
+ fill(group, collapsed, chats, searching, seen, draft) {
+  this.collapse(group, !searching && collapsed && !draft);
   const kids = chats.map(chat => this.item(chat, seen));
   if (draft) {
    if (!this.draft.row.isConnected || this.draft.row.parentElement !== group.inner) this.draft.fresh = true;
    kids.unshift(this.draft.row);
   }
-  place(group.inner, kids.length ? kids : [group.empty ||= element('div', 'chats-empty', I18n.t('chats.empty'))]);
+  place(group.inner, kids.length || group.home ? kids : [group.empty ||= element('div', 'chats-empty', I18n.t('chats.empty'))]);
   return group.section;
  }
 
@@ -437,10 +458,10 @@ class ChatList {
  }
 
  newChat(group) {
-  const folder = group && this.library.folders.find(item => key(item.path) === key(group.path));
+  const folder = group?.home ? this.library.home : group && this.library.folders.find(item => key(item.path) === key(group.path));
   if (!folder) return;
-  if (folder.collapsed) this.library.toggleFolder(folder.path);
-  this.onNewChat({ path: folder.path, name: folder.name });
+  if (folder.collapsed) this.library.toggleFolder(group.path);
+  this.onNewChat(group.home ? null : { path: folder.path, name: folder.name });
  }
 
  togglePin(id) {
@@ -490,7 +511,7 @@ class ChatList {
  askDeleteFolder(group) {
   if (!group || group.section.__removing) return;
   if (group.confirm) { this.removeFolder(group); return; }
-  const count = this.library.chats.filter(chat => key(chat.folder) === key(group.path)).length;
+  const count = this.library.inFolder({ path: group.path }).length;
   group.confirm = true;
   group.section.classList.add('is-confirming');
   label(group.remove, I18n.t(count ? 'folder.deleteConfirm' : 'folder.deleteEmpty', { count }));

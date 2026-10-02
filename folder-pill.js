@@ -6,7 +6,6 @@ const CHAR_IN = 220;
 const CHAR_STAGGER = 16;
 const GHOST_OUT = 240;
 const GHOST_STAGGER = 12;
-const NUDGE = { duration: 420, easing: 'cubic-bezier(0.36, 0.07, 0.19, 0.97)' };
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const escapeHtml = text => text.replace(/[&<>]/g, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;');
@@ -30,6 +29,7 @@ function edit(oldText, next) {
  return { at, removed: oldText.length - at - tail, inserted: next.length - at - tail };
 }
 
+// Over a new chat: where it will go. A folder picked for it, or the chats, where it goes without one; pressed, it picks a folder.
 class FolderPill {
  constructor({ button, library, chat }) {
   this.button = button;
@@ -38,7 +38,7 @@ class FolderPill {
   this.shown = null;
   this.picking = null;
   this.token = 0;
-  button.innerHTML = `<span class="composer-folder-icons">${Glyphs.folderAdd}${Glyphs.folder}</span><span class="composer-folder-label"><span class="composer-folder-text"></span><span class="composer-folder-ghosts"></span></span>`;
+  button.innerHTML = `<span class="composer-folder-icons">${Glyphs.bubble}${Glyphs.folderAdd}${Glyphs.folder}</span><span class="composer-folder-label"><span class="composer-folder-text"></span><span class="composer-folder-ghosts"></span></span>`;
   this.label = button.querySelector('.composer-folder-text');
   this.ghosts = button.querySelector('.composer-folder-ghosts');
   button.addEventListener('click', () => this.pick());
@@ -46,7 +46,7 @@ class FolderPill {
  }
 
  sync() {
-  const folder = this.chat.folder, shown = folder ? folder.path : '', name = folder ? folder.name : I18n.t('folder.new');
+  const folder = this.chat.folder, shown = folder ? folder.path : '', name = folder ? folder.name : I18n.t('chats.home');
   if (shown === this.shown && this.label.textContent === name) return;
   const token = ++this.token;
   for (const animation of [...this.button.getAnimations(), ...this.label.getAnimations()]) animation.cancel();
@@ -122,11 +122,6 @@ class FolderPill {
    return folder;
   }).finally(() => { this.picking = null; });
   return this.picking;
- }
-
- nudge() {
-  if (reducedMotion()) return;
-  this.button.animate([{ translate: '0' }, { translate: '-5px' }, { translate: '4px' }, { translate: '-2px' }, { translate: '0' }], NUDGE);
  }
 }
 

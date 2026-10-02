@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Only the app's own script files run: text from a model, a site or a file can never become code here.
+       The page itself calls DeepSeek alone; the other providers are called from the main process. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; media-src 'self' data: blob:; font-src 'self' data:; connect-src https://api.deepseek.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenGhost</title>
   <link rel="icon" href="desktop/icon.png">
@@ -60,8 +63,8 @@
         </div>
         <div class="composer-toolbar">
           <div class="composer-tools">
-            <add-button class="composer-add" label="Add photos and files" data-i18n-attr="label:attach.add"></add-button>
-            <button type="button" class="composer-mode" popovertarget="mode-menu" aria-haspopup="menu" aria-expanded="false" hidden></button>
+            <add-button class="composer-add" label="Add photos, videos and files" data-i18n-attr="label:attach.add"></add-button>
+            <button type="button" class="composer-mode" aria-haspopup="menu" aria-expanded="false" hidden></button>
           </div>
           <div class="composer-actions">
             <model-button class="composer-model"></model-button>
@@ -79,8 +82,6 @@
       <span class="effort-thumb glass-lens"></span>
     </div>
   </div>
-
-  <div class="mode-menu" id="mode-menu" popover="auto" role="menu" aria-label="Agent mode" data-i18n-attr="aria-label:mode"></div>
 
   <div class="model-stage" popover="manual" role="dialog" aria-label="Model" data-i18n-attr="aria-label:model"></div>
 
@@ -136,10 +137,11 @@
   </dialog>
 
   <div class="splash" aria-hidden="true">
-    <div class="splash-bg"></div>
+    <div class="splash-bg"><div class="splash-aura"></div><canvas class="splash-mist"></canvas></div>
     <div class="splash-fly"><div class="splash-ghost"><div class="splash-ghost-body"><ghost-thinking></ghost-thinking></div></div></div>
     <div class="splash-word">OpenGhost</div>
   </div>
+  <script src="splash-mist.js"></script>
 
   <script src="i18n.js"></script>
   <script src="liquid-glass.js"></script>
@@ -151,6 +153,7 @@
   <script src="search-field.js"></script>
   <script src="settings-button.js"></script>
   <script src="close-button.js"></script>
+  <script src="clear-button.js"></script>
   <script src="effort-button.js"></script>
   <script src="ghost-thinking.js"></script>
   <script src="welcome-ghost.js"></script>
@@ -172,6 +175,7 @@
   <script src="attachment-reader.js"></script>
   <script src="attachments.js"></script>
   <script src="media-slider.js"></script>
+  <script src="media-embed.js"></script>
   <script src="settings.js"></script>
   <script src="settings-general.js"></script>
   <script src="settings-appearance.js"></script>
@@ -190,10 +194,13 @@
   <script src="agent-tools.js"></script>
   <script src="agent-prompt.js"></script>
   <script src="approval-card.js"></script>
+  <script src="stats-card.js"></script>
   <script src="chat.js"></script>
   <script src="chat-list.js"></script>
   <script src="folder-pill.js"></script>
+  <script src="dock.js"></script>
   <script src="mode-picker.js"></script>
+  <script src="add-menu.js"></script>
   <script src="model-stage.js"></script>
   <script src="selection-focus.js"></script>
   <script src="selection-menu.js"></script>

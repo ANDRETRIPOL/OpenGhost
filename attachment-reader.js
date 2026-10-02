@@ -2,6 +2,10 @@
 'use strict';
 
 const IMAGE = { side: 2560, bytes: 6e6, quality: 0.9 };
+// The frame on a video's card: sharp enough for the photo stack of a sent message. `flat` is how little a frame's
+// brightness may vary before it counts as one colour, like the black a video fades in from; `tries` and `retry` give a
+// frame still on its way after a seek that long to arrive.
+const VIDEO = { side: 768, quality: 0.82, wait: 8000, probe: 24, flat: 6, tries: 15, retry: 40 };
 const TEXT = { bytes: 20e6, chars: 400000, sniff: 8192, control: 0.01 };
 const OFFICE = new Set(['docx', 'docm', 'pptx', 'xlsx', 'xlsm', 'odt', 'ods', 'odp']);
 const SHEET_ROWS = 5000;
@@ -48,6 +52,102 @@ async function readImage(file) {
  bitmap.close();
  const blob = await canvas.convertToBlob({ type: 'image/webp', quality: IMAGE.quality });
  return { type: 'image', url: await dataUrl(blob, 'image/webp'), width, height };
+}
+
+// Waits for one event of a video after starting what fires it; an error or a stall ends the wait.
+function once(video, name, start) {
+ return new Promise((resolve, reject) => {
+  const ok = () => done(), fail = () => done(new Error('media'));
+  const timer = setTimeout(() => done(new Error('stalled')), VIDEO.wait);
+  const done = error => {
+   clearTimeout(timer);
+   video.removeEventListener(name, ok);
+   video.removeEventListener('error', fail);
+   if (error) reject(error);
+   else resolve();
+  };
+  video.addEventListener(name, ok);
+  video.addEventListener('error', fail);
+  start();
+ });
+}
+
+const seek = (video, time) => once(video, 'seeked', () => { video.currentTime = time; });
+
+// How a drawn frame looks: whether anything was painted at all, and whether it is one colour.
+function look(canvas) {
+ const probe = new OffscreenCanvas(VIDEO.probe, VIDEO.probe), ctx = probe.getContext('2d', { willReadFrequently: true });
+ ctx.drawImage(canvas, 0, 0, VIDEO.probe, VIDEO.probe);
+ const data = ctx.getImageData(0, 0, VIDEO.probe, VIDEO.probe).data;
+ let sum = 0, square = 0, alpha = 0;
+ for (let i = 0; i < data.length; i += 4) {
+  const y = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  sum += y;
+  square += y * y;
+  alpha = Math.max(alpha, data[i + 3]);
+ }
+ const n = data.length / 4, mean = sum / n;
+ return { painted: alpha > 0, flat: Math.sqrt(Math.max(0, square / n - mean * mean)) < VIDEO.flat };
+}
+
+// Draws the frame at `time`. Right after a seek the frame can still be on its way, and a draw then paints nothing, so it
+// is tried again for a moment.
+async function draw(video, time, ctx) {
+ await seek(video, time);
+ const { canvas } = ctx;
+ for (let k = 0; k < VIDEO.tries; k++) {
+  if (video.readyState >= video.HAVE_CURRENT_DATA) {
+   ctx.clearRect(0, 0, canvas.width, canvas.height);
+   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+   const seen = look(canvas);
+   if (seen.painted) return seen;
+  }
+  await new Promise(resolve => setTimeout(resolve, VIDEO.retry));
+ }
+ return { painted: false, flat: true };
+}
+
+const encode = async canvas => dataUrl(await canvas.convertToBlob({ type: 'image/webp', quality: VIDEO.quality }));
+
+// A frame a little way in, past a fade from black: while the frame is one colour, the next try goes further, and a video
+// that stays one colour shows the last of them. With no frame drawn at all, the card has none.
+async function poster(video, duration) {
+ const { videoWidth: width, videoHeight: height } = video, scale = Math.min(1, VIDEO.side / Math.max(width, height));
+ const canvas = new OffscreenCanvas(Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale)));
+ const ctx = canvas.getContext('2d');
+ ctx.imageSmoothingQuality = 'high';
+ let kept = null;
+ for (const time of duration > 0 ? [Math.min(1, duration * 0.25), duration * 0.33, duration * 0.5] : [0]) {
+  const seen = await draw(video, time, ctx);
+  if (!seen.painted) continue;
+  if (!seen.flat) return encode(canvas);
+  kept ||= new OffscreenCanvas(canvas.width, canvas.height);
+  kept.getContext('2d').drawImage(canvas, 0, 0);
+ }
+ return kept ? encode(kept) : '';
+}
+
+// A video comes as its place on the disk, for the agent to watch, with its length, its size and a frame for its card.
+// One the built-in decoder can't read still comes with its place; only its card has no frame then.
+async function readVideo(file) {
+ const out = { type: 'video', path: window.openghost?.pathOf?.(file) || '', duration: 0, width: 0, height: 0, poster: '' };
+ const url = URL.createObjectURL(file), video = document.createElement('video');
+ video.muted = true;
+ video.preload = 'auto';
+ try {
+  await once(video, 'loadedmetadata', () => { video.src = url; });
+  // Recorded WebM often has no length in its header until its end is reached once.
+  if (!Number.isFinite(video.duration)) await seek(video, 1e9);
+  out.duration = Number.isFinite(video.duration) ? video.duration : 0;
+  if (video.videoWidth && video.videoHeight) {
+   Object.assign(out, { width: video.videoWidth, height: video.videoHeight });
+   out.poster = await poster(video, out.duration);
+  }
+ } catch {}
+ video.removeAttribute('src');
+ video.load();
+ URL.revokeObjectURL(url);
+ return out;
 }
 
 function looksBinary(bytes) {
@@ -150,12 +250,25 @@ function limit(text) {
  return text.length > TEXT.chars ? { type: 'text', text: text.slice(0, TEXT.chars), truncated: true } : { type: 'text', text, truncated: false };
 }
 
-async function read(file, info) {
+// A PDF's text comes from the viewer built into the app, which lives in the main process. A file with a place on the
+// disk is read from there; one without, such as a pasted one, goes over as its bytes.
+async function readPdf(file, path) {
+ const bridge = window.openghost?.readPdf;
+ if (!bridge) return { type: 'none' };
+ const answer = await bridge(path ? { path } : { data: await file.arrayBuffer() });
+ const text = tidy(answer?.text || '');
+ return text ? { ...limit(text), pdf: true } : { type: 'none', pdf: true };
+}
+
+// What a file holds, without its place on the disk.
+async function contents(file, info, video, path) {
  try {
   if (info.glyph === 'image') {
    const image = await readImage(file);
    if (image) return image;
   }
+  if (video && info.glyph === 'video') return await readVideo(file);
+  if (info.ext === 'pdf') return await readPdf(file, path);
   if (file.size > TEXT.bytes) return { type: 'none' };
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (OFFICE.has(info.ext)) {
@@ -167,6 +280,14 @@ async function read(file, info) {
  } catch {
   return { type: 'none' };
  }
+}
+
+// `video`: a video comes as a video, as it does for a chat's attachments; elsewhere it is a file whose contents can't be read.
+// A file read as text, or not read at all, also says where it lives, so an agent can open it itself.
+async function read(file, info, { video = false } = {}) {
+ const path = window.openghost?.pathOf?.(file) || '';
+ const payload = await contents(file, info, video, path);
+ return payload.type === 'text' || payload.type === 'none' ? { ...payload, path } : payload;
 }
 
 window.AttachmentReader = { read };

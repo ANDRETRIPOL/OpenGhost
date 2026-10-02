@@ -37,11 +37,12 @@ class StreamView {
  static render(root, source) {
   const tones = shuffle(Markdown.TONES, seeded(source));
   root.innerHTML = Markdown.blocks(source, { live: false, tones, cache: new Map() }).join('');
+  if (window.MediaEmbed) for (const el of root.querySelectorAll('.md-media')) MediaEmbed.mount(el);
   if (!window.Diagram) return;
   for (const el of root.querySelectorAll('.md-diagram')) {
    el.__source = el.dataset.diagram || '';
    el.__live = false;
-   el.__view = Diagram.view(el, tones, null, { instant: true });
+   el.__view = Diagram.view(el, null, { instant: true });
    el.__view.update(el.__source, false);
   }
  }
@@ -121,7 +122,7 @@ class StreamView {
   const blocks = Markdown.blocks(this.source.slice(0, count), { live: !final, tones: this.tones, cache: this.cache });
   const wave = { spans: [], animate: !reducedMotion() };
   const kids = this.root.children;
-  let diagrams = false;
+  let diagrams = false, media = false;
   for (let k = 0; k < blocks.length; k++) {
    const html = blocks[k], el = kids[k];
    if (el && el.__html === html) continue;
@@ -129,6 +130,7 @@ class StreamView {
    const node = el ? this.patch(el, target, wave) : this.root.appendChild(this.create(target, wave));
    node.__html = html;
    if (html.includes('md-diagram')) diagrams = true;
+   if (html.includes('md-media')) media = true;
   }
   while (kids.length > blocks.length) kids[kids.length - 1].remove();
   this.stagger(wave.spans, now, dt);
@@ -139,10 +141,12 @@ class StreamView {
     if (el.__source === source && el.__live === live) continue;
     el.__source = source;
     el.__live = live;
-    el.__view ||= Diagram.view(el, this.tones, this.onChange);
+    el.__view ||= Diagram.view(el, this.onChange);
     el.__view.update(source, live);
    }
   }
+  // Pictures and videos come alive the same way: what they are stands in the placeholder Markdown left.
+  if (media && window.MediaEmbed) for (const el of this.root.querySelectorAll('.md-media')) MediaEmbed.mount(el, this.onChange);
   this.track(final ? null : this.root.lastElementChild, now);
   if (this.onChange) this.onChange();
  }

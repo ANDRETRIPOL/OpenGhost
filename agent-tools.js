@@ -3,6 +3,8 @@
 
 const PAGE_CHARS = 40000;
 const SEARCH_RESULTS = 8;
+// Pictures and videos found for an answer: how many by default and at most, and how wide a picture's preview is asked for.
+const MEDIA = { count: 6, max: 12, preview: 720 };
 const MODES = ['ask', 'auto', 'full'];
 
 const bridge = window.openghost?.tools || null;
@@ -47,7 +49,7 @@ const SCHEMAS = [
   description: PURPOSE('command'),
   timeout: { type: 'integer', description: 'Seconds before the command is stopped, 120 by default, 900 at most' },
  }, ['command', 'description']),
- fn('read_file', 'Read a text file, or look at an image: PNG, JPEG, WebP, GIF, BMP, ICO and AVIF files come back as a picture you can see. Text comes as up to 2000 lines; for longer files pass offset (first line, starting at 1) and limit.', {
+ fn('read_file', 'Read a text file or the text of a PDF, or look at an image: PNG, JPEG, WebP, GIF, BMP, ICO and AVIF files come back as a picture you can see. Text comes as up to 2000 lines; for longer files pass offset (first line, starting at 1) and limit.', {
   path: { type: 'string', description: 'File path, relative to the project folder or absolute' },
   offset: { type: 'integer', description: 'First line to read, starting at 1' },
   limit: { type: 'integer', description: 'How many lines to read' },
@@ -87,6 +89,11 @@ const SCHEMAS = [
   url: { type: 'string', description: 'Full http or https address' },
   start: { type: 'integer', description: 'Character to start from when reading a long page further' },
  }, ['url']),
+ fn('find_media', 'Find pictures or videos on the internet to show in the answer: a dish, a place, a game, a product, someone\'s work, how a thing is done. For each one it returns a ready line of Markdown to copy into the answer: a picture with the page it is from, or a link to a YouTube video with its name, author and length. The app shows such lines as pictures to leaf through and as video cards with previews.', {
+  query: { type: 'string', description: 'What to look for, in the language it is found best in' },
+  kind: { type: 'string', enum: ['pictures', 'videos'], description: 'pictures by default' },
+  count: { type: 'integer', description: 'How many to return, 6 by default, 12 at most' },
+ }, ['query']),
  fn('browser_navigate', 'Open a page in the built-in browser, the panel on the right of the app where the user\'s own logins live. Returns a snapshot of the screen: text, and the elements you can use, each with a [number].', {
   url: { type: 'string', description: 'An address (https://example.com or example.com), a local file path, words to search on Google, or back, forward, reload' },
  }, ['url']),
@@ -637,7 +644,14 @@ function browserApproval(name, args, ask) {
  return false;
 }
 
-function needsApproval(name, args, { mode, cwd }) {
+// A video the user attached to the chat is one they showed the agent themselves: watching it needs no approval,
+// wherever it lives.
+function attachedVideo(attached, cwd, path) {
+ const full = resolve(cwd, path);
+ return !!full && attached.some(item => norm(item) === norm(full));
+}
+
+function needsApproval(name, args, { mode, cwd, attached = [] }) {
  if (mode === 'full') return false;
  const ask = mode !== 'auto';
  if (name.startsWith('browser_')) return browserApproval(name, args, ask);
@@ -646,10 +660,11 @@ function needsApproval(name, args, { mode, cwd }) {
   case 'list_files': return ask && !inside(cwd, args.path || '.');
   case 'write_file':
   case 'edit_file': return ask || !inside(cwd, args.path);
-  case 'video_frames': return (ask && !inside(cwd, args.path)) || (!!args.save_to && (ask || !inside(cwd, args.save_to)));
+  case 'video_frames': return (ask && !inside(cwd, args.path) && !attachedVideo(attached, cwd, args.path)) || (!!args.save_to && (ask || !inside(cwd, args.save_to)));
   case SHELL.tool: return ask || riskyShell(args.command, cwd);
   case 'git': return !readOnlyGit(args.args) && (ask || riskyGit(args.args));
   case 'web_search':
+  case 'find_media':
   case 'fetch_url': return ask;
   default: return true;
  }
@@ -686,6 +701,7 @@ function describe(name, args, cwd) {
    : { kind: 'file', title: I18n.t('approve.video'), effect: 'read', places: [file] };
   case 'web_search': return { kind: 'web', title: I18n.t('approve.search'), effect: 'online', places: [], quote: `“${String(args.query || '')}”` };
   case 'fetch_url': return { kind: 'web', title: I18n.t('approve.fetch'), effect: 'online', places: [site(String(args.url || ''))] };
+  case 'find_media': return { kind: 'web', title: I18n.t(args.kind === 'videos' ? 'approve.videos' : 'approve.pictures'), effect: 'online', places: [], quote: `“${String(args.query || '')}”` };
   case 'browser_navigate': return { kind: 'web', title: I18n.t('approve.browse'), effect: 'online', places: [site(String(args.url || ''))] };
   case 'browser_tabs': return { kind: 'web', title: I18n.t('approve.tab'), effect: 'online', places: [site(String(args.url || ''))] };
   case 'browser_click': return { kind: 'web', title: I18n.t('approve.click'), effect: 'online', places: [], quote: refs[args.ref] || (args.ref ? `[${args.ref}]` : `x ${Math.round(args.x)}, y ${Math.round(args.y)}`) };
@@ -796,9 +812,7 @@ function bingResults(html) {
  }).filter(item => item && /^https?:/.test(item.url));
 }
 
-async function search(query, id, cwd) {
- const text = String(query || '').trim();
- if (!text) return 'Error: query is empty';
+async function lookup(text, id, cwd) {
  const q = encodeURIComponent(text);
  let results = [], error = '';
  for (const [url, parse] of [[`https://html.duckduckgo.com/html/?q=${q}`, ddgResults], [`https://www.bing.com/search?q=${q}&setlang=en`, bingResults]]) {
@@ -807,8 +821,95 @@ async function search(query, id, cwd) {
   results = result.text ? parse(result.text) : [];
   if (results.length) break;
  }
+ return { results, error };
+}
+
+async function search(query, id, cwd) {
+ const text = String(query || '').trim();
+ if (!text) return 'Error: query is empty';
+ const { results, error } = await lookup(text, id, cwd);
  if (!results.length) return error ? `Error: ${error}` : `Nothing was found for ${text}`;
  return results.slice(0, SEARCH_RESULTS).map((item, k) => `${k + 1}. ${item.title}\n${item.url}${item.snippet ? `\n${item.snippet}` : ''}`).join('\n\n');
+}
+
+// Pictures as Bing's image search lists them: every result carries, in one attribute, the page it is from, its
+// name and a preview of the picture that the search engine keeps itself, which loads wherever the picture's own
+// site would refuse. Only previews from the common store are taken: what the search engine is unsure is fit for
+// everyone it keeps on a host of its own, and that is left out.
+const PREVIEW_STORE = /^https:\/\/[\w-]+\.mm\.bing\.net\/th\?/;
+
+function pictureResults(html) {
+ const doc = new DOMParser().parseFromString(html, 'text/html'), seen = new Set();
+ return [...doc.querySelectorAll('a.iusc[m]')].map(node => {
+  try {
+   const m = JSON.parse(node.getAttribute('m'));
+   return { title: clean(String(m.t || '')), preview: String(m.turl || ''), page: String(m.purl || '') };
+  } catch { return null; }
+ }).filter(item => item && PREVIEW_STORE.test(item.preview) && /^https?:/.test(item.page) && !seen.has(item.preview) && seen.add(item.preview));
+}
+
+// The store keeps a preview 474 px wide. Asked for a width alone, it now and then sends the same small picture in
+// the middle of a white field of that width; asked to resize and not to pad, it sends the picture itself, finer
+// where it has a finer one.
+const previewAt = (url, width) => `${url}&w=${width}&rs=1&p=0`;
+
+// Videos as YouTube's own search lists them, read from the data its page is built from.
+const YOUTUBE_ID = /(?:youtube\.com\/watch\?(?:[^#\s]*&)?v=|youtu\.be\/)([\w-]{11})(?![\w-])/;
+
+function videoResults(html) {
+ const from = html.indexOf('var ytInitialData = '), to = from < 0 ? -1 : html.indexOf(';</script>', from);
+ if (to < 0) return [];
+ let data;
+ try { data = JSON.parse(html.slice(from + 20, to)); } catch { return []; }
+ const found = new Map(), words = part => clean(part?.simpleText || (part?.runs || []).map(run => run.text).join(''));
+ const walk = (node, depth) => {
+  if (!node || typeof node !== 'object' || depth > 48) return;
+  const video = node.videoRenderer;
+  if (video && /^[\w-]{11}$/.test(video.videoId || '')) {
+   if (!found.has(video.videoId) && words(video.title)) found.set(video.videoId, { id: video.videoId, title: words(video.title), by: words(video.ownerText), time: words(video.lengthText), views: words(video.shortViewCountText) || words(video.viewCountText), when: words(video.publishedTimeText) });
+   return;
+  }
+  for (const key in node) walk(node[key], depth + 1);
+ };
+ walk(data, 0);
+ return [...found.values()];
+}
+
+// A name inside the square brackets of a Markdown link can't hold brackets of its own, and an address inside the
+// round ones can't hold round brackets or spaces.
+const linkName = text => clean(String(text || '')).replace(/\[/g, '(').replace(/\]/g, ')').replace(/\n/g, ' ');
+const linkAddress = url => String(url || '').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/\s/g, '%20');
+
+async function media(args, id, cwd) {
+ const text = String(args.query || '').trim(), count = Math.min(MEDIA.max, Math.max(1, Math.round(Number(args.count)) || MEDIA.count));
+ if (!text) return 'Error: query is empty';
+ const q = encodeURIComponent(text);
+ if (args.kind === 'videos') {
+  const result = await bridge.run(id, 'fetch_url', { url: `https://www.youtube.com/results?search_query=${q}` }, cwd);
+  let found = result.error || !result.text ? [] : videoResults(result.text);
+  if (!found.length) {
+   // Where YouTube shows the app nothing, pages of youtube.com found by a search of the web are videos all the
+   // same, only without their lengths.
+   const { results } = await lookup(`${text} site:youtube.com`, id, cwd);
+   found = results.map(item => ({ id: YOUTUBE_ID.exec(item.url)?.[1] || '', title: item.title.replace(/\s*[-–|]\s*YouTube$/i, ''), by: '', time: '', views: '', when: '' })).filter(item => item.id);
+  }
+  if (!found.length) return result.error ? `Error: ${result.error}` : `No videos were found for ${text}`;
+  // Every line is ready to copy and nothing else looks like one: how much a video was watched and when it came
+  // out stand apart, after the lines.
+  const videos = found.slice(0, count), watched = videos.map(video => [video.views, video.when].filter(Boolean).join(', '));
+  return [
+   `Videos for “${text}”, one on a line: its name, who made it and how long it is. To show a video, copy its line into the answer exactly as it is, alone on a line.`,
+   videos.map(video => `[${linkName([video.title, video.by, video.time].filter(Boolean).join(' · '))}](https://www.youtube.com/watch?v=${video.id})`).join('\n'),
+   watched.some(Boolean) ? `How many times each was watched and when it came out, in the same order: ${watched.map((words, k) => `${k + 1}) ${words || 'unknown'}`).join('; ')}.` : '',
+  ].filter(Boolean).join('\n\n');
+ }
+ const result = await bridge.run(id, 'fetch_url', { url: `https://www.bing.com/images/search?q=${q}&form=HDRSC3` }, cwd);
+ const found = result.error || !result.text ? [] : pictureResults(result.text);
+ if (!found.length) return result.error ? `Error: ${result.error}` : `No pictures were found for ${text}`;
+ return [
+  `Pictures for “${text}”, one on a line: its name, its address and the page it is from. To show pictures, copy the lines you choose into the answer exactly as they are, one under another with nothing between them.`,
+  found.slice(0, count).map(picture => `[![${linkName(picture.title)}](${previewAt(picture.preview, MEDIA.preview)})](${linkAddress(picture.page)})`).join('\n'),
+ ].join('\n\n');
 }
 
 function format(name, args, result) {
@@ -876,6 +977,7 @@ window.AgentTools = {
   if (!bridge) return 'Error: tools are only available in the desktop app';
   if (name.startsWith('browser_')) return browser(name, args, id, cwd);
   if (name === 'web_search') return search(args.query, id, cwd);
+  if (name === 'find_media') return media(args, id, cwd);
   const result = await bridge.run(id, name, args, cwd);
   return name === 'fetch_url' ? page(result, args.start) : format(name, args, result);
  },

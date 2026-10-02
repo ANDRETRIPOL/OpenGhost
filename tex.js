@@ -205,7 +205,7 @@ function command(p) {
  if (TEXT.has(name)) {
   const body = raw(p);
   p.prev = 'ord';
-  if (name === 'mathbb') return [...body].map(c => DOUBLE_STRUCK[c] || c).join('');
+  if (name === 'mathbb') return [...body].map(c => DOUBLE_STRUCK[c] || escapeHtml(c)).join('');
   const html = name.startsWith('text') || name === 'mbox' || name === 'hbox' ? escapeHtml(body) : render(body);
   return `<span class="mt${/bf|bold|bm/.test(name) ? ' is-bold' : ''}">${html}</span>`;
  }

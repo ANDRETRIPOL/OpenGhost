@@ -10,8 +10,10 @@ const FINISH_NOTES = ['length', 'content_filter', 'insufficient_system_resource'
 const LEAVE = { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
 const SWITCH = { duration: 280, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const PIN_TIME = 2000;
-// The chat on screen keeps its messages under the lock screen while it fades in, then lets them go.
-const LOCK_FADE = 520;
+// How far below the top of the chat a card too tall for the room over the composer keeps its top: where the first message sits.
+const ANCHOR_GAP = 56;
+// The chat on screen keeps its messages under the lock screen while it frosts over (FROST in lock-ui.js), then lets them go.
+const LOCK_FADE = 700;
 const TITLE_PROMPT = 'Name this conversation in 2 to 5 words in the language of the user message. Reply with the name only, without quotes, emoji or a final period.';
 const TITLE_INPUT = { user: 1500, reply: 800, max: 60 };
 const CONTEXT = { reserve: 0.1, chars: 3.2, image: 1200 };
@@ -33,21 +35,65 @@ const TOOL_NOTES = {
  browserMessage: 'The user has taken control of the browser and sent you a message instead, read it next. The browser stays theirs until they press Hand back.',
  handedBack: 'The user took control of the browser for a while and has handed it back. The page may have changed, so this action was not done. This is the page now:',
  browser: 'This note comes from the app, not from the user: what the built-in browser holds right now.',
+ browserEmpty: '- The browser panel is closed and no pages are open in it.',
+ state: 'This note comes from the app, not from the user: the day and the permission mode, as they stand from here on.',
 };
 const FORMAT_GUIDE = [
  'Format replies in Markdown; the app renders it richly and draws live, editable charts and diagrams.',
  '- Split longer answers into sections with ## or ### headings and keep headings short.',
  '- Use **bold** for key terms, lists for steps and options, tables for comparisons.',
  '- Never use horizontal rules (---) or decorative separators.',
- '- You must visualize. Whenever something can be drawn, draw it: a chart or diagram beside the explanation, not a text-only description.',
- '  Numbers, trends, curves, comparisons, shares, processes, algorithms, architectures, histories, plans, hierarchies and files almost always deserve one.',
- '  When explaining a concept (for example what overfitting looks like), draw it with realistic illustrative data. One strong visual per idea is better than several weak ones.',
+ '- You must visualize: a text-only answer where something could be shown is a dry answer. Whenever something can be drawn, draw it: a chart or diagram beside the explanation, not a description of it.',
+ '  Numbers, trends, comparisons, shares, budgets, measurements against a norm, processes, procedures, schedules, architectures, histories, hierarchies, documents and files almost always deserve one.',
+ '  An answer that explains a topic carries several drawings, one strong drawing for each idea that can be shown, each in the section it belongs to: the whole as a scheme, every curve or comparison the topic is known for as a chart, the key numbers as metrics.',
+ '  When explaining a concept, draw it with realistic illustrative data and set the cases against each other on one chart: a training loss that falls as it should, one that blows up and one that stalls; a healthy curve next to a bad one.',
+ '  Make every drawing detailed and exact, with real names and numbers, and made for its subject (the kinds for food, documents, matches, languages, devices and trips are below). Never draw the same thing twice.',
+ '- Show the real thing where a drawing is not enough: pictures of a dish, a place, a game, a product, a video of how a thing is done. A picture is ![caption](image address), or [![caption](image address)](page it is from) to name its source; pictures on lines one after another, with nothing between them, become one stack to leaf through. A video is its link alone on a line, [name · author · 4:40](https://www.youtube.com/watch?v=...), and is shown as a card with its preview.',
+ '  Every such address must be one you were given: by find_media, by a page you opened, or by the user. Copy it exactly and never write one from memory: a made-up address shows nothing. With no real address at hand, describe in words instead.',
  '- Every chart or diagram is a fenced block whose language is exactly mermaid, and its first line is the diagram type:',
  '  flowchart TD or flowchart LR for processes and structures, sequenceDiagram for interactions, stateDiagram-v2 for states, erDiagram for database schemas, classDiagram for code structure,',
- '  xychart-beta for numeric series and curves (name every series: line "Train" [...], bar "Revenue" [...]), pie for shares, quadrantChart for priority matrices, radar-beta for comparing options across criteria,',
- '  timeline for history and roadmaps, gantt for project plans, mindmap for breaking a topic down,',
+ '  xychart-beta for numeric series and curves (name every series: line "Train" [...], bar "Revenue" [...]), pie for shares of one whole (six slices at most), quadrantChart for priority matrices, radar-beta for comparing options across criteria,',
+ '  timeline for history and roadmaps, gantt for project plans, mindmap for breaking a topic down, gitGraph for branches and merges, sankey-beta for where money or traffic flows, treemap-beta for what a whole is made of,',
  '  candlestick for price history of crypto, stocks or any asset: optional `title BTC/USDT · 1D` and `ma 7` lines, then one line per candle: date, open, high, low, close, volume (plain numbers without thousands separators).',
- '  In a flowchart, group related blocks with subgraph Name ... end instead of drawing long rows of unconnected blocks.',
+ '  In a flowchart write a block as A["**Name**<br/>what happens in it"]: the name is set strong, the detail quiet under it. Group the stages with subgraph Name ... end instead of long rows of unconnected blocks, prefer flowchart LR for a pipeline of stages, and label the arrows that carry a condition or data.',
+ '  A process that repeats is a cycle: link its last step back to the first (E -->|next epoch| A) and it is drawn as a ring.',
+ '  An xychart-beta also takes area "Name" [...], goal "Target" 2200 for a level to reach, zone "Normal" 60 --> 100 for a band of values, x-zone "Warm-up" 0 --> 10 for a stretch of the x-axis and mark "Early stop" 30 for a moment on it.',
+ '  Several line rows draw several runs on one chart. Put log after the name of the y-axis (y-axis "Loss" log) when the values span orders of magnitude. Write xychart-beta stacked to stack its bars, xychart-beta horizontal to turn them on their side. Write dates on its x-axis as 2026-09-01: a line then stands at its real dates.',
+ '- The same mermaid block draws figures and plans that Mermaid has no type for. The first line is the type, then an optional title <text> line, then one row per line with its cells parted by |:',
+ '  metrics for the few numbers that matter: Name | value with its unit, then any of: a change such as +4.2% or -0.6 kg (add good or bad after it to colour it), a target such as of 2200, a run of numbers for a small trend line, a note; good, bad or warn as a cell of its own marks the figure itself.',
+ '  bars for a ranking, an estimate or a budget: Name | amount | note; a unit <unit> line names what the amounts are, and a last line total sums them up.',
+ '  ranges for values against what is normal for them (test results, tyre pressure, pulse): Name | value with its unit | low-high, or <high, or >low.',
+ '  plan for a week of training, a menu, a timetable or a board: each column is a line (Mon · Legs) and its cards are the lines indented under it, as Text | detail.',
+ '  steps for a procedure someone follows (a repair, an installation, a setup): each step is a line, Step | time | tools; remarks are indented under it, and a remark that starts with ! is a warning. A step that starts with [x] is done.',
+ '  waterfall for how a sum comes about: Start | 124, then signed changes such as Costs | -52, and Result | total.',
+ '  funnel for stages that narrow: Stage | number. scatter for two measures against each other: x-axis <name>, y-axis <name>, then Name | x | y.',
+ '  heatmap for a value per day, one line each as 2026-09-01 | 45, or for a table of marks: a cols A, B, C line, then Row | x | - | x.',
+ '  array for the cells of an algorithm, a row per step: Caption | 1, 3, 5, 7 | lo: 0, hi: 3 | 1..2, that is the values, the pointers by index and the cells to mark.',
+ '  bracket for a knockout: each round is a line and its matches are indented under it, as Team 2 - 1 Team.',
+ '- Kinds made for one subject are written the same way, and are the first choice whenever that subject comes up:',
+ '  nutrition for what a day or a dish gives: Calories | 1850 kcal | of 2200, then Protein, Fat and Carbs each as Name | 132 g | of 150, then the meals as Breakfast: oatmeal with berries | 420 kcal | P 18 · F 12 · C 58.',
+ '  recipe for a dish to cook: about 25 min | 2 servings | 650 kcal, then a line Ingredients with Name | amount | note indented under it, then a line Steps with Step | time | note under it; a line that starts with ! is what to mind at the step above.',
+ '  facts for what a thing is at a glance (a document, a car, a product, a phone): file report.pdf | 42 pages | 1.8 MB for an attached file, then Label | value | note, with good, warn or bad as a last cell to mark a value.',
+ '  outline for how a document is built: 1. Part | p. 3 | what it says, with its sub-parts indented under it.',
+ '  checklist for what holds and what does not (claims checked, requirements, risks, an inspection, compatibility, packing): each row opens with [x] yes, [!] mind this, [-] no, [?] not known or [ ] still open, then Text | note; remarks are indented under a row.',
+ '  changes for what became different (two versions of a document, settings, prices): Name | was -> now | note, with good or bad as a last cell.',
+ '  matches for the games of a day or their results: 18:00 | Team A - Team B | tournament | note, or Team A 2 : 1 Team B once played; a last cell * marks the match to watch, and a line without bars names a day or a cup.',
+ '  words for vocabulary: word | [how it is said] | meaning | example — its translation; a line without bars names a group of words.',
+ '  gloss for a sentence taken apart: a line of its words parted by |, under it a line of what each means, then a line of what each is (case, tense, role), then = and the whole translation; put *stars* round the word to look at.',
+ '  forms for conjugation and declension: a cols Present, Past line, then yo | hablo | hablé; the endings are marked by themselves, or put stars round the part that changes: *des* Tisches.',
+ '  parts for a computer build, a kit or an estimate: Slot | part | what to know of it | price, with good, warn or bad as a last cell for whether it fits, and a last line total.',
+ '  settings for setting up a phone, a system or an app: Settings > Battery > Power saving | on | note; write on or off for a switch, or the value to choose; a line without bars names a group.',
+ '  route for a trip: Place | when or how long | what to see; a line indented under a place is the way on to the next (train | 2 h 50 min | 310 km), and a line Day 1 opens a day.',
+ '  Choose the form by the subject. How something works or is made: a flowchart of the whole with its stages, and a chart for each curve or comparison in it. A document or a file the user sent: facts for what it is, outline for how it is built, then checklist, changes, timeline, metrics or bars for what it says, and a flowchart for the process it describes.',
+ '  Food: nutrition, recipe, plan for a menu. Sport: matches, bracket, plan for a training week, metrics and heatmap for progress. Money: candlestick, waterfall, bars with a total, metrics, pie. A language: words, gloss, forms. A device: parts, settings, steps, checklist. A trip: route, plan by days, bars for the budget, checklist for packing. A repair: steps, ranges for the norms, parts for what to buy.',
+ '  And by what the reader needs: a few key numbers are metrics, not a chart; a ranking is bars; a change over time is a line; steps to follow are steps; a schedule is plan or gantt.',
+ '  Example:',
+ '  ```mermaid',
+ '  metrics',
+ '    title Today',
+ '    Calories | 1850 kcal | of 2200',
+ '    Weight | 78.4 kg | -0.6 kg good | 80.1, 79.6, 79.2, 78.4',
+ '  ```',
  '- For a website, landing page, app screen or any interface layout draw a wireframe, never a flowchart. It is the same mermaid block with first line wireframe (wireframe mobile for a phone screen),',
  '  then title <site name>, then the page sections from top to bottom: nav, hero, logos, features, cards, steps, stats, reviews, pricing, faq, cta, form, gallery, section, footer, each with its heading.',
  '  Indented under a section: text <paragraph>, button <label>, image or video, links A, B, C, fields A, B, and items as Title: short description.',
@@ -98,8 +144,12 @@ const FORMAT_GUIDE = [
 const VISUAL_CHECK = [
  '# Before you answer',
  'Check the reply against the formatting rules: OpenGhost is a visual app, and a text-only answer where a chart, a diagram, a wireframe or a files block fits is a worse answer.',
- '- Files or folders in it: a files block.',
+ '- Files or folders in it: a files block. A document the user sent: facts, outline, checklist.',
  '- Numbers to compare, a trend or shares: a chart. A process, a plan, a structure or a history: a diagram. An interface or a page: a wireframe.',
+ '- A few key numbers: metrics. Values against a norm: ranges. Steps to follow: steps. A plan by days: plan.',
+ '- Food: nutrition or recipe. Matches: matches. A language: words, gloss, forms. A build: parts. Settings of a device: settings. A trip: route.',
+ '- An explanation of how something works: a scheme of the whole and a chart for every curve in it, not one drawing for the whole answer.',
+ '- Something better seen than described, a dish, a place, a game, a product: pictures or a video found with find_media.',
  'Draw it in this reply without being asked, and keep the words around it short.',
 ].join('\n');
 const VISUAL_NUDGE = new Set(['openai', 'chatgpt']);
@@ -108,20 +158,39 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
 const attr = text => text.replace(/[&"<\n]/g, c => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '\n': ' ' })[c]);
 const samePath = (a, b) => Library.samePath(a, b);
 
-function fileBlock(item, payload) {
- let head = `<file name="${attr(item.name)}"`;
- if (item.note) head += ` note="${attr(item.note)}"`;
- if (payload.type === 'text') return `${head}${payload.truncated ? ' truncated="true"' : ''}>\n${payload.text}\n</file>`;
- return `${head} size="${FileKinds.formatSize(item.size)}">The app could not read this file, only its name is known.</file>`;
+// A video goes to the model as its place on the disk: the agent watches it with video_frames, as many frames and
+// wherever in it it needs.
+function videoBlock(head, item, video, agent) {
+ const facts = [`size="${FileKinds.formatSize(item.size)}"`];
+ if (video.duration) facts.push(`duration="${video.duration.toFixed(1)} s"`);
+ if (video.width) facts.push(`resolution="${video.width}×${video.height}"`);
+ if (!video.path || !agent) return `${head} ${facts.join(' ')}>A video the app can't show you; only its name and these details are known.</file>`;
+ const say = video.duration && !video.width ? 'A video file with sound only, no picture.' : 'A video. Watch it with video_frames at this path.';
+ return `${head} path="${attr(video.path)}" ${facts.join(' ')}>${say}</file>`;
 }
 
-async function userContent({ text, attachments }) {
+// A file the agent may have to open itself comes with its place on the disk: a PDF, a file read only in part, and one
+// the app could not read at all.
+function fileBlock(item, payload, agent) {
+ let head = `<file name="${attr(item.name)}"`;
+ if (item.note) head += ` note="${attr(item.note)}"`;
+ const place = agent && payload.path && (payload.pdf || payload.truncated || payload.type === 'none') ? ` path="${attr(payload.path)}"` : '';
+ if (payload.type === 'text') return `${head}${place}${payload.truncated ? ' truncated="true"' : ''}>\n${payload.text}\n</file>`;
+ if (payload.type === 'video') return videoBlock(head, item, payload, agent);
+ const open = place ? ' Open it from its path with your tools if you need what is in it.' : '';
+ head += `${place} size="${FileKinds.formatSize(item.size)}"`;
+ if (payload.pdf) return `${head}>The app found no text in this PDF: its pages may be scans, or it needs a password.${open}</file>`;
+ return `${head}>${place ? `The app could not read this file.${open}` : 'The app could not read this file, only its name is known.'}</file>`;
+}
+
+// `agent`: the chat's model has the agent's tools, so a video can be watched.
+async function userContent({ text, attachments }, agent) {
  if (!attachments.length) return text;
  const payloads = await Promise.all(attachments.map(item => item.ready));
  const parts = [], files = [];
  attachments.forEach((item, k) => {
   const payload = payloads[k];
-  if (payload.type !== 'image') { files.push(fileBlock(item, payload)); return; }
+  if (payload.type !== 'image') { files.push(fileBlock(item, payload, agent)); return; }
   const label = `Image ${item.name}${item.note ? `. The user's note: ${item.note}` : ''}`;
   parts.push({ type: 'text', text: label }, { type: 'image_url', image_url: { url: payload.url } });
  });
@@ -142,7 +211,12 @@ function withPictures(messages, pictures) {
 }
 
 // A pasted text keeps only its first line and length here; the text itself went to the model with the message.
-const slim = ({ name, size, image, width, height, note, pasted }) => ({ name, size, image: !!image, width, height, note, pasted: pasted && { preview: pasted.preview, lines: pasted.lines } });
+// A video keeps its place on the disk, so the agent can go on watching it, and the frame its card shows.
+const slim = ({ name, size, image, width, height, note, pasted, payload }) => ({
+ name, size, image: !!image, width, height, note,
+ pasted: pasted && { preview: pasted.preview, lines: pasted.lines },
+ video: payload?.type === 'video' ? { path: payload.path, duration: payload.duration, poster: payload.poster } : undefined,
+});
 const join = (base, text) => [base.trimEnd(), text.trim()].filter(Boolean).join('\n\n');
 function splitQuotes(text) {
  const quotes = [];
@@ -174,6 +248,19 @@ const drop = (list, item) => {
  const at = list.indexOf(item);
  if (at >= 0) list.splice(at, 1);
 };
+
+// Tokens as a chat counts them: sent, of them read from the provider's cache or written to it, written back, and requests.
+const tokens = () => ({ input: 0, cached: 0, written: 0, output: 0, requests: 0 });
+const addUp = (into, usage) => {
+ for (const key of Object.keys(into)) into[key] += usage[key] || 0;
+ return into;
+};
+
+// A reply or a summary keeps what its requests cost, so the chat can later tell what it spent and on which model.
+function spend(entry, usage) {
+ const parts = Usage.parts(usage);
+ if (parts) addUp(entry.usage ||= tokens(), { ...parts, requests: 1 });
+}
 const cut = (text, max) => text.length > max ? `${text.slice(0, max)}\n[… ${text.length - max} more characters]` : text;
 
 // Tool messages carry text only, so pictures from tools reach the model as a user message right after the results.
@@ -223,6 +310,8 @@ function transcript(entries) {
   else if (entry.role === 'assistant') {
    for (const step of entry.steps) {
     if (step.role === 'tool') { out.push(`[Result] ${cut(step.content, COMPACT.tool)}`); continue; }
+    // A note from the app says how things stood then; the chat gets fresh ones after the summary.
+    if (step.role === 'user' && typeof step.content === 'string') continue;
     if (step.role === 'user') { out.push(`[${step.content.filter(part => part.type === 'image_url').length} pictures from the tools were shown]`); continue; }
     if (step.content) out.push(`OpenGhost: ${cut(step.content, COMPACT.text)}`);
     for (const call of step.tool_calls || []) out.push(`[Tool ${call.function.name}] ${cut(call.function.arguments, COMPACT.tool)}`);
@@ -255,6 +344,8 @@ class Conversation {
   this.model = '';
   this.messages = [];
   this.tokens = 0;
+  // How many messages the latest request held, the system prompt's included (see Chat.seam).
+  this.sent = 0;
   this.list = list;
   this.list.className = 'thread-list';
   this.list.__conversation = this;
@@ -271,9 +362,7 @@ class Conversation {
 }
 
 class Chat {
- constructor({ main, thread, bottom, settings, library, onChange, onList, brief = '' }) {
-  // Extra words for the system prompt (the mini chat explains itself there); named apart from note(), the line under a reply.
-  this.brief = brief;
+ constructor({ main, thread, bottom, settings, library, onChange, onList }) {
   this.main = main;
   this.thread = thread;
   this.bottom = bottom;
@@ -305,6 +394,7 @@ class Chat {
   thread.addEventListener('scroll', () => this.onScroll());
   thread.addEventListener('click', event => this.onClick(event));
   thread.addEventListener('diagram-edit', event => this.onDiagramEdit(event));
+  thread.addEventListener('stats-remove', event => this.onStatsRemove(event));
   bottom.addEventListener('scroll-bottom', () => this.scrollToBottom());
   new RowGlide(thread);
   this.activate(this.newDraft(thread.querySelector('.thread-list') || undefined));
@@ -348,9 +438,47 @@ class Chat {
   if (!this.hasHistory(conv)) { this.setModel(id); return; }
   const turn = this.begin(conv, this.config(conv));
   turn.switch = this.modelOf(conv);
-  turn.quiet = true;
   this.library.update(conv.id, { model: id });
   this.settings.setModel(id);
+  this.summarize(conv, turn);
+ }
+
+ // Whether the chat on screen can be compacted now: it has turns no summary covers yet, and nothing is being written.
+ get canCompact() {
+  const conv = this.active;
+  return !!conv?.record && !conv.turn && !conv.locked && this.hasHistory(conv);
+ }
+
+ // Whether the chat on screen has anything to count: a message in it, and no reply being written.
+ get canStats() {
+  const conv = this.active;
+  return !!conv?.record && !conv.turn && !conv.locked && conv.messages.some(entry => entry.role === 'user' || entry.role === 'assistant');
+ }
+
+ // How full the chat's context is, out of its model's window, from 0 to 1.
+ get fill() {
+  const conv = this.active;
+  return conv?.record ? Math.min(1, (conv.tokens || 0) / this.settings.windowOf(this.modelOf(conv))) : 0;
+ }
+
+ // Compacts the chat on screen on the user's word: the same summary a full window brings, shown the same way.
+ compactNow() {
+  const conv = this.active;
+  if (!this.canCompact) return false;
+  const config = this.config(conv);
+  if (!config.ready) {
+   this.settings.open(I18n.t('settings.key.needed'), config.provider);
+   return false;
+  }
+  const turn = this.begin(conv, config);
+  turn.compacting = true;
+  this.summarize(conv, turn);
+  return true;
+ }
+
+ // A turn with nothing of its own to say, only the summary's line in the chat. Messages sent meanwhile wait and go right after it.
+ summarize(conv, turn) {
+  turn.quiet = true;
   this.openPart(conv, turn);
   const view = turn.part.view;
   view.status.remove();
@@ -369,8 +497,9 @@ class Chat {
   return this.active && !this.active.record ? this.active.folder : null;
  }
 
- get needsFolder() {
-  return !!this.active && !this.active.record && !this.active.folder;
+ // A new chat not written in yet: it has no place in the list until its first message, only a stand-in row.
+ get isDraft() {
+  return !!this.active && !this.active.record;
  }
 
  isBusy(id) {
@@ -507,7 +636,7 @@ class Chat {
    this.conversations.delete(id);
   }
   if (this.active?.id === id) {
-   const folder = record && this.library.folders.find(item => samePath(item.path, record.folder));
+   const folder = record && !this.library.isHome(record) && this.library.folders.find(item => samePath(item.path, record.folder));
    this.newChat(folder ? { path: folder.path, name: folder.name } : null);
   }
   conv?.list.remove();
@@ -531,6 +660,7 @@ class Chat {
   const prev = this.active;
   if (prev === conv) return;
   this.stopFollow();
+  this.anchor = null;
   if (prev) {
    prev.follow = this.follow;
    prev.scrollTop = this.thread.scrollTop;
@@ -555,9 +685,14 @@ class Chat {
   this.syncBottom();
  }
 
+ // Holds the end of the chat in view. A card taller than the room over the composer (postStats) holds its own top in view
+ // instead, clear of the buttons over the chat.
  pin() {
-  this.thread.scrollTop = this.thread.scrollHeight;
-  this.lastTop = this.thread.scrollTop;
+  const thread = this.thread, anchor = this.anchor?.isConnected ? this.anchor : null;
+  let top = thread.scrollHeight;
+  if (anchor) top = Math.min(top, anchor.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - ANCHOR_GAP);
+  thread.scrollTop = top;
+  this.lastTop = thread.scrollTop;
  }
 
  stopFollow() {
@@ -571,12 +706,12 @@ class Chat {
  send(text, attachments = []) {
   const conv = this.active, config = this.config(conv);
   if (conv.locked) return false;
+  this.anchor = null;
   if (!config.ready) {
    this.settings.open(I18n.t('settings.key.needed'), config.provider);
    return false;
   }
   if (!conv.record) {
-   if (!conv.folder) return false;
    conv.record = this.library.create({ folder: conv.folder, text, attachments });
    this.library.update(conv.id, { model: this.modelOf(conv) });
    this.conversations.set(conv.id, conv);
@@ -616,7 +751,7 @@ class Chat {
   const mode = this.settings.mode;
   for (const conv of this.conversations.values()) {
    for (const pending of conv.turn?.approvals || []) {
-    if (!AgentTools.needsApproval(pending.name, pending.args, { mode, cwd: pending.cwd })) pending.card.settle('allow');
+    if (!AgentTools.needsApproval(pending.name, pending.args, { mode, cwd: pending.cwd, attached: this.attachedVideos(conv) })) pending.card.settle('allow');
    }
   }
  }
@@ -740,8 +875,13 @@ class Chat {
   return parts.length ? parts.map(item => item.content.trim()).join('\n\n') : entry.content;
  }
 
+ // The folder the agent of a chat works in: its project folder, or the chat's own folder when it has none.
+ cwd(conv) {
+  return conv?.record ? this.library.cwdOf(conv.record) : '';
+ }
+
  agent(conv) {
-  return AgentTools.available && /^([a-zA-Z]:[\\/]|\\\\|\/)/.test(conv.record?.folder || '');
+  return AgentTools.available && /^([a-zA-Z]:[\\/]|\\\\|\/)/.test(this.cwd(conv));
  }
 
  begin(conv, config) {
@@ -756,7 +896,18 @@ class Chat {
   if (bubble) this.nodes.set(entry, bubble);
   this.openPart(conv, turn);
   this.onChange();
-  return this.drive(conv, turn, async () => { entry.content = await userContent(prompt); });
+  return this.drive(conv, turn, async () => { await this.compose(conv, entry, prompt); });
+ }
+
+ // The message as the model gets it, once every attachment is read; a video's place and frame are known only then.
+ async compose(conv, entry, prompt) {
+  entry.content = await userContent(prompt, this.agent(conv));
+  entry.attachments = prompt.attachments.map(slim);
+ }
+
+ // Videos the user attached to this chat: the agent watches them without asking, wherever they are.
+ attachedVideos(conv) {
+  return conv.messages.flatMap(entry => entry.role === 'user' ? (entry.attachments || []).map(item => item.video?.path).filter(Boolean) : []);
  }
 
  resume(conv, config) {
@@ -800,6 +951,12 @@ class Chat {
    if (!turn.queue.length) return null;
    turn.quiet = false;
    await this.takeQueue(conv, turn);
+  } else if (turn.compacting) {
+   if (!(await this.compact(conv, turn))) return null;
+   turn.compacting = false;
+   if (!turn.queue.length) return null;
+   turn.quiet = false;
+   await this.takeQueue(conv, turn);
   }
   for (;;) {
    await this.compactIfNeeded(conv, turn);
@@ -824,21 +981,40 @@ class Chat {
   }
  }
 
- // Rebuilt for every request, so the user's own instructions and files from the settings are always there,
- // whatever compaction did to the history.
+ // The system prompt, in two parts. The first is the same in every chat on this computer, so a provider serves it from its
+ // cache whichever chat asks. The second is what a chat has of its own: its folder and the user's instructions and files
+ // from the settings. Both are rebuilt for every request, so the user's own words are always there, whatever compaction
+ // did to the history. Neither holds anything that changes while a chat goes on: that comes in notes, see `notes`.
  async system(conv) {
   await UserContext.ready;
-  const note = [this.brief, UserContext.prompt()].filter(Boolean).map(text => `\n\n${text}`).join('');
-  const format = VISUAL_NUDGE.has(this.config(conv).provider) ? `${FORMAT_GUIDE}\n\n${VISUAL_CHECK}` : FORMAT_GUIDE;
-  if (!this.agent(conv)) return format + note;
+  const own = UserContext.prompt(), check = VISUAL_NUDGE.has(this.config(conv).provider) ? VISUAL_CHECK : '';
+  if (!this.agent(conv)) return [FORMAT_GUIDE, [own, check].filter(Boolean).join('\n\n')].filter(Boolean);
   const env = await AgentTools.environment();
-  return `${AgentPrompt.build({ folder: conv.record.folder, mode: this.settings.mode, env })}\n\n# Formatting\n${format}${note}`;
+  const place = AgentPrompt.environment({ folder: this.cwd(conv), own: this.library.isHome(conv.record), env });
+  return [`${AgentPrompt.build({ env })}\n\n# Formatting\n${FORMAT_GUIDE}`, [place, own, check].filter(Boolean).join('\n\n')];
  }
 
- context() {
-  const conv = this.active, record = conv?.record;
-  const folder = record ? this.library.folders.find(item => samePath(item.path, record.folder)) || { path: record.folder, name: '' } : conv?.folder || null;
-  return { messages: conv ? snapshot(conv.messages) : [], tokens: conv?.tokens || 0, folder, model: this.modelOf(conv) };
+ // What the model has to be told before this request: the notes whose latest word in the chat no longer holds. A note goes
+ // into the chat with the reply it was sent for and stays there, so every request starts with the one before it, word for
+ // word, and that is what lets a provider reuse its cache. Told in the system prompt, or in a message taken back after
+ // the request, every change would make the provider read the whole chat anew.
+ notes(conv, messages) {
+  if (!this.agent(conv)) return [];
+  const told = head => messages.findLast(message => message.role === 'user' && typeof message.content === 'string' && message.content.startsWith(head))?.content || '';
+  const out = [], state = `${TOOL_NOTES.state}\n${AgentPrompt.state({ mode: this.settings.mode })}`;
+  if (state !== told(TOOL_NOTES.state)) out.push({ role: 'user', content: state });
+  // A browser that holds nothing gets no note, unless an earlier note says it held something.
+  const held = window.browserPanel?.context() || '', before = told(TOOL_NOTES.browser);
+  const browser = held || before ? `${TOOL_NOTES.browser}\n${held || TOOL_NOTES.browserEmpty}` : '';
+  if (browser && browser !== before) out.push({ role: 'user', content: browser });
+  return out;
+ }
+
+ // The message the request before this one ended with: a provider that caches up to marked places (Claude) reads its
+ // cache from exactly there, however much has come after it since. Counted from the start of the request, which only
+ // grows between two summaries.
+ seam(conv, messages) {
+  return (conv.sent || 0) - 1;
  }
 
  history(conv) {
@@ -861,11 +1037,15 @@ class Chat {
 
  async request(conv, turn) {
   const part = turn.part, view = part.view, base = part.entry.content;
-  const messages = [{ role: 'system', content: await this.system(conv) }, ...withPictures(this.history(conv), UserContext.pictures())];
-  // What the browser holds changes from step to step, so it rides at the very end of the request, never saved in the chat:
-  // anywhere earlier, each new page would change the start of the request and the provider could no longer reuse its cache.
-  const browser = this.agent(conv) && window.browserPanel?.context();
-  if (browser) messages.push({ role: 'user', content: `${TOOL_NOTES.browser}\n${browser}` });
+  const messages = [...(await this.system(conv)).map(content => ({ role: 'system', content })), ...withPictures(this.history(conv), UserContext.pictures())];
+  const notes = this.notes(conv, messages), at = this.seam(conv, messages);
+  if (messages[at]) messages[at] = { ...messages[at], cache: true };
+  messages.push(...notes);
+  // What was sent stays in the chat with the reply to it, the notes included, and the next request is told where this one ended.
+  const keep = step => {
+   part.entry.steps.push(...notes, step);
+   conv.sent = messages.length;
+  };
   let result;
   try {
    result = await Providers.stream(turn.config, {
@@ -882,10 +1062,11 @@ class Chat {
     },
    });
   } catch (error) {
-   if (error.partial?.content) part.entry.steps.push(assistantStep({ ...error.partial, toolCalls: [] }));
+   if (error.partial?.content) keep(assistantStep({ ...error.partial, toolCalls: [] }));
    throw error;
   }
-  part.entry.steps.push(assistantStep(result));
+  keep(assistantStep(result));
+  spend(part.entry, result.usage);
   const usage = result.usage;
   conv.tokens = usage ? usage.total_tokens || usage.prompt_tokens + usage.completion_tokens : estimate(messages) + estimate([part.entry.steps.at(-1)]);
   const calls = part.entry.steps.at(-1).tool_calls || [];
@@ -894,14 +1075,14 @@ class Chat {
  }
 
  async useTool(conv, turn, view, call) {
-  const name = call.function.name, cwd = conv.record.folder;
+  const name = call.function.name, cwd = this.cwd(conv);
   let args;
   try {
    args = JSON.parse(call.function.arguments || '{}') || {};
   } catch {
    return `Error: the arguments are not valid JSON: ${call.function.arguments.slice(0, 300)}. Call the tool again with valid JSON.`;
   }
-  if (AgentTools.needsApproval(name, args, { mode: this.settings.mode, cwd })) {
+  if (AgentTools.needsApproval(name, args, { mode: this.settings.mode, cwd, attached: this.attachedVideos(conv) })) {
    if (turn.queue.length) return TOOL_NOTES.message;
    const answer = await this.approve(conv, turn, view, { name, args, cwd });
    if (answer !== 'allow') return answer === 'deny' ? TOOL_NOTES.declined : answer;
@@ -957,7 +1138,8 @@ class Chat {
   const queued = turn.queue.splice(0);
   this.closePart(conv, turn.part);
   for (const { prompt, bubble } of queued) {
-   const entry = { role: 'user', text: prompt.text, attachments: prompt.attachments.map(slim), content: await userContent(prompt) };
+   const entry = { role: 'user', text: prompt.text };
+   await this.compose(conv, entry, prompt);
    conv.messages.push(entry);
    this.nodes.set(entry, bubble);
    conv.tokens += estimate([entry]);
@@ -969,7 +1151,8 @@ class Chat {
  openPart(conv, turn, view = null) {
   view ||= this.assistantMessage(conv);
   if (!view.el.isConnected) conv.list.append(view.el);
-  const entry = { role: 'assistant', content: '', steps: [], turn: turn.id };
+  // Each part of a reply notes the model that wrote it, for the chat's stats and for a model that later takes over.
+  const entry = { role: 'assistant', content: '', steps: [], turn: turn.id, model: turn.config.id };
   conv.messages.push(entry);
   view.el.__entry = entry;
   turn.part = { view, entry };
@@ -1001,7 +1184,7 @@ class Chat {
    const item = { role: 'user', text: prompt.text, attachments: prompt.attachments.map(slim), content: prompt.text };
    conv.messages.push(item);
    this.nodes.set(item, bubble);
-   return userContent(prompt).then(content => { item.content = content; }, () => {});
+   return this.compose(conv, item, prompt).catch(() => {});
   });
   await Promise.all(queued);
   if (conv.record && this.library.chat(conv.id)) {
@@ -1035,7 +1218,7 @@ class Chat {
 
  async compactIfNeeded(conv, turn) {
   const used = conv.tokens || estimate(this.history(conv));
-  if (used < this.settings.windowOf(turn.config.model) * (1 - CONTEXT.reserve)) return;
+  if (used < this.settings.windowOf(turn.config.id) * (1 - CONTEXT.reserve)) return;
   await this.compact(conv, turn);
  }
 
@@ -1064,12 +1247,13 @@ class Chat {
    else turn.part.view.el.before(notice);
   }
   if (conv === this.active) this.followBottom();
-  let summary = '';
+  let summary = '', cost = null;
   try {
    summary = await Providers.complete(turn.config, {
     messages: [{ role: 'system', content: COMPACT.prompt }, { role: 'user', content: transcript(messages.slice(0, at)) }],
     maxTokens: COMPACT.output,
     signal: turn.controller.signal,
+    onUsage: usage => { cost = usage; },
    });
   } catch (error) {
    if (error.name === 'AbortError') { this.finishNotice(notice, false); throw error; }
@@ -1079,10 +1263,13 @@ class Chat {
    this.finishNotice(notice, false);
    return false;
   }
-  const entry = { role: 'compact', summary, resume: middle };
+  const entry = { role: 'compact', summary, resume: middle, model: turn.config.id };
+  spend(entry, cost);
   messages.splice(at, 0, entry);
   this.nodes.set(entry, notice);
-  conv.tokens = estimate([{ content: await this.system(conv) }, ...this.history(conv)]);
+  // The chat starts anew from the summary: nothing of the requests before it is in the next one.
+  conv.sent = 0;
+  conv.tokens = estimate([...(await this.system(conv)).map(content => ({ content })), ...this.history(conv)]);
   this.finishNotice(notice, true);
   this.save(conv);
   return true;
@@ -1112,6 +1299,70 @@ class Chat {
   this.library.update(conv.id, { updated: Date.now() });
  }
 
+ // What a chat has spent, per model and per reply, with its mini chat and how full its context is. Only what was counted is
+ // here: replies written before the app kept count are only numbered.
+ async stats(conv = this.active) {
+  const models = new Map(), turns = new Map(), uncounted = new Set();
+  for (const entry of conv.messages) {
+   if (entry.role !== 'assistant' && entry.role !== 'compact') continue;
+   const turn = entry.role === 'assistant' ? entry.turn || entry : null;
+   if (!entry.usage) {
+    if (turn && entry.steps?.length) uncounted.add(turn);
+    continue;
+   }
+   const model = entry.model || this.modelOf(conv);
+   if (!models.has(model)) models.set(model, tokens());
+   addUp(models.get(model), entry.usage);
+   if (!turn) continue;
+   if (!turns.has(turn)) turns.set(turn, { model, spent: tokens() });
+   addUp(turns.get(turn).spent, entry.usage);
+  }
+  const side = await this.library.side?.(conv.id);
+  let mini = null;
+  for (const entry of side?.messages || []) if (entry.usage && (entry.role === 'assistant' || entry.role === 'compact')) addUp(mini ||= tokens(), entry.usage);
+  const order = [...models.keys()];
+  return {
+   version: 1,
+   models: order.map(id => ({ id, name: this.settings.find(id)?.name || String(id).split(':').pop(), ...models.get(id) })),
+   turns: [...turns.values()].map(({ model, spent }) => ({ m: order.indexOf(model), t: spent.input + spent.output, c: spent.cached })),
+   mini,
+   context: { used: conv.tokens || 0, window: this.settings.windowOf(this.modelOf(conv)) },
+   uncounted: uncounted.size,
+  };
+ }
+
+ // Puts the chat's numbers into it as a card. The card is the user's only: it is kept with the chat, but no model ever sees it.
+ async postStats(from = null) {
+  const conv = this.active;
+  if (!this.canStats) return false;
+  const stats = await this.stats(conv);
+  if (conv !== this.active || conv.turn) return false;
+  const entry = { role: 'stats', stats };
+  conv.messages.push(entry);
+  const el = this.entryView(entry);
+  this.nodes.set(entry, el);
+  this.main.classList.remove('is-empty');
+  this.follow = true;
+  this.pinUntil = performance.now() + PIN_TIME;
+  this.anchor = el;
+  setTimeout(() => { if (this.anchor === el) this.anchor = null; }, PIN_TIME);
+  conv.list.append(el);
+  StatsCard.enter(el, { from, pin: () => this.pin() });
+  // Saved without moving the chat up the list: nothing was said in it.
+  this.library.saveMessages(conv.id, conv.messages, conv.tokens);
+  return true;
+ }
+
+ onStatsRemove(event) {
+  const el = event.target.closest('.stats-item'), entry = el?.__entry, conv = el?.closest('.thread-list')?.__conversation;
+  if (!entry || !conv) return;
+  drop(conv.messages, entry);
+  // A card taken away right after it came in no longer holds the chat's view.
+  if (this.anchor === el) this.anchor = null;
+  StatsCard.leave(el);
+  if (conv.record && this.library.chat(conv.id)) this.library.saveMessages(conv.id, conv.messages, conv.tokens);
+ }
+
  async name(conv, config) {
   const id = conv.id, user = conv.messages.find(entry => entry.role === 'user'), reply = conv.messages.find(entry => entry.role === 'assistant' && entry.content?.trim());
   if (!user || !reply) return;
@@ -1135,10 +1386,7 @@ class Chat {
   const ends = new Map();
   for (const entry of conv.messages) if (entry.role === 'assistant' && entry.content?.trim()) ends.set(entry.turn || entry, entry);
   for (const entry of conv.messages) {
-   let el = null;
-   if (entry.role === 'user') el = this.userMessage(this.promptOf(entry));
-   else if (entry.role === 'compact') el = this.compactNotice(false);
-   else if (entry.content?.trim()) el = this.restoredMessage(entry, ends.get(entry.turn || entry) === entry);
+   const el = this.entryView(entry, ends.get(entry.turn || entry) === entry);
    if (!el) continue;
    conv.list.append(el);
    this.nodes.set(entry, el);
@@ -1146,10 +1394,25 @@ class Chat {
   settle(conv.list);
  }
 
+ // What a saved entry shows as when its chat opens; `last` marks the reply that ends its turn.
+ entryView(entry, last) {
+  if (entry.role === 'user') return this.userMessage(this.promptOf(entry));
+  if (entry.role === 'compact') return this.compactNotice(false);
+  if (entry.role === 'stats') {
+   const el = StatsCard.build(entry.stats);
+   el.__entry = entry;
+   return el;
+  }
+  if (entry.content?.trim()) return this.restoredMessage(entry, last);
+  return null;
+ }
+
  promptOf(entry) {
   const urls = Array.isArray(entry.content) ? entry.content.filter(part => part.type === 'image_url').map(part => part.image_url.url) : [];
   let k = 0;
-  const attachments = (entry.attachments || []).map(item => ({ ...item, info: FileKinds.describe(item.name), url: item.image ? urls[k++] || '' : '' }));
+  const attachments = (entry.attachments || []).map(item => ({
+   ...item, info: FileKinds.describe(item.name), url: item.image ? urls[k++] || '' : item.video?.poster || '', duration: item.video?.duration || 0,
+  }));
   return { text: entry.text || '', attachments };
  }
 
@@ -1242,13 +1505,11 @@ class Chat {
  userMessage({ text, attachments }) {
   const el = document.createElement('div');
   el.className = 'message is-user';
-  const images = attachments.filter(item => item.image && item.url), files = attachments.filter(item => !item.image);
-  if (images.length) el.append(new MediaSlider(images.map(({ url, width, height, name, note }) => ({ url, width, height, name, note }))).el);
-  if (files.length) {
-   const box = document.createElement('div');
-   box.className = 'message-files';
-   for (const item of files) box.append(this.fileCard(item));
-   el.append(box);
+  // A video sent the moment it was added may still be having its frame taken: the attachments come in once it is there.
+  if (attachments.some(item => item.info?.glyph === 'video' && item.ready && !item.payload)) {
+   Promise.all(attachments.map(item => item.ready)).then(() => el.prepend(...this.attachmentViews(attachments)));
+  } else {
+   el.append(...this.attachmentViews(attachments));
   }
   const { quotes, rest } = splitQuotes(text);
   for (const quote of quotes) {
@@ -1275,6 +1536,19 @@ class Chat {
   return el;
  }
 
+ // Photos and videos with a frame go into the stack of pictures; everything else is a file's card.
+ attachmentViews(attachments) {
+  const views = [], media = attachments.filter(item => (item.image || item.video) && item.url), files = attachments.filter(item => !item.image && !media.includes(item));
+  if (media.length) views.push(new MediaSlider(media.map(({ url, width, height, name, note, video, duration }) => ({ url, width, height, name, note, video: !!video, duration }))).el);
+  if (files.length) {
+   const box = document.createElement('div');
+   box.className = 'message-files';
+   for (const item of files) box.append(this.fileCard(item));
+   views.push(box);
+  }
+  return views;
+ }
+
  fileCard(item) {
   const card = document.createElement('div');
   card.className = 'file-card';
@@ -1287,7 +1561,8 @@ class Chat {
   name.textContent = item.pasted?.preview || item.name;
   const meta = document.createElement('div');
   meta.className = 'file-card-meta';
-  meta.textContent = item.pasted ? Attachments.pastedLabel(item.pasted, item.size) : `${item.info.name} · ${FileKinds.formatSize(item.size)}`;
+  meta.textContent = item.pasted ? Attachments.pastedLabel(item.pasted, item.size)
+   : [item.info.name, item.duration ? FileKinds.formatDuration(item.duration) : '', FileKinds.formatSize(item.size)].filter(Boolean).join(' · ');
   text.append(name, meta);
   if (item.note) {
    const note = document.createElement('div');
@@ -1308,5 +1583,164 @@ class Chat {
  }
 }
 
+// What the model of the mini chat is told, in notes from the app between the chat and the mini chat's own messages.
+const SIDE = {
+ note: [
+  'This note comes from the app, not from the user.',
+  '# Mini chat',
+  'Everything above is the main conversation, as it stands right now. What follows is the mini chat: a small side window the user opened over it for quick questions about it, or about anything else.',
+  '- Answer briefly and to the point.',
+  '- Nothing from the mini chat goes into the main conversation: the agent working there never sees these questions or your answers.',
+  '- The mini chat keeps its messages while the user goes back to the main conversation. Where the main conversation moved on in between, a note says so: answers before such a note may be out of date, so go by the main conversation as it is now.',
+ ].join('\n'),
+ busy: '- The agent of the main conversation is still working on its latest request, so its last steps may be missing above.',
+ moved: 'This note comes from the app, not from the user: here the user went back to the main conversation, and it has moved on since. The main conversation above is as it stands now; the side questions and answers before this note were asked earlier.',
+ compacted: 'This note comes from the app, not from the user. It is about the mini chat, not the main conversation.',
+ // The mini chat folds its own messages away only once they take this share of the model's window: the chat compacts itself.
+ share: 0.05,
+};
+
+function movedNotice() {
+ const el = document.createElement('div');
+ el.className = 'thread-compact thread-moved';
+ const text = document.createElement('span');
+ text.className = 'thread-compact-text';
+ text.textContent = I18n.t('mini.moved');
+ el.append(text);
+ return el;
+}
+
+// The mini chat over a chat. It keeps its own messages with that chat, and reads the chat afresh for every request, so a
+// question asked after the chat has moved on is answered against the chat as it is now. Its request opens exactly like the
+// chat's own, the same system prompt and the same history, so the provider serves that part from the cache the chat has
+// already paid for; the mini chat's own words come after it.
+class SideChat extends Chat {
+ constructor({ library, origin, model, ...options }) {
+  const state = { seen: 0 };
+  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model };
+  if (library.isHome(origin.record)) record.space = origin.record.space;
+  super({ ...options, library: {
+   folders: [],
+   chats: [record],
+   chat: id => id === record.id ? record : null,
+   update: (id, changes) => id === record.id ? Object.assign(record, changes) : null,
+   conversation: id => library.side(id).then(body => { state.seen = body.seen; return body; }),
+   saveMessages: (id, messages, tokens) => library.saveSide(id, { messages, tokens, seen: state.seen }),
+   clear: id => library.clearSide(id),
+   isProtected: () => false,
+   isLocked: () => false,
+   relock() {},
+   isHome: chat => library.isHome(chat),
+   cwdOf: chat => library.cwdOf(chat),
+  } });
+  this.state = state;
+  this.origin = origin;
+  this.waiting = null;
+  this.driving = null;
+ }
+
+ get hasMessages() {
+  return !!this.active?.record && this.active.messages.some(entry => entry.role === 'user');
+ }
+
+ // The chat has changed since the latest question asked here.
+ get behind() {
+  return this.hasMessages && (this.origin.record?.updated || 0) > this.state.seen;
+ }
+
+ // Opens the mini chat's own messages, and where the chat has moved on since, a line says the mini chat caught up with it.
+ async start() {
+  await this.open(this.origin.id);
+  if (!this.behind) return;
+  this.waiting = movedNotice();
+  this.active.list.append(this.waiting);
+  this.pin();
+ }
+
+ send(text, attachments = []) {
+  const conv = this.active;
+  if (!conv?.record) return false;
+  if (conv.turn) return super.send(text, attachments);
+  const mark = this.behind ? { role: 'moved' } : null, seen = this.state.seen;
+  if (mark) {
+   conv.messages.push(mark);
+   if (!this.waiting) conv.list.append(this.waiting = movedNotice());
+  }
+  this.state.seen = this.origin.record?.updated || 0;
+  if (!super.send(text, attachments)) {
+   if (mark) drop(conv.messages, mark);
+   this.state.seen = seen;
+   return false;
+  }
+  if (mark) this.nodes.set(mark, this.waiting);
+  this.waiting = null;
+  return true;
+ }
+
+ history(conv) {
+  const model = this.modelOf(conv);
+  const own = conv.messages.map(entry => {
+   if (entry.role === 'moved') return { role: 'user', content: SIDE.moved };
+   // An answer another model wrote goes back without its signed blocks, which only that model can read.
+   if (entry.role === 'assistant' && entry.steps && entry.model && entry.model !== model) return { ...entry, steps: entry.steps.map(({ native, ...step }) => step) };
+   return entry;
+  });
+  const note = [SIDE.note, this.origin.turn ? SIDE.busy : ''].filter(Boolean).join('\n');
+  // A summary of the mini chat's own start stays a note after the chat: as a system message it would change the prompt's start.
+  const side = super.history({ messages: own }).map(message => message.role === 'system' ? { role: 'user', content: `${SIDE.compacted}\n\n${message.content}` } : message);
+  return [...super.history({ messages: snapshot(this.origin.messages) }), { role: 'user', content: note }, ...side];
+ }
+
+ // The mini chat's request opens with the chat itself, and the chat has paid for a cache that ends where it ends: the
+ // mark goes on the chat's last message, however many of the mini chat's own have come after it.
+ seam(conv, messages) {
+  return messages.findIndex(message => message.role === 'user' && typeof message.content === 'string' && message.content.startsWith(SIDE.note)) - 1;
+ }
+
+ async compactIfNeeded(conv, turn) {
+  if (estimate(super.history(conv)) < this.settings.windowOf(turn.config.id) * SIDE.share) return;
+  await super.compactIfNeeded(conv, turn);
+ }
+
+ entryView(entry, last) {
+  return entry.role === 'moved' ? movedNotice() : super.entryView(entry, last);
+ }
+
+ // The mini chat's model reads the chat too, so the videos attached there are the user's to show here as well.
+ attachedVideos(conv) {
+  return [...super.attachedVideos({ messages: this.origin.messages }), ...super.attachedVideos(conv)];
+ }
+
+ run(conv, prompt, config, bubble) {
+  return this.driving = super.run(conv, prompt, config, bubble);
+ }
+
+ resume(conv, config) {
+  return this.driving = super.resume(conv, config);
+ }
+
+ // Resolves once no reply is being written here and what the last one wrote is on its way to the disk.
+ idle() {
+  return Promise.resolve(this.driving).catch(() => {});
+ }
+
+ // Starts the mini chat over: its messages go, from the screen and from the disk.
+ clear() {
+  const conv = this.active;
+  if (!conv?.record) return Promise.resolve();
+  this.abort(conv);
+  conv.messages = [];
+  conv.tokens = 0;
+  this.state.seen = 0;
+  this.waiting = null;
+  conv.list.replaceChildren();
+  this.main.classList.add('is-empty');
+  this.syncBottom();
+  this.onChange();
+  return this.library.clear(conv.id);
+ }
+}
+
 window.Chat = Chat;
+window.SideChat = SideChat;
 })();

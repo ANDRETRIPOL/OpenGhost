@@ -1,58 +1,50 @@
 (() => {
 'use strict';
 
+// The agent mode. The button in the composer names it and gives way to a dock of the three modes grown out of it, the way the
+// plus does: the lens rests on the current mode and a dot stands under it. Choosing another moves the dot there and the
+// button takes its name; as the dock closes, the current mode's icon goes home and the button comes back around it.
 const MODES = [
  { id: 'ask', icon: 'lock' },
  { id: 'auto', icon: 'shield' },
- { id: 'full', icon: 'shieldAlert' },
+ { id: 'full', icon: 'shieldAlert', tone: 'warn' },
 ];
 const RESIZE = { duration: 380, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const LABEL = { duration: 340, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
+const LAND = { duration: 460, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' };
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const icon = mode => `<span class="mode-icon" data-mode="${mode.id}">${Glyphs[mode.icon]}</span>`;
 const pickers = new Set();
 
 class ModePicker {
- constructor({ button, menu, settings, onChange }) {
+ constructor({ button, host = document.body, anchor = '--mode', settings, onChange }) {
   pickers.add(this);
   this.button = button;
-  this.menu = menu;
   this.settings = settings;
   this.onChange = onChange;
   this.shown = null;
+  button.removeAttribute('popovertarget');
   button.innerHTML = `<span class="composer-mode-icons">${MODES.map(icon).join('')}</span><span class="composer-mode-label"></span>`;
+  this.icons = button.querySelector('.composer-mode-icons');
   this.label = button.querySelector('.composer-mode-label');
-  this.glide = document.createElement('div');
-  this.glide.className = 'mode-glide';
-  this.options = MODES.map(mode => {
-   const option = document.createElement('button');
-   option.type = 'button';
-   option.className = 'mode-option';
-   option.dataset.mode = mode.id;
-   option.setAttribute('role', 'menuitemradio');
-   option.innerHTML = `${icon(mode)}<span class="mode-option-text"><span class="mode-option-title">${I18n.t(`mode.${mode.id}`)}</span><span class="mode-option-hint">${I18n.t(`mode.${mode.id}.hint`)}</span></span><span class="mode-option-check">${Glyphs.check}</span>`;
-   return option;
+  this.dock = new Dock({
+   button,
+   host,
+   anchor,
+   label: I18n.t('mode'),
+   choice: true,
+   source: () => this.icons,
+   items: MODES.map(mode => ({ id: mode.id, glyph: Glyphs[mode.icon], name: I18n.t(`mode.${mode.id}`), hint: I18n.t(`mode.${mode.id}.hint`), tone: mode.tone || '' })),
+   onOpen: () => this.dock.setCurrent(this.settings.mode),
+   onToggle: open => {
+    button.setAttribute('aria-expanded', String(open));
+    if (open) button.classList.add('is-away');
+   },
+   onReturn: () => this.home(),
+   onPick: mode => this.set(mode),
   });
-  menu.append(this.glide, ...this.options);
-  menu.addEventListener('click', event => {
-   const option = event.target.closest('.mode-option');
-   if (!option) return;
-   this.set(option.dataset.mode);
-   menu.hidePopover();
-   button.focus({ preventScroll: true });
-  });
-  menu.addEventListener('pointerover', event => this.hover(event.target.closest('.mode-option')));
-  menu.addEventListener('pointerleave', () => this.hover(null));
-  menu.addEventListener('focusin', event => this.hover(event.target.closest('.mode-option')));
-  menu.addEventListener('keydown', event => this.onKey(event));
-  menu.addEventListener('toggle', event => {
-   const open = event.newState === 'open';
-   button.setAttribute('aria-expanded', String(open));
-   button.classList.toggle('is-open', open);
-   if (open) this.options.find(option => option.dataset.mode === this.settings.mode)?.focus({ preventScroll: true });
-   else this.hover(null);
-  });
+  button.addEventListener('click', event => this.dock.toggle(event.detail === 0));
   this.sync();
  }
 
@@ -63,8 +55,15 @@ class ModePicker {
   for (const picker of pickers) picker.onChange?.(mode);
  }
 
+ // The button is back, and the mode's icon settles in it with a small bounce.
+ home() {
+  this.button.classList.remove('is-away');
+  if (!reducedMotion()) this.icons.animate([{ transform: 'scale(0.82)' }, { transform: 'none' }], LAND);
+ }
+
  destroy() {
   pickers.delete(this);
+  this.dock.destroy();
  }
 
  sync() {
@@ -76,34 +75,11 @@ class ModePicker {
   this.label.textContent = I18n.t(`mode.${mode}`);
   this.button.setAttribute('aria-label', I18n.t('mode.current', { name: I18n.t(`mode.${mode}`) }));
   this.button.title = I18n.t(`mode.${mode}.hint`);
-  for (const option of this.options) option.setAttribute('aria-checked', String(option.dataset.mode === mode));
+  if (this.dock.open) this.dock.setCurrent(mode);
   if (first || reducedMotion()) return;
   const to = this.button.offsetWidth;
   if (from && to && from !== to) this.button.animate([{ width: `${from}px` }, { width: `${to}px` }], RESIZE);
   this.label.animate([{ opacity: 0, filter: 'blur(4px)', transform: 'translateY(3px)' }, { opacity: 1, filter: 'blur(0)', transform: 'none' }], LABEL);
- }
-
- hover(option) {
-  const style = this.glide.style;
-  if (!option) { style.opacity = '0'; this.glide.classList.remove('is-shown'); return; }
-  const jump = !this.glide.classList.contains('is-shown');
-  if (jump) style.transition = 'none';
-  style.transform = `translateY(${option.offsetTop}px)`;
-  style.height = `${option.offsetHeight}px`;
-  if (jump) {
-   void this.glide.offsetHeight;
-   style.transition = '';
-  }
-  style.opacity = '1';
-  this.glide.classList.add('is-shown');
- }
-
- onKey(event) {
-  const k = this.options.indexOf(document.activeElement);
-  const to = { ArrowDown: k + 1, ArrowUp: k - 1, Home: 0, End: this.options.length - 1 }[event.key];
-  if (to === undefined) return;
-  event.preventDefault();
-  this.options[(to + this.options.length) % this.options.length].focus();
  }
 }
 

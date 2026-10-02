@@ -4,6 +4,7 @@
 const INDEX = 'index';
 const SAVE_DELAY = 250;
 const TITLE_MAX = 60;
+const SPACE_MAX = 32;
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const baseName = path => path.split(/[\\/]/).filter(Boolean).pop() || path;
@@ -18,12 +19,27 @@ function titleFrom(text, attachments) {
  return line.length > TITLE_MAX ? `${line.slice(0, TITLE_MAX - 1).trimEnd()}…` : line;
 }
 
+// The name of a chat's own folder: its first words, without what file systems refuse, cut at a word.
+function spaceName(title) {
+ let name = title.replace(/[<>:"/\\|?*\u0000-\u001f…]/g, ' ').replace(/\s+/g, ' ').trim();
+ if (name.length > SPACE_MAX) {
+  const cut = name.slice(0, SPACE_MAX + 1), space = cut.lastIndexOf(' ');
+  name = space > SPACE_MAX / 2 ? cut.slice(0, space) : name.slice(0, SPACE_MAX);
+ }
+ name = name.replace(/[\s.,;:!?-]+$/, '');
+ // Windows keeps a few names for devices, and a folder can't take one of them.
+ if (!name || /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(name)) name = [I18n.t('chat.new'), name].filter(Boolean).join(' ');
+ return name;
+}
+
 class Library {
  constructor(store, onChange) {
   this.store = store;
   this.onChange = onChange;
   this.folders = [];
   this.chats = [];
+  // Chats started without a project folder: each has a folder of its own in here, named in its `space`.
+  this.home = { path: '', collapsed: false };
   this.timer = 0;
   // Keys and titles of the protected chats that are open right now: they live in memory only.
   this.keys = new Map();
@@ -33,14 +49,45 @@ class Library {
  }
 
  async load() {
-  const index = await this.store.read(INDEX).catch(() => null);
+  const [index, home] = await Promise.all([
+   this.store.read(INDEX).catch(() => null),
+   window.openghost?.chatsFolder?.().catch(() => '') ?? '',
+  ]);
+  this.home = { path: typeof home === 'string' ? home : '', collapsed: !!index?.home?.collapsed };
   this.folders = (Array.isArray(index?.folders) ? index.folders : []).filter(folder => typeof folder?.path === 'string');
   this.chats = (Array.isArray(index?.chats) ? index.chats : []).filter(chat => chat?.id && typeof chat.folder === 'string');
   for (const chat of this.chats) {
    delete chat.archived;
-   this.folder({ path: chat.folder });
+   if (!this.isHome(chat)) this.folder({ path: chat.folder });
   }
   this.onChange();
+ }
+
+ // A chat without a project folder. It keeps the chats folder as its folder too, so an older version of the app still
+ // finds it, as a folder named Chats.
+ isHome(chat) {
+  return typeof chat?.space === 'string';
+ }
+
+ // Where the agent of a chat works: its project folder, or its own folder among the chats.
+ cwdOf(chat) {
+  if (!chat) return '';
+  if (!this.isHome(chat)) return chat.folder;
+  if (!this.home.path) return '';
+  return `${this.home.path}${this.home.path.includes('\\') ? '\\' : '/'}${chat.space}`;
+ }
+
+ // Whether a chat sits in a folder of the list, and not among the chats without one.
+ within(chat, path) {
+  return !this.isHome(chat) && samePath(chat.folder, path);
+ }
+
+ space(title) {
+  const taken = new Set(this.chats.filter(chat => this.isHome(chat)).map(chat => pathKey(chat.space)));
+  const base = spaceName(title);
+  let name = base;
+  for (let n = 2; taken.has(pathKey(name)); n++) name = `${base} ${n}`;
+  return name;
  }
 
  save() {
@@ -56,7 +103,7 @@ class Library {
  persist() {
   clearTimeout(this.timer);
   this.timer = 0;
-  return this.store.write(INDEX, { version: 1, folders: this.folders, chats: this.chats });
+  return this.store.write(INDEX, { version: 1, folders: this.folders, chats: this.chats, home: { collapsed: this.home.collapsed } });
  }
 
  changed() {
@@ -85,6 +132,8 @@ class Library {
    } catch {}
   }
   if (!picked) return null;
+  // The chats folder itself is where chats without a folder already go.
+  if (this.home.path && samePath(picked.path, this.home.path)) return null;
   const folder = this.folder(picked);
   folder.collapsed = false;
   folder.added = Date.now();
@@ -92,15 +141,16 @@ class Library {
   return { path: folder.path, name: folder.name };
  }
 
+ // The chats without a folder fold like a folder; a null path stands for them.
  toggleFolder(path) {
-  const folder = this.folders.find(item => samePath(item.path, path));
+  const folder = path === null ? this.home : this.folders.find(item => samePath(item.path, path));
   if (!folder) return;
   folder.collapsed = !folder.collapsed;
   this.changed();
  }
 
  activity(folder) {
-  return this.chats.reduce((last, chat) => samePath(chat.folder, folder.path) ? Math.max(last, chat.updated) : last, folder.added || 0);
+  return this.chats.reduce((last, chat) => this.within(chat, folder.path) ? Math.max(last, chat.updated) : last, folder.added || 0);
  }
 
  chat(id) {
@@ -108,12 +158,14 @@ class Library {
  }
 
  inFolder(folder) {
-  return this.chats.filter(chat => samePath(chat.folder, folder.path));
+  return this.chats.filter(chat => this.within(chat, folder.path));
  }
 
+ // A chat is made with the first message. Without a folder it goes to the chats, with a folder of its own named after it.
  create({ folder, text, attachments }) {
-  const now = Date.now(), known = this.folder(folder);
-  const chat = { id: uid(), title: titleFrom(text, attachments), folder: known.path, created: now, updated: now, pinned: false, named: false };
+  const now = Date.now(), title = titleFrom(text, attachments);
+  const place = folder ? { folder: this.folder(folder).path } : { folder: this.home.path, space: this.space(title) };
+  const chat = { id: uid(), title, ...place, created: now, updated: now, pinned: false, named: false };
   this.chats.push(chat);
   this.changed();
   return chat;
@@ -157,19 +209,24 @@ class Library {
  remove(id) {
   const index = this.chats.findIndex(chat => chat.id === id);
   if (index < 0) return;
-  this.chats.splice(index, 1);
+  const [chat] = this.chats.splice(index, 1);
   this.forget(id);
   this.changed();
   this.store.remove(`chats/${id}`).catch(() => {});
+  this.store.remove(`mini/${id}`).catch(() => {});
+  if (this.isHome(chat)) window.openghost?.releaseFolder?.(this.cwdOf(chat)).catch(() => {});
  }
 
  removeFolder(path) {
-  const gone = this.chats.filter(chat => samePath(chat.folder, path));
-  this.chats = this.chats.filter(chat => !samePath(chat.folder, path));
+  const gone = this.chats.filter(chat => this.within(chat, path));
+  this.chats = this.chats.filter(chat => !this.within(chat, path));
   this.folders = this.folders.filter(folder => !samePath(folder.path, path));
   for (const chat of gone) this.forget(chat.id);
   this.changed();
-  for (const chat of gone) this.store.remove(`chats/${chat.id}`).catch(() => {});
+  for (const chat of gone) {
+   this.store.remove(`chats/${chat.id}`).catch(() => {});
+   this.store.remove(`mini/${chat.id}`).catch(() => {});
+  }
   return gone.map(chat => chat.id);
  }
 
@@ -191,6 +248,39 @@ class Library {
   if (!chat || (chat.lock && !key)) return Promise.resolve();
   const body = { messages, tokens };
   return this.queue(id, async () => this.store.write(`chats/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
+ }
+
+ // The mini chat over a chat keeps its messages apart from the chat's, next to them, and sealed with the chat's key when it has
+ // a password. `seen` is when the chat last changed as of the latest question asked in the mini chat. Reading waits for the
+ // writes already on their way, so a mini chat opened again right after closing finds what the last one saved.
+ side(id) {
+  return this.queue(id, async () => {
+   const data = await this.store.read(`mini/${id}`).catch(() => null);
+   const body = data?.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
+   return { messages: Array.isArray(body?.messages) ? body.messages : [], tokens: Number(body?.tokens) || 0, seen: Number(body?.seen) || 0 };
+  }).then(body => body || { messages: [], tokens: 0, seen: 0 });
+ }
+
+ saveSide(id, { messages, tokens = 0, seen = 0 }) {
+  const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
+  if (!chat || (chat.lock && !key)) return Promise.resolve();
+  const body = { messages, tokens, seen };
+  return this.queue(id, async () => this.store.write(`mini/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
+ }
+
+ clearSide(id) {
+  return this.queue(id, () => this.store.remove(`mini/${id}`));
+ }
+
+ // Seals a mini chat along with its chat, or opens it for good when the password comes off. A mini chat that fails to
+ // change never holds the chat's own password back.
+ async reseal(id, key) {
+  try {
+   const data = await this.store.read(`mini/${id}`);
+   if (!data || !!data.sealed === !!key) return;
+   const body = data.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : { messages: data.messages, tokens: data.tokens, seen: data.seen };
+   await this.store.write(`mini/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body });
+  } catch {}
  }
 
  // Writes of one chat's messages go out one after another, in the order they were asked for.
@@ -221,6 +311,7 @@ class Library {
    }
    done = true;
    await this.store.write(`chats/${id}`, { version: 1, sealed: await ChatLock.seal(key, { messages: body.messages, tokens: body.tokens }) });
+   await this.reseal(id, key);
   });
   this.changed();
   return done;
@@ -256,6 +347,7 @@ class Library {
   await this.queue(id, async () => {
    const body = loaded || await this.conversation(id);
    await this.store.write(`chats/${id}`, { version: 1, messages: body.messages, tokens: body.tokens });
+   await this.reseal(id, null);
    chat.title = this.titles.get(id) ?? '';
    delete chat.lock;
    this.forget(id);

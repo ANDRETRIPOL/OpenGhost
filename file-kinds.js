@@ -167,5 +167,12 @@ function formatSize(bytes) {
  return `${value < 10 ? value.toFixed(1).replace(/\.0$/, '') : Math.round(value)} ${units[unit]}`;
 }
 
-window.FileKinds = { describe, icon, formatSize, tones: TONES };
+// A video's length the way players write it: 0:07, 4:32, 1:02:05.
+function formatDuration(seconds) {
+ const total = Math.max(1, Math.round(seconds)), hours = Math.floor(total / 3600), minutes = Math.floor(total / 60) % 60;
+ const rest = String(total % 60).padStart(2, '0');
+ return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
+}
+
+window.FileKinds = { describe, icon, formatSize, formatDuration, tones: TONES };
 })();

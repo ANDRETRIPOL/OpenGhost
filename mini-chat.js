@@ -1,47 +1,19 @@
 (() => {
 'use strict';
 
-const NOTE = [
- '# Mini chat',
- 'This is a side mini chat the user opened over the main conversation. Everything before it is the main conversation, given to you as context.',
- 'The user asks a quick side question here: answer briefly and to the point. Nothing from this mini chat is saved or shown in the main chat.',
-].join('\n');
 const CLOSE_TIME = 360;
+const CONFIRM_TIME = 3000;
+const WIPE = { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-// Mini chat conversations live only in memory and are thrown away when the window closes.
-function memoryLibrary() {
- const chats = [];
- return {
-  folders: [],
-  chats,
-  chat: id => chats.find(chat => chat.id === id) || null,
-  create({ folder }) {
-   const now = Date.now(), chat = { id: `mini-${now.toString(36)}`, title: '', folder: folder?.path || '', created: now, updated: now, pinned: false, named: true };
-   chats.push(chat);
-   return chat;
-  },
-  update(id, changes) {
-   const chat = chats.find(item => item.id === id);
-   if (chat) Object.assign(chat, changes);
-   return chat || null;
-  },
-  saveMessages: () => Promise.resolve(),
-  conversation: () => Promise.resolve({ messages: [], tokens: 0 }),
-  isProtected: () => false,
-  isLocked: () => false,
-  remove() {},
-  removeFolder: () => [],
-  flush() {},
- };
-}
 
 const TEMPLATE = `
  <header class="mini-head">
   <span class="mini-title">${'{ghost}'}<span data-i18n="mini.title"></span></span>
-  <span class="mini-hint" data-i18n="mini.hint"></span>
-  <close-button class="mini-close"></close-button>
+  <span class="mini-tools">
+   <clear-button class="mini-clear"></clear-button>
+   <close-button class="mini-close"></close-button>
+  </span>
  </header>
  <div class="mini-main is-empty">
   <div class="thread-view">
@@ -68,14 +40,15 @@ const TEMPLATE = `
    <div class="composer-toolbar">
     <div class="composer-tools">
      <add-button class="composer-add" data-i18n-attr="label:attach.add"></add-button>
-     <button type="button" class="composer-mode" popovertarget="mini-mode-menu" aria-haspopup="menu" aria-expanded="false" hidden></button>
+     <button type="button" class="composer-mode" aria-haspopup="menu" aria-expanded="false" hidden></button>
     </div>
     <div class="composer-actions"><send-button class="composer-send" disabled></send-button></div>
    </div>
   </div>
- </div>
- <div class="mode-menu" id="mini-mode-menu" popover="auto" role="menu" data-i18n-attr="aria-label:mode"></div>`;
+ </div>`;
 
+// The mini chat of the chat on screen. Closed, it keeps its messages with that chat; opened again, it shows them and reads the
+// chat as it is by then.
 class MiniChat {
  static open(options) {
   MiniChat.current?.close();
@@ -83,7 +56,7 @@ class MiniChat {
   return MiniChat.current;
  }
 
- constructor({ settings, source, quote = '' }) {
+ constructor({ settings, source, library, quote = '' }) {
   const dialog = this.dialog = document.createElement('dialog');
   dialog.className = 'mini';
   dialog.setAttribute('closedby', 'closerequest');
@@ -110,12 +83,16 @@ class MiniChat {
    this.main.style.setProperty('--composer-space', `${Math.ceil(this.composer.offsetHeight + gap)}px`);
   });
   this.space.observe(this.composer);
-  const context = source.context();
-  this.chat = new Chat({ main: this.main, thread, bottom, settings, library: memoryLibrary(), onChange: () => this.sync(), onList: list => scrollbar.observe(list), brief: NOTE });
-  this.chat.newChat(context.folder || { path: '', name: '' });
-  this.chat.active.model = context.model;
-  this.chat.active.messages = context.messages;
-  this.chat.active.tokens = context.tokens;
+  const origin = source.active;
+  this.clearButton = $('.mini-clear');
+  this.chat = new SideChat({ main: this.main, thread, bottom, settings, library, origin, model: source.modelOf(origin), onChange: () => this.sync(), onList: list => scrollbar.observe(list) });
+  // Until its messages are read the mini chat shows neither them nor the words of an empty one.
+  this.main.classList.add('is-loading');
+  // A mini chat closed a moment ago may still be saving its last words: this one opens once they are on disk.
+  Promise.resolve(MiniChat.settling).then(() => this.chat.start()).catch(() => {}).then(() => {
+   this.main.classList.remove('is-loading');
+   this.sync();
+  });
   this.attachments = new Attachments({
    tray: $('.composer-attachments'),
    picker: $('.composer-picker'),
@@ -127,11 +104,12 @@ class MiniChat {
    onText: (text, undo) => this.text.place(text, undo),
    isActive: () => dialog.open,
   });
-  $('.composer-add').addEventListener('add', () => this.attachments.pick());
+  // Menus outside a modal dialog can't be reached, so the mini chat's plus and mode have their own, inside it.
+  this.addMenu = new AddMenu({ button: $('.composer-add'), host: dialog, attachments: this.attachments, input: this.input, anchor: '--mini-add' });
   if (AgentTools.available) {
    const mode = $('.composer-mode');
    mode.hidden = false;
-   this.mode = new ModePicker({ button: mode, menu: $('.mode-menu'), settings, onChange: () => this.chat.onModeChange() });
+   this.mode = new ModePicker({ button: mode, host: dialog, anchor: '--mini-mode', settings, onChange: () => this.chat.onModeChange() });
   }
   this.input.addEventListener('input', () => this.sync());
   this.input.addEventListener('keydown', event => this.onKey(event));
@@ -143,6 +121,8 @@ class MiniChat {
    }
   });
   dialog.addEventListener('dismiss', () => this.close());
+  this.clearButton.addEventListener('clear', () => this.onClear());
+  this.clearButton.addEventListener('pointerleave', () => this.disarm());
   dialog.addEventListener('cancel', event => {
    event.preventDefault();
    if (this.chat.busy) this.chat.stop();
@@ -177,6 +157,42 @@ class MiniChat {
  sync() {
   this.send.toggleAttribute('disabled', !this.text.text().trim() && !this.attachments?.count);
   this.field.classList.toggle('has-value', this.input.value !== '');
+  const kept = !!this.chat?.hasMessages;
+  this.clearButton.classList.toggle('is-shown', kept);
+  if (!kept) this.disarm();
+ }
+
+ // Clearing asks twice, the way deleting a chat does: the first press opens the lid and turns it red for a moment.
+ onClear() {
+  if (!this.armed) {
+   this.armed = true;
+   this.clearButton.setAttribute('armed', '');
+   this.clearButton.setAttribute('label', I18n.t('mini.clearConfirm'));
+   clearTimeout(this.disarmTimer);
+   this.disarmTimer = setTimeout(() => this.disarm(), CONFIRM_TIME);
+   return;
+  }
+  this.disarm();
+  this.wipe();
+ }
+
+ disarm() {
+  clearTimeout(this.disarmTimer);
+  if (!this.armed) return;
+  this.armed = false;
+  this.clearButton.removeAttribute('armed');
+  this.clearButton.setAttribute('label', I18n.t('mini.clear'));
+ }
+
+ // The messages lift away together; then the mini chat is empty and says so again.
+ async wipe() {
+  const list = this.chat.active?.list;
+  const leave = list?.childElementCount && !reducedMotion() ? list.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-10px) scale(0.985)' }], WIPE) : null;
+  await leave?.finished.catch(() => {});
+  await this.chat.clear();
+  leave?.cancel();
+  this.sync();
+  this.input.focus();
  }
 
  submit() {
@@ -208,7 +224,10 @@ class MiniChat {
   if (this.destroyed) return;
   this.destroyed = true;
   this.chat.stop();
+  MiniChat.settling = this.chat.idle();
+  clearTimeout(this.disarmTimer);
   this.text.destroy();
+  this.addMenu.destroy();
   this.attachments.destroy();
   this.mode?.destroy();
   this.space.disconnect();

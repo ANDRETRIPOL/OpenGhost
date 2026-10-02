@@ -7,6 +7,7 @@ const Tools = require('./tools');
 const Browser = require('./browser');
 const LLM = require('./llm');
 const Keys = require('./keys');
+const Pdf = require('./pdf');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
@@ -161,6 +162,8 @@ ipcMain.handle('folder:pick', async event => {
 });
 
 ipcMain.handle('folder:reveal', (event, folder) => typeof folder === 'string' && shell.openPath(folder));
+ipcMain.handle('folder:chats', () => Tools.CHATS);
+ipcMain.handle('folder:release', (event, folder) => fromApp(event) && Tools.release(folder));
 ipcMain.handle('store:read', (event, key) => readStore(key));
 ipcMain.handle('store:write', (event, key, value) => writeStore(key, value));
 ipcMain.handle('store:remove', (event, key) => removeStore(key));
@@ -189,6 +192,7 @@ ipcMain.handle('tool:run', (event, id, name, args, cwd) => fromApp(event) ? Tool
 ipcMain.on('browser:shown', (event, value) => { if (fromApp(event)) Browser.setShown(value); });
 ipcMain.handle('tool:cancel', (event, id) => { if (fromApp(event)) Tools.cancel(id); });
 ipcMain.handle('tool:environment', event => fromApp(event) ? Tools.environment() : null);
+ipcMain.handle('pdf:read', (event, source) => fromApp(event) ? Pdf.read(source) : { text: '', reason: 'unreadable' });
 LLM.register(fromApp);
 Keys.register(fromApp);
 
@@ -214,6 +218,7 @@ if (process.argv.includes('--create-shortcut')) {
    win = null;
    Tools.cancelAll();
    LLM.cancelAll();
+   Pdf.cancelAll();
   });
  });
  app.on('window-all-closed', () => app.quit());

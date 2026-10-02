@@ -17,10 +17,14 @@ const UNPASTE_ICON = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor"
 // A pasted text this long comes in as a card, like a file, rather than filling the message.
 const PASTE = { lines: 50, chars: 3000 };
 const PASTED = 'Pasted text.txt';
+// Videos the built-in decoder reads come in as a photo's card with a frame of them; others are a file's card from the start.
+const FRAMED = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv']);
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files');
 const lineCount = text => { let n = 1; for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) n++; return n; };
+// The model sees only the name of a file it can't read, and of a video with no place on the disk to watch it from.
+const blind = payload => payload?.type === 'none' || (payload?.type === 'video' && !payload.path);
 
 // What a pasted text's card says under its first line: how many lines, or for a single long one, its size.
 function pastedLabel(pasted, size) {
@@ -33,6 +37,16 @@ function element(tag, className, text) {
  if (text !== undefined) el.textContent = text;
  return el;
 }
+
+function thumb(url) {
+ const img = element('img', 'attachment-thumb');
+ img.src = url;
+ img.alt = '';
+ img.draggable = false;
+ return img;
+}
+
+const duration = item => item.duration ? FileKinds.formatDuration(item.duration) : '';
 
 class Attachments {
  constructor({ tray, picker, panel, main, zone, input, onChange, onText, isActive = () => true }) {
@@ -90,7 +104,9 @@ class Attachments {
   return this.items.length;
  }
 
- pick() {
+ // The system's file window: for photos and videos it offers only those.
+ pick(kind = 'files') {
+  this.picker.accept = kind === 'photos' ? 'image/*,video/*' : '';
   this.picker.click();
  }
 
@@ -100,9 +116,9 @@ class Attachments {
   const added = [];
   for (const file of list) {
    const info = FileKinds.describe(file.name, file.type);
-   const item = { file, name: file.name || 'image.png', size: file.size, info, image: info.glyph === 'image', url: '', note: '', payload: null, ...extra };
+   const item = { file, name: file.name || 'image.png', size: file.size, info, image: info.glyph === 'image', video: info.glyph === 'video' && FRAMED.has(info.ext), url: '', note: '', payload: null, ...extra };
    if (item.image) item.url = URL.createObjectURL(file);
-   item.ready = AttachmentReader.read(file, info).then(payload => this.loaded(item, payload));
+   item.ready = AttachmentReader.read(file, info, { video: true }).then(payload => this.loaded(item, payload));
    item.el = this.chip(item);
    this.items.push(item);
    added.push(item.ready);
@@ -123,30 +139,45 @@ class Attachments {
   if (payload.type === 'image') {
    item.width = payload.width;
    item.height = payload.height;
+  } else if (payload.type === 'video') {
+   Object.assign(item, { width: payload.width, height: payload.height, duration: payload.duration, url: payload.poster });
+   // A video that turns out to have no frame to show becomes a file's card, and one that has, a photo's.
+   if (item.video !== !!payload.poster) {
+    item.video = !!payload.poster;
+    this.rechip(item);
+   } else if (item.video && item.el.isConnected) {
+    this.paintFrame(item);
+   }
   } else if (item.image) {
    URL.revokeObjectURL(item.url);
    item.image = false;
    item.url = '';
-   if (item.el.isConnected) {
-    const chip = this.chip(item, false);
-    item.el.replaceWith(chip);
-    item.el = chip;
-   }
+   this.rechip(item);
   }
   if (item.el.isConnected) this.paintMeta(item);
   return payload;
  }
 
+ // The card takes its new shape in place; `chip` points the item at the new card, so the old one is held first.
+ rechip(item) {
+  const old = item.el;
+  if (old.isConnected) old.replaceWith(this.chip(item, false));
+ }
+
+ // A video's card shows its frame once it is taken, with the video's length over it.
+ paintFrame(item) {
+  const el = item.el;
+  if (!el.querySelector('.attachment-thumb')) el.prepend(thumb(item.url));
+  el.querySelector('.attachment-duration').textContent = duration(item);
+ }
+
  chip(item, animate = true) {
-  const el = element('div', `attachment ${item.image ? 'is-image' : 'is-file'}${item.pasted ? ' is-pasted' : ''}${animate && !reducedMotion() ? ' is-entering' : ''}`);
+  const el = element('div', `attachment ${item.image || item.video ? 'is-image' : 'is-file'}${item.video ? ' is-video' : ''}${item.pasted ? ' is-pasted' : ''}${animate && !reducedMotion() ? ' is-entering' : ''}`);
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', item.name);
-  if (item.image) {
-   const img = element('img', 'attachment-thumb');
-   img.src = item.url;
-   img.alt = '';
-   img.draggable = false;
-   el.append(img);
+  if (item.image || item.video) {
+   if (item.url) el.append(thumb(item.url));
+   if (item.video) el.append(element('span', 'attachment-duration', duration(item)));
   } else {
    el.insertAdjacentHTML('beforeend', FileKinds.icon(item.info));
    // Pasted text shows its first line, and the whole card is a button that puts the text back into the message.
@@ -178,8 +209,8 @@ class Attachments {
  paintMeta(item) {
   const el = item.el, note = el.querySelector('.attachment-note'), meta = el.querySelector('.attachment-meta');
   el.classList.toggle('has-note', !!item.note);
-  el.classList.toggle('is-unreadable', item.payload?.type === 'none');
-  el.title = item.payload?.type === 'none' ? I18n.t('attach.unreadable') : item.note || '';
+  el.classList.toggle('is-unreadable', blind(item.payload));
+  el.title = blind(item.payload) ? I18n.t('attach.unreadable') : item.note || '';
   note.setAttribute('aria-label', I18n.t(item.note ? 'note.edit' : 'note.add', { name: item.name }));
   if (!meta) return;
   meta.replaceChildren();
@@ -191,8 +222,8 @@ class Attachments {
   } else if (item.pasted) {
    line.textContent = pastedLabel(item.pasted, item.size);
   } else {
-   meta.textContent = `${item.info.name} · ${FileKinds.formatSize(item.size)}`;
-   if (item.payload?.type === 'none') meta.append(element('span', 'attachment-flag', ` · ${I18n.t('attach.nameOnly')}`));
+   meta.textContent = [item.info.name, duration(item), FileKinds.formatSize(item.size)].filter(Boolean).join(' · ');
+   if (blind(item.payload)) meta.append(element('span', 'attachment-flag', ` · ${I18n.t('attach.nameOnly')}`));
   }
   if (!item.pasted) return;
   const hint = element('span', 'attachment-unpaste');
@@ -293,7 +324,7 @@ class Attachments {
   item.el.style.setProperty('anchor-name', '--attachment-note');
   this.noteTitle.textContent = item.pasted?.preview || item.name;
   this.noteThumb.replaceChildren();
-  if (item.image) {
+  if ((item.image || item.video) && item.url) {
    const img = element('img', '');
    img.src = item.url;
    img.alt = '';

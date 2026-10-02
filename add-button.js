@@ -3,6 +3,7 @@
 
 const HOVER_TURN = 90;
 
+// The plus turns a quarter under the pointer.
 class AddButton extends IconButton {
  constructor(){
   super(`
@@ -17,7 +18,7 @@ class AddButton extends IconButton {
   this.plus=this.shadowRoot.querySelector('.plus');
  }
  defaultLabel(){return I18n.t('button.add')}
- activate(){this.dispatchEvent(new CustomEvent('add',{bubbles:true,composed:true}))}
+ activate(e){this.dispatchEvent(new CustomEvent('add',{bubbles:true,composed:true,detail:{keyboard:e.detail===0}}))}
  targets(hover,reduced){return {turn:reduced?0:hover}}
  render(v){this.plus.setAttribute('transform',`rotate(${v.turn*HOVER_TURN} 60 60)`)}
 }

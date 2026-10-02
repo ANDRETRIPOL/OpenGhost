@@ -442,6 +442,7 @@ class UsageSettings {
   glide.style.opacity = o.toFixed(3);
   tip.style.transform = `translate(${g.tip[0].toFixed(2)}px, ${((1 - o) * 4).toFixed(2)}px)`;
   tip.style.opacity = o.toFixed(3);
+  tip.classList.toggle('is-shown', o >= 0.001);
   if (moving) this.raf = requestAnimationFrame(this.tick);
  }
 }

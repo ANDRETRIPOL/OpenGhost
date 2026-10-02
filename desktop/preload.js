@@ -9,8 +9,13 @@ contextBridge.exposeInMainWorld('openghost', {
  pathOf: file => {
   try { return webUtils.getPathForFile(file) || ''; } catch { return ''; }
  },
+ // A PDF's text, by its place on the disk or by its bytes; the viewer that reads it lives in the main process.
+ readPdf: source => ipcRenderer.invoke('pdf:read', source),
  pickFolder: () => ipcRenderer.invoke('folder:pick'),
  revealFolder: folder => ipcRenderer.invoke('folder:reveal', folder),
+ // Where chats started without a project folder keep their own folders, and letting go of one that stayed empty.
+ chatsFolder: () => ipcRenderer.invoke('folder:chats'),
+ releaseFolder: folder => ipcRenderer.invoke('folder:release', folder),
  setTitleBar: (color, symbols) => ipcRenderer.send('window:titlebar', color, symbols),
  setTheme: choice => ipcRenderer.invoke('theme:set', choice),
  store: {

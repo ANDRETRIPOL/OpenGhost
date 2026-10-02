@@ -133,8 +133,8 @@ class ModelStage {
  }
 
  sync() {
-  const locked = this.chat.busy;
-  this.button.setAttribute('label', I18n.t('model.current', { name: this.name(this.chat.model) }));
+  const locked = this.chat.busy, name = this.name(this.chat.model);
+  this.button.setAttribute('label', name ? I18n.t('model.current', { name }) : I18n.t('model.none'));
   this.button.toggleAttribute('disabled', locked);
   this.button.title = locked ? I18n.t('model.locked') : '';
   if (locked && (this.state === 'open' || this.state === 'confirm')) this.cancel();
@@ -258,6 +258,9 @@ class ModelStage {
 
  open(keyboard = false) {
   if (this.state !== 'closed' || this.chat.busy) return;
+  // With no provider connected there is no model to pick: the way to one is through the settings.
+  if (!this.settings.models.length) { this.settings.open(I18n.t('settings.key.needed')); return; }
+  this.settings.freshen();
   this.state = 'open';
   this.keyboard = keyboard;
   this.build();

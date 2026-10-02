@@ -46,7 +46,7 @@ class SmoothHeight {
 
  tick(now) {
   this.raf = 0;
-  const dt = Math.min((now - this.last) / 1000, .032), [k, c] = SPRING;
+  const dt = Math.min(Math.max((now - this.last) / 1000, 0), .032), [k, c] = SPRING;
   this.last = now;
   const steps = Math.max(1, Math.ceil(dt / .008)), step = dt / steps;
   for (let i = 0; i < steps; i++) { this.v += ((this.goal - this.h) * k - this.v * c) * step; this.h += this.v * step; }

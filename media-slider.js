@@ -60,7 +60,7 @@ class MediaSlider {
    card.className = 'media-card';
    card.setAttribute('role', 'group');
    card.setAttribute('aria-roledescription', 'slide');
-   card.setAttribute('aria-label', I18n.t('media.slide', { n: k + 1, count: this.count }));
+   card.setAttribute('aria-label', I18n.t(image.video ? 'media.video' : 'media.slide', { n: k + 1, count: this.count }));
    const img = document.createElement('img');
    img.className = 'media-img';
    img.src = image.url;
@@ -70,7 +70,15 @@ class MediaSlider {
    img.decoding = 'async';
    const shade = document.createElement('span');
    shade.className = 'media-shade';
-   card.append(img, shade);
+   card.append(img);
+   // A video is its frame, with its length in the corner.
+   if (image.video && image.duration) {
+    const time = document.createElement('span');
+    time.className = 'media-duration';
+    time.textContent = FileKinds.formatDuration(image.duration);
+    card.append(time);
+   }
+   card.append(shade);
    el.append(card);
    this.cards.push(card);
    this.shades.push(shade);
@@ -149,6 +157,8 @@ class MediaSlider {
   this.index = clamp(i, 0, this.count - 1);
   this.sync();
   this.wake();
+  // Whoever shows the stack may want to say which picture is on top now.
+  this.onChange?.(this.index);
  }
 
  sync() {

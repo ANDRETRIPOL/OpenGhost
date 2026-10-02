@@ -5,15 +5,14 @@ const STORAGE = { effort: 'deepseek.effort', mode: 'openghost.mode', model: 'ope
 const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey' };
 // The order providers appear in, in the settings and in the model picker.
 const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek'];
-const DEFAULT_MODEL = 'deepseek-flash';
+// The provider the app starts with: the settings ask for its key when nothing is connected, and new chats take its first
+// model until the user picks another.
+const FIRST_PROVIDER = 'deepseek';
 const EFFORTS = ['none', 'low', 'high', 'max'];
 const DEFAULT_EFFORT = 'high';
 const DEFAULT_CONTEXT = 1000000;
-// Shown until a key loads the real list, so the picker works before the first check.
-const KNOWN_DEEPSEEK = [
- { id: 'deepseek-flash', api: 'deepseek-flash', provider: 'deepseek', name: 'DeepSeek-V4.1-Flash', context: 1048576, efforts: EFFORTS, defaultEffort: DEFAULT_EFFORT, vision: true },
- { id: 'deepseek-v4-pro', api: 'deepseek-v4-pro', provider: 'deepseek', name: 'DeepSeek-V4-Pro', context: 1048576, efforts: EFFORTS, defaultEffort: DEFAULT_EFFORT, vision: false },
-];
+// How long a provider's list of models counts as fresh. Opening the model picker after that reads the lists again.
+const FRESH = 10 * 60 * 1000;
 const LINKS = {
  openai: ['https://platform.openai.com/api-keys', 'platform.openai.com'],
  anthropic: ['https://console.anthropic.com/settings/keys', 'console.anthropic.com'],
@@ -88,8 +87,9 @@ class Settings {
   this.models = [];
   this.efforts = EFFORTS.slice();
   localStorage.removeItem('deepseek.model');
-  this.model = localStorage.getItem(STORAGE.model) || DEFAULT_MODEL;
+  this.model = localStorage.getItem(STORAGE.model) || '';
   this.shown = this.model;
+  this.read = 0;
   const effort = localStorage.getItem(STORAGE.effort);
   this.effort = typeof effort === 'string' && effort ? effort : DEFAULT_EFFORT;
   const mode = localStorage.getItem(STORAGE.mode);
@@ -107,6 +107,8 @@ class Settings {
   dialog.addEventListener('cancel', event => {
    if (window.Theme?.moving) event.preventDefault();
   });
+  // A provider that found out something about one of its models asks for its list to be read again.
+  window.addEventListener('models-stale', event => { if (this.connected(event.detail)) this.refresh(event.detail).catch(() => {}); });
   this.refreshAll();
  }
 
@@ -177,7 +179,7 @@ class Settings {
  readCatalog() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORAGE.catalog)) || {}; } catch {}
-  return { chatgpt: [], openai: [], anthropic: [], ...saved, deepseek: saved.deepseek?.length ? saved.deepseek : KNOWN_DEEPSEEK.slice() };
+  return { chatgpt: [], openai: [], anthropic: [], deepseek: [], ...saved };
  }
 
  saveCatalog() {
@@ -239,10 +241,10 @@ class Settings {
   return this.connected(provider) && (provider === 'chatgpt' || this.accepted.has(provider));
  }
 
- // The picker offers the models of every connected provider; with none connected it shows DeepSeek, the app's own default.
+ // The picker offers the models of every connected provider, as each provider lists them. No model is known to the app
+ // by itself: with nothing connected there is none, and the picker leads to the settings instead.
  collect() {
-  const models = ORDER.filter(provider => this.connected(provider)).flatMap(provider => this.catalog[provider] || []);
-  this.models = models.length ? models : KNOWN_DEEPSEEK.slice();
+  this.models = ORDER.filter(provider => this.connected(provider)).flatMap(provider => this.catalog[provider] || []);
   this.paint();
  }
 
@@ -256,20 +258,23 @@ class Settings {
   if (id && this.find(id)) return id;
   const named = id && this.models.find(item => item.api === id);
   if (named) return named.id;
-  return this.find(this.model) ? this.model : this.models[0]?.id || DEFAULT_MODEL;
+  if (this.find(this.model)) return this.model;
+  // Before the user has picked one, new chats get the first model the app's first provider lists, or the first there is.
+  return (this.models.find(item => item.provider === FIRST_PROVIDER) || this.models[0])?.id || '';
  }
 
  configFor(id) {
-  const model = this.find(id) || KNOWN_DEEPSEEK.find(item => item.id === id) || null;
-  const provider = model?.provider || 'deepseek';
+  const model = this.find(id);
+  const provider = model?.provider || FIRST_PROVIDER;
   const efforts = model?.efforts?.length ? model.efforts : EFFORTS;
   const effort = efforts.includes(this.effort) ? this.effort : [model?.defaultEffort, DEFAULT_EFFORT].find(level => efforts.includes(level)) || efforts[efforts.length - 1];
   return {
+   id: model?.id || id,
    provider,
    model: model?.api || id,
    name: model?.name || id,
    key: this.keys[provider] || '',
-   ready: this.connected(provider),
+   ready: !!model && this.connected(provider),
    effort,
    efforts,
    vision: model?.vision !== false,
@@ -330,8 +335,20 @@ class Settings {
  }
 
  async refreshAll() {
+  this.read = Date.now();
   await this.syncAccount();
-  await Promise.all(Object.keys(KEYS).filter(provider => this.keys[provider]).map(provider => this.checkKey(provider)));
+  await Promise.all([
+   ...Object.keys(KEYS).filter(provider => this.keys[provider]).map(provider => this.checkKey(provider)),
+   this.account.connected ? this.refresh('chatgpt').catch(() => {}) : null,
+  ]);
+ }
+
+ // Reads the providers' lists again once they are no longer fresh, quietly: a model a provider has added since shows up
+ // the next time the picker opens, with no restart. A list that can't be read now leaves the last one in place.
+ freshen() {
+  if (Date.now() - this.read < FRESH) return;
+  this.read = Date.now();
+  for (const provider of ORDER) if (this.connected(provider)) this.refresh(provider).catch(() => {});
  }
 
  // A sign-in can lapse while the app runs, so the settings ask how it stands each time they open.
@@ -347,7 +364,7 @@ class Settings {
   const token = (this.checks[provider] = (this.checks[provider] || 0) + 1);
   const models = await Providers.models(provider, this.keys[provider]);
   if (token !== this.checks[provider]) return false;
-  this.catalog[provider] = models.length || provider !== 'deepseek' ? models : KNOWN_DEEPSEEK.slice();
+  this.catalog[provider] = models;
   this.saveCatalog();
   this.changed();
   return true;
@@ -436,7 +453,7 @@ class Settings {
   if (reason) this.page('providers', opening);
   else if (opening) this.page('general', true);
   if (reason) {
-   const target = provider || 'deepseek';
+   const target = provider || FIRST_PROVIDER;
    this.setStatus(target, reason, 'error');
    const field = target === 'chatgpt' ? this.accountBox.querySelector('[data-action="login"]') : this.inputs[target];
    field?.scrollIntoView({ block: 'center' });

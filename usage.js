@@ -33,19 +33,27 @@ class Usage {
   }).catch(() => {});
  }
 
+ // One answer's tokens as every provider reports them, in the same words: sent, of them read from the provider's cache or
+ // written to it, and written back. Null when the provider said nothing.
+ parts(usage) {
+  if (!usage) return null;
+  const input = usage.prompt_tokens || 0, output = usage.completion_tokens || 0;
+  if (!input && !output) return null;
+  const cached = usage.cached_tokens ?? usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0;
+  return { input, cached: Math.min(cached, input), written: usage.written_tokens || 0, output };
+ }
+
  // One answer's tokens: what was sent (and how much of it the provider read from its cache or wrote to it) and what came back.
  record({ provider, model, name }, usage) {
-  if (!usage || !PROVIDERS.includes(provider) || !model) return;
-  const input = usage.prompt_tokens || 0, output = usage.completion_tokens || 0;
-  if (!input && !output) return;
-  const cached = usage.cached_tokens ?? usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0;
-  const written = usage.written_tokens || 0;
+  const parts = this.parts(usage);
+  if (!parts || !PROVIDERS.includes(provider) || !model) return;
+  const { input, cached, written, output } = parts;
   this.ready.then(() => {
    const data = this.data, id = `${provider}|${model}`;
    data.since ||= Date.now();
    const row = (data.days[daysAgo(0)] ||= {})[id] ||= [0, 0, 0, 0, 0];
    row[INPUT] += input;
-   row[CACHED] += Math.min(cached, input);
+   row[CACHED] += cached;
    row[WRITTEN] += written;
    row[OUTPUT] += output;
    row[REQUESTS] += 1;
