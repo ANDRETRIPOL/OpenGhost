@@ -97,6 +97,12 @@ Chat stats, in the plus menu, show what a chat has spent: the tokens of every re
 
 Photos, videos and files attach from the plus menu or by a drop. A video comes in like a photo, and the agent watches it frame by frame. A PDF is read as text.
 
+## Tell it once, for every chat
+
+In Settings, under General, you write how to answer and what to know about you, and add the files OpenGhost should always have at hand: notes, a style guide, a CV. Every chat gets them, and a long chat keeps them after it is compacted.
+
+![The General page of the settings: instructions and files kept for every chat](images/general.jpg)
+
 ## Three ways to let it act
 
 Ask waits for approval before commands, file changes, and the web. Auto works inside the project folder and asks before a risky step. Full access does not ask.
@@ -105,9 +111,9 @@ Ask waits for approval before commands, file changes, and the web. Auto works in
 
 ## The key stays on this computer
 
-OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
+OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek: sign in with your ChatGPT account, or connect OpenAI, Claude and DeepSeek with an API key. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
 
-![API key settings](images/settings.jpg)
+![The Providers page of the settings: ChatGPT, OpenAI, Anthropic and DeepSeek](images/settings.jpg)
 
 ## It opens with the ghost
 
