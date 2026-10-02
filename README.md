@@ -1,52 +1,73 @@
 # OpenGhost
 
-**v1.2.0 beta**
+**v1.3.0 beta**
 
-[Windows version 1.2.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.2.0/OpenGhost-1.2.0-Setup.exe)
+[Windows version 1.3.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.3.0/OpenGhost-1.3.0-Setup.exe)
 
-[Linux version 1.2.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.2.0/OpenGhost-1.2.0-linux.tar.gz)
+[Linux version 1.3.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.3.0/OpenGhost-1.3.0-linux.tar.gz)
 
-[macOS version 1.2.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.2.0/OpenGhost-1.2.0-mac.dmg)
+[macOS version 1.3.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.3.0/OpenGhost-1.3.0-mac.dmg)
 
 What's new:
-- Browser work is up to 10× cheaper on long sessions: the repeated part of each request comes from the provider's cache. The agent sees and does exactly what it did before.
-- A light theme.
-- Usage in the settings: tokens spent by day, week, month and all time, per provider and model, with your ChatGPT plan limits and DeepSeek balance.
-- Clear approvals: in Ask mode the agent says in plain words what it wants to do, and the card shows what the step does and where.
-- Rename chats right in the list. Effort shows its level name.
-- API keys are encrypted by the operating system instead of kept in plain text.
-- Cmd+A, C, V and Z work on Mac. On Linux, paths respect letter case, and approvals understand bash and zsh.
-- A long paste turns into a card, and one click turns it back into text. Esc stops the agent from anywhere, instantly.
+- A rebuilt drawing engine. Charts and diagrams have a new, restrained look at the size of the chat's text, and the engine now knows 43 kinds of drawings: finance, sport, food and recipes, documents, languages, PC builds, device settings, trips, code and more. A reply carries several drawings, each made for its subject.
+- Photos and videos in replies. The agent finds pictures and YouTube videos itself and shows them as a stack to leaf through and as cards with previews.
+- Chats without a folder. Just start typing: the chat goes to Chats at the top of the list.
+- Send videos. A video attaches like a photo, and the agent watches it frame by frame.
+- Chat stats and Compact chat in the plus menu: what the chat has spent by reply and by model, how much of it came from the cache, and one click to free the context of a long chat.
+- Mini chat keeps its conversation: it is saved with the chat it was opened over.
+- PDFs are read: in attachments, in your files and by the agent.
+- More stable and cheaper: the providers' cache works in every chat, a long chat is compacted by the window of its own model, and the model lists come from the providers themselves.
+- A new splash, a new window backdrop and a calmer password screen for locked chats.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
 The code is under the MIT license. The name OpenGhost, the ghost logo, the animations, and the visual design are not. You may not use those for any commercial purpose. See LICENSE.
 
-OpenGhost is an open desktop agent for Windows, macOS and Linux. The agent engine is written from scratch. It runs commands, edits files, keeps git, and works on the web. Its main advantage is visualization: when something can be shown, OpenGhost draws it. The rendering engine is written from scratch too.
+OpenGhost is an open desktop agent for Windows, macOS and Linux. It runs commands, edits files, keeps git and works on the web in a browser of its own. And it shows what it explains: charts, schemes, photos and videos stand next to the text.
 
-## It opens with the ghost
+## Written from scratch
 
-The app starts on its own screen. The ghost arrives first, then the name OpenGhost.
+Nothing in OpenGhost is assembled from ready parts. There is no UI framework inside, no Markdown library, no Mermaid, no chart library and no agent framework. Every part is our own code:
 
-![OpenGhost splash screen](images/splash.jpg)
+- **The agent.** The loop, the tools (commands, files, git, web search, pages, PDFs, video frames), the approval cards and the three permission modes.
+- **The drawing engine.** It reads what a model writes, lays it out and draws it: 43 kinds of drawings, from flowcharts and loss curves to a day of meals and the route of a trip. A drawing is live: it answers the pointer and can be edited where it stands.
+- **The browser.** The agent sees a page as text with numbered elements, moves its own cursor, clicks, types and reads, in a browser panel it shares with you.
+- **The text.** The Markdown renderer that draws a reply while it is still being written, the code highlighter and the math.
+- **The interface.** Every control, its motion and its glass, in plain JavaScript and CSS.
 
-## A chat lives in a folder
+The app stands on two things only: Electron, which gives it a window, and Anthropic's official SDK, which talks to Claude.
 
-Every new chat belongs to a folder you choose. Until the first message, the ghost waits above the composer.
+## It shows what it explains
 
-![Empty chat with the ghost and New Folder](images/welcome.jpg)
+Ask how something works, and the answer comes with drawings: the whole as a scheme, the curves the topic is known for as charts, the key numbers as tiles. Here three training runs stand on one chart: a healthy one, one that blows up and one that barely moves.
 
-## Show the numbers, do not only tell them
+![A chart of three training runs and tiles with the key numbers](images/visual.jpg)
 
-Shares, flows, prices, and plans become charts and diagrams next to the explanation. One picture carries the idea.
+## A scheme with the detail in it
 
-![Donut chart and a flowchart](images/visual.jpg)
+A block carries its name and a line about what happens in it. Stages stand in groups, and a process that repeats closes into a ring.
 
-## Change the diagram where it stands
+![A scheme of how a model is trained, in three stages](images/scheme.jpg)
 
-A chart is not a finished picture. Open it and edit the layout, the blocks, and the arrows. The drawing updates in place.
+## Drawings made for the subject
 
-![Diagram editor on a flowchart](images/editor.jpg)
+Food, recipes, documents, matches, languages, PC builds, device settings and trips have drawings of their own. A day of meals is a ring of calories with protein, fat and carbs against the goal.
+
+![A day of meals: calories, protein, fat and carbs against the goal](images/food.jpg)
+
+A trip is a route with its legs, and words to learn come with their sound and an example.
+
+![A route through Portugal and a list of words for a café](images/trip.jpg)
+
+## Change the drawing where it stands
+
+A drawing is not a finished picture. Open it and change the layout, the blocks and the arrows in a table, or edit its source. The drawing follows as you type.
+
+![A flowchart with its editor open](images/editor.jpg)
+
+## Photos and videos in the reply
+
+When a thing is better seen than described, a dish, a place, a game, the agent looks for pictures and videos itself. Pictures stand in a stack to leaf through, each with the page it came from. A video is a card with its preview, name and length, and a click opens it in your browser.
 
 ## A browser with its own cursor
 
@@ -54,11 +75,27 @@ OpenGhost has a built-in browser and drives it itself. It opens a page, moves it
 
 ![Chat beside the built-in browser](images/browser.jpg)
 
+## Start with a question, not with a folder
+
+A new chat needs no folder. Type, and it goes to Chats at the top of the list, with a folder of its own for the files the agent makes. A chat about a project still lives in that project's folder.
+
+![A new chat with the ghost above the composer](images/welcome.jpg)
+
 ## Mini chat for a side question
 
-Select a passage and open Mini chat over the conversation. It is the same agent, with the current chat as context. Nothing written there is saved, and closing the window throws it away.
+Select a passage and open Mini chat over the conversation. It is the same agent, with the current chat as context, and what you write there is kept with the chat.
 
-![Mini chat over a chart](images/mini.jpg)
+![Mini chat over a conversation](images/mini.jpg)
+
+## What a chat costs
+
+Chat stats, in the plus menu, show what a chat has spent: the tokens of every reply, the share of each model, how much of it came from the cache and how full the context is. Compact chat, next to it, frees the context of a long conversation, and the app does the same by itself before the model's window fills.
+
+![The chat stats card](images/stats.jpg)
+
+## Show it a photo, a video, a PDF
+
+Photos, videos and files attach from the plus menu or by a drop. A video comes in like a photo, and the agent watches it frame by frame. A PDF is read as text.
 
 ## Three ways to let it act
 
@@ -68,9 +105,15 @@ Ask waits for approval before commands, file changes, and the web. Auto works in
 
 ## The key stays on this computer
 
-OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek. Keys and sign-ins are stored only on your machine, and the app checks them for you.
+OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
 
 ![API key settings](images/settings.jpg)
+
+## It opens with the ghost
+
+The app starts on its own screen. The ghost flies in through the mist, then the name OpenGhost appears.
+
+![OpenGhost splash screen](images/splash.jpg)
 
 ## Build it yourself
 
