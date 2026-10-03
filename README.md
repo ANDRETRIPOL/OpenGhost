@@ -111,7 +111,7 @@ Ask waits for approval before commands, file changes, and the web. Auto works in
 
 ## The key stays on this computer
 
-OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek: sign in with your ChatGPT account, or connect OpenAI, Claude and DeepSeek with an API key. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
+OpenGhost works with ChatGPT, OpenAI, Claude, DeepSeek, and OpenCode Go: sign in with your ChatGPT account, or connect OpenAI, Claude, DeepSeek and OpenCode Go with an API key. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
 
 ![The Providers page of the settings: ChatGPT, OpenAI, Anthropic and DeepSeek](images/settings.jpg)
 
