@@ -2,9 +2,9 @@
 'use strict';
 
 const STORAGE = { effort: 'deepseek.effort', mode: 'openghost.mode', model: 'openghost.model', catalog: 'openghost.catalog' };
-const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey' };
+const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', kimchi: 'kimchi.apiKey', deepseek: 'deepseek.apiKey' };
 // The order providers appear in, in the settings and in the model picker.
-const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek'];
+const ORDER = ['chatgpt', 'openai', 'anthropic', 'kimchi', 'deepseek'];
 // The provider the app starts with: the settings ask for its key when nothing is connected, and new chats take its first
 // model until the user picks another.
 const FIRST_PROVIDER = 'deepseek';
@@ -16,8 +16,16 @@ const FRESH = 10 * 60 * 1000;
 const LINKS = {
  openai: ['https://platform.openai.com/api-keys', 'platform.openai.com'],
  anthropic: ['https://console.anthropic.com/settings/keys', 'console.anthropic.com'],
+ kimchi: ['https://llm.kimchi.dev', 'llm.kimchi.dev'],
  deepseek: ['https://platform.deepseek.com/api_keys', 'platform.deepseek.com'],
 };
+const KNOWN_KIMCHI = [
+ { id: 'kimchi:deepseek-v4-flash-0731', api: 'deepseek-v4-flash-0731', provider: 'kimchi', name: 'DeepSeek V4 Flash', context: 1000000, vision: false },
+ { id: 'kimchi:kimi-k2.7', api: 'kimi-k2.7', provider: 'kimchi', name: 'Kimi K2.7', context: 262144, vision: true },
+ { id: 'kimchi:minimax-m3', api: 'minimax-m3', provider: 'kimchi', name: 'MiniMax M3', context: 1000000, vision: true },
+ { id: 'kimchi:glm-5.3-flash', api: 'glm-5.3-flash', provider: 'kimchi', name: 'GLM 5.3 Flash', context: 1000000, vision: true },
+ { id: 'kimchi:deepseek-v4.1-flash', api: 'deepseek-v4.1-flash', provider: 'kimchi', name: 'DeepSeek V4.1 Flash', context: 1000000, vision: true },
+];
 const MODES = ['ask', 'auto', 'full'];
 const DEFAULT_MODE = 'ask';
 const CHECK_DELAY = 400;
@@ -179,7 +187,7 @@ class Settings {
  readCatalog() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORAGE.catalog)) || {}; } catch {}
-  return { chatgpt: [], openai: [], anthropic: [], deepseek: [], ...saved };
+  return { chatgpt: [], openai: [], anthropic: [], kimchi: KNOWN_KIMCHI.slice(), deepseek: [], ...saved };
  }
 
  saveCatalog() {
@@ -362,7 +370,17 @@ class Settings {
  // Loads a provider's models into the catalog; the last request for a provider wins.
  async refresh(provider) {
   const token = (this.checks[provider] = (this.checks[provider] || 0) + 1);
-  const models = await Providers.models(provider, this.keys[provider]);
+  let models;
+  if (provider === 'kimchi') {
+   try {
+    models = await Providers.models('kimchi', this.keys.kimchi, 'https://llm.kimchi.dev/openai/v1');
+    if (!models || !models.length) models = KNOWN_KIMCHI.slice();
+   } catch {
+    models = KNOWN_KIMCHI.slice();
+   }
+  } else {
+   models = await Providers.models(provider, this.keys[provider]);
+  }
   if (token !== this.checks[provider]) return false;
   this.catalog[provider] = models;
   this.saveCatalog();
@@ -374,6 +392,7 @@ class Settings {
   this.list.innerHTML = [
    section('openai', 'OpenAI', accountRow() + keyRow('openai')),
    section('anthropic', 'Anthropic', keyRow('anthropic')),
+   section('kimchi', 'Kimchi', keyRow('kimchi')),
    section('deepseek', 'DeepSeek', keyRow('deepseek')),
   ].join('');
   this.inputs = {};
