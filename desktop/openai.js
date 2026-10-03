@@ -138,8 +138,8 @@ async function* events(body) {
  }
 }
 
-async function target({ provider, key, session }, { chatgpt, version, apiUrl = API_URL, codexUrl = CODEX_URL }) {
- if (provider !== 'chatgpt') return { url: `${apiUrl}/responses`, headers: { Authorization: `Bearer ${key}` } };
+async function target({ provider, key, session }, { chatgpt, version, headers: extra, apiUrl = API_URL, codexUrl = CODEX_URL }) {
+ if (provider !== 'chatgpt') return { url: `${apiUrl}/responses`, headers: { Authorization: `Bearer ${key}`, ...(extra || {}) } };
  const headers = signed(await chatgpt(), version);
  if (session) headers['session-id'] = session;
  return { url: `${codexUrl}/responses`, headers };
@@ -175,7 +175,7 @@ async function stream(request, context) {
   throw error('network', 0, 'network');
  }
  if (!response.ok) throw await failure(response);
- const result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null, native: { provider: 'openai', items: [] } };
+ const result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null, native: { provider: context.nativeProvider || 'openai', items: [] } };
  let textItem = '';
  const say = delta => { result.content += delta; onEvent({ type: 'content', delta }); };
  for await (const event of events(response.body)) {

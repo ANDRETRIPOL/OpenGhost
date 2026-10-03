@@ -5,8 +5,8 @@
 // and a column for each of the last 30 days. Below, a section for every provider in use: for the ChatGPT sign-in its plan and
 // limits as ChatGPT counts them, for DeepSeek the balance on the account, and for each the tokens, the cache and the models.
 const PERIODS = [['today', 1], ['week', 7], ['month', 30], ['all', 0]];
-const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek'];
-const TONES = { chatgpt: 'turquoise', openai: 'lilac', anthropic: 'orange', deepseek: 'blue' };
+const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek', 'opencode'];
+const TONES = { chatgpt: 'turquoise', openai: 'lilac', anthropic: 'orange', deepseek: 'blue', opencode: 'green' };
 const PLANS = {
  free: 'Free', go: 'Go', plus: 'Plus', prolite: 'Pro 5x', pro: 'Pro 20x', team: 'Team', business: 'Business',
  self_serve_business_usage_based: 'Business', enterprise: 'Enterprise', enterprise_cbp_usage_based: 'Enterprise', edu: 'Edu',

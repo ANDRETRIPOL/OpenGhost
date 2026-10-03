@@ -6,11 +6,12 @@ const { app, ipcMain } = require('electron');
 const OpenAI = require('./openai');
 const Claude = require('./anthropic');
 const ChatGPT = require('./chatgpt');
+const OpenCode = require('./opencode');
 
 const runs = new Map();
-const PROVIDERS = new Set(['openai', 'chatgpt', 'anthropic']);
+const PROVIDERS = new Set(['openai', 'chatgpt', 'anthropic', 'opencode']);
 
-const engine = provider => provider === 'anthropic' ? Claude : OpenAI;
+const engine = provider => provider === 'anthropic' ? Claude : provider === 'opencode' ? OpenCode : OpenAI;
 
 async function start(sender, id, request) {
  const controller = new AbortController();

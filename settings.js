@@ -2,9 +2,9 @@
 'use strict';
 
 const STORAGE = { effort: 'deepseek.effort', mode: 'openghost.mode', model: 'openghost.model', catalog: 'openghost.catalog' };
-const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey' };
+const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey', opencode: 'opencode.apiKey' };
 // The order providers appear in, in the settings and in the model picker.
-const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek'];
+const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek', 'opencode'];
 // The provider the app starts with: the settings ask for its key when nothing is connected, and new chats take its first
 // model until the user picks another.
 const FIRST_PROVIDER = 'deepseek';
@@ -17,6 +17,7 @@ const LINKS = {
  openai: ['https://platform.openai.com/api-keys', 'platform.openai.com'],
  anthropic: ['https://console.anthropic.com/settings/keys', 'console.anthropic.com'],
  deepseek: ['https://platform.deepseek.com/api_keys', 'platform.deepseek.com'],
+ opencode: ['https://opencode.ai/auth', 'opencode.ai'],
 };
 const MODES = ['ask', 'auto', 'full'];
 const DEFAULT_MODE = 'ask';
@@ -179,7 +180,7 @@ class Settings {
  readCatalog() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORAGE.catalog)) || {}; } catch {}
-  return { chatgpt: [], openai: [], anthropic: [], deepseek: [], ...saved };
+  return { chatgpt: [], openai: [], anthropic: [], deepseek: [], opencode: [], ...saved };
  }
 
  saveCatalog() {
@@ -375,6 +376,7 @@ class Settings {
    section('openai', 'OpenAI', accountRow() + keyRow('openai')),
    section('anthropic', 'Anthropic', keyRow('anthropic')),
    section('deepseek', 'DeepSeek', keyRow('deepseek')),
+   section('opencode', 'OpenCode Go', keyRow('opencode')),
   ].join('');
   this.inputs = {};
   for (const input of this.list.querySelectorAll('.settings-key')) {
