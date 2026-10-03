@@ -10,7 +10,8 @@
     "shortcut": "electron . --create-shortcut",
     "dist": "electron-builder --win nsis --publish never",
     "dist:mac": "electron-builder --mac dmg --universal --publish never",
-    "dist:linux": "electron-builder --linux tar.gz --publish never"
+    "dist:linux": "electron-builder --linux tar.gz --publish never",
+    "test": "node --test test/"
   },
   "devDependencies": {
     "electron": "^44.4.5",
@@ -27,6 +28,7 @@
       "**/*",
       "!dist/**",
       "!images/**",
+      "!test/**",
       "!.github/**",
       "!**/*.md"
     ],

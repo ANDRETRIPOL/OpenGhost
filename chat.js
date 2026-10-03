@@ -743,7 +743,7 @@ class Chat {
   if (!turn) return;
   turn.controller.abort();
   turn.release?.('abort');
-  if (turn.tool) AgentTools.cancel(turn.tool);
+  for (const id of turn.tools) AgentTools.cancel(id);
   for (const pending of turn.approvals) pending.card.settle('deny');
  }
 
@@ -886,7 +886,7 @@ class Chat {
 
  begin(conv, config) {
   const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  return conv.turn = { id, controller: new AbortController(), config, part: null, parts: [], next: null, queue: [], approvals: new Set(), tool: '', text: false };
+  return conv.turn = { id, controller: new AbortController(), config, part: null, parts: [], next: null, queue: [], approvals: new Set(), tools: new Set(), text: false };
  }
 
  run(conv, prompt, config, bubble) {
@@ -962,12 +962,18 @@ class Chat {
    await this.compactIfNeeded(conv, turn);
    const { part, calls, finish } = await this.request(conv, turn);
    const images = [];
-   for (const call of calls) {
-    const result = turn.controller.signal.aborted ? TOOL_NOTES.cancelled : await this.useTool(conv, turn, part.view, call);
-    const output = typeof result === 'string' ? result : result.text;
-    part.entry.steps.push({ role: 'tool', tool_call_id: call.id, content: output });
-    conv.tokens += Math.ceil(output.length / CONTEXT.chars);
-    if (result.images?.length) images.push(...result.images);
+   // Reads in a row that need no approval run at once; every other call waits for the one before it. Results keep the calls' order.
+   // On Stop every read in the group is told to stop and counts as cancelled at once; one that still finishes later is dropped.
+   for (let k = 0; k < calls.length;) {
+    const group = [calls[k++]];
+    if (this.quietRead(conv, group[0])) while (k < calls.length && this.quietRead(conv, calls[k])) group.push(calls[k++]);
+    const results = await Promise.all(group.map(call => turn.controller.signal.aborted ? TOOL_NOTES.cancelled : this.useTool(conv, turn, part.view, call)));
+    group.forEach((call, j) => {
+     const result = results[j], output = typeof result === 'string' ? result : result.text;
+     part.entry.steps.push({ role: 'tool', tool_call_id: call.id, content: output });
+     conv.tokens += Math.ceil(output.length / CONTEXT.chars);
+     if (result.images?.length) images.push(...result.images);
+    });
    }
    if (images.length) {
     const step = imageStep(images);
@@ -1074,6 +1080,14 @@ class Chat {
   return { part, calls, finish: result.finishReason };
  }
 
+ // A read_file call that can run beside others: one that will not stop to ask the user.
+ quietRead(conv, call) {
+  if (call.function.name !== 'read_file') return false;
+  let args;
+  try { args = JSON.parse(call.function.arguments || '{}') || {}; } catch { return false; }
+  return !AgentTools.needsApproval('read_file', args, { mode: this.settings.mode, cwd: this.cwd(conv), attached: this.attachedVideos(conv) });
+ }
+
  async useTool(conv, turn, view, call) {
   const name = call.function.name, cwd = this.cwd(conv);
   let args;
@@ -1104,7 +1118,8 @@ class Chat {
     handed = true;
    }
   }
-  const id = turn.tool = `${conv.id}-${++this.tools}`;
+  const id = `${conv.id}-${++this.tools}`;
+  turn.tools.add(id);
   // A stopped step ends at once. The tool is told to stop as well, but a page still loading or a wait in the browser
   // would otherwise hold the agent for up to a minute.
   const stopped = new Promise(resolve => turn.controller.signal.addEventListener('abort', () => resolve(TOOL_NOTES.cancelled), { once: true }));
@@ -1117,7 +1132,7 @@ class Chat {
   } catch (error) {
    return `Error: ${error.message}`;
   } finally {
-   turn.tool = '';
+   turn.tools.delete(id);
   }
  }
 
