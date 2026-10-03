@@ -2,9 +2,9 @@
 'use strict';
 
 const STORAGE = { effort: 'deepseek.effort', mode: 'openghost.mode', model: 'openghost.model', catalog: 'openghost.catalog' };
-const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey' };
+const KEYS = { compatible: 'compatible.apiKey', openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey' };
 // The order providers appear in, in the settings and in the model picker.
-const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek'];
+const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek', 'compatible'];
 // The provider the app starts with: the settings ask for its key when nothing is connected, and new chats take its first
 // model until the user picks another.
 const FIRST_PROVIDER = 'deepseek';
@@ -27,13 +27,13 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
 const escapeHtml = text => String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 function keyRow(provider) {
- const [href, host] = LINKS[provider];
+ const [href, host] = LINKS[provider] || ['', ''];
  const note = I18n.has(`settings.${provider}.note`) ? ` ${escapeHtml(I18n.t(`settings.${provider}.note`))}` : '';
  return `
   <div class="settings-row">
    <div class="settings-text">
     <label class="settings-label" for="settings-key-${provider}">${escapeHtml(I18n.t(`settings.${provider}.key`))}</label>
-    <p class="settings-hint"><span>${escapeHtml(I18n.t(`settings.${provider}.hint`))}</span> <a href="${href}" target="_blank" rel="noopener noreferrer">${host}</a>.${note}</p>
+    <p class="settings-hint"><span>${escapeHtml(I18n.t(`settings.${provider}.hint`))}</span> ${href ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${host}</a>.` : ''}${note}</p>
    </div>
    <div class="settings-control">
     <div class="settings-key-box">
@@ -82,6 +82,7 @@ class Settings {
   this.list = dialog.querySelector('.settings-providers');
   this.unsaved = new Set();
   this.keys = this.readKeys();
+  this.baseUrl = localStorage.getItem('compatible.baseUrl') || '';
   this.account = { connected: false };
   this.catalog = this.readCatalog();
   this.models = [];
@@ -179,7 +180,7 @@ class Settings {
  readCatalog() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORAGE.catalog)) || {}; } catch {}
-  return { chatgpt: [], openai: [], anthropic: [], deepseek: [], ...saved };
+  return { chatgpt: [], openai: [], anthropic: [], deepseek: [], compatible: [], ...saved };
  }
 
  saveCatalog() {
@@ -233,7 +234,7 @@ class Settings {
  }
 
  connected(provider) {
-  return provider === 'chatgpt' ? !!this.account.connected : !!this.keys[provider];
+  return provider === 'compatible' ? !!this.baseUrl : provider === 'chatgpt' ? !!this.account.connected : !!this.keys[provider];
  }
 
  // The badge turns green only once the provider has taken the key, so a mistyped key never looks connected.
@@ -274,6 +275,7 @@ class Settings {
    model: model?.api || id,
    name: model?.name || id,
    key: this.keys[provider] || '',
+   baseUrl: provider === 'compatible' ? this.baseUrl : undefined,
    ready: !!model && this.connected(provider),
    effort,
    efforts,
@@ -338,7 +340,7 @@ class Settings {
   this.read = Date.now();
   await this.syncAccount();
   await Promise.all([
-   ...Object.keys(KEYS).filter(provider => this.keys[provider]).map(provider => this.checkKey(provider)),
+   ...Object.keys(KEYS).filter(provider => this.connected(provider)).map(provider => this.checkKey(provider)),
    this.account.connected ? this.refresh('chatgpt').catch(() => {}) : null,
   ]);
  }
@@ -362,7 +364,7 @@ class Settings {
  // Loads a provider's models into the catalog; the last request for a provider wins.
  async refresh(provider) {
   const token = (this.checks[provider] = (this.checks[provider] || 0) + 1);
-  const models = await Providers.models(provider, this.keys[provider]);
+  const models = await Providers.models(provider, this.keys[provider], { baseUrl: this.baseUrl });
   if (token !== this.checks[provider]) return false;
   this.catalog[provider] = models;
   this.saveCatalog();
@@ -375,15 +377,33 @@ class Settings {
    section('openai', 'OpenAI', accountRow() + keyRow('openai')),
    section('anthropic', 'Anthropic', keyRow('anthropic')),
    section('deepseek', 'DeepSeek', keyRow('deepseek')),
+   section('compatible', 'OpenAI-compatible', `
+    <div class="settings-row">
+     <div class="settings-text">
+      <label class="settings-label" for="settings-base-url">${escapeHtml(I18n.t('settings.compatible.url'))}</label>
+      <p class="settings-hint">${escapeHtml(I18n.t('settings.compatible.urlHint'))}</p>
+     </div>
+     <div class="settings-control">
+      <input id="settings-base-url" class="settings-key" type="url" placeholder="http://localhost:4000/v1" autocomplete="off" spellcheck="false">
+     </div>
+    </div>` + keyRow('compatible')),
   ].join('');
   this.inputs = {};
-  for (const input of this.list.querySelectorAll('.settings-key')) {
+  for (const input of this.list.querySelectorAll('.settings-key[data-provider]')) {
    const provider = input.dataset.provider;
    this.inputs[provider] = input;
    input.value = this.keys[provider];
    input.addEventListener('input', () => this.onKeyInput(provider));
    input.nextElementSibling.addEventListener('click', () => this.reveal(provider, input.type === 'password'));
   }
+  const endpoint = this.list.querySelector('#settings-base-url');
+  endpoint.value = this.baseUrl;
+  endpoint.addEventListener('input', () => {
+   this.baseUrl = endpoint.value.trim();
+   localStorage.setItem('compatible.baseUrl', this.baseUrl);
+   this.catalog.compatible = [];
+   this.onKeyInput('compatible');
+  });
   this.statuses = Object.fromEntries([...this.list.querySelectorAll('.settings-status')].map(node => [node.dataset.provider, node]));
   this.accountBox = this.list.querySelector('.settings-account');
   this.accountBox.addEventListener('click', event => {
@@ -461,7 +481,7 @@ class Settings {
    return;
   }
   for (const provider of Object.keys(KEYS)) {
-   if (this.keys[provider] && !this.checked.has(provider)) this.checkKey(provider);
+   if (this.connected(provider) && !this.checked.has(provider)) this.checkKey(provider);
   }
  }
 
@@ -471,21 +491,22 @@ class Settings {
   this.saveKey(provider, key);
   clearTimeout(this.timer?.[provider]);
   this.timer = { ...this.timer };
+  this.checks[provider] = (this.checks[provider] || 0) + 1;
   this.checked.delete(provider);
   this.accepted.delete(provider);
-  if (!key) {
+  if (!this.connected(provider)) {
    this.setStatus(provider, '');
    this.changed();
    return;
   }
-  this.paint();
+  this.changed();
   this.setStatus(provider, I18n.t('settings.key.checking'));
   this.timer[provider] = setTimeout(() => this.checkKey(provider), CHECK_DELAY);
  }
 
  // A working key shows only in the badge; the line under the field is for the check in progress and for what went wrong.
  async checkKey(provider) {
-  const key = this.keys[provider];
+  const key = this.keys[provider], baseUrl = this.baseUrl;
   this.setStatus(provider, I18n.t('settings.key.checking'));
   try {
    const current = await this.refresh(provider);
@@ -495,7 +516,7 @@ class Settings {
    if (this.unsaved.has(provider)) this.setStatus(provider, I18n.t('settings.key.unsaved'), 'error');
    else this.setStatus(provider, '');
   } catch (error) {
-   if (key !== this.keys[provider]) return;
+   if (key !== this.keys[provider] || provider === 'compatible' && baseUrl !== this.baseUrl) return;
    this.accepted.delete(provider);
    this.setStatus(provider, error.message, 'error');
   }

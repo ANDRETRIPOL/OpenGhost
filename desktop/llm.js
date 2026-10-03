@@ -4,13 +4,14 @@
 // The page starts a run by id and gets its deltas, then the result or the error, back as events.
 const { app, ipcMain } = require('electron');
 const OpenAI = require('./openai');
+const Compatible = require('./compatible');
 const Claude = require('./anthropic');
 const ChatGPT = require('./chatgpt');
 
 const runs = new Map();
-const PROVIDERS = new Set(['openai', 'chatgpt', 'anthropic']);
+const PROVIDERS = new Set(['openai', 'chatgpt', 'anthropic', 'compatible']);
 
-const engine = provider => provider === 'anthropic' ? Claude : OpenAI;
+const engine = provider => provider === 'compatible' ? Compatible : provider === 'anthropic' ? Claude : OpenAI;
 
 async function start(sender, id, request) {
  const controller = new AbortController();
@@ -36,10 +37,10 @@ async function start(sender, id, request) {
 function register(fromApp) {
  ipcMain.on('llm:start', (event, id, request) => { if (fromApp(event)) start(event.sender, id, request); });
  ipcMain.on('llm:abort', (event, id) => { if (fromApp(event)) runs.get(id)?.abort(); });
- ipcMain.handle('llm:models', async (event, provider, key) => {
+ ipcMain.handle('llm:models', async (event, provider, key, options = {}) => {
   if (!fromApp(event) || !PROVIDERS.has(provider)) return { models: [] };
   try {
-   return { models: await engine(provider).models({ provider, key }, { chatgpt: ChatGPT.credentials, version: app.getVersion() }) };
+   return { models: await engine(provider).models({ provider, key, baseUrl: options.baseUrl }, { chatgpt: ChatGPT.credentials, version: app.getVersion() }) };
   } catch (error) {
    return { error: { status: error.status || 0, code: error.code || '', message: error.message } };
   }

@@ -5,7 +5,7 @@
 // Providers bill these same numbers. The count starts with the version that brought it: nothing was kept before.
 const KEY = 'usage';
 const SAVE_DELAY = 800;
-const PROVIDERS = ['chatgpt', 'openai', 'anthropic', 'deepseek'];
+const PROVIDERS = ['chatgpt', 'openai', 'anthropic', 'deepseek', 'compatible'];
 // Per day and model: tokens sent, of them read from the provider's cache, written to it, tokens written back, requests.
 const [INPUT, CACHED, WRITTEN, OUTPUT, REQUESTS] = [0, 1, 2, 3, 4];
 

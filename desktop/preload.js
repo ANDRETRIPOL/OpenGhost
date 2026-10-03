@@ -36,7 +36,7 @@ contextBridge.exposeInMainWorld('openghost', {
   start: (id, request) => ipcRenderer.send('llm:start', id, request),
   abort: id => ipcRenderer.send('llm:abort', id),
   onEvent: callback => ipcRenderer.on('llm:event', (event, data) => callback(data)),
-  models: (provider, key) => ipcRenderer.invoke('llm:models', provider, key),
+  models: (provider, key, options) => ipcRenderer.invoke('llm:models', provider, key, options),
  },
  // The keys come from the main process's memory, read before the window opened, so asking for them never waits on the disk.
  keys: {

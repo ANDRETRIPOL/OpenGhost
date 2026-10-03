@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app, ipcMain, safeStorage } = require('electron');
 
-const PROVIDERS = new Set(['openai', 'anthropic', 'deepseek']);
+const PROVIDERS = new Set(['openai', 'anthropic', 'deepseek', 'compatible']);
 // Windows can refuse for a moment to replace a file something still has open, as an antivirus scan does right after a write.
 const RETRY = { times: 6, wait: 15, codes: new Set(['EPERM', 'EACCES', 'EBUSY']) };
 

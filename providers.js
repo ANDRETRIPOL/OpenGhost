@@ -7,7 +7,7 @@ const bridge = window.openghost?.llm || null;
 const listeners = new Map();
 bridge?.onEvent(data => listeners.get(data.id)?.(data));
 
-const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic' };
+const NAMES = { compatible: 'OpenAI-compatible', deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic' };
 
 class ProviderError extends Error {
  constructor(message, status = 0) {
@@ -34,7 +34,7 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxT
  if (!bridge) return Promise.reject(new ProviderError(I18n.t('error.desktop', { provider: NAMES[config.provider] })));
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
-  provider: config.provider, key: config.key, model: config.model, effort: config.effort, vision: config.vision,
+  provider: config.provider, baseUrl: config.baseUrl, key: config.key, model: config.model, effort: config.effort, vision: config.vision,
   thinking: config.thinking, output: config.output, messages, tools, maxTokens, session, once,
  };
  return new Promise((resolve, reject) => {
@@ -95,10 +95,10 @@ async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
  return result.content.trim();
 }
 
-async function models(provider, key) {
+async function models(provider, key, options) {
  if (provider === 'deepseek') return (await DeepSeek.listModels(key)).map(model => ({ ...model, provider: 'deepseek', api: model.id }));
  if (!bridge) return [];
- const reply = await bridge.models(provider, key);
+ const reply = await bridge.models(provider, key, options);
  if (reply.error) throw new ProviderError(explain(provider, reply.error), reply.error.status);
  return reply.models;
 }

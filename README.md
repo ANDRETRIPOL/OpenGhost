@@ -141,3 +141,29 @@ No Mac or Linux machine at hand? A fork can build both on GitHub: turn on Action
 ## Thanks
 
 [@kodachromez](https://github.com/kodachromez) found eight real bugs in a single report, and [@Bruno8R](https://github.com/Bruno8R) noticed that API keys were kept in plain text. All of it is fixed in v1.2.0. Thank you both.
+
+## OpenAI-compatible servers
+
+In **Settings → Providers → OpenAI-compatible**, enter the server's base URL,
+including its API prefix (usually `/v1`). Enter a LiteLLM proxy API key if required;
+leave the key empty for a local server without authentication. Then select one of
+its discovered models in the model picker.
+
+Example base URLs:
+
+- LiteLLM: `http://localhost:4000/v1`
+- Ollama: `http://localhost:11434/v1`
+- LM Studio: `http://localhost:1234/v1`
+
+This provider uses `GET /models` and streaming `POST /chat/completions`. It accepts
+arbitrary model IDs and supports streamed text, reasoning, tool calls, cancellation,
+and usage when the server reports it. Agent actions require a model and server
+that support function/tool calling. Images are enabled only when the model list
+advertises `image` in `input_modalities`; otherwise image parts are omitted.
+Provider-specific reasoning controls are not sent. API keys use the existing OS
+keychain storage, and the base URL is saved in the app's settings.
+
+These are example endpoints; this feature does not configure or change a model
+server. The existing OpenAI and ChatGPT providers continue to use their own APIs.
+
+Transport tests: `node --test tests/compatible.test.js`.

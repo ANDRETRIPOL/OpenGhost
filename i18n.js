@@ -3,6 +3,10 @@
 
 const STRINGS = {
  en: {
+  'settings.compatible.key': 'API key (optional)',
+  'settings.compatible.hint': 'Use a LiteLLM proxy key, or leave empty for a server without authentication.',
+  'settings.compatible.url': 'Base URL',
+  'settings.compatible.urlHint': 'LiteLLM, Ollama, LM Studio or another Chat Completions server. Include the API prefix, usually /v1.',
   'sidebar.show': 'Show sidebar',
   'sidebar.hide': 'Hide sidebar',
   'search': 'Search',
