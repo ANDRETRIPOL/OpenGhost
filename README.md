@@ -21,7 +21,7 @@ What's new:
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
-The code is under the MIT license. The name OpenGhost, the ghost logo, the animations, and the visual design are not. You may not use those for any commercial purpose. See LICENSE.
+The code is under the MIT license. The name OpenGhost, the ghost logo, the animations, and the visual design are not: they stay with the author. A modified version may not be published or distributed with any of them, paid or free, and they may not be used for any commercial purpose. See LICENSE.
 
 OpenGhost is an open desktop agent for Windows, macOS and Linux. It runs commands, edits files, keeps git and works on the web in a browser of its own. And it shows what it explains: charts, schemes, photos and videos stand next to the text.
 

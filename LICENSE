@@ -2,16 +2,27 @@ OpenGhost is covered by two terms.
 
 The MIT License below applies to the source code: the agent engine, the tools, and the rendering engine.
 
-It does not apply to the excluded materials. Those stay with Andrew. You may not use them for any commercial purpose. Commercial purpose means any use in a product, service, or company, or any use that is paid, advertised, or made for profit. This includes a fork, a rebrand, and a hosted version.
+It does not apply to the excluded materials. Those stay with Andrew, all rights reserved.
 
 Excluded materials:
 
-- the name OpenGhost
+- the name OpenGhost and any name close enough to be taken for it
 - the ghost logo, including the icon, the glyph, and the ghost on the splash screen
 - the animations
 - the visual design of the application, including its layout, colors, and interface
 
-You may use the excluded materials for a non-commercial purpose, as long as you leave the copyright notice in place and do not present your copy as the official OpenGhost.
+What you may do with the excluded materials:
+
+- run the official OpenGhost, and build and run it from this repository unchanged, for yourself
+- keep a fork on GitHub in order to propose changes to this repository
+
+What you may not do with the excluded materials, paid or free:
+
+- publish, distribute, or host a modified version of the application that keeps any of them. A modified version must have its own name, its own logo, its own animations, and its own visual design
+- redistribute the application, changed or unchanged, as your own project, under another name, or in a way that can be taken for the official OpenGhost
+- use them for any commercial purpose. Commercial purpose means any use in a product, service, or company, or any use that is paid, advertised, or made for profit. This includes a fork, a rebrand, and a hosted version
+
+Any other use of the excluded materials needs written permission from Andrew.
 
 MIT License
 
