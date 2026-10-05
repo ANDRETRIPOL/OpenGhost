@@ -125,8 +125,8 @@ const SCHEMAS = [
   amount: { type: 'number', description: 'How many screens, 0.8 by default' },
   ref: { type: 'integer', description: 'Scroll this element into view instead' },
  }),
- fn('browser_screenshot', 'Look at the page in the built-in browser yourself: returns a picture of the screen, or of the page from the top with full_page. Use it when layout, images, colors, charts or the look of a site you build matter, or when the snapshot is not enough.', {
-  full_page: { type: 'boolean', description: 'The page from the top, up to four screens tall' },
+ fn('browser_screenshot', 'Look at the page in the built-in browser yourself: returns a picture of the screen, or of the page from the top with full_page, capped at four viewport heights. Taller pages report truncated: true with the captured range and total height. Use it when layout, images, colors, charts or the look of a site you build matter, or when the snapshot is not enough.', {
+  full_page: { type: 'boolean', description: 'The page from the top, up to four viewport heights. Reports truncated: false only when the full vertical height fits; wider-than-viewport content is not included.' },
  }),
  fn('browser_read', 'Read the whole text of the page open in the built-in browser, with headings, lists and links, as the user sees it: signed in and after scripts ran. Long pages come in parts, pass start to read further.', {
   start: { type: 'integer', description: 'Character to start from when reading further' },
@@ -954,7 +954,11 @@ async function browser(name, args, id, cwd) {
  const result = await panel.run(name, args, { id, cwd });
  if (!result || result.error) return `Error: ${result?.error || 'the browser did not answer'}`;
  if (result.refs) refs = result.refs;
- if (result.image) return { text: result.text, images: [{ label: 'Screenshot of the built-in browser', url: result.image }] };
+ if (result.image) {
+  const { width, height, scale, pageWidth, pageHeight, capture, contentHeight, viewportHeight, truncated } = result;
+  return { text: result.text, images: [{ label: 'Screenshot of the built-in browser', url: result.image }],
+   width, height, scale, pageWidth, pageHeight, capture, contentHeight, viewportHeight, truncated };
+ }
  if (result.html !== undefined) return page({ url: result.url, status: 200, type: 'text/html', text: result.html }, args.start);
  const tabs = name === 'browser_tabs' ? '' : panel.tabsLine();
  return tabs ? `${tabs}\n${result.text}` : result.text;

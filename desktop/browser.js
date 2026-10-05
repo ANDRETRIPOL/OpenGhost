@@ -505,15 +505,21 @@ async function screenshot(guest, full) {
  const cdp = (method, params = {}) => guest.debugger.sendCommand(method, params);
  const metrics = await cdp('Page.getLayoutMetrics');
  const view = metrics.cssVisualViewport, content = metrics.cssContentSize;
- const width = Math.round(view.clientWidth), height = Math.round(full ? Math.min(content.height, view.clientHeight * SHOT.tall) : view.clientHeight);
+ // CSS coverage is independent of the returned bitmap size, including fractional heights.
+ const width = Math.round(view.clientWidth), height = full ? Math.min(content.height, view.clientHeight * SHOT.tall) : Math.round(view.clientHeight);
+ const capture = { x: full ? 0 : view.pageX, y: full ? 0 : view.pageY, width, height };
  const params = { format: 'png' };
- if (full) Object.assign(params, { captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 } });
+ if (full) Object.assign(params, { captureBeyondViewport: true, clip: { ...capture, scale: 1 } });
  const shot = await timed(cdp('Page.captureScreenshot', params), WAIT.call, 'The page did not draw a screenshot');
  let image = nativeImage.createFromBuffer(Buffer.from(shot.data, 'base64'));
  const target = Math.min(width, SHOT.max);
  if (image.getSize().width !== target) image = image.resize({ width: target, quality: 'good' });
  const size = image.getSize();
- return { image: `data:image/jpeg;base64,${image.toJPEG(SHOT.quality).toString('base64')}`, width: size.width, height: size.height, scale: size.width / width };
+ return {
+  image: `data:image/jpeg;base64,${image.toJPEG(SHOT.quality).toString('base64')}`, width: size.width, height: size.height,
+  scale: size.width / width, pageWidth: width, pageHeight: height, capture,
+  contentHeight: content.height, viewportHeight: view.clientHeight, truncated: !!full && content.height > height,
+ };
 }
 
 async function act(found, name, args, signal) {
@@ -589,7 +595,11 @@ async function act(found, name, args, signal) {
   case 'browser_screenshot': {
    const shot = await screenshot(guest, !!args.full_page);
    const scale = Math.abs(shot.scale - 1) < 0.01 ? 'one screenshot pixel is one page pixel, so x and y for browser_click can be read from it' : `to click by coordinates divide screenshot pixels by ${shot.scale.toFixed(3)}`;
-   return { ...shot, text: `Screenshot of ${args.full_page ? 'the page from the top' : 'the viewport'}: ${guest.getTitle() || guest.getURL()}, ${shot.width}×${shot.height}; ${scale}.` };
+   const coverage = !args.full_page ? 'the viewport' : shot.truncated ? 'the page from the top (truncated full-page capture)' : 'the full page (complete vertical capture)';
+   const extent = !args.full_page ? '' : shot.truncated
+    ? ` Only the top ${shot.pageHeight} CSS pixels (${SHOT.tall} viewport heights) were captured, y=0–${shot.pageHeight} of ${shot.contentHeight} CSS pixels. More page content exists below; scroll down and take viewport screenshots to see it.`
+    : ` Captured the entire page height, y=0–${shot.pageHeight} of ${shot.contentHeight} CSS pixels.`;
+   return { ...shot, text: `Screenshot of ${coverage}: ${guest.getTitle() || guest.getURL()}, ${shot.width}×${shot.height}; ${scale}.${extent}` };
   }
   case 'browser_read': {
    const html = await timed(guest.executeJavaScript('document.documentElement ? document.documentElement.outerHTML : ""'), WAIT.call, 'The page is not responding');
