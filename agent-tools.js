@@ -948,10 +948,11 @@ function frames(result) {
  return { text: lines.join('\n'), images: result.frames.map(frame => ({ label: `Frame at ${seconds(frame.time)}`, url: frame.url })) };
 }
 
-async function browser(name, args, id, cwd) {
+async function browser(name, args, id, cwd, signal) {
  const panel = window.browserPanel;
  if (!panel) return 'Error: the built-in browser is only available in the desktop app';
- const result = await panel.run(name, args, { id, cwd });
+ const result = await panel.run(name, args, { id, cwd, signal });
+ if (result?.taken || result?.stopped) return result;
  if (!result || result.error) return `Error: ${result?.error || 'the browser did not answer'}`;
  if (result.refs) refs = result.refs;
  if (result.image) return { text: result.text, images: [{ label: 'Screenshot of the built-in browser', url: result.image }] };
@@ -973,16 +974,17 @@ window.AgentTools = {
   env ||= bridge ? bridge.environment().catch(() => null) : Promise.resolve(null);
   return env;
  },
- async run(name, args, { id, cwd }) {
+ async run(name, args, { id, cwd, signal }) {
   if (!bridge) return 'Error: tools are only available in the desktop app';
-  if (name.startsWith('browser_')) return browser(name, args, id, cwd);
+  if (name.startsWith('browser_')) return browser(name, args, id, cwd, signal);
   if (name === 'web_search') return search(args.query, id, cwd);
   if (name === 'find_media') return media(args, id, cwd);
   const result = await bridge.run(id, name, args, cwd);
   return name === 'fetch_url' ? page(result, args.start) : format(name, args, result);
  },
  cancel(id) {
-  bridge?.cancel(id);
+  if (window.browserPanel?.jobs.has(id) || window.browserPanel?.cancelling?.has(id)) return window.browserPanel.cancel(id);
+  return bridge?.cancel(id);
  },
 };
 })();

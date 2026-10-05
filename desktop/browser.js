@@ -3,10 +3,12 @@
 const { app, clipboard, Menu, nativeImage, session, webContents } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const { AsyncLocalStorage } = require('node:async_hooks');
+const operations = new AsyncLocalStorage();
 
 const PARTITION = 'persist:browser';
 const WORLD = 1077;
-const WAIT = { load: 30000, stop: 15000, call: 12000, quiet: [300, 2000], pointer: 420 };
+const WAIT = { operation: 75000, load: 30000, stop: 15000, call: 12000, quiet: [300, 2000], pointer: 420 };
 const SNAPSHOT = { view: 9000, full: 40000 };
 const SHOT = { max: 1280, quality: 82, tall: 4 };
 const READ_MAX = 4 * 1024 * 1024;
@@ -278,11 +280,35 @@ function install() {
 }
 
 const INSTALL = `(${install.toString()})();`;
-const plain = message => Object.assign(new Error(message), { plain: true });
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const plain = (message, code = 'browser_error') => Object.assign(new Error(message), { plain: true, code });
 const guests = new Map();
 const downloads = [];
-let shown = { open: false, id: 0 };
+
+// A timed-out or cancelled command may already have effects, but cannot resume
+// the sequence and dispatch another command.
+function check() {
+ const op = operations.getStore();
+ if (!op) return;
+ if (op.signal.aborted) throw op.signal.reason;
+ if (op.found.gone) throw op.found.gone;
+ if (op.found.guest.isDestroyed()) throw plain('This browser tab is gone', 'tab_gone');
+ if (op.lease !== shown.lease) throw plain('The active browser target changed. Take a new snapshot.', 'stale_tab');
+ if (!op.navigating && op.pageId !== op.found.pageId) throw plain('The page changed. Take a new snapshot.', 'stale_page');
+}
+
+function sleep(ms) {
+ check();
+ let timer;
+ return timed(new Promise(resolve => { timer = setTimeout(resolve, ms); }), ms + WAIT.call, 'Browser delay timed out').finally(() => clearTimeout(timer));
+}
+
+function command(guest, method, params = {}, mayNavigate = false) {
+ check();
+ const pending = guest.debugger.sendCommand(method, params);
+ if (mayNavigate) operations.getStore().navigating = true;
+ return timed(pending, WAIT.call, `${method} timed out`);
+}
+let shown = { open: false, id: 0, lease: 0 };
 let ready = false;
 
 function normalize(value) {
@@ -330,8 +356,21 @@ function guard(host, prefs, params) {
 }
 
 function adopt(host, guest) {
- guests.set(guest.id, { guest, host, queue: Promise.resolve(), attached: false });
- guest.once('destroyed', () => guests.delete(guest.id));
+ const found = { guest, host, queue: Promise.resolve(), attached: false, pageId: 0 };
+ guests.set(guest.id, found);
+ const changed = () => { found.pageId++; };
+ guest.on('did-start-navigation', (event, url, inPlace, mainFrame) => { if (mainFrame) changed(); });
+ guest.on('did-navigate', changed);
+ guest.on('did-navigate-in-page', (event, url, mainFrame) => { if (mainFrame) changed(); });
+ guest.on('render-process-gone', () => {
+  found.gone = plain('The browser page crashed. Open it again.', 'guest_crashed');
+  found.stop?.(found.gone);
+ });
+ guest.once('destroyed', () => {
+  found.gone = plain('This browser tab is gone', 'tab_gone');
+  found.stop?.(found.gone);
+  guests.delete(guest.id);
+ });
  const tell = (type, data = {}) => { if (!host.isDestroyed()) host.send('browser:event', { type, id: guest.id, ...data }); };
  guest.setWindowOpenHandler(({ url, disposition }) => {
   if (disposition === 'new-window') return { action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 700, autoHideMenuBar: true, backgroundColor: '#ffffff' } };
@@ -387,33 +426,57 @@ function adopt(host, guest) {
 
 function entry(id, host) {
  const found = guests.get(Number(id));
- if (!found || found.guest.isDestroyed() || found.host !== host) throw plain('This browser tab is gone. Open a page again with browser_navigate.');
+ if (!found || found.guest.isDestroyed() || found.host !== host) throw plain('This browser tab is gone. Open a page again with browser_navigate.', 'tab_gone');
  return found;
 }
 
 async function attach(found) {
+ check();
  if (found.attached && found.guest.debugger.isAttached()) return;
  if (!found.guest.debugger.isAttached()) found.guest.debugger.attach('1.3');
+ await command(found.guest, 'Emulation.setFocusEmulationEnabled', { enabled: true });
  found.attached = true;
- await found.guest.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
 }
 
 function timed(promise, ms, message) {
- let timer;
- return Promise.race([promise, new Promise((resolve, reject) => { timer = setTimeout(() => reject(plain(message)), ms); })]).finally(() => clearTimeout(timer));
+ const op = operations.getStore();
+ let timer, stop;
+ const barrier = new Promise((resolve, reject) => {
+  stop = () => reject(op.signal.reason);
+  if (op?.signal.aborted) { stop(); return; }
+  op?.signal.addEventListener('abort', stop, { once: true });
+  timer = setTimeout(() => {
+   const error = plain(message, 'timeout');
+   op?.stop(error);
+   reject(error);
+  }, ms);
+ });
+ return Promise.race([promise, barrier]).then(value => { check(); return value; }).finally(() => {
+  clearTimeout(timer);
+  op?.signal.removeEventListener('abort', stop);
+ });
 }
 
-async function world(guest, expression) {
- const code = `${INSTALL}(async () => { try { return { ok: await (${expression}) }; } catch (error) { return { error: String(error && error.message || error) }; } })()`;
- const answer = await timed(guest.executeJavaScriptInIsolatedWorld(WORLD, [{ code }]), WAIT.call, 'The page is not responding');
+async function world(guest, expression, mayNavigate = false) {
+ check();
+ const op = operations.getStore();
+ const expires = Math.min(op.deadline, Date.now() + WAIT.call);
+ const code = `(async () => { try { if (Date.now() > ${expires}) throw new Error('Browser operation expired'); ${INSTALL} return { ok: await (${expression}) }; } catch (error) { return { error: String(error && error.message || error) }; } })()`;
+ const pending = guest.executeJavaScriptInIsolatedWorld(WORLD, [{ code }]);
+ if (mayNavigate) op.navigating = true;
+ const answer = await timed(pending, WAIT.call, 'The page is not responding');
  if (answer?.error) throw plain(answer.error);
  return answer?.ok;
 }
 
 async function settle(guest, loading = false) {
  await sleep(loading ? 250 : 120);
- if (guest.isLoading()) await timed(new Promise(resolve => guest.once('did-stop-loading', resolve)), WAIT.stop, 'slow').catch(() => {});
- await world(guest, `__og.quiet(${WAIT.quiet[0]}, ${WAIT.quiet[1]})`).catch(() => {});
+ if (guest.isLoading()) {
+  let done;
+  try { await timed(new Promise(resolve => { done = resolve; guest.once('did-stop-loading', done); }), WAIT.stop, 'The page did not finish loading'); }
+  finally { guest.removeListener('did-stop-loading', done); }
+ }
+ await world(guest, `__og.quiet(${WAIT.quiet[0]}, ${WAIT.quiet[1]})`);
 }
 
 function percent(scroll) {
@@ -439,17 +502,18 @@ async function state(guest, { full = false, note = '' } = {}) {
 }
 
 async function pointer(found, x, y) {
+ check();
  const { guest, host } = found;
  if (host.isDestroyed()) return;
  host.send('browser:event', { type: 'pointer', id: guest.id, x, y });
  if (shown.open && shown.id === guest.id) await sleep(WAIT.pointer);
 }
 
-async function mouse(guest, x, y, count = 1) {
- const send = params => guest.debugger.sendCommand('Input.dispatchMouseEvent', { x, y, ...params });
+async function mouse(guest, x, y, count = 1, mayNavigate = false) {
+ const send = (params, final = false) => command(guest, 'Input.dispatchMouseEvent', { x, y, ...params }, final);
  await send({ type: 'mouseMoved' });
  for (let k = 1; k <= count; k++) {
-  await send({ type: 'mousePressed', button: 'left', buttons: 1, clickCount: k });
+  await send({ type: 'mousePressed', button: 'left', buttons: 1, clickCount: k }, mayNavigate && k === count);
   await send({ type: 'mouseReleased', button: 'left', buttons: 0, clickCount: k });
  }
 }
@@ -474,11 +538,11 @@ function keyOf(combo) {
  return { key: last, code, vk: upper.charCodeAt(0), text: modifiers & 7 ? '' : last, modifiers };
 }
 
-async function press(guest, combo) {
+async function press(guest, combo, mayNavigate = false) {
  const { key, code, vk, text, modifiers } = keyOf(combo);
  const base = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers };
- await guest.debugger.sendCommand('Input.dispatchKeyEvent', { ...base, type: text ? 'keyDown' : 'rawKeyDown', text, unmodifiedText: text });
- await guest.debugger.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyUp' });
+ await command(guest, 'Input.dispatchKeyEvent', { ...base, type: text ? 'keyDown' : 'rawKeyDown', text, unmodifiedText: text }, mayNavigate);
+ await command(guest, 'Input.dispatchKeyEvent', { ...base, type: 'keyUp' });
 }
 
 async function navigate(guest, target) {
@@ -493,16 +557,17 @@ async function navigate(guest, target) {
  if (target === 'reload') { guest.reload(); await settle(guest, true); return ''; }
  const url = normalize(target);
  let failure = '';
- await timed(guest.loadURL(url), WAIT.load, 'timeout').catch(error => {
-  if (error.message === 'timeout') failure = 'The page takes long to load, this is what has loaded so far.';
-  else if (error.code && error.code !== 'ERR_ABORTED') failure = `The page could not be opened: ${error.code}.`;
+ check();
+ await timed(guest.loadURL(url), WAIT.load, 'The page did not load in time').catch(error => {
+  check(); // Never swallow cancellation or a deadline.
+  if (error.code && error.code !== 'ERR_ABORTED') failure = `The page could not be opened: ${error.code}.`;
  });
  await settle(guest);
  return failure;
 }
 
 async function screenshot(guest, full) {
- const cdp = (method, params = {}) => guest.debugger.sendCommand(method, params);
+ const cdp = (method, params = {}) => command(guest, method, params);
  const metrics = await cdp('Page.getLayoutMetrics');
  const view = metrics.cssVisualViewport, content = metrics.cssContentSize;
  const width = Math.round(view.clientWidth), height = Math.round(full ? Math.min(content.height, view.clientHeight * SHOT.tall) : view.clientHeight);
@@ -516,16 +581,26 @@ async function screenshot(guest, full) {
  return { image: `data:image/jpeg;base64,${image.toJPEG(SHOT.quality).toString('base64')}`, width: size.width, height: size.height, scale: size.width / width };
 }
 
-async function act(found, name, args, signal) {
+async function act(found, name, args) {
  const { guest } = found;
- const check = () => { if (signal.aborted) throw plain('Stopped by the user'); };
+ check();
+ const op = operations.getStore();
  await attach(found);
  check();
+ const afterInput = async () => { op.navigating = true; await settle(guest); op.pageId = found.pageId; op.navigating = false; };
  switch (name) {
   case 'browser_navigate': {
    const raw = String(args.url || '').trim(), word = raw.toLowerCase();
-   const note = await navigate(guest, ['back', 'forward', 'reload'].includes(word) ? word : raw);
-   return state(guest, { note });
+   op.navigating = true;
+   try {
+    const note = await navigate(guest, ['back', 'forward', 'reload'].includes(word) ? word : raw);
+    op.pageId = found.pageId;
+    op.navigating = false;
+    return await state(guest, { note });
+   } catch (error) {
+    try { if (!guest.isDestroyed()) guest.stop(); } catch {}
+    throw error;
+   }
   }
   case 'browser_snapshot':
    return state(guest, { full: !!args.full });
@@ -540,8 +615,8 @@ async function act(found, name, args, signal) {
    }
    check();
    await pointer(found, x, y);
-   await mouse(guest, x, y, args.double ? 2 : 1);
-   await settle(guest);
+   await mouse(guest, x, y, args.double ? 2 : 1, true);
+   await afterInput();
    return state(guest, { note });
   }
   case 'browser_type': {
@@ -555,32 +630,32 @@ async function act(found, name, args, signal) {
    }
    if (args.clear !== false) {
     await press(guest, 'Control+A');
-    if (!text) await press(guest, 'Delete');
+    if (!text) await press(guest, 'Delete', !args.submit);
    }
-   if (text) await guest.debugger.sendCommand('Input.insertText', { text });
-   if (args.submit) { await sleep(60); await press(guest, 'Enter'); }
-   await settle(guest);
+   if (text) await command(guest, 'Input.insertText', { text }, !args.submit);
+   if (args.submit) { await sleep(60); await press(guest, 'Enter', true); }
+   await afterInput();
    return state(guest);
   }
   case 'browser_select': {
-   const chosen = await world(guest, `__og.choose(${Number(args.ref)}, ${JSON.stringify(String(args.option ?? ''))})`);
-   await settle(guest);
+   const chosen = await world(guest, `__og.choose(${Number(args.ref)}, ${JSON.stringify(String(args.option ?? ''))})`, true);
+   await afterInput();
    return state(guest, { note: `Chose "${chosen}".` });
   }
   case 'browser_press': {
    const count = Math.min(20, Math.max(1, Math.round(Number(args.times) || 1)));
-   for (let k = 0; k < count; k++) { check(); await press(guest, args.key); }
-   await settle(guest);
+   for (let k = 0; k < count; k++) { check(); await press(guest, args.key, k === count - 1); }
+   await afterInput();
    return state(guest);
   }
   case 'browser_scroll': {
    if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
     await world(guest, `__og.reveal(${Number(args.ref)})`);
    } else {
-    const metrics = await guest.debugger.sendCommand('Page.getLayoutMetrics');
+    const metrics = await command(guest, 'Page.getLayoutMetrics');
     const view = metrics.cssVisualViewport, amount = Math.min(10, Math.max(0.1, Number(args.amount) || 0.8));
     const sign = String(args.direction || 'down').toLowerCase() === 'up' ? -1 : 1;
-    await guest.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseWheel', x: view.clientWidth / 2, y: view.clientHeight / 2, deltaX: 0, deltaY: sign * view.clientHeight * amount });
+    await command(guest, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x: view.clientWidth / 2, y: view.clientHeight / 2, deltaX: 0, deltaY: sign * view.clientHeight * amount });
    }
    await sleep(250);
    await settle(guest);
@@ -592,6 +667,7 @@ async function act(found, name, args, signal) {
    return { ...shot, text: `Screenshot of ${args.full_page ? 'the page from the top' : 'the viewport'}: ${guest.getTitle() || guest.getURL()}, ${shot.width}×${shot.height}; ${scale}.` };
   }
   case 'browser_read': {
+   check();
    const html = await timed(guest.executeJavaScript('document.documentElement ? document.documentElement.outerHTML : ""'), WAIT.call, 'The page is not responding');
    return { html: html.slice(0, READ_MAX), url: guest.getURL(), title: guest.getTitle() };
   }
@@ -602,7 +678,7 @@ async function act(found, name, args, signal) {
    if (args.text) {
     while (Date.now() < until) {
      check();
-     if (await world(guest, `__og.has(${JSON.stringify(String(args.text))})`).catch(() => false)) { found = true; break; }
+     if (await world(guest, `__og.has(${JSON.stringify(String(args.text))})`).catch(error => { check(); return false; })) { found = true; break; }
      await sleep(400);
     }
    } else {
@@ -617,14 +693,34 @@ async function act(found, name, args, signal) {
 }
 
 function run(name, args, host, signal) {
- const found = entry(args.tab, host);
- const job = found.queue.catch(() => {}).then(() => act(found, name, args, signal));
- found.queue = job;
+ const found = entry(args.tab, host), controller = new AbortController();
+ const op = { found, signal: controller.signal, stop: reason => controller.abort(reason),
+  deadline: Date.now() + WAIT.operation, pageId: found.pageId, lease: shown.lease, navigating: false };
+ const stop = () => op.stop(plain('Stopped by the user', 'cancelled'));
+ if (signal.aborted) stop(); else signal.addEventListener('abort', stop, { once: true });
+ const timer = setTimeout(() => op.stop(plain('Browser operation timed out', 'timeout')), WAIT.operation);
+ const job = operations.run(op, async () => {
+  try {
+   await timed(found.queue.catch(() => {}), WAIT.operation, 'Browser queue timed out');
+   check();
+   found.stop = op.stop;
+   const answer = await act(found, name, args);
+   check();
+   return answer;
+  } finally {
+   clearTimeout(timer);
+   signal.removeEventListener('abort', stop);
+   if (found.stop === op.stop) found.stop = null;
+  }
+ });
+ // Cancelling a queued entry cannot release an unfinished predecessor.
+ found.queue = Promise.allSettled([found.queue, job]).then(() => {});
  return job;
 }
 
 function setShown(value) {
- shown = { open: !!value?.open, id: Number(value?.id) || 0 };
+ const id = Number(value?.id) || 0;
+ shown = { open: !!value?.open, id, lease: shown.lease + (id !== shown.id ? 1 : 0) };
 }
 
 module.exports = { PARTITION, setup, guard, adopt, run, setShown };

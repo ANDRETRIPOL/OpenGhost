@@ -1,6 +1,8 @@
 (() => {
 'use strict';
 
+let toolSteps = 0;
+
 const FOLLOW_DISTANCE = 48;
 const FOLLOW_SPRING = [130, 23];
 const BOTTOM_SHOW = 120;
@@ -743,7 +745,8 @@ class Chat {
   if (!turn) return;
   turn.controller.abort();
   turn.release?.('abort');
-  if (turn.tool) AgentTools.cancel(turn.tool);
+  for (const stop of turn.steps) stop();
+  for (const release of turn.releases) release('abort');
   for (const pending of turn.approvals) pending.card.settle('deny');
  }
 
@@ -886,7 +889,7 @@ class Chat {
 
  begin(conv, config) {
   const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  return conv.turn = { id, controller: new AbortController(), config, part: null, parts: [], next: null, queue: [], approvals: new Set(), tool: '', text: false };
+  return conv.turn = { id, controller: new AbortController(), config, part: null, parts: [], next: null, queue: [], approvals: new Set(), steps: new Set(), releases: new Set(), text: false };
  }
 
  run(conv, prompt, config, bubble) {
@@ -929,6 +932,7 @@ class Chat {
   this.dismissGhost(turn.part.view);
   for (const pending of turn.approvals) pending.card.settle(TOOL_NOTES.message);
   turn.release?.('message');
+  for (const release of turn.releases) release('message');
  }
 
  async drive(conv, turn, prepare) {
@@ -1091,33 +1095,52 @@ class Chat {
   this.showGhost(turn.next || view);
   const panel = name.startsWith('browser_') ? window.browserPanel : null;
   let handed = false;
-  if (panel) {
-   panel.drive(conv, true);
-   if (panel.userHas) {
-    const why = await new Promise(resolve => {
-     turn.release = resolve;
-     panel.waitForAgent().then(() => resolve('back'));
-    });
-    turn.release = null;
-    if (why === 'abort' || turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
+  panel?.drive(conv, true);
+  const cancelled = () => turn.controller.signal.aborted || conv.turn !== turn;
+  for (;;) {
+   if (cancelled()) return TOOL_NOTES.cancelled;
+   if (panel?.userHas) {
+    const why = await this.awaitHandBack(turn, panel);
+    if (why === 'abort' || cancelled()) return TOOL_NOTES.cancelled;
     if (why === 'message') return TOOL_NOTES.browserMessage;
     handed = true;
    }
-  }
-  const id = turn.tool = `${conv.id}-${++this.tools}`;
-  // A stopped step ends at once. The tool is told to stop as well, but a page still loading or a wait in the browser
-  // would otherwise hold the agent for up to a minute.
-  const stopped = new Promise(resolve => turn.controller.signal.addEventListener('abort', () => resolve(TOOL_NOTES.cancelled), { once: true }));
-  try {
-   if (handed) {
-    const now = await Promise.race([AgentTools.run('browser_snapshot', {}, { id, cwd }), stopped]);
-    return now === TOOL_NOTES.cancelled ? now : `${TOOL_NOTES.handedBack}\n\n${now}`;
+   const id = `${conv.id}-${++toolSteps}`, job = new AbortController();
+   const stop = () => { job.abort(); Promise.resolve(AgentTools.cancel(id)).catch(() => {}); };
+   turn.steps.add(stop);
+   turn.controller.signal.addEventListener('abort', stop, { once: true });
+   let answer;
+   try {
+    const stopped = new Promise(resolve => job.signal.addEventListener('abort', () => resolve(TOOL_NOTES.cancelled), { once: true }));
+    answer = await Promise.race([AgentTools.run(handed ? 'browser_snapshot' : name, handed ? {} : args, { id, cwd, signal: job.signal }), stopped]);
+   } catch (error) {
+    return `Error: ${error.message}`;
+   } finally {
+    turn.steps.delete(stop);
+    turn.controller.signal.removeEventListener('abort', stop);
    }
-   return await Promise.race([AgentTools.run(name, args, { id, cwd }), stopped]);
-  } catch (error) {
-   return `Error: ${error.message}`;
+   if (cancelled() || answer?.stopped) return TOOL_NOTES.cancelled;
+   // Even a very fast Hand Back cannot resurrect the interrupted action.
+   if (answer?.taken) { handed = true; continue; }
+   return handed ? `${TOOL_NOTES.handedBack}\n\n${answer}` : answer;
+  }
+ }
+
+ async awaitHandBack(turn, panel) {
+  let release;
+  const waiting = new AbortController(), stop = () => release('abort');
+  try {
+   return await new Promise(resolve => {
+    release = resolve;
+    turn.releases.add(release);
+    panel.waitForAgent(waiting.signal).then(() => resolve('back'));
+    turn.controller.signal.addEventListener('abort', stop, { once: true });
+    if (turn.controller.signal.aborted) stop();
+   });
   } finally {
-   turn.tool = '';
+   turn.releases.delete(release);
+   turn.controller.signal.removeEventListener('abort', stop);
+   waiting.abort();
   }
  }
 
@@ -1171,6 +1194,8 @@ class Chat {
  async end(conv, turn, error, finish) {
   if (conv.turn !== turn) return;
   const { view, entry } = turn.part, aborted = error?.name === 'AbortError';
+  for (const stop of turn.steps) stop();
+  for (const release of turn.releases) release('abort');
   for (const pending of turn.approvals) pending.card.settle('deny');
   conv.turn = null;
   if (turn.switch && this.library.chat(conv.id)) {

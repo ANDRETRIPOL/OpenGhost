@@ -53,6 +53,7 @@ const ENV = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/
 Object.assign(ENV, { NO_COLOR: '1', FORCE_COLOR: '0', GIT_TERMINAL_PROMPT: '0', GIT_PAGER: 'cat', PAGER: 'cat', PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' });
 
 const jobs = new Map();
+const browserJobs = new Map();
 let shell = null;
 let git = null;
 
@@ -385,10 +386,19 @@ const TOOLS = {
 
 async function runTool(id, name, args, cwd, sender) {
  if (name.startsWith('browser_')) {
+  if (typeof id !== 'string' || !id || browserJobs.has(id) || jobs.has(id)) return { error: 'Invalid or duplicate browser job id', code: 'invalid_request' };
+  const controller = new AbortController();
+  let settle;
+  const job = { controller, done: new Promise(resolve => { settle = resolve; }) };
+  // Register synchronously, before Browser.run or any await.
+  browserJobs.set(id, job);
   try {
-   return await cancellable(String(id || ''), signal => Browser.run(name, args && typeof args === 'object' ? args : {}, sender, signal));
+   return await Browser.run(name, args && typeof args === 'object' ? args : {}, sender, controller.signal);
   } catch (error) {
-   return { error: explain(error) };
+   return { error: explain(error), code: error.code || 'browser_error', stopped: error.code === 'cancelled' };
+  } finally {
+   browserJobs.delete(id);
+   settle();
   }
  }
  const tool = TOOLS[name];
@@ -406,12 +416,16 @@ async function runTool(id, name, args, cwd, sender) {
 }
 
 function cancel(id) {
+ const browser = browserJobs.get(String(id));
+ if (browser) { browser.controller.abort(); return browser.done; }
  const stop = jobs.get(String(id));
  if (stop) stop();
 }
 
 function cancelAll() {
  for (const stop of jobs.values()) stop();
+ for (const job of browserJobs.values()) job.controller.abort();
+ return Promise.all([...browserJobs.values()].map(job => job.done));
 }
 
 async function environment() {

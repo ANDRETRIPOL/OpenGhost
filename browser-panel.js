@@ -8,6 +8,23 @@ const TABS_MAX = 12;
 const WIDTH = { share: 0.44, min: 360, chat: 400 };
 const CURSOR = { hide: 2600 };
 const TOAST_TIME = 4200;
+const READY_MS = 15000;
+const OPERATION_MS = 90000;
+const fault = (code, message) => Object.assign(new Error(message), { code });
+
+function interruptible(promise, signal, ms, message) {
+ let timer, stop;
+ return new Promise((resolve, reject) => {
+  promise.then(resolve, reject);
+  if (signal?.aborted) { reject(signal.reason); return; }
+  stop = () => queueMicrotask(() => reject(signal.reason));
+  signal?.addEventListener('abort', stop, { once: true });
+  timer = setTimeout(() => reject(fault('timeout', message)), ms);
+ }).finally(() => {
+  clearTimeout(timer);
+  signal?.removeEventListener('abort', stop);
+ });
+}
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 const bridge = window.openghost?.browser || null;
 const tools = window.openghost?.tools || null;
@@ -64,6 +81,11 @@ class BrowserPanel {
   this.control = 'agent';
   this.lent = null;
   this.waiters = [];
+  this.jobs = new Map();
+  this.cancelling = new Map();
+  this.taking = null;
+  this.takeToken = null;
+  this.queue = Promise.resolve();
   this.cursorAt = null;
   this.accounts = read(ACCOUNTS) || [];
   const saved = read(STORE) || {};
@@ -209,7 +231,7 @@ class BrowserPanel {
  }
 
  addTab(url, { title = '', after = null } = {}) {
-  const tab = { url, title, icon: '', loading: false, error: '', view: null, id: 0, ready: null, el: null };
+  const tab = { url, title, icon: '', loading: false, error: '', view: null, id: 0, ready: null, el: null, revision: 0, state: 'lazy' };
   const at = after ? this.tabs.indexOf(after) + 1 : this.tabs.length;
   this.tabs.splice(at, 0, tab);
   while (this.tabs.length > TABS_MAX) this.close(this.tabs.find(item => item !== tab && item !== this.active) || this.tabs[0], { quiet: true });
@@ -226,7 +248,19 @@ class BrowserPanel {
   return tab;
  }
 
- createView(tab, url) {
+ discardView(tab, reason, exceptJob) {
+  for (const [id, job] of this.jobs) if (job.tab === tab && id !== exceptJob) this.cancel(id, reason);
+  tab.disposeView?.(reason);
+  const view = tab.view;
+  tab.view = null;
+  tab.id = 0;
+  tab.state = 'gone';
+  tab.revision++;
+  view?.remove();
+ }
+
+ createView(tab, url, exceptJob) {
+  if (tab.view) this.discardView(tab, fault('tab_gone', 'This browser view was replaced'), exceptJob);
   const view = document.createElement('webview');
   view.className = 'browser-view';
   view.setAttribute('partition', PARTITION);
@@ -234,16 +268,47 @@ class BrowserPanel {
   view.setAttribute('src', url || 'about:blank');
   tab.view = view;
   tab.url = blank(url) ? tab.url : url;
-  tab.ready = new Promise(resolve => {
-   view.addEventListener('dom-ready', () => {
-    tab.id = view.getWebContentsId();
+  tab.state = 'loading';
+  const listeners = [];
+  const listen = (name, callback) => {
+   const guarded = event => { if (tab.view === view && this.tabs.includes(tab)) callback(event); };
+   listeners.push([name, guarded]);
+   view.addEventListener(name, guarded);
+  };
+  let failReady;
+  tab.ready = new Promise((resolve, reject) => {
+   let settled = false;
+   const finish = error => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    tab.failReady = null;
+    if (error) { tab.state = 'failed'; tab.error = error.message; reject(error); }
+    else { tab.state = 'ready'; resolve(tab); }
     this.report();
-    resolve(tab);
-   }, { once: true });
+   };
+   const timer = setTimeout(() => finish(fault('timeout', 'The browser did not become ready in time')), READY_MS);
+   tab.failReady = failReady = finish;
+   listen('dom-ready', () => {
+    if (settled) return;
+    try {
+     const id = view.getWebContentsId();
+     if (!id) throw fault('tab_gone', 'This browser tab is gone');
+     tab.id = id;
+     finish();
+    } catch (error) { finish(fault('tab_gone', error.message)); }
+   });
   });
+  tab.disposeView = error => {
+   failReady(error);
+   for (const [name, callback] of listeners) view.removeEventListener(name, callback);
+   tab.disposeView = null;
+  };
+  tab.ready.catch(() => {});
   const update = () => { this.render(); if (tab === this.active) this.syncBar(); };
-  view.addEventListener('did-start-loading', () => { tab.loading = true; tab.error = ''; update(); });
-  view.addEventListener('did-stop-loading', () => {
+  listen('did-start-navigation', event => { if (event.isMainFrame) tab.revision++; });
+  listen('did-start-loading', () => { tab.loading = true; tab.error = ''; update(); });
+  listen('did-stop-loading', () => {
    tab.loading = false;
    const now = view.getURL();
    if (!blank(now)) tab.url = now;
@@ -251,17 +316,26 @@ class BrowserPanel {
    update();
    this.save();
   });
-  view.addEventListener('page-title-updated', event => { tab.title = event.title; update(); });
-  view.addEventListener('page-favicon-updated', event => { tab.icon = event.favicons?.[0] || ''; update(); });
-  view.addEventListener('did-navigate', event => { if (hostOf(event.url) !== hostOf(tab.url)) tab.icon = ''; if (!blank(event.url)) tab.url = event.url; update(); });
-  view.addEventListener('did-navigate-in-page', event => { if (event.isMainFrame && !blank(event.url)) { tab.url = event.url; update(); } });
-  view.addEventListener('did-fail-load', event => {
+  listen('page-title-updated', event => { tab.title = event.title; update(); });
+  listen('page-favicon-updated', event => { tab.icon = event.favicons?.[0] || ''; update(); });
+  listen('did-navigate', event => { if (hostOf(event.url) !== hostOf(tab.url)) tab.icon = ''; if (!blank(event.url)) tab.url = event.url; update(); });
+  listen('did-navigate-in-page', event => { if (event.isMainFrame && !blank(event.url)) { tab.url = event.url; update(); } });
+  listen('did-fail-load', event => {
    if (!event.isMainFrame || event.errorCode === -3) return;
    tab.error = event.errorDescription || `Error ${event.errorCode}`;
+   tab.failReady?.(fault('navigation_failed', tab.error));
    tab.loading = false;
    update();
   });
-  view.addEventListener('ipc-message', event => { if (event.channel === 'signin') this.signedIn(String(event.args[0] || '')); });
+  const gone = error => {
+   this.discardView(tab, error);
+   tab.error = error.message;
+   tab.loading = false;
+   update();
+  };
+  listen('render-process-gone', () => gone(fault('guest_crashed', 'The browser page crashed. Open the page again.')));
+  listen('destroyed', () => gone(fault('tab_gone', 'This browser tab is gone')));
+  listen('ipc-message', event => { if (event.channel === 'signin') this.signedIn(String(event.args[0] || '')); });
   view.classList.toggle('is-active', tab === this.active);
   this.stage.insertBefore(view, this.error);
   return view;
@@ -277,11 +351,11 @@ class BrowserPanel {
   this.report();
  }
 
- close(tab, { quiet = false } = {}) {
+ close(tab, { quiet = false, exceptJob } = {}) {
   const at = this.tabs.indexOf(tab);
   if (at < 0) return;
   this.tabs.splice(at, 1);
-  tab.view?.remove();
+  this.discardView(tab, fault('tab_gone', 'This browser tab was closed'), exceptJob);
   tab.el?.remove();
   if (this.active === tab) this.select(this.tabs[Math.min(at, this.tabs.length - 1)] || null);
   if (!quiet) { this.render(); this.save(); }
@@ -381,7 +455,7 @@ class BrowserPanel {
    else if (data.action === 'new') this.newTab();
    else if (data.action === 'close' && from) this.close(from);
   } else if (data.type === 'pointer') {
-   if (from && from === this.active && this.open) this.point(data.x, data.y);
+   if (this.control === 'agent' && from && from === this.active && this.open) this.point(data.x, data.y);
   } else if (data.type === 'download') {
    this.notify(I18n.t('browser.downloaded', { name: data.name }));
   }
@@ -443,22 +517,34 @@ class BrowserPanel {
   const had = this.drivers.size > 0;
   if (on) this.drivers.add(key);
   else this.drivers.delete(key);
-  if (!this.drivers.size) { this.control = 'agent'; this.release(); }
+  if (!this.drivers.size) { this.takeToken = null; this.taking = null; this.control = 'agent'; this.release(); }
   if (on && !had && this.control === 'agent') this.active?.view?.blur();
   this.sync();
  }
 
  get userHas() {
-  return this.control === 'user' && this.drivers.size > 0;
+  return this.control !== 'agent' && this.drivers.size > 0;
  }
 
  take() {
-  this.control = 'user';
+  if (this.taking) return this.taking;
+  const token = this.takeToken = {};
+  this.control = 'taking';
+  for (const id of this.jobs.keys()) this.cancel(id, fault('taken', 'The user took control'));
   this.sync();
-  this.active?.view?.focus();
+  this.taking = Promise.all(this.cancelling?.values() || []).then(() => {
+   if (this.takeToken !== token) return;
+   this.control = 'user';
+   this.sync();
+   this.active?.view?.focus();
+  }, error => {
+   if (this.takeToken === token) this.notify(`Could not confirm browser cancellation: ${error.message}`);
+  }).finally(() => { if (this.takeToken === token) this.taking = null; });
+  return this.taking;
  }
 
  handBack() {
+  if (this.control === 'taking') return;
   this.control = 'agent';
   // The keyboard leaves the page with the user, and comes back to it for the agent's next step that types.
   this.lent = this.active?.view || null;
@@ -467,8 +553,18 @@ class BrowserPanel {
   this.release();
  }
 
- waitForAgent() {
-  return new Promise(resolve => this.waiters.push(resolve));
+ waitForAgent(signal) {
+  return new Promise(resolve => {
+   const done = () => {
+    const at = this.waiters.indexOf(done);
+    if (at >= 0) this.waiters.splice(at, 1);
+    signal?.removeEventListener('abort', done);
+    resolve();
+   };
+   if (!this.userHas || signal?.aborted) { resolve(); return; }
+   this.waiters.push(done);
+   signal?.addEventListener('abort', done, { once: true });
+  });
  }
 
  release() {
@@ -478,16 +574,23 @@ class BrowserPanel {
  sync() {
   const driving = this.drivers.size > 0;
   this.root.classList.toggle('is-agent', driving);
-  this.root.classList.toggle('is-driving', driving && this.control === 'agent');
+  this.root.classList.toggle('is-driving', driving && this.control !== 'user');
   this.root.classList.toggle('is-user', driving && this.control === 'user');
   this.toggle.toggleAttribute('live', driving);
  }
 
- async ensure() {
-  let tab = this.active;
+ async ensure(tab = this.active, signal, jobId) {
+  if (signal?.aborted) throw signal.reason;
   if (!tab) tab = this.newTab('', { focus: false });
-  if (!tab.view) this.createView(tab, blank(tab.url) ? 'about:blank' : tab.url);
-  await tab.ready;
+  if (!this.tabs.includes(tab)) throw fault('tab_gone', 'This browser tab was closed');
+  if (tab.state === 'failed') this.discardView(tab, fault('tab_gone', 'This browser view was replaced'), jobId);
+  if (!tab.view) this.createView(tab, blank(tab.url) ? 'about:blank' : tab.url, jobId);
+  const job = this.jobs.get(jobId);
+  if (job) job.tab = tab;
+  const view = tab.view;
+  await interruptible(tab.ready, signal, READY_MS, 'The browser did not become ready in time');
+  if (signal?.aborted) throw signal.reason;
+  if (!this.tabs.includes(tab) || tab.view !== view || tab.state !== 'ready') throw fault('tab_gone', 'This browser view is no longer available');
   return tab;
  }
 
@@ -500,57 +603,107 @@ class BrowserPanel {
  // then land in the page. So between the agent's steps the keyboard is back where the user was, and a step that types or
  // presses keys where the page's focus is gets the keyboard back first, exactly as it would have had it without the user:
  // what the agent does and sees stays the same, and Escape reaches the app during every other step.
- async run(name, args, { id, cwd }) {
+ async run(name, args, { id, cwd, signal }) {
   if (!tools) return { error: 'The browser is only available in the desktop app' };
-  const back = document.activeElement;
-  try {
-   if (name === 'browser_tabs') return await this.tabsTool(args, { id, cwd });
-   const tab = await this.ensure();
-   const keys = name === 'browser_press' || (name === 'browser_type' && (args.ref === undefined || args.ref === null || args.ref === ''));
+  if (!id || this.jobs.has(id)) return { error: 'Invalid or duplicate browser job id', code: 'invalid_request' };
+  const controller = new AbortController(), back = document.activeElement;
+  const stop = () => { this.cancel(id); };
+  this.jobs.set(id, controller);
+  if (signal?.aborted) stop(); else signal?.addEventListener('abort', stop, { once: true });
+  // Resolve numeric selection at receipt, not after waiting behind another chat.
+  const target = name === 'browser_tabs' ? this.tabs[Math.round(Number(args.tab)) - 1] : this.active;
+  controller.tab = target;
+  const revision = target?.revision;
+  const previous = this.queue || Promise.resolve();
+  const check = () => {
+   if (controller.signal.aborted) throw controller.signal.reason;
+   if (this.control !== 'agent') throw fault('taken', 'The user took control');
+   if (target && !this.tabs.includes(target)) throw fault('tab_gone', 'This browser tab was closed');
+   if (target && revision !== target.revision) throw fault('stale_page', 'The page changed while this call was waiting. Take a new snapshot.');
+   if (name !== 'browser_tabs' && this.active !== target) throw fault('stale_tab', 'The active tab changed. Take a new snapshot.');
+  };
+  const work = (async () => {
+   await interruptible(previous, controller.signal, OPERATION_MS, 'Browser queue timed out');
+   check();
+   if (name === 'browser_tabs') return this.tabsTool(args, { id, cwd, check, target, signal: controller.signal });
+   const tab = await this.ensure(target, controller.signal, id);
+   const keys = name === 'browser_press' || (name === 'browser_type' && (args.ref == null || args.ref === ''));
    if (keys && this.lent === tab.view) tab.view.focus();
-   return await tools.run(id, name, { ...args, tab: tab.id }, cwd);
+   return this.dispatch(id, name, args, tab, controller.signal, cwd);
+  })();
+  this.queue = Promise.allSettled([previous, work]).then(() => {});
+  try {
+   return await interruptible(work, null, OPERATION_MS, 'Browser operation timed out');
+  } catch (error) {
+   if (error.code === 'timeout') this.cancel(id, error);
+   if (error.code === 'taken' && !signal?.aborted) return { taken: true };
+   return { error: error.message, code: error.code || 'browser_error', stopped: error.code === 'cancelled' };
   } finally {
+   signal?.removeEventListener('abort', stop);
+   this.jobs.delete(id);
    this.giveBack(back);
   }
  }
 
+ dispatch(id, name, args, tab, signal, cwd) {
+  if (signal.aborted) throw signal.reason;
+  if (this.control !== 'agent') throw fault('taken', 'The user took control');
+  if (!this.tabs.includes(tab) || !tab.id) throw fault('tab_gone', 'This browser tab is gone');
+  if (this.active !== tab) throw fault('stale_tab', 'The active tab changed during readiness');
+  return interruptible(tools.run(id, name, { ...args, tab: tab.id }, cwd), signal, OPERATION_MS, 'Browser operation timed out');
+ }
+
+ cancel(id, reason = fault('cancelled', 'Stopped by the user')) {
+  this.cancelling ||= new Map();
+  if (this.cancelling.has(id)) return this.cancelling.get(id);
+  const job = this.jobs.get(id);
+  if (!job) return Promise.resolve();
+  job.abort(reason);
+  let reply;
+  try {
+   if (!tools?.cancel) throw fault('unavailable', 'Browser cancellation is not available');
+   reply = Promise.resolve(tools.cancel(id));
+  } catch (error) { reply = Promise.reject(error); }
+  const pending = interruptible(reply, null, OPERATION_MS, 'Browser cancellation was not acknowledged');
+  this.cancelling.set(id, pending);
+  // Keep failed acknowledgements: Take Control must not falsely grant ownership.
+  pending.then(() => this.cancelling.delete(id), () => {});
+  return pending;
+ }
+
  giveBack(back) {
   const view = document.activeElement;
-  if (this.control === 'user' || !this.tabs.some(tab => tab.view === view)) return;
+  if (this.control !== 'agent' || !this.tabs.some(tab => tab.view === view)) return;
   if (!(back instanceof HTMLElement) || !back.isConnected || back === view || this.tabs.some(tab => tab.view === back)) return;
   this.lent = view;
   view.blur();
   back.focus({ preventScroll: true });
  }
 
- async tabsTool(args, { id, cwd }) {
+ async tabsTool(args, { id, cwd, check, target, signal }) {
   const action = String(args.action || 'list').toLowerCase();
   const pick = () => {
-   const tab = this.tabs[Math.round(Number(args.tab)) - 1];
-   if (!tab) throw new Error(`There is no tab ${args.tab}. Tabs:\n${this.tabsText()}`);
-   return tab;
+   if (!target) throw fault('tab_gone', `There is no tab ${args.tab}. Tabs:\n${this.tabsText()}`);
+   return target;
   };
-  try {
-   if (action === 'new') {
-    const tab = this.newTab('', { focus: false });
-    if (!args.url) return { text: `Opened a new empty tab.\n\nTabs:\n${this.tabsText()}` };
-    await this.ensure();
-    const result = await tools.run(id, 'browser_navigate', { url: args.url, tab: tab.id }, cwd);
-    return result.error ? result : { ...result, text: `Tabs:\n${this.tabsText()}\n\n${result.text}` };
-   }
-   if (action === 'switch') {
-    this.select(pick());
-    const tab = await this.ensure();
-    return tools.run(id, 'browser_snapshot', { tab: tab.id }, cwd);
-   }
-   if (action === 'close') {
-    this.close(pick());
-    return { text: `Closed. Tabs:\n${this.tabsText()}` };
-   }
-   return { text: `Tabs:\n${this.tabsText()}` };
-  } catch (error) {
-   return { error: error.message };
+  check();
+  if (action === 'new') {
+   const tab = this.newTab('', { focus: false });
+   if (!args.url) return { text: `Opened a new empty tab.\n\nTabs:\n${this.tabsText()}` };
+   await this.ensure(tab, signal, id);
+   const result = await this.dispatch(id, 'browser_navigate', { url: args.url }, tab, signal, cwd);
+   return result.error ? result : { ...result, text: `Tabs:\n${this.tabsText()}\n\n${result.text}` };
   }
+  if (action === 'switch') {
+   this.select(pick());
+   const tab = await this.ensure(target, signal, id);
+   return this.dispatch(id, 'browser_snapshot', {}, tab, signal, cwd);
+  }
+  if (action === 'close') {
+   this.close(pick(), { exceptJob: id });
+   return { text: `Closed. Tabs:\n${this.tabsText()}` };
+  }
+  return { text: `Tabs:\n${this.tabsText()}` };
  }
 
  tabsLine() {
