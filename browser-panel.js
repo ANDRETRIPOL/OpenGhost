@@ -27,10 +27,11 @@ const ICONS = {
 const read = key => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } };
 const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
 
-function element(tag, className, html) {
+// Text is always text: a URL or a page's title must never become markup in the app's own chrome.
+function element(tag, className, text) {
  const el = document.createElement(tag);
  if (className) el.className = className;
- if (html !== undefined) el.innerHTML = html;
+ if (text !== undefined) el.textContent = text;
  return el;
 }
 
@@ -304,7 +305,8 @@ class BrowserPanel {
   const list = this.list;
   for (const tab of this.tabs) {
    if (!tab.el) {
-    tab.el = element('div', 'browser-tab', `<span class="browser-tab-icon"></span><span class="browser-tab-title"></span><button type="button" class="browser-tab-close" tabindex="-1" aria-label="${I18n.t('browser.closeTab')}">${ICONS.close}</button>`);
+    tab.el = element('div', 'browser-tab');
+    tab.el.innerHTML = `<span class="browser-tab-icon"></span><span class="browser-tab-title"></span><button type="button" class="browser-tab-close" tabindex="-1" aria-label="${I18n.t('browser.closeTab')}">${ICONS.close}</button>`;
     tab.el.setAttribute('role', 'tab');
     if (!reducedMotion()) tab.el.animate([{ opacity: 0, transform: 'translateY(4px) scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: EASE });
    }
