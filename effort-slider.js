@@ -1,7 +1,6 @@
 (() => {
 'use strict';
 
-const EFFORTS = ['none', 'low', 'high', 'max'];
 const FOLLOW = [1400, 75];
 const SETTLE = [320, 26];
 const STRETCH = [520, 34];
@@ -44,7 +43,7 @@ class EffortSlider {
   this.opened = false;
   this.locked = false;
   this.lens = 0;
-  this.efforts = settings.efforts?.length ? settings.efforts.slice() : EFFORTS.slice();
+  this.efforts = settings.efforts?.slice() || [];
   this.morph = new EffortMorph({
    panel, button, track: this.track, fill: this.fill, levels: this.efforts.length,
    onProgress: m => this.onMorph(m),
@@ -56,7 +55,7 @@ class EffortSlider {
   this.ticks = [];
   this.fillTicks();
   const saved = this.efforts.indexOf(settings.effort);
-  this.value = saved < 0 ? Math.max(0, this.efforts.indexOf('high')) : saved;
+  this.value = Math.max(0, saved);
   this.pos = this.value;
   this.vel = 0;
   this.goal = this.value;
@@ -85,9 +84,8 @@ class EffortSlider {
   });
   new ResizeObserver(() => this.relayout()).observe(panel);
 
-  this.commit(this.value);
+  this.setEfforts(this.efforts);
   button.setLevel(this.value, true);
-  button.setCount(this.efforts.length);
   const prior = settings.onEfforts;
   settings.onEfforts = efforts => { prior?.(efforts); this.setEfforts(efforts); };
  }
@@ -111,6 +109,7 @@ class EffortSlider {
  }
 
  open() {
+  if (this.locked || !this.efforts.length) return;
   this.opened = true;
   if (!this.panel.matches(':popover-open')) {
    this.panel.showPopover();
@@ -211,23 +210,24 @@ class EffortSlider {
    return tick;
   });
   this.track.style.setProperty('--last', this.max);
-  this.slider.setAttribute('aria-valuemax', String(this.max));
+  if (this.efforts.length) this.slider.setAttribute('aria-valuemax', String(this.max));
+  else this.slider.removeAttribute('aria-valuemax');
  }
 
  setEfforts(efforts) {
-  const next = efforts?.length ? efforts.slice() : EFFORTS.slice();
+  const next = efforts?.slice() || [];
   const same = next.length === this.efforts.length && next.every((level, i) => level === this.efforts[i]);
-  if (same) return;
+  if (!next.length) this.close();
   this.efforts = next;
+  this.button.hidden = !next.length;
   this.button.setCount(next.length);
   this.morph.setLevels(next.length);
   this.fillTicks();
-  let index = next.indexOf(this.settings.effort);
-  if (index < 0) index = next.indexOf('high');
-  if (index < 0) index = Math.min(next.length - 1, 2);
+  const index = Math.max(0, next.indexOf(this.settings.effort));
+  if (same && index === this.value) { this.label(this.settings.effort); return; }
   this.value = this.goal = this.pos = index;
   this.button.setLevel(index, true);
-  this.commit(index);
+  this.label(this.settings.effort);
   if (this.opened && this.panel.matches(':popover-open')) {
    this.geo = { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
    this.morph.measure(this.value);
@@ -313,12 +313,17 @@ class EffortSlider {
  commit(i) {
   const value = this.efforts[i];
   if (!value) return;
-  const name = EffortStage.nameOf(value);
   this.value = i;
-  if (value !== this.settings.effort) this.settings.setEffort(value);
-  this.slider.setAttribute('aria-valuenow', String(i));
+  this.settings.setEffort(value);
+  this.label(value);
+ }
+
+ label(value) {
+  const known = this.efforts.includes(value), name = known ? EffortStage.nameOf(value) : '';
+  if (known) this.slider.setAttribute('aria-valuenow', String(this.value));
+  else this.slider.removeAttribute('aria-valuenow');
   this.slider.setAttribute('aria-valuetext', name);
-  this.button.setAttribute('label', I18n.t('effort.current', { name }));
+  this.button.setAttribute('label', known ? I18n.t('effort.current', { name }) : I18n.t('effort'));
  }
 
  wake() {
@@ -373,7 +378,7 @@ class EffortSlider {
  }
 
  render() {
-  if (!this.geo) return;
+  if (!this.geo || !this.efforts.length) return;
   const appear = LENS_REVEAL.scale + (1 - LENS_REVEAL.scale) * backOut(clamp((this.lens - LENS_REVEAL.from) / (1 - LENS_REVEAL.from), 0, 1));
   const x = this.snap(this.x(this.pos)), grow = (1 + PRESS_GROW * clamp(this.press[0], 0, 1.2)) * appear, stretch = this.stretch[0];
   this.thumb.style.transform = `translate(${x - LENS.width / 2}px, ${-LENS.height / 2}px) scale(${grow * (1 + stretch)}, ${grow * (1 - 0.35 * stretch)})`;

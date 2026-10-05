@@ -121,9 +121,9 @@ function build(stats) {
      <span class="stats-row-value" title="${escapeHtml(I18n.t('stats.tokens', { n: full(context.used) }))}">${compact(context.used)}${limit ? ` <em>${escapeHtml(limit)}</em>` : ''}</span>`
       // With nothing counted the big number already tells what the context holds; this row tells what it can hold.
       : `<span class="stats-row-name">${escapeHtml(I18n.t('stats.window'))}</span>
-     <span class="stats-row-value" title="${escapeHtml(I18n.t('stats.tokens', { n: full(context.window) }))}">${compact(context.window)}</span>`}
-     <span class="stats-meter"><b style="--p: ${context.window ? Math.min(1, context.used / context.window) : 0}"></b></span>
-     <span class="stats-row-meta">${escapeHtml(I18n.t('stats.fill', { n: share(context.used, context.window) }))}</span>
+     <span class="stats-row-value"${context.window ? ` title="${escapeHtml(I18n.t('stats.tokens', { n: full(context.window) }))}"` : ''}>${context.window ? compact(context.window) : '—'}</span>`}
+     <span class="stats-meter"${context.window ? '' : ' hidden'}><b style="--p: ${context.window ? Math.min(1, context.used / context.window) : 0}"></b></span>
+     <span class="stats-row-meta">${context.window ? escapeHtml(I18n.t('stats.fill', { n: share(context.used, context.window) })) : ''}</span>
     </div>
    </div>
    ${note ? `<p class="stats-note">${escapeHtml(note)}</p>` : ''}

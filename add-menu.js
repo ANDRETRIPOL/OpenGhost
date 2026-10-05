@@ -46,7 +46,7 @@ class AddMenu {
   this.dock.set('compact', {
    hidden: !chatted,
    disabled: busy || !this.chat.canCompact,
-   hint: busy ? I18n.t('add.wait') : this.chat.canCompact ? I18n.t('add.compact.hint', { n: Math.round(this.chat.fill * 100) }) : I18n.t('add.compact.done'),
+   hint: busy ? I18n.t('add.wait') : this.chat.canCompact ? I18n.t(this.chat.fill == null ? 'add.compact' : 'add.compact.hint', { n: Math.round(this.chat.fill * 100) }) : I18n.t('add.compact.done'),
   });
   this.dock.set('stats', { hidden: !chatted, disabled: busy, hint: I18n.t(busy ? 'add.wait' : 'add.stats.hint') });
  }

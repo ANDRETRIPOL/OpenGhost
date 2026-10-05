@@ -458,7 +458,8 @@ class Chat {
  // How full the chat's context is, out of its model's window, from 0 to 1.
  get fill() {
   const conv = this.active;
-  return conv?.record ? Math.min(1, (conv.tokens || 0) / this.settings.windowOf(this.modelOf(conv))) : 0;
+  const window = this.settings.windowOf(this.modelOf(conv));
+  return window > 0 ? (conv?.record ? Math.min(1, (conv.tokens || 0) / window) : 0) : null;
  }
 
  // Compacts the chat on screen on the user's word: the same summary a full window brings, shown the same way.
@@ -1218,7 +1219,8 @@ class Chat {
 
  async compactIfNeeded(conv, turn) {
   const used = conv.tokens || estimate(this.history(conv));
-  if (used < this.settings.windowOf(turn.config.id) * (1 - CONTEXT.reserve)) return;
+  const window = this.settings.windowOf(turn.config.id);
+  if (!(window > 0) || used < window * (1 - CONTEXT.reserve)) return;
   await this.compact(conv, turn);
  }
 
@@ -1698,7 +1700,8 @@ class SideChat extends Chat {
  }
 
  async compactIfNeeded(conv, turn) {
-  if (estimate(super.history(conv)) < this.settings.windowOf(turn.config.id) * SIDE.share) return;
+  const window = this.settings.windowOf(turn.config.id);
+  if (!(window > 0) || estimate(super.history(conv)) < window * SIDE.share) return;
   await super.compactIfNeeded(conv, turn);
  }
 

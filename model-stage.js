@@ -56,8 +56,8 @@ function size(tokens) {
 
 function meta(model) {
  return [
-  model.context ? I18n.t('model.context', { size: size(model.context) }) : '',
-  I18n.t(model.vision === false ? 'model.text' : 'model.vision'),
+  typeof model.context === 'number' && Number.isFinite(model.context) && model.context > 0 ? I18n.t('model.context', { size: size(model.context) }) : '',
+  model.vision === true ? I18n.t('model.vision') : model.vision === false ? I18n.t('model.text') : '',
  ].filter(Boolean).join(' · ');
 }
 
@@ -164,7 +164,7 @@ class ModelStage {
     row.dataset.model = model.id;
     row.dataset.provider = provider;
     row.setAttribute('role', 'option');
-    row.setAttribute('aria-label', `${name}, ${info}`);
+    row.setAttribute('aria-label', info ? `${name}, ${info}` : name);
     row.innerHTML = `<span class="model-text" aria-hidden="true"><span class="model-name">${letters(name)}</span><span class="model-meta">${escapeHtml(info)}</span></span><span class="model-mark" aria-hidden="true"></span>`;
     this.rows.push(row);
     slots.push(slot(row));

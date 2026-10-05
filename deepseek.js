@@ -28,19 +28,17 @@ async function request(path, key, options = {}) {
  throw new DeepSeekError(statusMessage(response.status) || detail || I18n.t('error.status', { status: response.status }), response.status);
 }
 
-const DEFAULT_EFFORTS = ['none', 'low', 'high', 'max'];
+const positive = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+const UNKNOWN_VISION = '[A picture was omitted because the selected model\'s image support is unknown]';
+const reasoning = effort => typeof effort === 'string' && effort.trim()
+ ? { thinking: { type: effort === 'none' ? 'disabled' : 'enabled' }, reasoning_effort: effort } : {};
 
 const NO_VISION = '[A picture was here, but the selected model can\'t see pictures]';
 
 function effortsOf(model) {
  const raw = model.effort?.supported_levels || model.reasoning_efforts || model.supported_reasoning_efforts || model.efforts;
- if (!Array.isArray(raw)) return DEFAULT_EFFORTS.slice();
- const levels = raw.map(item => typeof item === 'string' ? item : item?.id || item?.name).filter(Boolean);
- if (!levels.length) return DEFAULT_EFFORTS.slice();
- // The API lists only thinking levels; none is the app's own step that turns thinking off, which every model allows.
- const known = DEFAULT_EFFORTS.filter(level => level === 'none' || levels.includes(level));
- const extra = levels.filter(level => !DEFAULT_EFFORTS.includes(level));
- return [...known, ...extra];
+ if (!Array.isArray(raw)) return [];
+ return [...new Set(raw.map(item => typeof item === 'string' ? item : item?.id || item?.name).filter(level => typeof level === 'string' && level.trim()))];
 }
 
 async function listModels(key, signal) {
@@ -48,18 +46,18 @@ async function listModels(key, signal) {
  return (body.data || []).filter(model => model?.id).map(model => ({
   id: model.id,
   name: model.name || '',
-  context: Number(model.context_window) || 0,
+  context: positive(model.context_window),
   efforts: effortsOf(model),
-  defaultEffort: model.effort?.default_level || '',
-  vision: Array.isArray(model.input_modalities) ? model.input_modalities.includes('image') : true,
+  defaultEffort: effortsOf(model).includes(model.effort?.default_level) ? model.effort.default_level : '',
+  vision: Array.isArray(model.input_modalities) ? model.input_modalities.includes('image') : null,
  }));
 }
 
 // A text-only model rejects image parts, so pictures in the history turn into a short note instead.
-function textOnly(messages) {
+function textOnly(messages, vision) {
  return messages.map(message => {
   if (!Array.isArray(message.content)) return message;
-  const content = message.content.map(part => part.type === 'image_url' ? NO_VISION : part.text || '').filter(Boolean).join('\n\n');
+  const content = message.content.map(part => part.type === 'image_url' ? (vision === false ? NO_VISION : UNKNOWN_VISION) : part.text || '').filter(Boolean).join('\n\n');
   return { ...message, content };
  });
 }
@@ -73,19 +71,18 @@ function plain(messages) {
  return count ? [{ role: 'system', content: messages.slice(0, count).map(message => message.content).join('\n\n') }, ...rest] : rest;
 }
 
-async function streamChat({ key, model, effort, vision = true, messages, tools, signal, onReasoning, onContent }) {
+async function streamChat({ key, model, effort, vision, messages, tools, signal, onReasoning, onContent }) {
  const response = await request('/chat/completions', key, {
   method: 'POST',
   signal,
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
    model,
-   messages: plain(vision ? messages : textOnly(messages)),
+   messages: plain(vision === true ? messages : textOnly(messages, vision)),
    ...(tools?.length ? { tools } : {}),
    stream: true,
    stream_options: { include_usage: true },
-   thinking: { type: effort === 'none' ? 'disabled' : 'enabled' },
-   reasoning_effort: effort,
+   ...reasoning(effort),
   }),
  });
  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -140,13 +137,13 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
  return done();
 }
 
-async function complete({ key, model, messages, signal, maxTokens = 40 }) {
+async function complete({ key, model, effort, vision, messages, signal, maxTokens = 40 }) {
  signal?.throwIfAborted();
  const response = await request('/chat/completions', key, {
   method: 'POST',
   signal,
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ model, messages, stream: false, max_tokens: maxTokens, thinking: { type: 'disabled' }, reasoning_effort: 'none' }),
+  body: JSON.stringify({ model, messages: plain(vision === true ? messages : textOnly(messages, vision)), stream: false, max_tokens: maxTokens, ...reasoning(effort) }),
  });
  const body = await response.json();
  return { content: body.choices?.[0]?.message?.content?.trim() || '', usage: body.usage || null };

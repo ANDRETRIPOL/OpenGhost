@@ -82,13 +82,13 @@ async function stream(config, options) {
 // Short side jobs, such as naming a chat or compacting it, think as little as the model allows. `onUsage` hears what the job
 // cost, for a chat that keeps count of its own tokens.
 async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
+ const efforts = Array.isArray(config.efforts) ? config.efforts.filter(level => typeof level === 'string' && level.trim()) : [];
+ const effort = efforts.includes('none') ? 'none' : efforts[0];
  if (config.provider === 'deepseek') {
-  const result = counted(config, await DeepSeek.complete({ key: config.key, model: config.model, messages, signal, maxTokens }));
+  const result = counted(config, await DeepSeek.complete({ key: config.key, model: config.model, effort, vision: config.vision, messages, signal, maxTokens }));
   onUsage?.(result.usage);
   return result.content;
  }
- const efforts = config.efforts || [];
- const effort = efforts.includes('none') ? 'none' : efforts[0] || 'low';
  const room = config.provider === 'anthropic' ? Math.max(maxTokens, 2048) : maxTokens;
  const result = counted(config, await viaMain({ ...config, effort }, { messages, signal, maxTokens: room, once: true }));
  onUsage?.(result.usage);

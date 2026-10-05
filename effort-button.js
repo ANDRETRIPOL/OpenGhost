@@ -16,6 +16,7 @@ class EffortButton extends IconButton {
     <g class="glyph" fill="currentColor">${segments}</g>
    </svg>`,{level:[500,45],hint:[230,27]},`
    :host{width:auto}
+   :host([hidden]){display:none}
    button{padding:0 8px;border-radius:calc(var(--icon-button-size,34px)/2)}
    .icon{width:calc(var(--icon-size,16px)*${VIEW_WIDTH/60});height:var(--icon-size,16px)}`);
   this.icon=this.shadowRoot.querySelector('.icon');

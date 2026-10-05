@@ -7,7 +7,8 @@ const SDK = require('@anthropic-ai/sdk');
 const Anthropic = SDK.default ?? SDK;
 const NO_VISION = '[A picture was here, but the selected model can\'t see pictures]';
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
-const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const UNKNOWN_VISION = '[A picture was omitted because the selected model\'s image support is unknown]';
+const positive = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 const MAX_OUTPUT = 64000;
 const BUDGET = { low: 4096, high: 16000 };
 // How many of the newest models of one line the picker offers: Opus 5.5 and Opus 5, but not every Opus before them.
@@ -26,28 +27,32 @@ const client = ({ key, baseURL }) => new Anthropic({ apiKey: key, baseURL, maxRe
 // Everything the chat needs about a model comes from the Models API: name, window, vision and the effort levels it takes.
 function describe(model) {
  const caps = model.capabilities || {};
- const levels = EFFORT_LEVELS.filter(level => caps.effort?.[level]?.supported);
- const adaptive = !!caps.thinking?.types?.adaptive?.supported;
- const budget = !!caps.thinking?.types?.enabled?.supported;
- let efforts = ['none'], thinking = 'none';
+ const reported = caps.effort && typeof caps.effort === 'object' && !Array.isArray(caps.effort) ? caps.effort : {};
+ const levels = Object.entries(reported).filter(([level, value]) => level.trim() && value?.supported === true).map(([level]) => level);
+ const adaptive = caps.thinking?.types?.adaptive?.supported === true;
+ const budget = caps.thinking?.types?.enabled?.supported === true;
+ const quiet = caps.thinking?.types?.disabled?.supported === true && !refuses.quiet.has(model.id);
+ let efforts = quiet ? ['none'] : [], thinking;
  if (adaptive) {
   thinking = 'adaptive';
-  efforts = [...(refuses.quiet.has(model.id) ? [] : ['none']), ...(levels.length ? levels : ['high'])];
+  efforts = [...efforts, ...levels];
  } else if (budget) {
   thinking = 'budget';
-  efforts = ['none', 'low', 'high'];
+  // Application token-budget presets, only for explicitly supported enabled thinking.
+  efforts = [...efforts, ...Object.keys(BUDGET)];
  }
  return {
   id: `anthropic:${model.id}`,
   provider: 'anthropic',
   api: model.id,
   name: model.display_name || model.id,
-  context: model.max_input_tokens || 200000,
-  output: model.max_tokens || MAX_OUTPUT,
-  vision: !!caps.image_input?.supported,
+  context: positive(model.max_input_tokens),
+  output: positive(model.max_tokens),
+  vision: typeof caps.image_input?.supported === 'boolean' ? caps.image_input.supported : null,
   efforts,
-  defaultEffort: efforts.includes('high') ? 'high' : efforts[efforts.length - 1],
+  defaultEffort: efforts.includes(model.default_effort) ? model.default_effort : '',
   thinking,
+  ...(budget && !adaptive ? { effortSource: 'application-budget-presets' } : {}),
  };
 }
 
@@ -73,7 +78,8 @@ const text = content => typeof content === 'string' ? content : (content || []).
 
 function image(url, vision) {
  const match = /^data:([^;,]+);base64,(.*)$/s.exec(url || '');
- if (!vision || !match || !IMAGE_TYPES.has(match[1])) return { type: 'text', text: NO_VISION };
+ if (vision !== true) return { type: 'text', text: vision === false ? NO_VISION : UNKNOWN_VISION };
+ if (!match || !IMAGE_TYPES.has(match[1])) return { type: 'text', text: '[A picture was omitted because its format is not supported]' };
  return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
 }
 
@@ -125,11 +131,13 @@ function convert(messages, vision) {
  return { system: system.filter(Boolean), messages: out };
 }
 
-// `quiet`: the model may be asked to answer without thinking. One that can't thinks as little as it is able to instead.
+// `quiet`: the model may be asked to answer without thinking. A refusal removes
+// that request option; it must not invent an adaptive effort level instead.
 function thinking({ thinking: mode, effort }, quiet = true) {
+ if (typeof effort !== 'string' || !effort.trim()) return {};
+ if (effort === 'none') return quiet ? { thinking: { type: 'disabled' } } : {};
  if (mode === 'adaptive') {
-  if (effort === 'none' && quiet) return { thinking: { type: 'disabled' } };
-  return { thinking: { type: 'adaptive', display: 'summarized' }, output_config: { effort: effort === 'none' ? 'low' : effort } };
+  return { thinking: { type: 'adaptive', display: 'summarized' }, output_config: { effort } };
  }
  if (mode === 'budget' && BUDGET[effort]) return { thinking: { type: 'enabled', budget_tokens: BUDGET[effort] } };
  return {};
@@ -155,13 +163,18 @@ function problem(cause) {
 // What goes to the Messages API. A request nothing follows (`once`: a summary, a chat's name) asks for no cache at all:
 // writing one costs more than plain input, and nobody would read it.
 function build(request, quiet = true) {
- const { model, vision = true, messages, tools, maxTokens, output, once = false } = request;
+ const { model, vision, messages, tools, maxTokens, output, once = false } = request;
  const { system, messages: history } = convert(once ? messages.map(({ cache, ...message }) => message) : messages, vision);
+ const thoughts = thinking(request, quiet), budget = thoughts.thinking?.budget_tokens || 0;
+ // Required request allowance, not inferred catalog capacity. A known budget
+ // must fit even for a short auxiliary call when no disabled mode is offered.
+ const allowance = Math.min(Math.max(positive(maxTokens) || MAX_OUTPUT, budget + 1), positive(output) || MAX_OUTPUT);
+ if (budget >= allowance) throw new Error('The selected thinking budget does not fit the reported output limit');
  const params = {
   model,
-  max_tokens: Math.min(maxTokens || MAX_OUTPUT, output || MAX_OUTPUT),
+  max_tokens: allowance,
   messages: history,
-  ...thinking(request, quiet),
+  ...thoughts,
  };
  if (system.length) params.system = system.map((part, k) => ({ type: 'text', text: part, ...(!once && (k === 0 || k === system.length - 1) ? { cache_control: CACHE } : {}) }));
  // The mark at the end of the request: the API puts it on the last block and moves it on as the chat grows.

@@ -8,9 +8,15 @@ const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek'];
 // The provider the app starts with: the settings ask for its key when nothing is connected, and new chats take its first
 // model until the user picks another.
 const FIRST_PROVIDER = 'deepseek';
-const EFFORTS = ['none', 'low', 'high', 'max'];
-const DEFAULT_EFFORT = 'high';
-const DEFAULT_CONTEXT = 1000000;
+const CATALOG_VERSION = 4;
+const positive = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+const levelsOf = value => Array.isArray(value) ? [...new Set(value.filter(level => typeof level === 'string' && level.trim()))] : [];
+const visionOf = value => typeof value === 'boolean' ? value : null;
+function modelOf(model) {
+ const efforts = levelsOf(model.efforts);
+ return { ...model, context: positive(model.context), vision: visionOf(model.vision), efforts,
+  defaultEffort: efforts.includes(model.defaultEffort) ? model.defaultEffort : '' };
+}
 // How long a provider's list of models counts as fresh. Opening the model picker after that reads the lists again.
 const FRESH = 10 * 60 * 1000;
 const LINKS = {
@@ -85,13 +91,14 @@ class Settings {
   this.account = { connected: false };
   this.catalog = this.readCatalog();
   this.models = [];
-  this.efforts = EFFORTS.slice();
+  this.efforts = [];
   localStorage.removeItem('deepseek.model');
   this.model = localStorage.getItem(STORAGE.model) || '';
   this.shown = this.model;
   this.read = 0;
   const effort = localStorage.getItem(STORAGE.effort);
-  this.effort = typeof effort === 'string' && effort ? effort : DEFAULT_EFFORT;
+  this.preference = typeof effort === 'string' && effort.trim() ? effort : '';
+  this.effort = '';
   const mode = localStorage.getItem(STORAGE.mode);
   this.mode = MODES.includes(mode) ? mode : DEFAULT_MODE;
   this.checks = {};
@@ -179,11 +186,12 @@ class Settings {
  readCatalog() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORAGE.catalog)) || {}; } catch {}
-  return { chatgpt: [], openai: [], anthropic: [], deepseek: [], ...saved };
+  const catalogs = saved.version === CATALOG_VERSION ? saved.providers || {} : {};
+  return Object.fromEntries(ORDER.map(provider => [provider, Array.isArray(catalogs[provider]) ? catalogs[provider].filter(model => model && typeof model === 'object').map(modelOf) : []]));
  }
 
  saveCatalog() {
-  try { localStorage.setItem(STORAGE.catalog, JSON.stringify(this.catalog)); } catch {}
+  try { localStorage.setItem(STORAGE.catalog, JSON.stringify({ version: CATALOG_VERSION, providers: this.catalog })); } catch {}
  }
 
  // The keys live in the OS keychain through the main process. Ones an earlier version kept in localStorage are the newest word,
@@ -264,10 +272,10 @@ class Settings {
  }
 
  configFor(id) {
-  const model = this.find(id);
+  const found = this.find(id), model = found && modelOf(found);
   const provider = model?.provider || FIRST_PROVIDER;
-  const efforts = model?.efforts?.length ? model.efforts : EFFORTS;
-  const effort = efforts.includes(this.effort) ? this.effort : [model?.defaultEffort, DEFAULT_EFFORT].find(level => efforts.includes(level)) || efforts[efforts.length - 1];
+  const efforts = model?.efforts || [];
+  const effort = efforts.includes(this.preference) ? this.preference : model?.defaultEffort || undefined;
   return {
    id: model?.id || id,
    provider,
@@ -277,7 +285,7 @@ class Settings {
    ready: !!model && this.connected(provider),
    effort,
    efforts,
-   vision: model?.vision !== false,
+   vision: visionOf(model?.vision),
    thinking: model?.thinking,
    output: model?.output,
   };
@@ -288,7 +296,7 @@ class Settings {
  }
 
  windowOf(id) {
-  return this.find(id)?.context || DEFAULT_CONTEXT;
+  return positive(this.find(id)?.context);
  }
 
  // The effort steps follow the model of the chat on screen.
@@ -299,16 +307,11 @@ class Settings {
  }
 
  applyEfforts() {
-  const model = this.find(this.shown);
-  const efforts = model?.efforts?.length ? model.efforts : EFFORTS;
-  const same = efforts.length === this.efforts.length && efforts.every((level, i) => level === this.efforts[i]);
-  this.efforts = efforts.slice();
-  if (!efforts.includes(this.effort)) {
-   const fallback = [model?.defaultEffort, DEFAULT_EFFORT].find(level => efforts.includes(level));
-   this.effort = fallback || efforts[Math.min(efforts.length - 1, 2)];
-   localStorage.setItem(STORAGE.effort, this.effort);
-  }
-  if (!same) this.onEfforts?.(this.efforts);
+  const config = this.configFor(this.shown);
+  this.efforts = config.efforts.slice();
+  this.effort = config.effort || '';
+  // Displaying a provider default is not a new saved user preference.
+  this.onEfforts?.(this.efforts);
  }
 
  setModel(id) {
@@ -318,7 +321,8 @@ class Settings {
  }
 
  setEffort(value) {
-  this.effort = value;
+  if (!this.efforts.includes(value)) return;
+  this.preference = this.effort = value;
   localStorage.setItem(STORAGE.effort, value);
  }
 
@@ -364,7 +368,7 @@ class Settings {
   const token = (this.checks[provider] = (this.checks[provider] || 0) + 1);
   const models = await Providers.models(provider, this.keys[provider]);
   if (token !== this.checks[provider]) return false;
-  this.catalog[provider] = models;
+  this.catalog[provider] = (Array.isArray(models) ? models : []).filter(model => model && typeof model === 'object').map(modelOf);
   this.saveCatalog();
   this.changed();
   return true;

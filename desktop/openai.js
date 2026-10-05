@@ -10,9 +10,8 @@ const NO_VISION = '[A picture was here, but the selected model can\'t see pictur
 // The catalogue asks which version of Codex is asking and leaves out models too new for it. The app is not Codex and
 // takes every model there is.
 const CLIENT_VERSION = '99.0.0';
-// What is taken of a model nothing more is known about: the window Codex itself works in, and the effort levels every
-// reasoning model has.
-const UNKNOWN = { context: 272000, efforts: ['low', 'medium', 'high'] };
+const UNKNOWN_VISION = '[A picture was omitted because the selected model\'s image support is unknown]';
+const positive = value => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 // With names alone to go by: which of them are chat models, and how many of the newest the picker gets.
 const NAMED = { chat: /^gpt-\d[\w.-]*$/, other: /audio|realtime|image|tts|transcribe|search|embedding|moderation|instruct|-\d{4}-\d{2}-\d{2}$/, max: 12 };
 
@@ -22,20 +21,21 @@ const error = (message, status = 0, code = '') => Object.assign(new Error(messag
 // its name, its window, its effort levels and what it takes in, already picked and ordered for a model picker, and the
 // same catalogue answers an API key. A model OpenAI adds, or takes away from a plan, is in or out of the list the next
 // time it is read. The public /models only names models, so it says which of the catalogue's a key may use.
-const levelsOf = entry => (entry.supported_reasoning_levels || []).map(level => typeof level === 'string' ? level : level?.effort).filter(Boolean);
+const levelsOf = entry => Array.isArray(entry.supported_reasoning_levels)
+ ? [...new Set(entry.supported_reasoning_levels.map(level => typeof level === 'string' ? level : level?.effort).filter(level => typeof level === 'string' && level.trim()))] : [];
 const offered = list => list.filter(entry => entry?.slug && entry.visibility === 'list').sort((a, b) => (a.priority ?? Infinity) - (b.priority ?? Infinity));
 
 const describe = provider => entry => {
- const levels = levelsOf(entry), efforts = levels.length ? levels : UNKNOWN.efforts;
+ const efforts = levelsOf(entry);
  return {
   id: `${provider}:${entry.slug}`,
   provider,
   api: entry.slug,
   name: entry.display_name || entry.slug,
-  context: Number(entry.context_window) || UNKNOWN.context,
-  vision: !Array.isArray(entry.input_modalities) || entry.input_modalities.includes('image'),
+  context: positive(entry.context_window),
+  vision: Array.isArray(entry.input_modalities) ? entry.input_modalities.includes('image') : null,
   efforts,
-  defaultEffort: efforts.includes(entry.default_reasoning_level) ? entry.default_reasoning_level : efforts.includes('medium') ? 'medium' : efforts[0],
+  defaultEffort: efforts.includes(entry.default_reasoning_level) ? entry.default_reasoning_level : '',
  };
 };
 
@@ -87,7 +87,7 @@ const text = content => typeof content === 'string' ? content : (content || []).
 function parts(content, vision) {
  if (typeof content === 'string') return [{ type: 'input_text', text: content }];
  return (content || []).map(part => part.type !== 'image_url' ? { type: 'input_text', text: part.text || '' }
-  : vision ? { type: 'input_image', image_url: part.image_url.url, detail: 'auto' } : { type: 'input_text', text: NO_VISION });
+  : vision === true ? { type: 'input_image', image_url: part.image_url.url, detail: 'auto' } : { type: 'input_text', text: vision === false ? NO_VISION : UNKNOWN_VISION });
 }
 
 // System messages become the instructions; a reply that came from OpenAI goes back as its own items, reasoning included.
@@ -146,7 +146,7 @@ async function target({ provider, key, session }, { chatgpt, version, apiUrl = A
 }
 
 async function stream(request, context) {
- const { model: api, effort, vision = true, messages, tools } = request;
+ const { model: api, effort, vision, messages, tools } = request;
  const { signal, onEvent = () => {} } = context;
  const { instructions, input } = convert(messages, vision);
  const body = {
@@ -156,7 +156,7 @@ async function stream(request, context) {
   store: false,
   stream: true,
   include: ['reasoning.encrypted_content'],
-  reasoning: effort && effort !== 'none' ? { effort, summary: 'auto' } : { effort: 'none' },
+  ...(typeof effort === 'string' && effort.trim() ? { reasoning: effort === 'none' ? { effort } : { effort, summary: 'auto' } } : {}),
  };
  if (tools?.length) {
   body.tools = tools.map(tool => ({ type: 'function', name: tool.function.name, description: tool.function.description, parameters: tool.function.parameters, strict: false }));
