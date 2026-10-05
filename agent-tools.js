@@ -770,7 +770,7 @@ function readable(html, url) {
  return title ? `# ${title}\n\n${body}` : body;
 }
 
-function page(result, start) {
+function page(result, start, tool = 'fetch_url') {
  if (result.error) return `Error: ${result.error}`;
  const head = `${result.url}${result.status >= 400 ? ` (HTTP ${result.status})` : ''}`;
  if (result.text === null) return `${head}\nThis is ${result.type || 'binary content'} (${result.size}), it can't be read as text.`;
@@ -780,7 +780,7 @@ function page(result, start) {
   try { text = JSON.stringify(JSON.parse(text), null, 1); } catch {}
  }
  const from = Math.max(0, Math.floor(Number(start) || 0)), part = text.slice(from, from + PAGE_CHARS), end = from + part.length;
- const tail = end < text.length ? `\n\n[Characters ${from}–${end} of ${text.length}. Call fetch_url with start=${end} to read further.]` : '';
+ const tail = end < text.length ? `\n\n[Characters ${from}–${end} of ${text.length}. Call ${tool} with start=${end} to read further.]` : '';
  return `${head}\n\n${part || '(empty page)'}${tail}`;
 }
 
@@ -955,7 +955,10 @@ async function browser(name, args, id, cwd) {
  if (!result || result.error) return `Error: ${result?.error || 'the browser did not answer'}`;
  if (result.refs) refs = result.refs;
  if (result.image) return { text: result.text, images: [{ label: 'Screenshot of the built-in browser', url: result.image }] };
- if (result.html !== undefined) return page({ url: result.url, status: 200, type: 'text/html', text: result.html }, args.start);
+ if (result.html !== undefined) {
+  const text = page({ url: result.url, status: 200, type: 'text/html', text: result.html }, args.start, 'browser_read');
+  return result.sourceTruncated ? `${text}\n\n[Source HTML truncated at 4 Mi UTF-16 code units before transfer; later source content is not included.]` : text;
+ }
  const tabs = name === 'browser_tabs' ? '' : panel.tabsLine();
  return tabs ? `${tabs}\n${result.text}` : result.text;
 }

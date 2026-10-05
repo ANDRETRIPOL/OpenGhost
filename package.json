@@ -7,6 +7,7 @@
   "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test test/*.test.js",
     "shortcut": "electron . --create-shortcut",
     "dist": "electron-builder --win nsis --publish never",
     "dist:mac": "electron-builder --mac dmg --universal --publish never",
@@ -26,6 +27,7 @@
     "files": [
       "**/*",
       "!dist/**",
+      "!test/**",
       "!images/**",
       "!.github/**",
       "!**/*.md"

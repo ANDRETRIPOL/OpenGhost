@@ -274,7 +274,82 @@ function install() {
   return false;
  }
 
- window.__og = { snapshot, point, choose, reveal, quiet, has };
+ // Serialize a bounded prefix incrementally, not outerHTML followed by slice.
+ // Do not enter frames/shadow roots or materialize whole character-data nodes.
+ function read(max) {
+  const HTML = 'http://www.w3.org/1999/xhtml';
+  const VOID = new Set(['area', 'base', 'basefont', 'bgsound', 'br', 'col', 'embed', 'frame', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+  const RAW = new Set(['script', 'style', 'xmp', 'iframe', 'noembed', 'noframes', 'plaintext', 'noscript']);
+  const entities = { '&': '&amp;', '\u00a0': '&nbsp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' };
+  const parts = [];
+  let remaining = max, sourceTruncated = false;
+  const push = text => {
+   if (text.length > remaining) {
+    parts.push(text.slice(0, remaining));
+    remaining = 0; sourceTruncated = true;
+    return false;
+   }
+   parts.push(text); remaining -= text.length;
+   return true;
+  };
+  const data = (length, slice, attribute = false, raw = false) => {
+   for (let offset = 0; offset < length && !sourceTruncated;) {
+    const size = Math.min(4096, remaining + 1, length - offset);
+    const chunk = slice(offset, size);
+    push(raw ? chunk : chunk.replace(attribute ? /[&\u00a0"<>]/g : /[&\u00a0<>]/g, char => entities[char]));
+    offset += size;
+   }
+  };
+  const close = tag => push('</') && push(tag) && push('>');
+  // One cursor per ancestor, not an array of all descendants or a recursive walk.
+  const stack = [{ next: document.documentElement, tag: null }];
+  while (stack.length && !sourceTruncated) {
+   const frame = stack[stack.length - 1], node = frame.next;
+   if (!node) {
+    stack.pop();
+    if (frame.tag !== null) close(frame.tag);
+    continue;
+   }
+   frame.next = stack.length === 1 ? null : node.nextSibling;
+   if (node.nodeType === 1) {
+    const html = node.namespaceURI === HTML;
+    const tag = html || ['http://www.w3.org/2000/svg', 'http://www.w3.org/1998/Math/MathML'].includes(node.namespaceURI) ? node.localName : node.tagName;
+    if (!push('<') || !push(tag)) break;
+    for (const attr of node.attributes) {
+     let name = attr.name;
+     if (attr.namespaceURI === 'http://www.w3.org/XML/1998/namespace') name = `xml:${attr.localName}`;
+     else if (attr.namespaceURI === 'http://www.w3.org/2000/xmlns/') name = attr.localName === 'xmlns' ? 'xmlns' : `xmlns:${attr.localName}`;
+     else if (attr.namespaceURI === 'http://www.w3.org/1999/xlink') name = `xlink:${attr.localName}`;
+     if (!push(' ') || !push(name) || !push('="')) break;
+     // DOM attribute access obtains a whole value; only the escaped copy is bounded.
+     const value = attr.value;
+     data(value.length, (offset, size) => value.slice(offset, offset + size), true);
+     if (sourceTruncated || !push('"')) break;
+    }
+    if (sourceTruncated || !push('>')) break;
+    if (!html || !VOID.has(tag)) {
+     const parent = html && tag === 'template' ? node.content : node;
+     stack.push({ next: parent.firstChild, tag });
+    }
+   } else if (node.nodeType === 3 || node.nodeType === 4) {
+    const parent = node.parentNode;
+    const raw = parent?.namespaceURI === HTML && RAW.has(parent.localName);
+    data(node.length, (offset, size) => node.substringData(offset, size), false, raw);
+   } else if (node.nodeType === 8) {
+    if (!push('<!--')) break;
+    data(node.length, (offset, size) => node.substringData(offset, size), false, true);
+    if (!sourceTruncated) push('-->');
+   } else if (node.nodeType === 7) {
+    if (!push('<?') || !push(node.target) || !push(' ')) break;
+    data(node.length, (offset, size) => node.substringData(offset, size), false, true);
+    if (!sourceTruncated) push('?>');
+   }
+  }
+  // A full buffer alone is not evidence that any source was omitted.
+  return { html: parts.join(''), sourceTruncated };
+ }
+
+ window.__og = { snapshot, point, choose, reveal, quiet, has, read };
 }
 
 const INSTALL = `(${install.toString()})();`;
@@ -592,8 +667,8 @@ async function act(found, name, args, signal) {
    return { ...shot, text: `Screenshot of ${args.full_page ? 'the page from the top' : 'the viewport'}: ${guest.getTitle() || guest.getURL()}, ${shot.width}×${shot.height}; ${scale}.` };
   }
   case 'browser_read': {
-   const html = await timed(guest.executeJavaScript('document.documentElement ? document.documentElement.outerHTML : ""'), WAIT.call, 'The page is not responding');
-   return { html: html.slice(0, READ_MAX), url: guest.getURL(), title: guest.getTitle() };
+   const source = await world(guest, `__og.read(${READ_MAX})`);
+   return { html: source.html, sourceTruncated: source.sourceTruncated, url: guest.getURL(), title: guest.getTitle() };
   }
   case 'browser_wait': {
    const seconds = Math.min(WAIT_MAX, Math.max(0.5, Number(args.seconds) || (args.text ? 15 : 2)));
