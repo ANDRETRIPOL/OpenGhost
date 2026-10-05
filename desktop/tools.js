@@ -388,7 +388,7 @@ async function runTool(id, name, args, cwd, sender) {
   try {
    return await cancellable(String(id || ''), signal => Browser.run(name, args && typeof args === 'object' ? args : {}, sender, signal));
   } catch (error) {
-   return { error: explain(error) };
+   return { error: explain(error), code: error.code || 'browser_error' };
   }
  }
  const tool = TOOLS[name];

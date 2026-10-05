@@ -278,7 +278,7 @@ function install() {
 }
 
 const INSTALL = `(${install.toString()})();`;
-const plain = message => Object.assign(new Error(message), { plain: true });
+const plain = (message, code = 'browser_error') => Object.assign(new Error(message), { plain: true, code });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const guests = new Map();
 const downloads = [];
@@ -534,12 +534,19 @@ async function act(found, name, args, signal) {
    if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
     const spot = await world(guest, `__og.point(${Number(args.ref)})`);
     ({ x, y } = spot);
-    if (spot.covered) note = `Note: at that spot [${args.ref}] is covered by ${spot.covered}, the click went there.`;
+    if (spot.covered) throw plain(`Element [${args.ref}] is covered by ${spot.covered}. No click was sent. Take a fresh snapshot or explicitly target the covering element.`, 'element_covered');
    } else if (!Number.isFinite(x) || !Number.isFinite(y)) {
     throw plain('Pass ref from the snapshot, or x and y in page pixels');
    }
    check();
    await pointer(found, x, y);
+   check();
+   if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
+    const spot = await world(guest, `__og.point(${Number(args.ref)})`);
+    if (spot.covered) throw plain(`Element [${args.ref}] is covered by ${spot.covered}. No click was sent. Take a fresh snapshot or explicitly target the covering element.`, 'element_covered');
+    if (spot.x !== x || spot.y !== y) throw plain('The click target moved. Take a new snapshot.', 'stale_target');
+   }
+   check();
    await mouse(guest, x, y, args.double ? 2 : 1);
    await settle(guest);
    return state(guest, { note });
