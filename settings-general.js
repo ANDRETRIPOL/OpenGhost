@@ -7,6 +7,7 @@ const ROW = { duration: 420, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 // A row folded shut: its padding goes too, or the height could not reach zero.
 const FOLDED = { height: '0px', paddingTop: '0px', paddingBottom: '0px' };
 const STATUS_TIME = 6000;
+// Display-only character heuristic, not tokenizer output or billing/context evidence.
 const CHARS_PER_TOKEN = 3.2;
 const PLUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6"/></svg>';
 const CROSS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6"/></svg>';
@@ -14,8 +15,8 @@ const CROSS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const escapeHtml = text => String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const hasFiles = event => [...(event.dataTransfer?.types || [])].includes('Files');
-const tokens = chars => {
- const count = Math.max(1, Math.round(chars / CHARS_PER_TOKEN));
+const estimatedTokens = chars => {
+ const count = Math.round(chars / CHARS_PER_TOKEN);
  return count < 1000 ? String(count) : `${(count / 1000).toFixed(count < 10000 ? 1 : 0).replace(/\.0$/, '')}k`;
 };
 
@@ -128,7 +129,7 @@ class GeneralSettings {
  meta(file) {
   const info = FileKinds.describe(file.name);
   const parts = [info.name, FileKinds.formatSize(file.size)];
-  if (file.kind === 'text') parts.push(I18n.t('settings.files.tokens', { count: tokens(file.chars) }));
+  if (file.kind === 'text') parts.push(I18n.t('settings.files.tokenEstimate', { count: estimatedTokens(file.chars) }));
   else if (file.kind === 'image' && file.width) parts.push(`${file.width}×${file.height}`);
   else if (file.kind === 'none') parts.push(I18n.t('settings.files.path'));
   return parts.join(' · ');

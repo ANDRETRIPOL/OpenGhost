@@ -216,7 +216,7 @@ const STRINGS = {
   'settings.files.hint': 'Notes, a style guide, a CV: whatever OpenGhost should always have at hand. Every chat sees what is inside them.',
   'settings.files.drop': 'Drop files here or choose them',
   'settings.files.remove': 'Remove {name}',
-  'settings.files.tokens': '≈{count} tokens',
+  'settings.files.tokenEstimate': '≈{count} estimated tokens',
   'settings.files.path': 'read from disk when needed',
   'settings.files.unreadable': 'OpenGhost can’t read {name}.',
   'settings.files.count': 'Up to {count} files can be kept here.',
