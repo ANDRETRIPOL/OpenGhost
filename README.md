@@ -145,3 +145,27 @@ OpenGhost is free. Testing it on real models costs money for every release, and 
 ## Thanks
 
 [@kodachromez](https://github.com/kodachromez) found eight real bugs in a single report, and [@Bruno8R](https://github.com/Bruno8R) noticed that API keys were kept in plain text. All of it is fixed in v1.2.0. Thank you both.
+
+## Command Code provider
+
+This fork includes a **Command Code** provider. It expects the OpenAI-compatible
+proxy from https://github.com/thaolaptrinh/commandcode-api-proxy running locally.
+
+### Setup
+
+1. Start the proxy (it listens on `http://127.0.0.1:8787/v1`):
+
+   ```bash
+   npx commandcode-api-proxy auth login   # paste your Command Code key
+   npx commandcode-api-proxy
+   ```
+
+   If you already use the Command Code CLI (`commandcode`), the proxy can reuse
+   the key it saved at `~/.commandcode/auth.json`.
+
+2. In OpenGhost → Settings → **Command Code**:
+   - API key: `proxy-managed`
+   - Base URL: `http://127.0.0.1:8787/v1` (default, already set)
+   - Pick a model, e.g. `glm-5.2`, `deepseek-v4-pro`, `kimi-k3`
+
+Architecture: `OpenGhost → http://127.0.0.1:8787/v1 → commandcode-api-proxy → api.commandcode.ai`

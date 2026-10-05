@@ -7,7 +7,7 @@ const bridge = window.openghost?.llm || null;
 const listeners = new Map();
 bridge?.onEvent(data => listeners.get(data.id)?.(data));
 
-const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', kimchi: 'Kimchi' };
+const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', kimchi: 'Kimchi', commandcode: 'Command Code' };
 
 class ProviderError extends Error {
  constructor(message, status = 0) {
@@ -35,7 +35,7 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxT
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
   provider: config.provider, key: config.key, model: config.model, effort: config.effort, vision: config.vision,
-  thinking: config.thinking, output: config.output, apiUrl: config.apiUrl || (config.provider === 'kimchi' ? 'https://llm.kimchi.dev/openai/v1' : undefined), messages, tools, maxTokens, session, once,
+  thinking: config.thinking, output: config.output, apiUrl: config.apiUrl || (config.provider === 'kimchi' ? 'https://llm.kimchi.dev/openai/v1' : config.provider === 'commandcode' ? 'http://127.0.0.1:8787/v1' : undefined), messages, tools, maxTokens, session, once,
  };
  return new Promise((resolve, reject) => {
   const partial = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
@@ -98,7 +98,7 @@ async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
 async function models(provider, key, apiUrl) {
  if (provider === 'deepseek') return (await DeepSeek.listModels(key)).map(model => ({ ...model, provider: 'deepseek', api: model.id }));
  if (!bridge) return [];
- const reply = await bridge.models(provider, key, apiUrl || (provider === 'kimchi' ? 'https://llm.kimchi.dev/openai/v1' : undefined));
+ const reply = await bridge.models(provider, key, apiUrl || (provider === 'kimchi' ? 'https://llm.kimchi.dev/openai/v1' : provider === 'commandcode' ? 'http://127.0.0.1:8787/v1' : undefined));
  if (reply.error) throw new ProviderError(explain(provider, reply.error), reply.error.status);
  return reply.models;
 }

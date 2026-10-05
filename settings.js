@@ -2,9 +2,9 @@
 'use strict';
 
 const STORAGE = { effort: 'deepseek.effort', mode: 'openghost.mode', model: 'openghost.model', catalog: 'openghost.catalog' };
-const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', kimchi: 'kimchi.apiKey', deepseek: 'deepseek.apiKey' };
+const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', kimchi: 'kimchi.apiKey', deepseek: 'deepseek.apiKey', commandcode: 'commandcode.apiKey' };
 // The order providers appear in, in the settings and in the model picker.
-const ORDER = ['chatgpt', 'openai', 'anthropic', 'kimchi', 'deepseek'];
+const ORDER = ['chatgpt', 'openai', 'anthropic', 'kimchi', 'deepseek', 'commandcode'];
 // The provider the app starts with: the settings ask for its key when nothing is connected, and new chats take its first
 // model until the user picks another.
 const FIRST_PROVIDER = 'deepseek';
@@ -18,6 +18,7 @@ const LINKS = {
  anthropic: ['https://console.anthropic.com/settings/keys', 'console.anthropic.com'],
  kimchi: ['https://llm.kimchi.dev', 'llm.kimchi.dev'],
  deepseek: ['https://platform.deepseek.com/api_keys', 'platform.deepseek.com'],
+ commandcode: ['https://commandcode.ai/settings', 'commandcode.ai'],
 };
 const KNOWN_KIMCHI = [
  { id: 'kimchi:deepseek-v4-flash-0731', api: 'deepseek-v4-flash-0731', provider: 'kimchi', name: 'DeepSeek V4 Flash', context: 1000000, vision: false },
@@ -25,6 +26,14 @@ const KNOWN_KIMCHI = [
  { id: 'kimchi:minimax-m3', api: 'minimax-m3', provider: 'kimchi', name: 'MiniMax M3', context: 1000000, vision: true },
  { id: 'kimchi:glm-5.3-flash', api: 'glm-5.3-flash', provider: 'kimchi', name: 'GLM 5.3 Flash', context: 1000000, vision: true },
  { id: 'kimchi:deepseek-v4.1-flash', api: 'deepseek-v4.1-flash', provider: 'kimchi', name: 'DeepSeek V4.1 Flash', context: 1000000, vision: true },
+];
+const KNOWN_COMMANDCODE = [
+ { id: 'commandcode:deepseek-v4-pro', api: 'deepseek-v4-pro', provider: 'commandcode', name: 'DeepSeek V4 Pro', context: 1048576, vision: true },
+ { id: 'commandcode:deepseek-v4-flash', api: 'deepseek-v4-flash', provider: 'commandcode', name: 'DeepSeek V4 Flash', context: 1048576, vision: true },
+ { id: 'commandcode:glm-5.2', api: 'glm-5.2', provider: 'commandcode', name: 'GLM 5.2', context: 1048576, vision: true },
+ { id: 'commandcode:kimi-k3', api: 'kimi-k3', provider: 'commandcode', name: 'Kimi K3', context: 262144, vision: true },
+ { id: 'commandcode:minimax-m3', api: 'minimax-m3', provider: 'commandcode', name: 'MiniMax M3', context: 1048576, vision: true },
+ { id: 'commandcode:qwen3.7-max', api: 'qwen3.7-max', provider: 'commandcode', name: 'Qwen3.7 Max', context: 1048576, vision: true },
 ];
 const MODES = ['ask', 'auto', 'full'];
 const DEFAULT_MODE = 'ask';
@@ -187,7 +196,7 @@ class Settings {
  readCatalog() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORAGE.catalog)) || {}; } catch {}
-  return { chatgpt: [], openai: [], anthropic: [], kimchi: KNOWN_KIMCHI.slice(), deepseek: [], ...saved };
+  return { chatgpt: [], openai: [], anthropic: [], kimchi: KNOWN_KIMCHI.slice(), deepseek: [], commandcode: KNOWN_COMMANDCODE.slice(), ...saved };
  }
 
  saveCatalog() {
@@ -378,6 +387,13 @@ class Settings {
    } catch {
     models = KNOWN_KIMCHI.slice();
    }
+  } else if (provider === 'commandcode') {
+   try {
+    models = await Providers.models('commandcode', this.keys.commandcode || 'proxy-managed', 'http://127.0.0.1:8787/v1');
+    if (!models || !models.length) models = KNOWN_COMMANDCODE.slice();
+   } catch {
+    models = KNOWN_COMMANDCODE.slice();
+   }
   } else {
    models = await Providers.models(provider, this.keys[provider]);
   }
@@ -394,6 +410,7 @@ class Settings {
    section('anthropic', 'Anthropic', keyRow('anthropic')),
    section('kimchi', 'Kimchi', keyRow('kimchi')),
    section('deepseek', 'DeepSeek', keyRow('deepseek')),
+   section('commandcode', 'Command Code', keyRow('commandcode')),
   ].join('');
   this.inputs = {};
   for (const input of this.list.querySelectorAll('.settings-key')) {

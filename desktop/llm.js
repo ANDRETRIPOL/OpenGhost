@@ -23,12 +23,19 @@ const KIMCHI_CONFIG = {
  preset: KIMCHI_MODELS,
 };
 
+const COMMANDCODE_CONFIG = {
+ apiUrl: 'http://127.0.0.1:8787/v1',
+ headers: {},
+ extraBody: {},
+ preset: undefined,
+};
+
 const runs = new Map();
-const PROVIDERS = new Set(['openai', 'chatgpt', 'anthropic', 'kimchi']);
+const PROVIDERS = new Set(['openai', 'chatgpt', 'anthropic', 'kimchi', 'commandcode']);
 
 const engine = provider => {
  if (provider === 'anthropic') return Claude;
- if (provider === 'kimchi') return Chat;
+ if (provider === 'kimchi' || provider === 'commandcode') return Chat;
  return OpenAI;
 };
 
@@ -40,14 +47,15 @@ async function start(sender, id, request) {
  try {
   if (!PROVIDERS.has(request?.provider)) throw new Error('Unknown provider');
   const isKimchi = request.provider === 'kimchi';
+  const isCommandCode = request.provider === 'commandcode';
   const result = await engine(request.provider).stream(request, {
    signal: controller.signal,
    onEvent: send,
    chatgpt: ChatGPT.credentials,
    version: app.getVersion(),
-   apiUrl: isKimchi ? (request.apiUrl || KIMCHI_CONFIG.apiUrl) : undefined,
-   headers: isKimchi ? KIMCHI_CONFIG.headers : undefined,
-   extraBody: isKimchi ? KIMCHI_CONFIG.extraBody : undefined,
+   apiUrl: isKimchi ? (request.apiUrl || KIMCHI_CONFIG.apiUrl) : isCommandCode ? (request.apiUrl || COMMANDCODE_CONFIG.apiUrl) : undefined,
+   headers: isKimchi ? KIMCHI_CONFIG.headers : isCommandCode ? COMMANDCODE_CONFIG.headers : undefined,
+   extraBody: isKimchi ? KIMCHI_CONFIG.extraBody : isCommandCode ? COMMANDCODE_CONFIG.extraBody : undefined,
   });
   console.log(`[LLM:done] Request ${id} completed successfully.`);
   send({ type: 'done', result });
@@ -66,10 +74,11 @@ function register(fromApp) {
  ipcMain.handle('llm:models', async (event, provider, key, apiUrl) => {
   if (!fromApp(event) || !PROVIDERS.has(provider)) return { models: [] };
   const isKimchi = provider === 'kimchi';
+  const isCommandCode = provider === 'commandcode';
   try {
    return {
     models: await engine(provider).models(
-     { provider, key, apiUrl: isKimchi ? (apiUrl || KIMCHI_CONFIG.apiUrl) : undefined, headers: isKimchi ? KIMCHI_CONFIG.headers : undefined, preset: isKimchi ? KIMCHI_CONFIG.preset : undefined },
+     { provider, key, apiUrl: isKimchi ? (apiUrl || KIMCHI_CONFIG.apiUrl) : isCommandCode ? (apiUrl || COMMANDCODE_CONFIG.apiUrl) : undefined, headers: isKimchi ? KIMCHI_CONFIG.headers : isCommandCode ? COMMANDCODE_CONFIG.headers : undefined, preset: isKimchi ? KIMCHI_CONFIG.preset : isCommandCode ? COMMANDCODE_CONFIG.preset : undefined },
      { chatgpt: ChatGPT.credentials, version: app.getVersion() }
     )
    };
