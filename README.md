@@ -1,5 +1,7 @@
 # OpenGhost
 
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5)
+
 **v1.3.0 beta**
 
 [Windows version 1.3.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.3.0/OpenGhost-1.3.0-Setup.exe)
