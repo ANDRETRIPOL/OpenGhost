@@ -2,24 +2,27 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5)
 
-**v1.3.0 beta**
+**v1.4.0 beta**
 
-[Windows version 1.3.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.3.0/OpenGhost-1.3.0-Setup.exe)
+[Windows version 1.4.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.0/OpenGhost-1.4.0-Setup.exe)
 
-[Linux version 1.3.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.3.0/OpenGhost-1.3.0-linux.tar.gz)
+[Linux version 1.4.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.0/OpenGhost-1.4.0-linux.tar.gz)
 
-[macOS version 1.3.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.3.0/OpenGhost-1.3.0-mac.dmg)
+[macOS version 1.4.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.0/OpenGhost-1.4.0-mac.dmg)
 
 What's new:
-- A rebuilt drawing engine. Charts and diagrams have a new, restrained look at the size of the chat's text, and the engine now knows 43 kinds of drawings: finance, sport, food and recipes, documents, languages, PC builds, device settings, trips, code and more. A reply carries several drawings, each made for its subject.
-- Photos and videos in replies. The agent finds pictures and YouTube videos itself and shows them as a stack to leaf through and as cards with previews.
-- Chats without a folder. Just start typing: the chat goes to Chats at the top of the list.
-- Send videos. A video attaches like a photo, and the agent watches it frame by frame.
-- Chat stats and Compact chat in the plus menu: what the chat has spent by reply and by model, how much of it came from the cache, and one click to free the context of a long chat.
-- Mini chat keeps its conversation: it is saved with the chat it was opened over.
-- PDFs are read: in attachments, in your files and by the agent.
-- More stable and cheaper: the providers' cache works in every chat, a long chat is compacted by the window of its own model, and the model lists come from the providers themselves.
-- A new splash, a new window backdrop and a calmer password screen for locked chats.
+- Memory. OpenGhost remembers who you are and how you like things done, and every chat knows it. You read, rewrite and remove the records in Settings, under Memory, or switch it off.
+- AGENTS.md. A project's own instructions are read from its folder, and "remember this for the project" writes them there.
+- A new search. The magnifier, or Ctrl+K, opens a glass panel in the middle of the chat, with the chats it finds under their folders.
+- Two agents at once. Mini chat now floats, can be dragged and resized, and its agent works alongside the chat's own: each has its own browser tab, they know of each other and never change the same file. A mini chat closed at work goes on working.
+- OpenRouter, with its hundreds of models, sorted by company in the model picker.
+- Notes beside a chat, which the agent reads and brings up when their moment comes.
+- PDFs are read by sight: pages with photos, charts, formulas and scans go to the model as pictures.
+- Drafts stay in their own chats and outlive a restart. A chat answered while you were elsewhere gets a blue dot.
+- A message sent while the agent works waits in a dashed outline and can be taken back. A long sent message folds to twelve lines.
+- After a long chat is compacted, the agent keeps its last steps word for word and goes on by itself.
+- Photos open large, and the interface sizes itself to the screen, from a laptop to 5K.
+- Browser fixes: a step stops on Stop and on Take control, and a tab no longer hangs.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
@@ -83,9 +86,23 @@ A new chat needs no folder. Type, and it goes to Chats at the top of the list, w
 
 ![A new chat with the ghost above the composer](images/welcome.jpg)
 
-## Mini chat for a side question
+## It remembers you
 
-Select a passage and open Mini chat over the conversation. It is the same agent, with the current chat as context, and what you write there is kept with the chat.
+Tell OpenGhost about yourself once, in any chat, and every chat knows it: who you are, what you work with, how you like answers. It keeps short records, changes a record when the thing changes instead of writing a second one, and never keeps passwords or the details of one task. Everything it remembers is on one page of the settings, where you can rewrite a record, remove it, add your own, or switch the memory off.
+
+![The Memory page of the settings: what OpenGhost remembers](images/memory.jpg)
+
+A project can have its own instructions too: put an AGENTS.md in its folder, and the agent working there follows it.
+
+## Find a chat
+
+The magnifier, or Ctrl+K, opens a search in the middle of the chat. Type, and the chats it finds come out under it, each under its folder.
+
+![The search panel over a chat](images/search.jpg)
+
+## Mini chat, with an agent of its own
+
+Select a passage and open Mini chat over the conversation. It floats: drag it by its head, pull the arc in its corner to resize it, and keep writing in the chat behind it. Its agent has the current chat as context and works alongside the chat's own agent, in its own browser tab; the two know of each other and never change the same file. Close a mini chat at work and it goes on working.
 
 ![Mini chat over a conversation](images/mini.jpg)
 
@@ -97,7 +114,7 @@ Chat stats, in the plus menu, show what a chat has spent: the tokens of every re
 
 ## Show it a photo, a video, a PDF
 
-Photos, videos and files attach from the plus menu or by a drop. A video comes in like a photo, and the agent watches it frame by frame. A PDF is read as text.
+Photos, videos and files attach from the plus menu or by a drop. A video comes in like a photo, and the agent watches it frame by frame. A PDF is read as text, and its pages with photos, charts, formulas or scans are looked at as pictures.
 
 ## Tell it once, for every chat
 
@@ -113,9 +130,9 @@ Ask waits for approval before commands, file changes, and the web. Auto works in
 
 ## The key stays on this computer
 
-OpenGhost works with ChatGPT, OpenAI, Claude, and DeepSeek: sign in with your ChatGPT account, or connect OpenAI, Claude and DeepSeek with an API key. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
+OpenGhost works with ChatGPT, OpenAI, Claude, DeepSeek and OpenRouter: sign in with your ChatGPT account, or connect OpenAI, Claude, DeepSeek and OpenRouter with an API key. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
 
-![The Providers page of the settings: ChatGPT, OpenAI, Anthropic and DeepSeek](images/settings.jpg)
+![The Providers page of the settings: ChatGPT, OpenAI, Anthropic, DeepSeek and OpenRouter](images/settings.jpg)
 
 ## It opens with the ghost
 
@@ -146,4 +163,4 @@ OpenGhost is free. Testing it on real models costs money for every release, and 
 
 ## Thanks
 
-[@kodachromez](https://github.com/kodachromez) found eight real bugs in a single report, and [@Bruno8R](https://github.com/Bruno8R) noticed that API keys were kept in plain text. All of it is fixed in v1.2.0. Thank you both.
+[@kodachromez](https://github.com/kodachromez) found eight real bugs in a single report, and [@Bruno8R](https://github.com/Bruno8R) noticed that API keys were kept in plain text. All of it is fixed in v1.2.0. @kodachromez then went through 1.3.0 and found where the browser could not be stopped and where a tab hung: fixed in v1.4.0. Thank you both.
