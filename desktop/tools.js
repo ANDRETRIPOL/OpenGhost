@@ -211,11 +211,13 @@ async function cancellable(id, work) {
  }
 }
 
-// The text a file holds. A PDF's comes from the viewer built into the app; any other file is read as it is.
+// The text a file holds. A PDF's comes from the viewer built into the app, with how many pages it has; any other file is
+// read as it is.
 async function fileText(id, full, file, stat) {
  if (Pdf.isPdf(full)) {
-  const text = await cancellable(id, signal => Pdf.text(full, signal));
-  return text ? { text } : { error: `${file} has no text in it: its pages are pictures, such as scans` };
+  const found = await cancellable(id, signal => Pdf.study(full, signal));
+  const pages = found.pages ? ` (${found.pages} ${found.pages === 1 ? 'page' : 'pages'})` : '';
+  return found.text ? { text: found.text, pdf: found.pages } : { error: `${file}${pages} has no text in it: its pages are pictures, such as scans. Look at them with pdf_pages.` };
  }
  if (stat.size > READ.max) return { error: `${file} is ${formatSize(stat.size)}, too big to read at once. Read parts of it with ${SYSTEM.tool} (${SYSTEM.readParts}).` };
  const buffer = await fs.promises.readFile(full);
@@ -238,7 +240,7 @@ async function readFile(id, { path: file, offset, limit }, cwd) {
  const slice = lines.slice(start - 1, start - 1 + count);
  let text = slice.join('\n'), cut = false;
  if (text.length > READ.chars) { text = text.slice(0, READ.chars); cut = true; }
- return { path: full, text, start, end: start - 1 + slice.length, total: lines.length, cut };
+ return { path: full, text, start, end: start - 1 + slice.length, total: lines.length, cut, pdf: found.pdf };
 }
 
 async function writeFile(id, { path: file, content }, cwd) {
@@ -372,9 +374,20 @@ function videoFrames(id, { path: file, count, start, end, times, save_to: saveTo
  return cancellable(id, signal => Media.frames(full, { count, start, end, times, saveTo: folder }, signal));
 }
 
+// Pages of a PDF as pictures: what its text can't carry is there to be seen.
+async function pdfPages(id, { path: file, pages }, cwd) {
+ const full = resolvePath(cwd, file);
+ const stat = await fs.promises.stat(full).catch(error => { throw Object.assign(error, { file }); });
+ if (stat.isDirectory()) return { error: `${file} is a folder` };
+ if (!Pdf.isPdf(full)) return { error: `${file} is not a PDF. Images are looked at with read_file, videos with video_frames.` };
+ const found = await cancellable(id, signal => Pdf.look(full, pages, signal));
+ return { path: full, ...found };
+}
+
 const TOOLS = {
  [SYSTEM.tool]: runShell,
  read_file: readFile,
+ pdf_pages: pdfPages,
  video_frames: videoFrames,
  write_file: writeFile,
  edit_file: editFile,
@@ -425,10 +438,35 @@ async function environment() {
  };
 }
 
+// A project's own instructions for agents: the file AGENTS.md in its folder, the name other coding agents read too.
+// Whatever case the name is written in; a file too long is given up to a limit, and the agent reads the rest itself.
+const GUIDE = { names: ['agents.md', 'agent.md'], bytes: 32 * 1024 };
+async function guide(dir) {
+ if (typeof dir !== 'string' || !path.isAbsolute(dir)) return null;
+ try {
+  const names = await fs.promises.readdir(dir);
+  const name = GUIDE.names.map(wanted => names.find(found => found.toLowerCase() === wanted)).find(Boolean);
+  if (!name) return null;
+  const file = await fs.promises.open(path.join(dir, name), 'r');
+  try {
+   const { size } = await file.stat(), buffer = Buffer.alloc(Math.min(size, GUIDE.bytes));
+   const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+   const text = buffer.toString('utf8', 0, bytesRead).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+   const cut = size > GUIDE.bytes;
+   // A character split by the limit goes with what was cut.
+   return { name, cut, text: (cut ? text.replace(/\uFFFD+$/, '') : text).trim() };
+  } finally {
+   await file.close();
+  }
+ } catch {
+  return null;
+ }
+}
+
 // A deleted chat takes its own folder along only while nothing is in it: what the agent made there stays the user's.
 async function release(dir) {
  if (typeof dir !== 'string' || !path.isAbsolute(dir) || !inChats(dir)) return false;
  return fs.promises.rmdir(dir).then(() => true, () => false);
 }
 
-module.exports = { runTool, cancel, cancelAll, environment, release, CHATS };
+module.exports = { runTool, cancel, cancelAll, environment, guide, release, CHATS };

@@ -1,6 +1,6 @@
 'use strict';
 
-// The API keys for OpenAI, Anthropic and DeepSeek, kept like the ChatGPT sign-in: in the main process, encrypted with the OS keychain.
+// The API keys for OpenAI, Anthropic, DeepSeek and OpenRouter, kept like the ChatGPT sign-in: in the main process, encrypted with the OS keychain.
 // They are read once before the window opens, so the page gets them at once and the keychain is never asked mid-animation.
 // The file is under a kilobyte, so it is read and written at once: the main process can pick up the thread pool's answers,
 // and even its own timers, late when a page's request set them off.
@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app, ipcMain, safeStorage } = require('electron');
 
-const PROVIDERS = new Set(['openai', 'anthropic', 'deepseek']);
+const PROVIDERS = new Set(['openai', 'anthropic', 'deepseek', 'openrouter']);
 // Windows can refuse for a moment to replace a file something still has open, as an antivirus scan does right after a write.
 const RETRY = { times: 6, wait: 15, codes: new Set(['EPERM', 'EACCES', 'EBUSY']) };
 

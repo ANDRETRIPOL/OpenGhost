@@ -57,6 +57,7 @@ class AppearanceSettings {
   document.addEventListener('pointermove', event => { if (this.held && !within(this.held, event)) this.hold(null); });
   document.addEventListener('pointerout', event => { if (!event.relatedTarget) this.hold(null); });
   this.paint();
+  if (window.openghost?.size) new SizeSettings(root, window.openghost.size);
  }
 
  paint() {
@@ -91,6 +92,73 @@ class AppearanceSettings {
   const next = this.options[(at + step + this.options.length) % this.options.length];
   next.focus();
   this.pick(next);
+ }
+}
+
+// Settings → Appearance → Size: how large the app is drawn. The main process fits it to the screen by itself (desktop/size.js);
+// the steps pick a size by hand, and Fit screen hands it back. The keys Ctrl + / Ctrl − / Ctrl 0 change the same thing.
+const MINUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8h9"/></svg>';
+const PLUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9"/></svg>';
+const SHIFT = { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
+
+class SizeSettings {
+ constructor(root, bridge) {
+  this.bridge = bridge;
+  this.state = null;
+  const mac = window.openghost?.platform === 'darwin', key = mac ? '⌘' : 'Ctrl';
+  const hint = I18n.t('settings.size.hint', { plus: `${key} +`, minus: `${key} −`, zero: `${key} 0` });
+  root.insertAdjacentHTML('beforeend', `
+   <div class="settings-row size-row">
+    <div class="settings-text">
+     <span class="settings-label" id="size-label">${escapeHtml(I18n.t('settings.size'))}</span>
+     <p class="settings-hint">${escapeHtml(hint)}</p>
+    </div>
+    <div class="size-control" role="group" aria-labelledby="size-label">
+     <button type="button" class="settings-button size-auto" aria-pressed="false">${escapeHtml(I18n.t('settings.size.auto'))}</button>
+     <button type="button" class="size-step" data-step="-1" aria-label="${escapeHtml(I18n.t('settings.size.smaller'))}">${MINUS}</button>
+     <span class="size-value" aria-live="polite"><span class="size-number"></span></span>
+     <button type="button" class="size-step" data-step="1" aria-label="${escapeHtml(I18n.t('settings.size.larger'))}">${PLUS}</button>
+    </div>
+   </div>`);
+  const row = root.querySelector('.size-row');
+  this.auto = row.querySelector('.size-auto');
+  this.value = row.querySelector('.size-value');
+  this.steps = [...row.querySelectorAll('.size-step')];
+  this.auto.addEventListener('click', () => this.state?.choice !== 'auto' && this.set('auto'));
+  for (const button of this.steps) button.addEventListener('click', () => this.step(+button.dataset.step));
+  bridge.onChange(state => this.render(state));
+  bridge.get().then(state => state && this.render(state), () => {});
+ }
+
+ step(direction) {
+  const { sizes, zoom } = this.state || {};
+  if (!sizes) return;
+  const next = direction > 0 ? sizes.find(size => size > zoom + 0.001) : sizes.findLast(size => size < zoom - 0.001);
+  if (next) this.set(next);
+ }
+
+ set(choice) {
+  this.bridge.set(choice).then(state => state && this.render(state), () => {});
+ }
+
+ render(state) {
+  const before = this.state;
+  this.state = state;
+  const percent = `${Math.round(state.zoom * 100)}%`, number = this.value.querySelector('.size-number');
+  this.auto.setAttribute('aria-pressed', String(state.choice === 'auto'));
+  this.auto.classList.toggle('is-primary', state.choice === 'auto');
+  this.steps[0].disabled = state.zoom <= state.sizes[0] + 0.001;
+  this.steps[1].disabled = state.zoom >= state.sizes.at(-1) - 0.001;
+  if (number.textContent === percent) return;
+  // The number rolls the way the size went: up for larger, down for smaller.
+  if (before && number.textContent && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+   const old = number.cloneNode(true), dir = state.zoom > before.zoom ? -1 : 1;
+   old.classList.add('is-leaving');
+   number.before(old);
+   old.animate({ transform: ['none', `translateY(${dir * 70}%)`], opacity: [1, 0] }, SHIFT).finished.then(() => old.remove(), () => old.remove());
+   number.animate({ transform: [`translateY(${-dir * 70}%)`, 'none'], opacity: [0, 1] }, SHIFT);
+  }
+  number.textContent = percent;
  }
 }
 

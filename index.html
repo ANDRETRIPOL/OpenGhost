@@ -18,11 +18,7 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <div class="sidebar-search">
-          <search-button class="sidebar-search-button"></search-button>
-          <input class="sidebar-search-input" type="text" placeholder="Search" aria-label="Search chats" aria-keyshortcuts="Control+K Meta+K" data-i18n-attr="placeholder:search;aria-label:search.label" autocomplete="off" spellcheck="false" inert>
-          <button class="sidebar-search-clear" type="button" tabindex="-1" aria-label="Clear search" data-i18n-attr="aria-label:search.clear">
-            <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1.5 1.5l5 5M6.5 1.5l-5 5"/></svg>
-          </button>
+          <search-button class="sidebar-search-button" aria-keyshortcuts="Control+K Meta+K"></search-button>
         </div>
         <add-button class="sidebar-new-chat" label="New chat" data-i18n-attr="label:chat.new"></add-button>
       </div>
@@ -35,7 +31,11 @@
       </div>
     </aside>
     <main class="main is-empty">
-      <sidebar-toggle class="sidebar-toggle"></sidebar-toggle>
+      <div class="top-tools glass-lens">
+        <sidebar-toggle class="sidebar-toggle"></sidebar-toggle>
+        <notes-button class="notes-toggle" hidden></notes-button>
+        <button type="button" class="mini-toggle" hidden></button>
+      </div>
       <browser-toggle class="browser-toggle" hidden></browser-toggle>
       <div class="thread-view">
         <div class="thread">
@@ -106,6 +106,10 @@
           <svg class="settings-tab-icon is-sliders" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="slide-a1" d="M38 47H46"/><path class="slide-a2" d="M58 47H82"/><path class="slide-b1" d="M38 73H62"/><path class="slide-b2" d="M74 73H82"/><circle class="knob-a" cx="52" cy="47" r="6"/><circle class="knob-b" cx="68" cy="73" r="6"/></svg>
           <span data-i18n="settings.general">General</span>
         </button>
+        <button type="button" class="settings-tab" role="tab" data-page="memory" aria-controls="settings-memory" aria-selected="false" tabindex="-1">
+          <svg class="settings-tab-icon is-memory" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="memo-leaf" d="M42 37h36v46l-18-13.5L42 83z"/><path class="memo-line" d="M52 51h16"/></svg>
+          <span data-i18n="settings.memory">Memory</span>
+        </button>
         <button type="button" class="settings-tab" role="tab" data-page="providers" aria-controls="settings-providers" aria-selected="false" tabindex="-1">
           <svg class="settings-tab-icon is-plug" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="plug"><path d="M52 36v10M68 36v10"/><path d="M44 46h32v7a15 15 0 0 1-15 15h-2a15 15 0 0 1-15-15z"/></g><path d="M60 68v8a6 6 0 0 1-6 6h-4"/></svg>
           <span data-i18n="settings.providers">Providers</span>
@@ -126,6 +130,7 @@
         <close-button class="settings-close"></close-button>
       </header>
       <div class="settings-panel" id="settings-general" role="tabpanel" data-page="general" aria-labelledby="settings-page-title"></div>
+      <div class="settings-panel" id="settings-memory" role="tabpanel" data-page="memory" aria-labelledby="settings-page-title" hidden></div>
       <div class="settings-panel" id="settings-providers" role="tabpanel" data-page="providers" aria-labelledby="settings-page-title" hidden>
         <p class="settings-lead" data-i18n="settings.lead">Connect the services whose models OpenGhost can use. Keys and sign-ins stay on this computer.</p>
         <div class="settings-providers"></div>
@@ -148,9 +153,9 @@
   <script src="icon-button.js"></script>
   <script src="sidebar-toggle.js"></script>
   <script src="browser-toggle.js"></script>
+  <script src="notes-button.js"></script>
   <script src="add-button.js"></script>
   <script src="search-button.js"></script>
-  <script src="search-field.js"></script>
   <script src="settings-button.js"></script>
   <script src="close-button.js"></script>
   <script src="clear-button.js"></script>
@@ -160,6 +165,9 @@
   <script src="scrollbar.js"></script>
   <script src="smooth-height.js"></script>
   <script src="link-chip.js"></script>
+  <script src="dust.js"></script>
+  <script src="queued-ring.js"></script>
+  <script src="message-fold.js"></script>
   <script src="composer-text.js"></script>
   <script src="send-button.js"></script>
   <script src="scroll-button.js"></script>
@@ -175,6 +183,7 @@
   <script src="attachment-reader.js"></script>
   <script src="attachments.js"></script>
   <script src="media-slider.js"></script>
+  <script src="photo-viewer.js"></script>
   <script src="media-embed.js"></script>
   <script src="settings.js"></script>
   <script src="settings-general.js"></script>
@@ -189,6 +198,8 @@
   <script src="usage.js"></script>
   <script src="settings-usage.js"></script>
   <script src="user-context.js"></script>
+  <script src="memory.js"></script>
+  <script src="settings-memory.js"></script>
   <script src="chat-lock.js"></script>
   <script src="library.js"></script>
   <script src="agent-tools.js"></script>
@@ -197,8 +208,10 @@
   <script src="stats-card.js"></script>
   <script src="chat.js"></script>
   <script src="chat-list.js"></script>
+  <script src="spotlight.js"></script>
   <script src="folder-pill.js"></script>
   <script src="dock.js"></script>
+  <script src="notepad.js"></script>
   <script src="mode-picker.js"></script>
   <script src="add-menu.js"></script>
   <script src="model-stage.js"></script>

@@ -18,6 +18,17 @@ contextBridge.exposeInMainWorld('openghost', {
  releaseFolder: folder => ipcRenderer.invoke('folder:release', folder),
  setTitleBar: (color, symbols) => ipcRenderer.send('window:titlebar', color, symbols),
  setTheme: choice => ipcRenderer.invoke('theme:set', choice),
+ // How large the app is drawn: fitted to the screen ('auto') or a size picked by hand (see desktop/size.js).
+ size: {
+  get: () => ipcRenderer.invoke('size:get'),
+  set: choice => ipcRenderer.invoke('size:set', choice),
+  onChange: callback => ipcRenderer.on('size:changed', (event, state) => callback(state)),
+ },
+ // On a Mac: whether the system lets the app into every folder without asking, and the system's page where that is set.
+ access: {
+  state: () => ipcRenderer.invoke('access:state'),
+  open: () => ipcRenderer.invoke('access:open'),
+ },
  store: {
   read: key => ipcRenderer.invoke('store:read', key),
   write: (key, value) => ipcRenderer.invoke('store:write', key, value),
@@ -27,6 +38,7 @@ contextBridge.exposeInMainWorld('openghost', {
   run: (id, name, args, cwd) => ipcRenderer.invoke('tool:run', id, name, args, cwd),
   cancel: id => ipcRenderer.invoke('tool:cancel', id),
   environment: () => ipcRenderer.invoke('tool:environment'),
+  guide: folder => ipcRenderer.invoke('tool:guide', folder),
  },
  browser: {
   onEvent: callback => ipcRenderer.on('browser:event', (event, data) => callback(data)),
@@ -37,6 +49,7 @@ contextBridge.exposeInMainWorld('openghost', {
   abort: id => ipcRenderer.send('llm:abort', id),
   onEvent: callback => ipcRenderer.on('llm:event', (event, data) => callback(data)),
   models: (provider, key) => ipcRenderer.invoke('llm:models', provider, key),
+  account: (provider, key) => ipcRenderer.invoke('llm:account', provider, key),
  },
  // The keys come from the main process's memory, read before the window opened, so asking for them never waits on the disk.
  keys: {

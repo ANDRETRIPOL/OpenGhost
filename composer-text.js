@@ -177,6 +177,31 @@ class ComposerText {
   input.setSelectionRange(input.value.length, input.value.length);
  }
 
+ // A message taken back to be rewritten goes in as it was written, its quotes and links as chips again, ahead of whatever
+ // the field holds by now, and the caret stands at the end of it.
+ restore(text, quotes = []) {
+  const input = this.input;
+  input.focus({ preventScroll: true });
+  if (this.plain) {
+   // The plain field has no chips, so there a quote goes in as the Markdown it stands for.
+   const whole = [...quotes.map(quote => quote.split('\n').map(line => `> ${line}`.trimEnd()).join('\n')), text].filter(Boolean).join('\n\n');
+   input.setSelectionRange(0, 0);
+   this.place(this.value.trim() ? `${whole}\n\n` : whole);
+   return;
+  }
+  for (const quote of quotes) this.insertQuote(quote);
+  if (!text) return;
+  let at = 0;
+  for (const link of this.links) if (link.kind === 'quote' && link.from === at) at = link.to + (this.value[link.to] === ' ' ? 1 : 0);
+  const gap = this.value.slice(at).trim() ? '\n\n' : '';
+  if (lineCount(text) > LONG_LINES) {
+   input.setSelectionRange(at, at);
+   this.place(text + gap);
+  } else this.insertLinks(text + gap, at, at);
+  const end = input.selectionStart - gap.length;
+  input.setSelectionRange(end, end);
+ }
+
  // The text with every link in it swapped for a chip's piece, and the chips with where they sit in it.
  chipped(text) {
   const tokens = [];

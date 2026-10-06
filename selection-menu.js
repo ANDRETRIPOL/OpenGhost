@@ -124,7 +124,7 @@ class SelectionMenu {
   this.range = range;
   this.box = box;
   this.text = text;
-  this.mini.hidden = this.divider.hidden = !!box.closest('dialog');
+  this.mini.hidden = this.divider.hidden = !!box.closest('dialog, .mini');
   if (this.el.parentElement !== thread) {
    this.el.classList.remove('is-shown');
    thread.append(this.el);

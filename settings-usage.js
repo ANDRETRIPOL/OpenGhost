@@ -3,10 +3,11 @@
 
 // Settings → Usage. On top, the tokens sent and written back today, over 7 and 30 days and all the time, each split by provider,
 // and a column for each of the last 30 days. Below, a section for every provider in use: for the ChatGPT sign-in its plan and
-// limits as ChatGPT counts them, for DeepSeek the balance on the account, and for each the tokens, the cache and the models.
+// limits as ChatGPT counts them, for DeepSeek the balance on the account, for OpenRouter what its key has spent or has
+// left, and for each the tokens, the cache and the models.
 const PERIODS = [['today', 1], ['week', 7], ['month', 30], ['all', 0]];
-const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek'];
-const TONES = { chatgpt: 'turquoise', openai: 'lilac', anthropic: 'orange', deepseek: 'blue' };
+const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek', 'openrouter'];
+const TONES = { chatgpt: 'turquoise', openai: 'lilac', anthropic: 'orange', deepseek: 'blue', openrouter: 'pink' };
 const PLANS = {
  free: 'Free', go: 'Go', plus: 'Plus', prolite: 'Pro 5x', pro: 'Pro 20x', team: 'Team', business: 'Business',
  self_serve_business_usage_based: 'Business', enterprise: 'Enterprise', enterprise_cbp_usage_based: 'Enterprise', edu: 'Edu',
@@ -101,6 +102,7 @@ class UsageSettings {
   this.dialog = dialog;
   this.limits = { state: 'idle', data: null };
   this.balance = null;
+  this.credits = null;
   this.visible = false;
   this.timer = 0;
   this.entering = 0;
@@ -189,11 +191,22 @@ class UsageSettings {
  }
 
  async loadBalance() {
+  this.loadCredits();
   const key = this.settings.keys.deepseek;
   if (!key) { this.balance = null; return; }
   const list = await DeepSeek.balance(key).catch(() => null);
   if (!this.visible || !list) return;
   this.balance = list;
+  this.paintBalance();
+ }
+
+ // What OpenRouter tells the key of itself: what it has spent, and what it may still spend where a limit is set on it.
+ async loadCredits() {
+  const key = this.settings.keys.openrouter;
+  if (!key) { this.credits = null; return; }
+  const account = await Providers.account('openrouter', key);
+  if (!this.visible || !account) return;
+  this.credits = account;
   this.paintBalance();
  }
 
@@ -355,9 +368,14 @@ class UsageSettings {
 
  // DeepSeek's own figure for what is left on the account.
  paintBalance() {
-  if (!this.balance?.length) return;
-  const amount = this.balance.map(item => new Intl.NumberFormat(I18n.lang, { style: 'currency', currency: item.currency }).format(item.total)).join(' · ');
-  this.account('deepseek', I18n.t('usage.balance'), amount);
+  const money = (value, currency) => new Intl.NumberFormat(I18n.lang, { style: 'currency', currency }).format(value);
+  if (this.balance?.length) this.account('deepseek', I18n.t('usage.balance'), this.balance.map(item => money(item.total, item.currency)).join(' · '));
+  // OpenRouter counts in dollars. An account that never bought credits is on the free models only, and a limit on its
+  // key is no money; otherwise a key with a limit shows what is left of it, and one without, what it has spent.
+  const { free = false, left = null, spent = null } = this.credits || {};
+  if (free) this.account('openrouter', I18n.t('usage.plan'), I18n.t('usage.freeTier'));
+  else if (left !== null) this.account('openrouter', I18n.t('usage.left'), money(left, 'USD'));
+  else if (spent) this.account('openrouter', I18n.t('usage.spent'), money(spent, 'USD'));
  }
 
  // A fact about the account at the right of the provider's name: a quiet label and its value.

@@ -24,6 +24,7 @@ class WelcomeGhost {
   this.shown = false;
   this.generation = 0;
   this.timer = 0;
+  this.frame = 0;
   new MutationObserver(() => this.sync()).observe(main, { attributes: true, attributeFilter: ['class'] });
   window.addEventListener('pointermove', event => this.lookAt(event.clientX, event.clientY), { passive: true });
   input.addEventListener('input', () => {
@@ -59,16 +60,22 @@ class WelcomeGhost {
    return;
   }
   this.root.classList.replace('is-shown', 'is-flying');
+  // The welcome stands where the composer's height puts it, and a long message leaves a shorter composer behind: its place
+  // is held for the flight. Wherever the agent's ghost moves meanwhile, the flight bends to meet it (see follow).
+  this.root.style.top = `${this.root.offsetTop}px`;
+  this.root.style.left = `${this.root.offsetLeft}px`;
   status.classList.add('is-arriving');
   for (const animation of status.getAnimations()) animation.finish();
-  const from = this.flight.getBoundingClientRect(), to = status.querySelector('ghost-thinking').getBoundingClientRect();
+  const target = status.querySelector('ghost-thinking');
+  const from = this.flight.getBoundingClientRect(), to = target.getBoundingClientRect();
   const dx = to.left + to.width / 2 - (from.left + from.width / 2), dy = to.top + to.height / 2 - (from.top + from.height / 2);
   const timing = { duration: FLIGHT.duration, fill: 'forwards' }, len = Math.hypot(dx, dy) || 1;
   ghost.look(dx / len * EYES.x, dy / len * EYES.up, FLIGHT.duration);
   const flight = this.root.animate({ translate: ['0 0', `${dx}px 0`] }, { ...timing, easing: FLIGHT.x });
-  this.flight.animate({ translate: ['0 0', `0 ${dy}px`] }, { ...timing, easing: FLIGHT.y });
+  const fall = this.flight.animate({ translate: ['0 0', `0 ${dy}px`] }, { ...timing, easing: FLIGHT.y });
   this.flight.animate({ scale: [1, to.width / from.width] }, { ...timing, easing: FLIGHT.scale });
   this.flight.animate({ rotate: ['0deg', `${Math.sign(dx) * FLIGHT.tilt}deg`, '0deg'], offset: [0, 0.4, 1] }, { duration: FLIGHT.duration, easing: 'ease-in-out' });
+  this.follow(generation, target, to, flight, fall);
   flight.finished.then(() => {
    if (generation !== this.generation) return;
    status.classList.remove('is-arriving');
@@ -76,6 +83,19 @@ class WelcomeGhost {
     if (generation === this.generation) this.reset();
    });
   }).catch(() => {});
+ }
+
+ // How far the agent's ghost has moved since the flight set off, added in step with the flight along each axis, so the
+ // welcome lands on it wherever it is now and stays on it while it fades.
+ follow(generation, target, to, flight, fall) {
+  const step = () => {
+   if (generation !== this.generation) return;
+   const now = target.getBoundingClientRect(), x = now.left - to.left, y = now.top - to.top;
+   const along = animation => animation.effect.getComputedTiming().progress ?? 1;
+   this.root.style.transform = x || y ? `translate(${x * along(flight)}px, ${y * along(fall)}px)` : '';
+   this.frame = requestAnimationFrame(step);
+  };
+  this.frame = requestAnimationFrame(step);
  }
 
  status() {
@@ -86,6 +106,8 @@ class WelcomeGhost {
  reset() {
   this.generation++;
   clearTimeout(this.timer);
+  cancelAnimationFrame(this.frame);
+  this.root.style.top = this.root.style.left = this.root.style.transform = '';
   for (const animation of this.root.getAnimations({ subtree: true })) animation.cancel();
   for (const status of this.main.querySelectorAll('.message-status.is-arriving')) status.classList.remove('is-arriving');
   this.root.classList.remove('is-shown', 'is-leaving', 'is-flying');

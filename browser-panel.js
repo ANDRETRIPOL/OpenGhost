@@ -5,6 +5,8 @@ const PARTITION = 'persist:browser';
 const STORE = 'openghost.browser';
 const ACCOUNTS = 'openghost.browser.accounts';
 const TABS_MAX = 12;
+// How long a new tab may take to start its page; longer than the agent waits for any page to load.
+const READY_WAIT = 45000;
 const WIDTH = { share: 0.44, min: 360, chat: 400 };
 const CURSOR = { hide: 2600 };
 const TOAST_TIME = 4200;
@@ -27,10 +29,11 @@ const ICONS = {
 const read = key => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } };
 const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
 
-function element(tag, className, html) {
+// `text` is shown as written, never read as markup: parts of a page's address come through here.
+function element(tag, className, text) {
  const el = document.createElement(tag);
  if (className) el.className = className;
- if (html !== undefined) el.innerHTML = html;
+ if (text !== undefined) el.textContent = text;
  return el;
 }
 
@@ -60,10 +63,18 @@ class BrowserPanel {
   this.tabs = [];
   this.active = null;
   this.open = false;
-  this.drivers = new Set();
+  // The agents at work in the browser now: each chat's conversation, with whether it works apart, in a tab of its own.
+  this.drivers = new Map();
+  // An agent that works apart (a mini chat's) and the tab it works in; and the tab the chat's agent keeps to while a tab
+  // like that is the one on screen.
+  this.seats = new Map();
+  this.home = null;
   this.control = 'agent';
   this.lent = null;
   this.waiters = [];
+  // The agent's steps running in the browser now, and those of them the user cut by taking control.
+  this.steps = new Set();
+  this.cut = new Set();
   this.cursorAt = null;
   this.accounts = read(ACCOUNTS) || [];
   const saved = read(STORE) || {};
@@ -234,13 +245,20 @@ class BrowserPanel {
   view.setAttribute('src', url || 'about:blank');
   tab.view = view;
   tab.url = blank(url) ? tab.url : url;
-  tab.ready = new Promise(resolve => {
+  // A tab whose page never starts (its process died, or nothing came in time) says so instead of holding the agent.
+  tab.ready = new Promise((resolve, reject) => {
+   const fail = () => { clearTimeout(timer); reject(new Error('The browser tab did not start. Try the step again.')); };
+   const timer = setTimeout(fail, READY_WAIT);
+   tab.fail = fail;
    view.addEventListener('dom-ready', () => {
+    clearTimeout(timer);
     tab.id = view.getWebContentsId();
     this.report();
     resolve(tab);
    }, { once: true });
+   view.addEventListener('render-process-gone', fail, { once: true });
   });
+  tab.ready.catch(() => {});
   const update = () => { this.render(); if (tab === this.active) this.syncBar(); };
   view.addEventListener('did-start-loading', () => { tab.loading = true; tab.error = ''; update(); });
   view.addEventListener('did-stop-loading', () => {
@@ -269,20 +287,29 @@ class BrowserPanel {
 
  select(tab, { lazy = false } = {}) {
   this.active = tab;
+  if (tab && !tab.owner) this.home = tab;
   for (const item of this.tabs) item.view?.classList.toggle('is-active', item === tab);
   if (tab && !tab.view && !blank(tab.url) && !lazy && this.open) this.createView(tab, tab.url);
   this.render();
   this.syncBar();
   if (!lazy) this.save();
   this.report();
+  this.sync();
  }
 
  close(tab, { quiet = false } = {}) {
   const at = this.tabs.indexOf(tab);
   if (at < 0) return;
   this.tabs.splice(at, 1);
+  tab.fail?.();
   tab.view?.remove();
   tab.el?.remove();
+  // An agent whose own tab is closed goes on in another of its tabs, or opens a new one on its next step.
+  if (tab.owner && this.seats.get(tab.owner) === tab) {
+   const other = this.tabs.find(item => item.owner === tab.owner);
+   if (other) this.seats.set(tab.owner, other);
+   else this.seats.delete(tab.owner);
+  }
   if (this.active === tab) this.select(this.tabs[Math.min(at, this.tabs.length - 1)] || null);
   if (!quiet) { this.render(); this.save(); }
  }
@@ -304,11 +331,13 @@ class BrowserPanel {
   const list = this.list;
   for (const tab of this.tabs) {
    if (!tab.el) {
-    tab.el = element('div', 'browser-tab', `<span class="browser-tab-icon"></span><span class="browser-tab-title"></span><button type="button" class="browser-tab-close" tabindex="-1" aria-label="${I18n.t('browser.closeTab')}">${ICONS.close}</button>`);
+    tab.el = element('div', 'browser-tab');
+    tab.el.innerHTML = `<span class="browser-tab-icon"></span><span class="browser-tab-mini" aria-hidden="true">${Glyphs.ghost}</span><span class="browser-tab-title"></span><button type="button" class="browser-tab-close" tabindex="-1" aria-label="${I18n.t('browser.closeTab')}">${ICONS.close}</button>`;
     tab.el.setAttribute('role', 'tab');
     if (!reducedMotion()) tab.el.animate([{ opacity: 0, transform: 'translateY(4px) scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: EASE });
    }
    const title = tab.title || (blank(tab.url) ? I18n.t('browser.newTab') : hostOf(tab.url) || tab.url);
+   tab.el.classList.toggle('is-mini', !!tab.owner);
    tab.el.querySelector('.browser-tab-title').textContent = title;
    tab.el.title = blank(tab.url) ? title : `${title}\n${tab.url}`;
    tab.el.classList.toggle('is-active', tab === this.active);
@@ -439,12 +468,54 @@ class BrowserPanel {
   write(ACCOUNTS, this.accounts);
  }
 
- drive(key, on) {
+ // `apart`: the agent works in a tab of its own (a mini chat's), not in the one on screen.
+ drive(key, on, apart = false) {
   const had = this.drivers.size > 0;
-  if (on) this.drivers.add(key);
+  if (on) this.drivers.set(key, apart);
   else this.drivers.delete(key);
   if (!this.drivers.size) { this.control = 'agent'; this.release(); }
-  if (on && !had && this.control === 'agent') this.active?.view?.blur();
+  // The keyboard leaves the page on screen only for an agent that works in it.
+  if (on && !had && this.control === 'agent' && this.current(apart ? key : null) === this.active) this.active?.view?.blur();
+  this.sync();
+ }
+
+ // Where an agent works. The chat's agent works in the tab on screen, as ever. An agent that works apart has a tab of its
+ // own, opened behind the others on its first step, so both can use the browser at the same time. While such a tab is
+ // the one on screen, the chat's agent keeps to the tab that was there before it.
+ current(seat) {
+  if (seat) {
+   const tab = this.seats.get(seat);
+   return tab && this.tabs.includes(tab) ? tab : null;
+  }
+  if (!this.active?.owner) return this.active;
+  return (this.home && this.tabs.includes(this.home) && !this.home.owner ? this.home : this.tabs.find(tab => !tab.owner)) || null;
+ }
+
+ target(seat) {
+  let tab = this.current(seat);
+  if (tab) return tab;
+  if (!seat && !this.active) return this.newTab('', { focus: false });
+  tab = this.addTab('');
+  if (seat) {
+   tab.owner = seat;
+   this.seats.set(seat, tab);
+  } else this.home = tab;
+  this.settle(tab);
+  return tab;
+ }
+
+ // A tab opened behind the others stays there, unless nothing is on screen: then it is what the user sees.
+ settle(tab) {
+  if (!this.active) this.select(tab);
+  this.render();
+  this.sync();
+ }
+
+ // An agent that worked apart is gone: its tabs stay, as the user's own.
+ vacate(seat) {
+  for (const tab of this.tabs) if (tab.owner === seat) tab.owner = null;
+  this.seats.delete(seat);
+  this.render();
   this.sync();
  }
 
@@ -452,8 +523,10 @@ class BrowserPanel {
   return this.control === 'user' && this.drivers.size > 0;
  }
 
+ // The step the agent is in the middle of stops here: what it had not yet done to the page is not done.
  take() {
   this.control = 'user';
+  for (const id of this.steps) { this.cut.add(id); tools?.cancel(id); }
   this.sync();
   this.active?.view?.focus();
  }
@@ -467,6 +540,11 @@ class BrowserPanel {
   this.release();
  }
 
+ // Whether the user took the browser while this step of the agent's was running. Asked once.
+ took(id) {
+  return this.cut.delete(id);
+ }
+
  waitForAgent() {
   return new Promise(resolve => this.waiters.push(resolve));
  }
@@ -477,39 +555,65 @@ class BrowserPanel {
 
  sync() {
   const driving = this.drivers.size > 0;
+  // The tabs agents work in; one of them not on screen is kept alive behind the one that is.
+  const worked = new Set([...this.drivers].map(([key, apart]) => this.current(apart ? key : null)));
+  for (const tab of this.tabs) tab.view?.classList.toggle('is-worked', tab !== this.active && worked.has(tab));
+  // The bar with Take control shows over the page an agent works in, not over the user's own while an agent works apart.
+  const shown = worked.has(this.active) && !!this.active;
   this.root.classList.toggle('is-agent', driving);
-  this.root.classList.toggle('is-driving', driving && this.control === 'agent');
+  this.root.classList.toggle('is-driving', shown && this.control === 'agent');
   this.root.classList.toggle('is-user', driving && this.control === 'user');
   this.toggle.toggleAttribute('live', driving);
  }
 
- async ensure() {
-  let tab = this.active;
-  if (!tab) tab = this.newTab('', { focus: false });
-  if (!tab.view) this.createView(tab, blank(tab.url) ? 'about:blank' : tab.url);
-  await tab.ready;
+ async ensure(seat) {
+  const tab = this.target(seat);
+  if (!tab.view) {
+   this.createView(tab, blank(tab.url) ? 'about:blank' : tab.url);
+   this.sync();
+  }
+  try {
+   await tab.ready;
+  } catch (error) {
+   // The next step starts the tab anew.
+   if (this.tabs.includes(tab) && tab.view) { tab.view.remove(); tab.view = null; tab.id = 0; }
+   throw error;
+  }
   return tab;
  }
 
- tabsText() {
+ // The tabs as the agent `seat` is told of them (the chat's agent when there is no seat). With no tab of an agent apart
+ // among them this reads as it always has.
+ tabsText(seat) {
   if (!this.tabs.length) return 'No tabs are open.';
-  return this.tabs.map((tab, k) => `${k + 1}. ${tab.title || (blank(tab.url) ? 'New tab' : hostOf(tab.url))}${blank(tab.url) ? '' : ` (${tab.url})`}${tab === this.active ? ' active' : ''}`).join('\n');
+  const mine = this.current(seat), apart = this.tabs.some(tab => tab.owner);
+  const mark = tab => {
+   if (!apart) return tab === this.active ? ' active' : '';
+   if (seat) return tab.owner === seat ? (tab === mine ? ' — your own tab, the one you work in' : ' — your own tab') : ' — not yours, leave it alone';
+   return tab.owner ? ' — the mini chat\'s own tab, leave it to it' : tab === mine ? ' active' : '';
+  };
+  return this.tabs.map((tab, k) => `${k + 1}. ${tab.title || (blank(tab.url) ? 'New tab' : hostOf(tab.url))}${blank(tab.url) ? '' : ` (${tab.url})`}${mark(tab)}`).join('\n');
  }
 
  // A click of the agent's moves the keyboard into the page, as any click would, and the user's typing in the chat would
  // then land in the page. So between the agent's steps the keyboard is back where the user was, and a step that types or
  // presses keys where the page's focus is gets the keyboard back first, exactly as it would have had it without the user:
  // what the agent does and sees stays the same, and Escape reaches the app during every other step.
- async run(name, args, { id, cwd }) {
+ // `apart`: the agent that works in a tab of its own (see `current`).
+ async run(name, args, { id, cwd, apart = null }) {
   if (!tools) return { error: 'The browser is only available in the desktop app' };
   const back = document.activeElement;
+  this.steps.add(id);
   try {
-   if (name === 'browser_tabs') return await this.tabsTool(args, { id, cwd });
-   const tab = await this.ensure();
+   if (name === 'browser_tabs') return await this.tabsTool(args, { id, cwd, apart });
+   const tab = await this.ensure(apart);
    const keys = name === 'browser_press' || (name === 'browser_type' && (args.ref === undefined || args.ref === null || args.ref === ''));
    if (keys && this.lent === tab.view) tab.view.focus();
    return await tools.run(id, name, { ...args, tab: tab.id }, cwd);
+  } catch (error) {
+   return { error: error.message };
   } finally {
+   this.steps.delete(id);
    this.giveBack(back);
   }
  }
@@ -523,47 +627,63 @@ class BrowserPanel {
   back.focus({ preventScroll: true });
  }
 
- async tabsTool(args, { id, cwd }) {
+ // An agent apart opens, switches between and closes only tabs of its own, behind the one on screen; the chat's agent
+ // leaves those alone.
+ async tabsTool(args, { id, cwd, apart = null }) {
   const action = String(args.action || 'list').toLowerCase();
   const pick = () => {
    const tab = this.tabs[Math.round(Number(args.tab)) - 1];
-   if (!tab) throw new Error(`There is no tab ${args.tab}. Tabs:\n${this.tabsText()}`);
+   if (!tab) throw new Error(`There is no tab ${args.tab}. Tabs:\n${this.tabsText(apart)}`);
+   if (apart && tab.owner !== apart) throw new Error(`Tab ${args.tab} is not yours: you work in your own tabs only. Tabs:\n${this.tabsText(apart)}`);
+   if (!apart && tab.owner) throw new Error(`Tab ${args.tab} is the mini chat's own tab: leave it to it. Tabs:\n${this.tabsText(apart)}`);
    return tab;
   };
   try {
    if (action === 'new') {
-    const tab = this.newTab('', { focus: false });
-    if (!args.url) return { text: `Opened a new empty tab.\n\nTabs:\n${this.tabsText()}` };
-    await this.ensure();
+    let tab;
+    if (apart) {
+     tab = this.addTab('');
+     tab.owner = apart;
+     this.seats.set(apart, tab);
+     this.settle(tab);
+    } else tab = this.newTab('', { focus: false });
+    if (!args.url) return { text: `Opened a new empty tab.\n\nTabs:\n${this.tabsText(apart)}` };
+    await this.ensure(apart);
     const result = await tools.run(id, 'browser_navigate', { url: args.url, tab: tab.id }, cwd);
-    return result.error ? result : { ...result, text: `Tabs:\n${this.tabsText()}\n\n${result.text}` };
+    return result.error ? result : { ...result, text: `Tabs:\n${this.tabsText(apart)}\n\n${result.text}` };
    }
    if (action === 'switch') {
-    this.select(pick());
-    const tab = await this.ensure();
+    if (apart) {
+     this.seats.set(apart, pick());
+     this.sync();
+    } else this.select(pick());
+    const tab = await this.ensure(apart);
     return tools.run(id, 'browser_snapshot', { tab: tab.id }, cwd);
    }
    if (action === 'close') {
     this.close(pick());
-    return { text: `Closed. Tabs:\n${this.tabsText()}` };
+    return { text: `Closed. Tabs:\n${this.tabsText(apart)}` };
    }
-   return { text: `Tabs:\n${this.tabsText()}` };
+   return { text: `Tabs:\n${this.tabsText(apart)}` };
   } catch (error) {
    return { error: error.message };
   }
  }
 
- tabsLine() {
-  return this.tabs.length > 1 ? `Tabs: ${this.tabs.map((tab, k) => `${k + 1}. ${tab.title || hostOf(tab.url) || 'New tab'}${tab === this.active ? ' (this one)' : ''}`).join(' · ')}` : '';
+ tabsLine(seat) {
+  if (this.tabs.length < 2) return '';
+  const mine = this.current(seat);
+  return `Tabs: ${this.tabs.map((tab, k) => `${k + 1}. ${tab.title || hostOf(tab.url) || 'New tab'}${tab === mine ? ' (this one)' : !seat && tab.owner ? ' (the mini chat\'s)' : ''}`).join(' · ')}`;
  }
 
  // What the browser holds, for the note at the end of each request; a closed browser with nothing in it says nothing.
- context() {
+ context(seat) {
   const tabs = this.tabs.filter(tab => !blank(tab.url));
   if (!this.open && !tabs.length && !this.accounts.length) return '';
   const lines = [`- The browser panel is ${this.open ? 'open, the user sees the page' : 'closed; the browser still works, the user can open it with the globe button'}.`];
-  if (tabs.length) lines.push(`- Open tabs:\n${this.tabsText().split('\n').map(line => `  ${line}`).join('\n')}`);
+  if (tabs.length) lines.push(`- Open tabs:\n${this.tabsText(seat).split('\n').map(line => `  ${line}`).join('\n')}`);
   else lines.push('- No pages are open in it yet.');
+  if (seat) lines.push('- You work in a tab of your own, behind the one on the user\'s screen, so you and the agent of the main conversation can use the browser at the same time. Your first browser step opens it.');
   if (this.accounts.length) lines.push(`- The user signed in with this browser to: ${this.accounts.map(item => `${item.host} (${shortDate(item.at)})`).join(', ')}. Logins stay between chats but can expire; check before relying on one.`);
   return lines.join('\n');
  }

@@ -518,7 +518,14 @@ async function screenshot(guest, full) {
 
 async function act(found, name, args, signal) {
  const { guest } = found;
+ // A step the user stopped, or took the browser from, goes no further: it asks before each thing it does to the page.
  const check = () => { if (signal.aborted) throw plain('Stopped by the user'); };
+ const rest = async ms => {
+  let wake;
+  await Promise.race([sleep(ms), new Promise(resolve => signal.addEventListener('abort', wake = resolve, { once: true }))]);
+  signal.removeEventListener('abort', wake);
+  check();
+ };
  await attach(found);
  check();
  switch (name) {
@@ -540,6 +547,7 @@ async function act(found, name, args, signal) {
    }
    check();
    await pointer(found, x, y);
+   check();
    await mouse(guest, x, y, args.double ? 2 : 1);
    await settle(guest);
    return state(guest, { note });
@@ -550,15 +558,18 @@ async function act(found, name, args, signal) {
     const spot = await world(guest, `__og.point(${Number(args.ref)})`);
     check();
     await pointer(found, spot.x, spot.y);
+    check();
     await mouse(guest, spot.x, spot.y);
     await sleep(80);
    }
+   check();
    if (args.clear !== false) {
     await press(guest, 'Control+A');
     if (!text) await press(guest, 'Delete');
    }
+   check();
    if (text) await guest.debugger.sendCommand('Input.insertText', { text });
-   if (args.submit) { await sleep(60); await press(guest, 'Enter'); }
+   if (args.submit) { await sleep(60); check(); await press(guest, 'Enter'); }
    await settle(guest);
    return state(guest);
   }
@@ -606,7 +617,7 @@ async function act(found, name, args, signal) {
      await sleep(400);
     }
    } else {
-    await sleep(seconds * 1000);
+    await rest(seconds * 1000);
    }
    await settle(guest);
    return state(guest, { note: args.text ? (found ? `"${args.text}" is on the page.` : `"${args.text}" did not appear within ${seconds} s.`) : '' });

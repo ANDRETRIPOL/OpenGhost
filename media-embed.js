@@ -18,7 +18,6 @@ const TRUSTED = [
  /^https:\/\/encrypted-tbn\d\.gstatic\.com\/images\?/i,
 ];
 const LOAD_TIMEOUT = 9000;
-const CLICK_SLOP = 5;
 const THUMBS = ['hq720', 'mqdefault'];
 // What YouTube sends in place of a preview that does not exist is this wide.
 const NO_THUMB = 120;
@@ -151,7 +150,6 @@ function videoCard(item) {
 function gallery(images, changed) {
  const root = make('div', 'md-gallery'), allowed = new Set(), sizes = new Map();
  let build = 0;
- const open = image => window.open(image.href || image.src, '_blank', 'noopener');
  const draw = async () => {
   const turn = ++build, shown = images.filter(image => trusted(image.src) || allowed.has(image.src)), held = images.filter(image => !shown.includes(image));
   if (!root.firstChild && shown.length) root.append(make('div', 'md-gallery-wait'));
@@ -170,14 +168,9 @@ function gallery(images, changed) {
    };
    slider.onChange = say;
    say(0);
-   // A click that was not a drag opens the page the picture is from.
-   let down = null;
-   slider.el.addEventListener('pointerdown', e => { down = e.button === 0 && !e.target.closest('button') ? [e.clientX, e.clientY] : null; });
-   slider.el.addEventListener('click', e => {
-    if (!down || e.target.closest('button') || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > CLICK_SLOP) return;
-    open(loaded[slider.index]);
-   });
-   slider.el.classList.add('is-linked');
+   // A click opens the picture large; the page it comes from is the chip under the stack, and under the picture there.
+   const items = loaded.map(image => ({ url: image.src, name: image.alt, href: image.href, ...sizes.get(image.src) }));
+   slider.openable(k => window.PhotoViewer?.open({ items, index: k, slider }));
    caption.append(text, source);
    root.append(appear(slider.el), caption);
   }

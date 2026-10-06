@@ -8,6 +8,7 @@ const Browser = require('./browser');
 const LLM = require('./llm');
 const Keys = require('./keys');
 const Pdf = require('./pdf');
+const Size = require('./size');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
@@ -99,9 +100,10 @@ function external(url) {
 }
 
 function createWindow() {
+ const size = Size.initial(1280, 840);
  const win = new BrowserWindow({
-  width: 1280,
-  height: 840,
+  width: size.width,
+  height: size.height,
   minWidth: 760,
   minHeight: 540,
   show: false,
@@ -111,9 +113,10 @@ function createWindow() {
   // Linux window managers draw their own title bar; Windows and macOS get the app's own.
   ...(process.platform === 'linux' ? {} : {
    titleBarStyle: 'hidden',
-   titleBarOverlay: { color: look().background, symbolColor: look().symbols, height: TITLE_BAR.height },
+   titleBarOverlay: { color: look().background, symbolColor: look().symbols, height: Math.round(TITLE_BAR.height * size.zoom) },
   }),
   webPreferences: {
+   zoomFactor: size.zoom,
    preload: path.join(__dirname, 'preload.js'),
    contextIsolation: true,
    sandbox: true,
@@ -122,6 +125,7 @@ function createWindow() {
   },
  });
  win.once('ready-to-show', () => win.show());
+ Size.attach(win);
  win.webContents.on('will-attach-webview', (event, prefs, params) => {
   if (!Browser.guard(win.webContents, prefs, params)) event.preventDefault();
  });
@@ -145,6 +149,10 @@ function createWindow() {
    event.preventDefault();
   } else if (key === 'f5' || (command && !input.shift && key === 'r')) {
    win.webContents.reload();
+   event.preventDefault();
+  } else if (command && !input.alt && (key === '=' || key === '+' || key === '-' || key === '0')) {
+   if (key === '0') Size.pick(win, 'auto');
+   else Size.step(win, key === '-' ? -1 : 1);
    event.preventDefault();
   }
  });
@@ -175,10 +183,25 @@ ipcMain.on('window:titlebar', (event, color, symbols) => {
  if (!win || !hex(color)) return;
  win.setBackgroundColor(color);
  if (process.platform === 'linux' || typeof win.setTitleBarOverlay !== 'function') return;
- win.setTitleBarOverlay({ color, symbolColor: hex(symbols) ? symbols : look().symbols, height: TITLE_BAR.height });
+ win.setTitleBarOverlay({ color, symbolColor: hex(symbols) ? symbols : look().symbols, height: Size.titleBar(win) });
 });
 
 const fromApp = event => event.sender.getType() === 'window' && event.senderFrame?.url.startsWith('file:');
+// macOS asks the user before an app first opens Desktop, Documents, Downloads or another disk, whatever the agent's own
+// permission mode says; no app can answer for the user. With Full Disk Access given to OpenGhost once it no longer asks.
+// Whether it is given can only be told by trying: the system's own record of permissions is readable with it alone.
+const FULL_DISK = 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles';
+function diskAccess() {
+ if (process.platform !== 'darwin') return null;
+ try {
+  fs.accessSync(path.join(app.getPath('home'), 'Library', 'Application Support', 'com.apple.TCC', 'TCC.db'), fs.constants.R_OK);
+  return { full: true };
+ } catch {
+  return { full: false };
+ }
+}
+ipcMain.handle('access:state', event => fromApp(event) ? diskAccess() : null);
+ipcMain.handle('access:open', event => { if (fromApp(event) && process.platform === 'darwin') shell.openExternal(FULL_DISK); });
 
 // Answers whether the app ends up dark: for 'system' only this side knows what the computer uses right now.
 ipcMain.handle('theme:set', (event, choice) => {
@@ -192,9 +215,11 @@ ipcMain.handle('tool:run', (event, id, name, args, cwd) => fromApp(event) ? Tool
 ipcMain.on('browser:shown', (event, value) => { if (fromApp(event)) Browser.setShown(value); });
 ipcMain.handle('tool:cancel', (event, id) => { if (fromApp(event)) Tools.cancel(id); });
 ipcMain.handle('tool:environment', event => fromApp(event) ? Tools.environment() : null);
+ipcMain.handle('tool:guide', (event, folder) => fromApp(event) ? Tools.guide(folder) : null);
 ipcMain.handle('pdf:read', (event, source) => fromApp(event) ? Pdf.read(source) : { text: '', reason: 'unreadable' });
 LLM.register(fromApp);
 Keys.register(fromApp);
+Size.setup(fromApp);
 
 if (process.argv.includes('--create-shortcut')) {
  app.whenReady().then(() => {

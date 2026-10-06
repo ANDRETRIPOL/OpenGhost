@@ -251,24 +251,27 @@ function limit(text) {
 }
 
 // A PDF's text comes from the viewer built into the app, which lives in the main process. A file with a place on the
-// disk is read from there; one without, such as a pasted one, goes over as its bytes.
-async function readPdf(file, path) {
+// disk is read from there; one without, such as a pasted one, goes over as its bytes. The answer also says how many
+// pages there are and, with `pictures`, brings the pages that have to be seen as pictures: those that look like
+// pictures (`seen` names them all), the first ones of a document with formulas, or of one with no text at all.
+async function readPdf(file, path, pictures) {
  const bridge = window.openghost?.readPdf;
  if (!bridge) return { type: 'none' };
- const answer = await bridge(path ? { path } : { data: await file.arrayBuffer() });
+ const answer = await bridge(path ? { path, pictures } : { data: await file.arrayBuffer(), pictures });
  const text = tidy(answer?.text || '');
- return text ? { ...limit(text), pdf: true } : { type: 'none', pdf: true };
+ const seen = { pdf: true, pages: answer?.pages || 0, pictures: answer?.pictures || [], seen: answer?.seen || [], formulas: !!answer?.formulas };
+ return text ? { ...limit(text), ...seen } : { type: 'none', ...seen };
 }
 
 // What a file holds, without its place on the disk.
-async function contents(file, info, video, path) {
+async function contents(file, info, video, path, pictures) {
  try {
   if (info.glyph === 'image') {
    const image = await readImage(file);
    if (image) return image;
   }
   if (video && info.glyph === 'video') return await readVideo(file);
-  if (info.ext === 'pdf') return await readPdf(file, path);
+  if (info.ext === 'pdf') return await readPdf(file, path, pictures);
   if (file.size > TEXT.bytes) return { type: 'none' };
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (OFFICE.has(info.ext)) {
@@ -283,10 +286,11 @@ async function contents(file, info, video, path) {
 }
 
 // `video`: a video comes as a video, as it does for a chat's attachments; elsewhere it is a file whose contents can't be read.
+// `pictures`: a PDF brings the pages that have to be seen as pictures, as it does for a chat's attachments.
 // A file read as text, or not read at all, also says where it lives, so an agent can open it itself.
-async function read(file, info, { video = false } = {}) {
+async function read(file, info, { video = false, pictures = false } = {}) {
  const path = window.openghost?.pathOf?.(file) || '';
- const payload = await contents(file, info, video, path);
+ const payload = await contents(file, info, video, path, pictures);
  return payload.type === 'text' || payload.type === 'none' ? { ...payload, path } : payload;
 }
 

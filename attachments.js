@@ -24,7 +24,9 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
 const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files');
 const lineCount = text => { let n = 1; for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) n++; return n; };
 // The model sees only the name of a file it can't read, and of a video with no place on the disk to watch it from.
-const blind = payload => payload?.type === 'none' || (payload?.type === 'video' && !payload.path);
+// A file the model gets nothing of but its name. A PDF with no text whose pages go as pictures is not one.
+const blind = payload => (payload?.type === 'none' && !payload.pictures?.length) || (payload?.type === 'video' && !payload.path);
+const pagesLabel = count => count ? I18n.t(count === 1 ? 'attach.page' : 'attach.pages', { n: count }) : '';
 
 // What a pasted text's card says under its first line: how many lines, or for a single long one, its size.
 function pastedLabel(pasted, size) {
@@ -118,7 +120,7 @@ class Attachments {
    const info = FileKinds.describe(file.name, file.type);
    const item = { file, name: file.name || 'image.png', size: file.size, info, image: info.glyph === 'image', video: info.glyph === 'video' && FRAMED.has(info.ext), url: '', note: '', payload: null, ...extra };
    if (item.image) item.url = URL.createObjectURL(file);
-   item.ready = AttachmentReader.read(file, info, { video: true }).then(payload => this.loaded(item, payload));
+   item.ready = AttachmentReader.read(file, info, { video: true, pictures: true }).then(payload => this.loaded(item, payload));
    item.el = this.chip(item);
    this.items.push(item);
    added.push(item.ready);
@@ -222,7 +224,7 @@ class Attachments {
   } else if (item.pasted) {
    line.textContent = pastedLabel(item.pasted, item.size);
   } else {
-   meta.textContent = [item.info.name, duration(item), FileKinds.formatSize(item.size)].filter(Boolean).join(' · ');
+   meta.textContent = [item.info.name, pagesLabel(item.payload?.pages || 0), duration(item), FileKinds.formatSize(item.size)].filter(Boolean).join(' · ');
    if (blind(item.payload)) meta.append(element('span', 'attachment-flag', ` · ${I18n.t('attach.nameOnly')}`));
   }
   if (!item.pasted) return;
@@ -285,6 +287,17 @@ class Attachments {
   this.row.replaceChildren();
   this.onChange();
   return items;
+ }
+
+ // The files of a message taken back to be rewritten return to the tray, ahead of what was added since.
+ give(items) {
+  const back = items.filter(item => !this.items.includes(item));
+  if (!back.length) return;
+  for (const item of back) this.chip(item);
+  this.items.unshift(...back);
+  this.row.prepend(...back.map(item => item.el));
+  this.height.onResize(this.row.getBoundingClientRect().height);
+  this.onChange();
  }
 
  syncFade() {
@@ -371,19 +384,19 @@ class Attachments {
  }
 
  onDragEnter(e) {
-  if (!hasFiles(e) || !this.isActive()) return;
+  if (!hasFiles(e) || !this.isActive(e)) return;
   e.preventDefault();
   if (this.depth++ === 0) this.setDropping(true);
  }
 
  onDragOver(e) {
-  if (!hasFiles(e) || !this.isActive()) return;
+  if (!hasFiles(e) || !this.isActive(e)) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'copy';
  }
 
  onDragLeave(e) {
-  if (!hasFiles(e) || !this.depth) return;
+  if (!hasFiles(e) || !this.depth || !this.isActive(e)) return;
   if (--this.depth <= 0) {
    this.depth = 0;
    this.setDropping(false);
@@ -391,7 +404,7 @@ class Attachments {
  }
 
  onDrop(e) {
-  if (!hasFiles(e) || !this.isActive()) return;
+  if (!hasFiles(e) || !this.isActive(e)) return;
   e.preventDefault();
   this.depth = 0;
   this.setDropping(false);
@@ -401,5 +414,6 @@ class Attachments {
 }
 
 Attachments.pastedLabel = pastedLabel;
+Attachments.pagesLabel = pagesLabel;
 window.Attachments = Attachments;
 })();

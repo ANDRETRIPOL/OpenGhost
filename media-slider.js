@@ -84,6 +84,11 @@ class MediaSlider {
    this.shades.push(shade);
    this.imgs.push(img);
   });
+  // A click that did not drag the stack opens the photo on top, when whoever shows the stack lets it (see openable).
+  el.addEventListener('click', e => {
+   if (this.onOpen && !this.dragged && !e.target.closest('button')) this.onOpen(this.index);
+  });
+  el.addEventListener('keydown', e => this.onKey(e));
   if (this.count < 2) return;
   el.tabIndex = 0;
   el.classList.add('is-many');
@@ -115,8 +120,14 @@ class MediaSlider {
   el.addEventListener('pointercancel', e => this.onUp(e));
   el.addEventListener('lostpointercapture', e => this.onUp(e));
   el.addEventListener('wheel', e => this.onWheel(e), { passive: false });
-  el.addEventListener('keydown', e => this.onKey(e));
   this.sync();
+ }
+
+ // The photos open large on a click or on Enter (photo-viewer.js).
+ openable(open) {
+  this.onOpen = open;
+  this.el.tabIndex = 0;
+  this.el.classList.add('is-openable');
  }
 
  arrow(name, label, step) {
@@ -184,6 +195,7 @@ class MediaSlider {
  }
 
  onDown(e) {
+  this.dragged = false;
   if (e.button !== 0 || e.target.closest('button') || !this.width) return;
   this.drag = { id: e.pointerId, x: e.clientX, from: this.pos, start: this.index, moved: false, samples: [[e.timeStamp, e.clientX]] };
  }
@@ -195,6 +207,7 @@ class MediaSlider {
   if (!drag.moved) {
    if (Math.abs(dx) < DRAG_SLOP) return;
    drag.moved = true;
+   this.dragged = true;
    this.el.setPointerCapture(e.pointerId);
    this.el.classList.add('is-dragging');
   }
@@ -272,6 +285,11 @@ class MediaSlider {
  }
 
  onKey(e) {
+  if (e.key === 'Enter' && this.onOpen && e.target === this.el) {
+   e.preventDefault();
+   this.onOpen(this.index);
+   return;
+  }
   const to = { ArrowLeft: this.index - 1, ArrowRight: this.index + 1, Home: 0, End: this.count - 1 }[e.key];
   if (to === undefined) return;
   e.preventDefault();

@@ -44,7 +44,20 @@ class GeneralSettings {
     <button type="button" class="general-drop">${PLUS}<span>${t('settings.files.drop')}</span></button>
     <p class="settings-status general-status" role="status"></p>
     <input class="general-picker" type="file" multiple hidden>
+   </section>
+   <section class="general-block general-access" hidden>
+    <div class="general-head">
+     <span class="settings-label">${t('settings.access')}</span>
+     <span class="general-access-state" role="status"></span>
+    </div>
+    <p class="settings-hint">${t('settings.access.hint')}</p>
+    <button type="button" class="settings-button general-access-open">${t('settings.access.open')}</button>
    </section>`;
+  // A Mac asks the user itself before the app first opens some folders. The block is there only on a Mac.
+  this.access = root.querySelector('.general-access');
+  root.querySelector('.general-access-open').addEventListener('click', () => window.openghost?.access?.open());
+  window.addEventListener('focus', () => this.paintAccess());
+  this.paintAccess();
   this.input = root.querySelector('.general-input');
   this.count = root.querySelector('.general-count');
   this.list = root.querySelector('.general-files');
@@ -155,6 +168,16 @@ class GeneralSettings {
  }
 
  // New files slide open into the list and removed ones fold away; the rest stay put.
+ // Whether macOS already lets OpenGhost into every folder; asked anew whenever the window comes back, since the user
+ // changes it in the system's own settings.
+ async paintAccess() {
+  const state = await window.openghost?.access?.state().catch(() => null);
+  this.access.hidden = !state;
+  if (!state) return;
+  this.access.classList.toggle('is-given', state.full);
+  this.access.querySelector('.general-access-state').textContent = I18n.t(state.full ? 'settings.access.on' : 'settings.access.off');
+ }
+
  render(animate = true) {
   const files = this.context.files, keep = new Set(files.map(file => file.id));
   const motion = animate && !reducedMotion();

@@ -54,6 +54,10 @@ const SCHEMAS = [
   offset: { type: 'integer', description: 'First line to read, starting at 1' },
   limit: { type: 'integer', description: 'How many lines to read' },
  }, ['path']),
+ fn('pdf_pages', 'Look at pages of a PDF as pictures. The text of a PDF does not carry its photos, charts, drawings, formulas, the layout of its tables, scanned pages or handwriting: they are only there to be seen. One call shows up to 6 pages.', {
+  path: { type: 'string', description: 'PDF file, relative to the project folder or absolute' },
+  pages: { type: 'string', description: 'Which pages, counted from 1: "3", "1-4" or "2, 5, 9"' },
+ }, ['path', 'pages']),
  fn('write_file', 'Create a file or replace all of its content. Missing folders are created. To change part of an existing file use edit_file.', {
   path: { type: 'string', description: 'File path, relative to the project folder or absolute' },
   content: { type: 'string', description: 'The complete new content of the file' },
@@ -140,11 +144,25 @@ const SCHEMAS = [
   url: { type: 'string', description: 'For new: what to open in it' },
   tab: { type: 'integer', description: 'For switch and close: the tab number from the list' },
  }, ['action']),
+ fn('memory', 'What you remember about the user across all chats; what it holds comes in a note from the app. save: write a new record, when nothing there is about the same thing. update: write the record with this id anew, so that it says what it said and what is new together, or the new instead of what has changed. forget: remove the record with this id.', {
+  action: { type: 'string', enum: ['save', 'update', 'forget'] },
+  id: { type: 'string', description: 'For update and forget: the id of the record, like m3' },
+  text: { type: 'string', description: 'For save and update: the whole record, one or two plain sentences about the user in their language, clear on their own a year from now' },
+ }, ['action']),
+ fn('notepad', 'The user\'s notepad beside this chat; what is in it comes in a note from the app. remind: bring a note up when its moment has come. The app shows it to the user as a card in the chat; then ask whether to do it now and wait for their yes. done: tick a note off once the user has agreed and it is done, or once they say it no longer matters. add: write a note down when the user asks you to remember something or to remind them of it later.', {
+  action: { type: 'string', enum: ['remind', 'done', 'add'] },
+  id: { type: 'string', description: 'For remind and done: the id of the note, like n3' },
+  text: { type: 'string', description: 'For add: the note, one short line in the user\'s own words and language' },
+ }, ['action']),
 ];
 
 const BROWSER_FREE = new Set(['browser_snapshot', 'browser_screenshot', 'browser_read', 'browser_wait', 'browser_scroll']);
 const RISKY_CLICK = /\b(buy|purchase|order|checkout|check out|pay|payment|subscribe|donate|send|post|tweet|reply|publish|delete|remove|confirm|transfer|withdraw|book|reserve|sign up|register|unfollow|block|report)\b|купить|оплат|заказ|оформит|отправ|опубликов|удал|подтверд|перевест|подписа|заброн|зарегистр|пожертв/i;
-let refs = {};
+// What the refs of the latest snapshot stand for, for each agent that looks at pages: the chat's, and one that works in a
+// tab of its own (a mini chat's).
+const MAIN = {};
+const seen = new Map();
+const refsOf = apart => seen.get(apart || MAIN) || {};
 
 const READ_GIT = new Set(['status', 'log', 'diff', 'show', 'rev-parse', 'ls-files', 'blame', 'shortlog', 'describe', 'grep', 'help', 'version']);
 const LIST_GIT = { branch: /^(-a|-r|-v|-vv|--list|--all|--show-current|--no-color)$/, remote: /^(-v|--verbose)$/, tag: /^(-l|--list)$/ };
@@ -635,32 +653,36 @@ function host(url) {
  try { return new URL(/^[a-z]+:\/\//i.test(url) ? url : `https://${url}`).host.replace(/^www\./, ''); } catch { return String(url); }
 }
 
-function browserApproval(name, args, ask) {
+function browserApproval(name, args, ask, apart) {
  if (BROWSER_FREE.has(name)) return false;
  if (name === 'browser_tabs') return ask && args.action === 'new' && !!args.url;
  if (ask) return true;
- const target = refs[args.ref] || '';
+ const target = refsOf(apart)[args.ref] || '';
  if (name === 'browser_click') return /^(button|link|clickable|menuitem|option)\b/.test(target) && RISKY_CLICK.test(target);
  return false;
 }
 
-// A video the user attached to the chat is one they showed the agent themselves: watching it needs no approval,
-// wherever it lives.
-function attachedVideo(attached, cwd, path) {
+// A video or a PDF the user attached to the chat is one they showed the agent themselves: looking at it needs no
+// approval, wherever it lives. Each in its own way only: a video is watched, a PDF is read and its pages are looked at.
+// Reading a video as a plain file still asks, as any file outside the project does.
+function attachedFile(attached, cwd, path) {
  const full = resolve(cwd, path);
  return !!full && attached.some(item => norm(item) === norm(full));
 }
 
-function needsApproval(name, args, { mode, cwd, attached = [] }) {
+// `attached`: what the user attached to the chat, as { videos, pdfs }; a plain list is a list of videos.
+function needsApproval(name, args, { mode, cwd, attached = [], apart = null }) {
  if (mode === 'full') return false;
  const ask = mode !== 'auto';
- if (name.startsWith('browser_')) return browserApproval(name, args, ask);
+ if (name.startsWith('browser_')) return browserApproval(name, args, ask, apart);
+ const videos = Array.isArray(attached) ? attached : attached.videos || [], pdfs = Array.isArray(attached) ? [] : attached.pdfs || [];
  switch (name) {
   case 'read_file':
+  case 'pdf_pages': return ask && !inside(cwd, args.path || '.') && !attachedFile(pdfs, cwd, args.path);
   case 'list_files': return ask && !inside(cwd, args.path || '.');
   case 'write_file':
   case 'edit_file': return ask || !inside(cwd, args.path);
-  case 'video_frames': return (ask && !inside(cwd, args.path) && !attachedVideo(attached, cwd, args.path)) || (!!args.save_to && (ask || !inside(cwd, args.save_to)));
+  case 'video_frames': return (ask && !inside(cwd, args.path) && !attachedFile(videos, cwd, args.path)) || (!!args.save_to && (ask || !inside(cwd, args.save_to)));
   case SHELL.tool: return ask || riskyShell(args.command, cwd);
   case 'git': return !readOnlyGit(args.args) && (ask || riskyGit(args.args));
   case 'web_search':
@@ -679,7 +701,8 @@ function relative(cwd, path) {
 // What the card asking for approval shows: a headline in plain words (the agent's own sentence for commands and
 // file changes), what the step does (`effect`, worked out by the app), the places it touches, and the technical
 // details for whoever wants them.
-function describe(name, args, cwd) {
+function describe(name, args, cwd, apart = null) {
+ const refs = refsOf(apart);
  const purpose = typeof args.description === 'string' ? args.description.trim() : '';
  const file = { kind: 'file', label: String(args.path || '').split(/[\\/]/).filter(Boolean).pop() || String(args.path || ''), title: relative(cwd, args.path || '.') };
  const site = url => ({ kind: 'site', label: host(url), title: url });
@@ -695,6 +718,7 @@ function describe(name, args, cwd) {
   case 'write_file': return { kind: 'file', title: purpose || I18n.t('approve.write'), effect: 'change', places: [file], added: String(args.content || ''), reveal: 'content' };
   case 'edit_file': return { kind: 'file', title: purpose || I18n.t('approve.edit'), effect: 'change', places: [file], removed: String(args.old_string || ''), added: String(args.new_string || ''), reveal: 'changes' };
   case 'read_file': return { kind: 'file', title: I18n.t('approve.read'), effect: 'read', places: [file] };
+  case 'pdf_pages': return { kind: 'file', title: I18n.t('approve.pdf'), effect: 'read', places: [file] };
   case 'list_files': return { kind: 'file', title: I18n.t('approve.list'), effect: 'read', places: [place(args.path || '.', cwd)] };
   case 'video_frames': return args.save_to
    ? { kind: 'file', title: I18n.t('approve.frames'), effect: 'change', places: [file, place(args.save_to, cwd)] }
@@ -926,18 +950,41 @@ function format(name, args, result) {
    if (result.image) return { text: `Image ${result.path}, ${result.width}×${result.height}, ${result.size}. It follows as a picture.`, images: [{ label: result.path, url: result.image }] };
    if (result.binary) return `This is a binary file (${result.size}), it can't be shown as text.`;
    const partial = result.start > 1 || result.end < result.total;
+   // A PDF comes as its text alone, so it is said how many pages there are to look at.
+   const pdf = result.pdf ? `[The text of a PDF of ${result.pdf} ${result.pdf === 1 ? 'page' : 'pages'}. Its pictures, charts, formulas and the look of its pages are seen with pdf_pages.]\n` : '';
    const head = partial ? `[Lines ${result.start}–${result.end} of ${result.total}]\n` : '';
-   return `${head}${result.text || '(empty file)'}${result.cut ? '\n[Cut here, the lines are too long. Read a smaller range.]' : ''}`;
+   return `${pdf}${head}${result.text || '(empty file)'}${result.cut ? '\n[Cut here, the lines are too long. Read a smaller range.]' : ''}`;
   }
   case 'write_file': return `${result.created ? 'Created' : 'Rewrote'} ${result.path} (${result.lines} lines)`;
   case 'edit_file': return `Edited ${result.path}, ${result.replaced} ${result.replaced === 1 ? 'place' : 'places'} changed`;
   case 'list_files': return `${result.path}\n${result.text || '(empty folder)'}${result.more ? '\n[More entries not shown. List a subfolder.]' : ''}`;
   case 'video_frames': return frames(result);
+  case 'pdf_pages': return pages(result);
   default: return JSON.stringify(result);
  }
 }
 
 const seconds = value => `${Number(value.toFixed(2))} s`;
+
+// Runs of numbers as a person writes them: 1–3, 7, 9–10.
+function runs(numbers) {
+ const out = [];
+ for (let k = 0; k < numbers.length; k++) {
+  let end = k;
+  while (end + 1 < numbers.length && numbers[end + 1] === numbers[end] + 1) end++;
+  out.push(end > k ? `${numbers[k]}–${numbers[end]}` : `${numbers[k]}`);
+  k = end;
+ }
+ return out.join(', ');
+}
+
+function pages(result) {
+ const name = String(result.path || '').split(/[\\/]/).pop(), shown = result.pages.map(page => page.page);
+ const lines = [`${result.path}: ${result.count} ${result.count === 1 ? 'page' : 'pages'}.`];
+ if (result.limited) lines.push(`One call shows ${result.limited} pages at most; ask for the others in another call.`);
+ lines.push(`${shown.length === 1 ? 'Page' : 'Pages'} ${runs(shown)} ${shown.length === 1 ? 'follows as a picture' : 'follow as pictures'}.`);
+ return { text: lines.join('\n'), images: result.pages.map(page => ({ label: `Page ${page.page} of ${name}`, url: page.url })) };
+}
 
 function frames(result) {
  const sound = result.audio === true ? ', with sound' : result.audio === false ? ', no sound' : '';
@@ -948,21 +995,22 @@ function frames(result) {
  return { text: lines.join('\n'), images: result.frames.map(frame => ({ label: `Frame at ${seconds(frame.time)}`, url: frame.url })) };
 }
 
-async function browser(name, args, id, cwd) {
+async function browser(name, args, id, cwd, apart) {
  const panel = window.browserPanel;
  if (!panel) return 'Error: the built-in browser is only available in the desktop app';
- const result = await panel.run(name, args, { id, cwd });
+ const result = await panel.run(name, args, { id, cwd, apart });
  if (!result || result.error) return `Error: ${result?.error || 'the browser did not answer'}`;
- if (result.refs) refs = result.refs;
+ if (result.refs) seen.set(apart || MAIN, result.refs);
  if (result.image) return { text: result.text, images: [{ label: 'Screenshot of the built-in browser', url: result.image }] };
  if (result.html !== undefined) return page({ url: result.url, status: 200, type: 'text/html', text: result.html }, args.start);
- const tabs = name === 'browser_tabs' ? '' : panel.tabsLine();
+ const tabs = name === 'browser_tabs' ? '' : panel.tabsLine(apart);
  return tabs ? `${tabs}\n${result.text}` : result.text;
 }
 
 let env = null;
 
 window.AgentTools = {
+ runs,
  available: !!bridge,
  schemas: SCHEMAS,
  modes: MODES,
@@ -973,9 +1021,14 @@ window.AgentTools = {
   env ||= bridge ? bridge.environment().catch(() => null) : Promise.resolve(null);
   return env;
  },
- async run(name, args, { id, cwd }) {
+ // The project's own instructions for agents, AGENTS.md in its folder, as the file stands now; null when there is none.
+ guide(cwd) {
+  return bridge?.guide && cwd ? bridge.guide(cwd).catch(() => null) : Promise.resolve(null);
+ },
+ // `apart`: the agent works in a browser tab of its own (a mini chat's).
+ async run(name, args, { id, cwd, apart = null }) {
   if (!bridge) return 'Error: tools are only available in the desktop app';
-  if (name.startsWith('browser_')) return browser(name, args, id, cwd);
+  if (name.startsWith('browser_')) return browser(name, args, id, cwd, apart);
   if (name === 'web_search') return search(args.query, id, cwd);
   if (name === 'find_media') return media(args, id, cwd);
   const result = await bridge.run(id, name, args, cwd);
@@ -983,6 +1036,11 @@ window.AgentTools = {
  },
  cancel(id) {
   bridge?.cancel(id);
+ },
+ // One way to write a file's place, so that two agents naming the same file are seen to.
+ place(cwd, path) {
+  const full = resolve(cwd, path);
+  return full ? norm(full) : '';
  },
 };
 })();

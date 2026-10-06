@@ -4,7 +4,7 @@
 const STYLE=`
 :host{display:inline-block;width:var(--icon-button-size,32px);height:var(--icon-button-size,32px);vertical-align:middle;-webkit-app-region:no-drag}
 *{box-sizing:border-box}
-button{display:grid;place-items:center;position:relative;width:100%;height:100%;border:0;padding:0;border-radius:8px;outline:none;background:transparent;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;color:rgb(var(--icon-rgb,255,255,255));transition:color .2s ease}
+button{display:grid;place-items:center;position:relative;width:100%;height:100%;border:0;padding:0;border-radius:var(--icon-button-radius,8px);outline:none;background:var(--icon-button-bg,transparent);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;color:rgb(var(--icon-rgb,255,255,255));transition:var(--icon-button-transition,color .2s ease)}
 /* Цвет непрозрачный, а уровень задаёт opacity всей иконки: иначе полупрозрачные линии светлеют на пересечениях. */
 .icon{width:var(--icon-size,22px);height:var(--icon-size,22px);overflow:visible;pointer-events:none;opacity:var(--icon-opacity,.55);transition:opacity .2s ease}
 button:hover,button:focus-visible{color:rgb(var(--icon-hover-rgb,var(--icon-rgb,255,255,255)))}

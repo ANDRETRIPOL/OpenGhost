@@ -214,6 +214,9 @@ class Library {
   this.changed();
   this.store.remove(`chats/${id}`).catch(() => {});
   this.store.remove(`mini/${id}`).catch(() => {});
+  this.store.remove(`notes/${id}`).catch(() => {});
+  // After any save of them still on its way.
+  this.queue(id, () => this.store.remove(`drafts/${id}`));
   if (this.isHome(chat)) window.openghost?.releaseFolder?.(this.cwdOf(chat)).catch(() => {});
  }
 
@@ -226,6 +229,8 @@ class Library {
   for (const chat of gone) {
    this.store.remove(`chats/${chat.id}`).catch(() => {});
    this.store.remove(`mini/${chat.id}`).catch(() => {});
+   this.store.remove(`notes/${chat.id}`).catch(() => {});
+   this.queue(chat.id, () => this.store.remove(`drafts/${chat.id}`));
   }
   return gone.map(chat => chat.id);
  }
@@ -272,15 +277,60 @@ class Library {
   return this.queue(id, () => this.store.remove(`mini/${id}`));
  }
 
- // Seals a mini chat along with its chat, or opens it for good when the password comes off. A mini chat that fails to
- // change never holds the chat's own password back.
+ // The notes kept beside a chat (notepad.js): apart from its messages, next to them, and sealed with the chat's key when it
+ // has a password, the way its mini chat is. `next` numbers the notes, so a note's id is never given twice.
+ notes(id) {
+  return this.queue(id, async () => {
+   const data = await this.store.read(`notes/${id}`).catch(() => null);
+   const body = data?.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
+   return { items: Array.isArray(body?.items) ? body.items : [], next: Number(body?.next) || 1 };
+  }).then(body => body || { items: [], next: 1 });
+ }
+
+ saveNotes(id, { items, next }) {
+  const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
+  if (!chat || (chat.lock && !key)) return Promise.resolve();
+  const body = { items, next };
+  return this.queue(id, async () => this.store.write(`notes/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
+ }
+
+ // The words written in a chat's field and not sent yet (script.js): kept beside the chat so they outlive a restart, and
+ // sealed with the chat's key when it has a password. `new` holds those of a chat not started yet. A locked chat gives
+ // none: they can't be read without its key.
+ draft(id) {
+  return this.queue(id, async () => {
+   const data = await this.store.read(`drafts/${id}`).catch(() => null);
+   if (data?.sealed && !this.keys.has(id)) return '';
+   const body = data?.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
+   return typeof body?.text === 'string' ? body.text : '';
+  }).then(text => text || '');
+ }
+
+ // Sealed with the key the chat has when the save is asked for, so locking right after it loses nothing.
+ saveDraft(id, text) {
+  const chat = id === 'new' ? null : this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
+  if (id !== 'new' && (!chat || (chat.lock && !key))) return Promise.resolve();
+  if (!text.trim()) return this.queue(id, () => this.store.remove(`drafts/${id}`));
+  const body = { text };
+  return this.queue(id, async () => this.store.write(`drafts/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
+ }
+
+ // Seals a chat's mini chat, its notes and its unsent words along with it, or opens them for good when the password comes
+ // off. One that fails to change never holds the chat's own password back.
  async reseal(id, key) {
-  try {
-   const data = await this.store.read(`mini/${id}`);
-   if (!data || !!data.sealed === !!key) return;
-   const body = data.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : { messages: data.messages, tokens: data.tokens, seen: data.seen };
-   await this.store.write(`mini/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body });
-  } catch {}
+  const kept = {
+   mini: data => ({ messages: data.messages, tokens: data.tokens, seen: data.seen }),
+   notes: data => ({ items: data.items, next: data.next }),
+   drafts: data => ({ text: data.text }),
+  };
+  for (const [kind, plain] of Object.entries(kept)) {
+   try {
+    const data = await this.store.read(`${kind}/${id}`);
+    if (!data || !!data.sealed === !!key) continue;
+    const body = data.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : plain(data);
+    await this.store.write(`${kind}/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body });
+   } catch {}
+  }
  }
 
  // Writes of one chat's messages go out one after another, in the order they were asked for.

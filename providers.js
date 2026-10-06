@@ -1,13 +1,13 @@
 (() => {
 'use strict';
 
-// Every model call goes through here: DeepSeek straight from the page, OpenAI, ChatGPT and Anthropic through the main process.
+// Every model call goes through here: DeepSeek straight from the page, OpenAI, ChatGPT, Anthropic and OpenRouter through the main process.
 // Whatever the provider, a call resolves to the same result: content, reasoning, tool calls, finish reason and usage.
 const bridge = window.openghost?.llm || null;
 const listeners = new Map();
 bridge?.onEvent(data => listeners.get(data.id)?.(data));
 
-const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic' };
+const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', openrouter: 'OpenRouter' };
 
 class ProviderError extends Error {
  constructor(message, status = 0) {
@@ -89,7 +89,8 @@ async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
  }
  const efforts = config.efforts || [];
  const effort = efforts.includes('none') ? 'none' : efforts[0] || 'low';
- const room = config.provider === 'anthropic' ? Math.max(maxTokens, 2048) : maxTokens;
+ // A model that always thinks spends its room on thinking first, so it gets room for both.
+ const room = config.provider === 'anthropic' || !efforts.includes('none') ? Math.max(maxTokens, 2048) : maxTokens;
  const result = counted(config, await viaMain({ ...config, effort }, { messages, signal, maxTokens: room, once: true }));
  onUsage?.(result.usage);
  return result.content.trim();
@@ -103,5 +104,12 @@ async function models(provider, key) {
  return reply.models;
 }
 
-window.Providers = { stream, complete, models, NAMES, available: !!bridge };
+// What a provider tells of the account behind a key, for the providers asked through the main process; null when it
+// can't be read.
+async function account(provider, key) {
+ const reply = await bridge?.account?.(provider, key).catch(() => null);
+ return reply?.account || null;
+}
+
+window.Providers = { stream, complete, models, account, NAMES, available: !!bridge };
 })();

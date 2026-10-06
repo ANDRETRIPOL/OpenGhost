@@ -33,6 +33,9 @@ window.Glyphs = {
  compact: thin('<path d="M5.5 12h13"/><path class="compact-a" d="M9 4.2l3 3 3-3"/><path class="compact-b" d="M9 19.8l3-3 3 3"/>', 'glyph-compact'),
  // Three bars like the stats card's own, rounded at both ends. Reached for, they trade heights.
  bars: '<svg class="glyph glyph-bars" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect class="bar-a" x="4.4" y="12" width="3.4" height="8" rx="1.7"/><rect class="bar-b" x="10.3" y="4.5" width="3.4" height="15.5" rx="1.7"/><rect class="bar-c" x="16.2" y="8.8" width="3.4" height="11.2" rx="1.7"/></svg>',
+ // A sheet with a pencil over its corner: the user's notes, as on their button, in slightly lighter lines. Each stroke is
+ // one unit long, so it can be drawn in; the pencil has a group of its own and turns about its tip when it writes.
+ notes: '<svg class="glyph glyph-notes" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M58 42H47a9 9 0 0 0-9 9v22a9 9 0 0 0 9 9h22a9 9 0 0 0 9-9V62"/><g class="notes-pen"><path pathLength="1" d="M53 67l2.6-10.4 21.9-21.9a5.1 5.1 0 0 1 7.2 0l.6.6a5.1 5.1 0 0 1 0 7.2L63.4 64.4z"/><path pathLength="1" d="M73.5 38.7l7.8 7.8"/></g></svg>',
  terminal: svg('<rect x="36" y="40" width="48" height="40" rx="8"/><path d="m47 53 7 7-7 7M61 67h11"/>'),
  file: svg('<path d="M49 36h14l13 13v31a4 4 0 0 1-4 4H49a4 4 0 0 1-4-4V40a4 4 0 0 1 4-4z"/><path d="M62 36v14h14"/>'),
  globe: svg('<circle cx="60" cy="60" r="22"/><path d="M38.5 60h43M60 38c-6.5 6-10 13.5-10 22s3.5 16 10 22c6.5-6 10-13.5 10-22s-3.5-16-10-22z"/>'),

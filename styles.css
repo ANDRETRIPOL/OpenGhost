@@ -59,10 +59,14 @@
   --popover-bg: rgb(33, 33, 33);
   --selection-rgb: 130, 180, 245;
   --backdrop: rgba(0, 0, 0, 0.5);
-  --mini-backdrop: rgba(0, 0, 0, 0.42);
+  --viewer-veil: rgba(14, 14, 14, 0.8);
+  --viewer-lift: 0 24px 70px rgba(0, 0, 0, 0.45);
   /* Every drop shadow's strength is multiplied by this: dark surfaces need deep shadows, light ones barely any. */
   --shadow: 1;
   --glow-rgb: 255, 255, 255;
+  /* The light that runs round a pill of the notes in the chat: ice, and the glow about it. */
+  --ice-rgb: 228, 244, 255;
+  --ice-glow-rgb: 128, 196, 255;
 
   --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 55%, rgba(255, 255, 255, 0.05));
   --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.14) 32%, rgba(255, 255, 255, 0.05) 62%, rgba(255, 255, 255, 0.38));
@@ -179,9 +183,12 @@
   --popover-bg: rgb(255, 255, 255);
   --selection-rgb: 40, 120, 235;
   --backdrop: rgba(0, 0, 0, 0.2);
-  --mini-backdrop: rgba(0, 0, 0, 0.16);
+  --viewer-veil: rgba(246, 246, 248, 0.82);
+  --viewer-lift: 0 22px 60px rgba(20, 20, 40, 0.22);
   --shadow: 0.32;
   --glow-rgb: 0, 0, 0;
+  --ice-rgb: 58, 146, 238;
+  --ice-glow-rgb: 104, 176, 252;
 
   --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55) 55%, rgba(255, 255, 255, 0.7));
   --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 1), rgba(0, 0, 0, 0.1) 32%, rgba(0, 0, 0, 0.06) 62%, rgba(255, 255, 255, 0.8));
@@ -917,8 +924,11 @@ body {
   transition: opacity 0.2s ease, transform 0.35s var(--motion-easing), background-color 0.3s ease;
 }
 
+/* A reply that came in while another chat was on screen turns the dot blue, until the chat is opened. */
 .chat-row.is-unread .chat-dot {
-  background: rgb(var(--composer-accent-rgb));
+  background: rgb(var(--selection-rgb));
+  box-shadow: 0 0 6px rgba(var(--selection-rgb), 0.55);
+  transform: scale(1.2);
 }
 
 .chat-row.is-busy .chat-dot,
@@ -956,7 +966,7 @@ body {
 
 /* A reply that came in while the chat was locked lights the padlock up, the way it lights the dot of any other chat. */
 .chat-row.is-protected.is-unread .chat-guard {
-  color: rgb(var(--composer-accent-rgb));
+  color: rgb(var(--selection-rgb));
 }
 
 .chat-row.is-busy .chat-guard {
@@ -1271,76 +1281,17 @@ body {
   height: var(--icon-button-size);
 }
 
-/* The slot always spans the header; only the capsule drawn inside it takes pointer hits. */
+/* The magnifier alone: a press sends it to the middle of the chat, where the search opens round it (spotlight.js). */
 .sidebar-search {
-  position: relative;
   display: flex;
   align-items: center;
   flex: 1;
   min-width: 0;
   height: 100%;
-  pointer-events: none;
 }
 
-.sidebar-search-shell {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: var(--icon-button-size);
-  height: 100%;
-  border-radius: calc(var(--icon-button-size) / 2);
-  background-color: rgba(var(--fg-rgb), 0.055);
-  background-image: linear-gradient(180deg, rgba(var(--fg-rgb), 0.035), transparent 60%, rgba(0, 0, 0, calc(0.06 * var(--shadow))));
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, calc(0.28 * var(--shadow))),
-    0 0 0 7px rgba(var(--fg-rgb), 0);
-  opacity: 0;
-  transform-origin: calc(var(--icon-button-size) / 2) 50%;
-  pointer-events: auto;
-  transition:
-    background-color 0.2s ease,
-    box-shadow 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.sidebar-search-shell::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(var(--fg-rgb), 0.13), rgba(var(--fg-rgb), 0.035) 45%, rgba(var(--fg-rgb), 0.015) 75%, rgba(var(--fg-rgb), 0.05));
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-}
-
-.sidebar-search:hover .sidebar-search-shell {
-  background-color: rgba(var(--fg-rgb), 0.07);
-}
-
-/* macOS-style focus ring: it tightens onto the field from a wider, invisible ring. */
-.sidebar-search:has(.sidebar-search-input:focus) .sidebar-search-shell {
-  background-color: rgba(var(--fg-rgb), 0.08);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, calc(0.28 * var(--shadow))),
-    0 0 0 2.5px rgba(var(--fg-rgb), 0.16);
-}
-
-/* On the light backdrop the capsule is frosted glass, like the rows: white, lit along its top edge. */
-[data-theme="light"] .sidebar-search-shell {
-  background-color: rgba(255, 255, 255, 0.5);
-  background-image: none;
-}
-
-[data-theme="light"] .sidebar-search-shell::after {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.4) 45%, rgba(30, 48, 88, 0.05) 75%, rgba(30, 48, 88, 0.1));
-}
-
-[data-theme="light"] .sidebar-search:hover .sidebar-search-shell {
-  background-color: rgba(255, 255, 255, 0.66);
-}
-
-[data-theme="light"] .sidebar-search:has(.sidebar-search-input:focus) .sidebar-search-shell {
-  background-color: rgba(255, 255, 255, 0.85);
+.sidebar-search-button {
+  flex: none;
 }
 
 .glass-lens {
@@ -1365,109 +1316,278 @@ body {
   pointer-events: none;
 }
 
+/* While the search is open the magnifier is there, not here: it ducks away, and springs back when the search closes. */
 .sidebar-search-button {
-  position: relative;
-  flex: none;
+  transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+
+.sidebar-search-button.is-away {
+  opacity: 0;
+  transform: scale(0.5) rotate(-30deg);
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Search, in the manner of Spotlight on macOS: one panel of frosted liquid glass in the upper middle of the chat. The
+   field is its top; once something is typed, a hairline and the chats found come out under the field, inside the same
+   panel, which grows and shrinks with them. The glass is milky and takes its colour from what lies behind it; a lit
+   rim runs round it. It lies on the top layer and covers nothing else. */
+.spotlight {
+  /* The glass is 35% clear: enough of the chat shows through for it to be glass, and the words on it read well. */
+  --spot-fill: linear-gradient(180deg, rgba(54, 54, 60, 0.65), rgba(38, 38, 42, 0.65));
+  --spot-frost: blur(34px) saturate(1.9) brightness(1.08);
+  --spot-plate: rgba(255, 255, 255, 0.09);
+  --spot-rule: rgba(255, 255, 255, 0.09);
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--fg-primary);
+  pointer-events: none;
+}
+
+[data-theme="light"] .spotlight {
+  --spot-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(250, 251, 253, 0.65));
+  --spot-frost: blur(34px) saturate(1.9) brightness(1.04);
+  --spot-plate: rgba(60, 70, 90, 0.1);
+  --spot-rule: rgba(40, 50, 70, 0.09);
+}
+
+.spotlight-panel {
+  position: absolute;
+  top: var(--spot-y);
+  left: var(--spot-x);
+  width: var(--spot-width);
+  overflow: hidden;
+  transform-origin: 50% 30px;
   pointer-events: auto;
-  transition: transform 0.2s ease;
 }
 
-.sidebar-search.is-expanded .sidebar-search-button {
-  transform: scale(0.84);
-  transition: transform 0.5s cubic-bezier(0.3, 1.5, 0.5, 1);
+.spotlight-panel.glass-lens {
+  border-radius: 28px;
+  background: var(--spot-fill);
+  box-shadow: var(--glass-shade), 0 30px 80px rgba(0, 0, 0, calc(0.42 * var(--shadow))), 0 6px 18px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
+  -webkit-backdrop-filter: var(--spot-frost);
+  backdrop-filter: var(--spot-frost);
 }
 
-.sidebar-search-input {
-  position: relative;
+.spotlight-bar {
+  display: flex;
+  align-items: center;
+  height: 60px;
+}
+
+.spotlight-input {
   flex: 1;
   min-width: 0;
   height: 100%;
-  margin: 0;
-  padding: 0 10px 0 2px;
+  padding: 0 24px 0 62px;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--fg-primary);
   caret-color: var(--fg-primary);
   font: inherit;
-  font-size: var(--sidebar-font-size);
-  pointer-events: auto;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: -0.012em;
 }
 
-.sidebar-search.has-value .sidebar-search-input {
-  padding-right: 30px;
+.spotlight-input::placeholder {
+  color: rgba(var(--fg-rgb), 0.42);
 }
 
-.sidebar-search-input::placeholder {
-  color: transparent;
-}
-
-.sidebar-search-placeholder {
+/* The magnifier of the field is drawn stroke by stroke as the field opens. */
+.spotlight-lens {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  color: rgb(var(--composer-fg-rgb));
-  font-size: var(--sidebar-font-size);
-  white-space: pre;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
-}
-
-.sidebar-search-placeholder span {
-  display: inline-block;
-  white-space: pre;
-}
-
-.sidebar-search.has-value .sidebar-search-placeholder {
-  opacity: 0;
-}
-
-.sidebar-search-clear {
-  position: absolute;
-  top: 50%;
-  right: 4px;
-  display: grid;
-  place-items: center;
+  top: calc(var(--spot-y) + 18px);
+  left: calc(var(--spot-x) + 22px);
   width: 24px;
   height: 24px;
-  margin: -12px 0 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--app-bg);
-  cursor: pointer;
-  opacity: 0;
-  transform: scale(0.4);
-  pointer-events: none;
-  transition: opacity 0.12s ease, transform 0.18s ease;
+  color: rgba(var(--fg-rgb), 0.62);
 }
 
-.sidebar-search-clear::before {
+.spotlight-lens svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* What was found: under a hairline, as tall as what it holds, on a spring; with nothing asked it is shut. */
+.spotlight-box {
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight-box::before {
   content: "";
   position: absolute;
-  inset: 4px;
-  border-radius: 50%;
-  background: rgba(var(--fg-rgb), 0.3);
-  transition: background-color 0.15s ease;
+  z-index: 1;
+  top: 0;
+  right: 16px;
+  left: 16px;
+  height: 1px;
+  background: var(--spot-rule);
+  opacity: 0;
+  transition: opacity 0.25s ease;
 }
 
-.sidebar-search-clear:hover::before {
-  background: rgba(var(--fg-rgb), 0.48);
-}
-
-.sidebar-search-clear svg {
-  position: relative;
-  width: 8px;
-  height: 8px;
-}
-
-.sidebar-search.has-value .sidebar-search-clear {
+.spotlight.has-results .spotlight-box::before {
   opacity: 1;
-  transform: scale(1);
-  pointer-events: auto;
-  transition: opacity 0.15s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.spotlight-results {
+  position: relative;
+  max-height: min(424px, var(--spot-room, 424px));
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.spotlight:not(.has-results) .spotlight-results {
+  max-height: 0;
+}
+
+.spotlight-results::-webkit-scrollbar {
+  display: none;
+}
+
+.spotlight-scrollbar {
+  top: 12px;
+  right: 3px;
+  bottom: 14px;
+}
+
+.spotlight-list {
+  position: relative;
+  margin: 0;
+  padding: 10px;
+  list-style: none;
+}
+
+.spotlight-list:empty {
+  display: none;
+}
+
+/* The chat that Enter opens lies on a rounded plate of the same glass, a shade apart; it glides from row to row. */
+.spotlight-glide {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  left: 10px;
+  height: 48px;
+  border-radius: 18px;
+  background: var(--spot-plate);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.34s cubic-bezier(0.3, 1.2, 0.4, 1), opacity 0.2s ease;
+}
+
+.spotlight-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 48px;
+  padding: 0 16px 0 14px;
+  border-radius: 18px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* A folder that holds chats found: its name, and its chats under it, set in a little to the right. */
+.spotlight-folder {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 34px;
+  padding: 4px 16px 0 14px;
+  color: rgba(var(--fg-rgb), 0.5);
+  font-size: 13px;
+  font-weight: 550;
+  user-select: none;
+}
+
+.spotlight-folder span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spotlight-row.is-nested {
+  padding-left: 48px;
+}
+
+.spotlight-row-sign {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: rgba(var(--fg-rgb), 0.55);
+  transition: color 0.2s ease;
+}
+
+.spotlight-row-sign svg {
+  width: 19px;
+  height: 19px;
+}
+
+.spotlight-row[aria-selected="true"] .spotlight-row-sign {
+  color: var(--fg-primary);
+}
+
+.spotlight-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(var(--fg-rgb), 0.74);
+  font-size: 15.5px;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.spotlight-row[aria-selected="true"] .spotlight-row-title {
+  color: var(--fg-primary);
+}
+
+/* What was typed stands out in the title by its weight alone. */
+.spotlight-row-title mark {
+  background: none;
+  color: var(--fg-primary);
+  font-weight: 650;
+}
+
+.spotlight-row-time {
+  flex: none;
+  min-width: 30px;
+  color: rgba(var(--fg-rgb), 0.45);
+  font-size: 12.5px;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.spotlight-none {
+  margin: 0;
+  padding: 24px;
+  color: rgba(var(--fg-rgb), 0.5);
+  font-size: 14.5px;
+  text-align: center;
+}
+
+.spotlight-none[hidden] {
+  display: none;
 }
 
 .main {
@@ -1602,6 +1722,247 @@ body {
   border-radius: 20px;
   color: rgb(var(--bubble-fg-rgb));
   white-space: pre-wrap;
+}
+
+/* A long message of the user's is shown folded to its first twelve lines (message-fold.js): the rest fades out under a
+   button in the bubble's corner that opens it whole, and folds it again. */
+.message-bubble.is-long {
+  --fold-row: 34px;
+  position: relative;
+  padding-bottom: var(--fold-row);
+}
+
+.message-bubble.is-long:not(.is-open) {
+  max-height: calc(12lh + 10px + var(--fold-row));
+  overflow: hidden;
+}
+
+.message-bubble.is-folding {
+  overflow: hidden;
+}
+
+/* The words fade into the bubble's own colour above the button. */
+.message-bubble.is-long::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(var(--fold-row) + 2.2lh);
+  border-radius: 0 0 20px 20px;
+  background: linear-gradient(to bottom, transparent, var(--bubble-bg) calc(100% - var(--fold-row) - 2px));
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* It stays while the bubble grows or shrinks, so no words show through under the button on the way. */
+.message-bubble.is-long.is-open:not(.is-folding)::after {
+  opacity: 0;
+}
+
+.message-fold {
+  position: absolute;
+  z-index: 1;
+  bottom: 5px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 6px 0 9px;
+  border: 0;
+  border-radius: 13px;
+  outline: none;
+  background: transparent;
+  color: rgba(var(--bubble-fg-rgb), 0.62);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.message-fold[hidden] {
+  display: none;
+}
+
+.message-fold::before {
+  content: attr(data-label);
+}
+
+/* The arrow: a fine line bent in the middle, pointing down. Opened, the middle springs up past the ends and the arrow
+   points up; under the pointer it leans the way it points. */
+.message-fold svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.message-fold path {
+  d: path("M4.25 7 L9 11.5 L13.75 7");
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: d 0.55s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.message-bubble.is-open .message-fold path {
+  d: path("M4.25 11 L9 6.5 L13.75 11");
+}
+
+.message-fold:hover svg {
+  transform: translateY(1.5px);
+}
+
+.message-bubble.is-open .message-fold:hover svg {
+  transform: translateY(-1.5px);
+}
+
+.message-fold:active svg {
+  transform: translateY(3px) scale(0.94);
+  transition-duration: 0.12s;
+}
+
+.message-bubble.is-open .message-fold:active svg {
+  transform: translateY(-3px) scale(0.94);
+}
+
+.message-fold:hover {
+  background: rgba(var(--bubble-fg-rgb), 0.08);
+  color: rgb(var(--bubble-fg-rgb));
+}
+
+.message-fold:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(var(--bubble-fg-rgb), 0.4);
+  color: rgb(var(--bubble-fg-rgb));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-bubble.is-long::after,
+  .message-fold,
+  .message-fold svg,
+  .message-fold path {
+    transition: none;
+  }
+}
+
+/* A message sent while the agent is busy (queued-ring.js). Until the agent takes it, the bubble is hollow, with dashes
+   walking round it. Then the bubble's own look slides in over it behind a soft leaning edge, so the light look never
+   fades through the dark one as grey on grey. */
+.message.is-queued .message-bubble {
+  position: relative;
+  background: none;
+  color: var(--fg-primary);
+}
+
+.message.is-queued .message-bubble::selection,
+.message.is-queued .message-bubble ::selection {
+  background: rgba(var(--fg-rgb), 0.16);
+  color: var(--fg-primary);
+}
+
+.message.is-queued .message-bubble .link-chip {
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+}
+
+.message.is-user > :is(.media, .message-files, .message-quote) {
+  transition: opacity 0.3s ease;
+}
+
+.message.is-queued:not(.is-taken) > :is(.media, .message-files, .message-quote) {
+  opacity: 0.6;
+}
+
+.queued-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.queued-ring rect {
+  fill: none;
+  stroke: rgba(var(--fg-rgb), 0.26);
+  stroke-width: 2;
+  stroke-linecap: round;
+  animation: queued-walk 0.34s linear infinite;
+}
+
+@keyframes queued-walk {
+  to {
+    stroke-dashoffset: calc(var(--step) * -1);
+  }
+}
+
+.queued-ink {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  user-select: none;
+}
+
+.queued-ink-pane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(100deg, #000 calc(100% - var(--lean) - 20px), transparent calc(100% - var(--lean)));
+  mask-image: linear-gradient(100deg, #000 calc(100% - var(--lean) - 20px), transparent calc(100% - var(--lean)));
+}
+
+.queued-ink-face {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--bubble-bg);
+  color: rgb(var(--bubble-fg-rgb));
+}
+
+.message.is-queued .queued-ink-face .link-chip {
+  background: rgba(var(--bubble-fg-rgb), 0.08);
+  color: rgb(var(--bubble-fg-rgb));
+}
+
+/* While it waits the message is still the user's to rewrite or take away: two small buttons stand before its last part,
+   level with its middle, and go the moment the agent takes it. */
+.message:has(> .queued-tools) {
+  anchor-scope: --queued;
+}
+
+.message:has(> .queued-tools) > :nth-last-child(1 of .media, .message-files, .message-quote, .message-bubble) {
+  anchor-name: --queued;
+}
+
+.queued-tools {
+  position: absolute;
+  position-anchor: --queued;
+  top: anchor(center);
+  right: calc(anchor(left) + 6px);
+  display: flex;
+  gap: 2px;
+  translate: 0 -50%;
+  animation: queued-tools-in 0.45s var(--motion-easing) 0.1s both;
+}
+
+@keyframes queued-tools-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
 }
 
 .message-quote {
@@ -2182,6 +2543,176 @@ ghost-thinking {
   }
 }
 
+/* What the agent did with the notes, as a small pill in the chat (NotePill in notepad.js), in the manner of a link's
+   chip: the notes' own sign, what happened and the note, on one line. It stands with the agent's words, as quiet as they
+   are; as it comes in, a thin light the colour of ice (--ice-rgb, its glow --ice-glow-rgb) runs once round its edge. */
+.thread-note {
+  display: flex;
+  min-width: 0;
+  overflow-clip-margin: 10px;
+  user-select: none;
+}
+
+/* The memory's pill says two words and no more: they are its whole text, as quiet as a label. */
+.thread-note.is-memory .thread-note-text {
+  color: rgba(var(--fg-rgb), 0.72);
+  font-weight: 550;
+}
+
+.glyph-memory {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+}
+
+.thread-note-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+  height: 30px;
+  margin: 0;
+  padding: 0 12px 0 9px;
+  border: 0;
+  border-radius: 10px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: left;
+  transform-origin: 0 50%;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.thread-note-pill:hover {
+  background: rgba(var(--fg-rgb), 0.11);
+}
+
+.thread-note-pill:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.thread-note-sign {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: rgba(var(--fg-rgb), 0.74);
+}
+
+.thread-note-sign .glyph {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
+/* The pencil turns about its tip. */
+.glyph-notes .notes-pen {
+  transform-box: view-box;
+  transform-origin: 38.33% 61.67%;
+}
+
+.thread-note-sign .glyph-done,
+.thread-note.is-done .thread-note-sign .glyph:not(.glyph-done) {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.thread-note.is-done .thread-note-sign .glyph-done {
+  opacity: 1;
+  transform: none;
+  color: rgb(var(--success-rgb));
+}
+
+.thread-note-label {
+  flex: none;
+  color: rgba(var(--fg-rgb), 0.5);
+  font-weight: 550;
+}
+
+.thread-note-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.thread-note.is-done .thread-note-text {
+  color: rgba(var(--fg-rgb), 0.45);
+}
+
+/* The light: a few strokes along the pill's edge, one over another, each shorter and brighter than the one under it, so
+   together they are a bright head with a tail that thins out behind it; under them two wide faint ones are its glow. */
+.thread-note-light {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.thread-note-light rect {
+  fill: none;
+  stroke: rgb(var(--ice-rgb));
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+}
+
+.thread-note-light .is-glow {
+  stroke: rgb(var(--ice-glow-rgb));
+  stroke-width: 7px;
+  opacity: 0.12;
+}
+
+.thread-note-light .is-halo {
+  stroke: rgb(var(--ice-glow-rgb));
+  stroke-width: 3.5px;
+  opacity: 0.24;
+}
+
+.thread-note-light .is-tail {
+  opacity: 0.22;
+}
+
+.thread-note-light .is-mid {
+  opacity: 0.5;
+}
+
+/* Dust (dust.js): what a thing taken away crumbles into. A sheet lies over the window the thing was seen through, cut to
+   it; on the sheet, over the thing's place, are the picture of it, which loses its grains as they come loose, and the
+   air they fly in. */
+.dust-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+
+.dust {
+  position: absolute;
+}
+
+.dust canvas {
+  position: absolute;
+}
+
+.dust-air {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 /* Chat stats: a card in the thread, the user's only, in a frosted rim: the total in large type, a chart of the replies,
    and a line a model with a meter of its cache, then the context. */
 .stats-item {
@@ -2654,13 +3185,14 @@ ghost-thinking {
   --composer-side-gap: 12px;
   --composer-bottom-gap: 12px;
   --composer-font-size: 15px;
+  /* It floats over the app: its place and size are the script's, set as it is dragged and resized. */
   position: fixed;
-  inset: var(--room-top, 0) var(--room-right, 0) var(--room-bottom, 0) var(--room-left, 0);
-  width: min(330px, var(--room-width, 100vw) - 32px);
+  inset: 0 auto auto 0;
+  width: var(--mini-width, 330px);
   max-width: none;
-  height: min(490px, var(--room-height, 100vh) - 32px);
+  height: var(--mini-height, 490px);
   max-height: none;
-  margin: auto;
+  margin: 0;
   padding: 0;
   overflow: hidden;
   border: 0;
@@ -2669,15 +3201,17 @@ ghost-thinking {
   box-shadow: var(--contour), 0 30px 80px rgba(0, 0, 0, calc(0.55 * var(--shadow)));
   color: var(--fg-primary);
   opacity: 0;
+  translate: var(--mini-x, 0) var(--mini-y, 0);
   transform: translateY(14px) scale(0.96);
   transition:
     opacity 0.22s ease,
     transform 0.45s var(--motion-easing),
+    box-shadow 0.35s ease,
     overlay 0.45s allow-discrete,
     display 0.45s allow-discrete;
 }
 
-.mini[open] {
+.mini:popover-open {
   display: flex;
   flex-direction: column;
   opacity: 1;
@@ -2685,7 +3219,7 @@ ghost-thinking {
 }
 
 @starting-style {
-  .mini[open] {
+  .mini:popover-open {
     opacity: 0;
     transform: translateY(14px) scale(0.96);
   }
@@ -2697,25 +3231,121 @@ ghost-thinking {
 }
 
 .mini::backdrop {
-  background: transparent;
-  transition:
-    background-color 0.3s ease,
-    overlay 0.45s allow-discrete,
-    display 0.45s allow-discrete;
+  display: none;
 }
 
-.mini[open]::backdrop {
-  background: var(--mini-backdrop);
+/* Picked up, it lifts a little off the page. */
+.mini.is-moving {
+  transform: scale(1.012);
+  box-shadow: var(--contour), 0 44px 110px rgba(0, 0, 0, calc(0.62 * var(--shadow)));
 }
 
-.mini.is-closing::backdrop {
-  background: transparent;
+.mini.is-moving,
+.mini.is-sizing {
+  user-select: none;
 }
 
-@starting-style {
-  .mini[open]::backdrop {
-    background: transparent;
-  }
+.mini.is-moving .mini-head {
+  cursor: grabbing;
+}
+
+/* The arc in the corner the window is resized by. It keeps to the corner's own curve; faint until the pointer is over
+   the window, clear under the pointer, and it leans out a little when taken. */
+.mini-grip {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  bottom: 0;
+  width: 26px;
+  height: 26px;
+  color: var(--fg-primary);
+  cursor: nwse-resize;
+  opacity: 0.16;
+  transform-origin: 4px 4px;
+  transition: opacity 0.3s ease, transform 0.45s var(--motion-easing);
+  touch-action: none;
+}
+
+.mini-grip svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  transition: stroke-width 0.3s var(--motion-easing);
+}
+
+.mini:hover .mini-grip {
+  opacity: 0.34;
+}
+
+.mini .mini-grip:hover,
+.mini.is-sizing .mini-grip {
+  opacity: 0.85;
+  transform: scale(1.07);
+}
+
+.mini .mini-grip:hover svg,
+.mini.is-sizing .mini-grip svg {
+  stroke-width: 2.9;
+}
+
+.mini.is-sizing .mini-grip {
+  transform: scale(1.12);
+}
+
+/* While the mini chat is resized its words step aside for grey bars, a bar for a line, which stretch with the window;
+   the words come back when it is let go. A slow light passes along the bars. */
+.mini .thread-list {
+  transition: opacity 0.24s ease;
+}
+
+.mini.is-veiled .thread-list {
+  opacity: 0;
+}
+
+.mini-bones {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s ease;
+}
+
+.mini.is-veiled .mini-bones {
+  opacity: 1;
+}
+
+.mini-lines {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+}
+
+.mini-bone {
+  display: block;
+  flex: none;
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(100deg, rgba(var(--fg-rgb), 0.075) 38%, rgba(var(--fg-rgb), 0.15) 50%, rgba(var(--fg-rgb), 0.075) 62%) 0 0 / 280% 100%;
+  animation: mini-bone 2.2s linear infinite;
+}
+
+.mini-bone.is-bubble {
+  position: absolute;
+  height: auto;
+  background-color: rgba(var(--fg-rgb), 0.04);
+}
+
+@keyframes mini-bone {
+  from { background-position: 100% 0; }
+  to { background-position: -40% 0; }
 }
 
 .mini-head {
@@ -2807,8 +3437,10 @@ ghost-thinking {
   padding: 0;
 }
 
+/* The scrollbar stops short of the corner, clear of the arc the window is resized by. */
 .mini .thread-scrollbar {
   top: 6px;
+  bottom: 38px;
 }
 
 .mini .composer {
@@ -3411,7 +4043,8 @@ h6.md-h {
   background: rgb(var(--tone));
 }
 
-.md-copy {
+.md-copy,
+.queued-tool {
   display: grid;
   place-items: center;
   width: 28px;
@@ -3426,13 +4059,20 @@ h6.md-h {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.md-copy:hover {
+.md-copy:hover,
+.queued-tool:hover {
   background: var(--control-hover-bg);
   color: var(--fg-primary);
 }
 
-.md-copy:focus-visible {
+.md-copy:focus-visible,
+.queued-tool:focus-visible {
   box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.queued-tool svg {
+  width: 15px;
+  height: 15px;
 }
 
 .md-copy svg {
@@ -7403,11 +8043,532 @@ h6.md-h {
   background: rgba(var(--fg-rgb), 0.1);
 }
 
-.sidebar-toggle {
+/* The buttons at the top of the chat, the sidebar's and the notes', share one capsule of glass, like the two tools of a
+   drawing. The capsule is as wide as what it holds: the notes' button is there only once the chat exists, and the
+   capsule grows to take it in. The sidebar's glyph stands where it stood before there was a capsule. */
+.top-tools {
+  --top-tool: 30px;
+  --top-pad: 3px;
+  --top-gap: 2px;
+  --icon-button-size: var(--top-tool);
+  --icon-button-radius: 50%;
+  --icon-button-transition: color 0.2s ease, background-color 0.2s ease;
+  --icon-opacity: 0.78;
+  --icon-hover-opacity: 1;
   position: absolute;
   z-index: 3;
-  top: var(--toggle-inset);
-  left: var(--toggle-inset);
+  top: calc(var(--toggle-inset) - 2px);
+  left: calc(var(--toggle-inset) - 2px);
+  display: flex;
+  gap: var(--top-gap);
+  width: calc(var(--top-tool) + 2 * var(--top-pad));
+  height: calc(var(--top-tool) + 2 * var(--top-pad));
+  padding: var(--top-pad);
+  overflow: clip;
+  -webkit-app-region: no-drag;
+  transition: width 0.5s var(--motion-easing);
+}
+
+.top-tools {
+  width: calc(var(--top-count, 1) * var(--top-tool) + (var(--top-count, 1) - 1) * var(--top-gap) + 2 * var(--top-pad));
+}
+
+/* The ghost of a mini chat closed while its agent was at work: it breathes while the agent works, and carries a dot once
+   the agent waits for the user or has answered. */
+.mini-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--top-tool);
+  height: var(--top-tool);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: transparent;
+  color: var(--fg-primary);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.mini-toggle[hidden] {
+  display: none;
+}
+
+.mini-toggle:hover {
+  background: rgba(var(--fg-rgb), 0.1);
+}
+
+.mini-toggle:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring, rgba(var(--fg-rgb), 0.35));
+}
+
+.mini-toggle .glyph-ghost {
+  width: 15px;
+  height: 16px;
+  opacity: 0.82;
+}
+
+.mini-toggle .glyph-ghost-eye {
+  fill: var(--chat-bg);
+}
+
+.mini-toggle[data-state="working"] .glyph-ghost {
+  animation: mini-breathe 1.8s ease-in-out infinite;
+}
+
+.mini-toggle-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--composer-accent-rgb));
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 0.25s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mini-toggle:is([data-state="waiting"], [data-state="ready"]) .mini-toggle-dot {
+  opacity: 1;
+  transform: none;
+}
+
+.mini-toggle[data-state="waiting"] .mini-toggle-dot {
+  background: rgb(240, 170, 70);
+}
+
+@keyframes mini-breathe {
+  0%, 100% { opacity: 0.82; transform: none; }
+  50% { opacity: 0.38; transform: translateY(-1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-toggle[data-state="working"] .glyph-ghost {
+    animation: none;
+  }
+}
+
+.top-tools > * {
+  flex: none;
+}
+
+/* Under the pointer a button of the capsule gets a disc of its own. The capsule sets it from here, through the button's
+   own variable: the buttons' shared style says nothing about a background under the pointer, so no other button's own
+   background is touched. */
+.top-tools > :not([disabled]):hover {
+  --icon-button-bg: rgba(var(--fg-rgb), 0.1);
+}
+
+/* The user's notes beside a chat (notepad.js). Their button stands at the top of the chat, beside the sidebar's. */
+.notes-toggle[hidden] {
+  display: none;
+}
+
+/* While the notes are out, the glyph on their stage stands in for the button's. */
+.notes-toggle.is-away {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The notes come out in the manner of the effort's stage: the glyph stays where the button stood and «Notes» stands
+   beside it in large type, with a line under them; below, a sheet grown out of the button holds the field a note is
+   written in and the notes under it. Behind it all lies a soft patch of the selection's veil. */
+.notepad {
+  position: fixed;
+  inset: auto;
+  width: min(340px, calc(100vw - 24px));
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: none;
+  color: var(--fg-primary);
+}
+
+.notepad.is-closing {
+  pointer-events: none;
+}
+
+.notepad-veil {
+  position: absolute;
+  z-index: -1;
+  mask-composite: intersect;
+  transition: left 0.5s var(--motion-easing), top 0.5s var(--motion-easing), width 0.5s var(--motion-easing), height 0.5s var(--motion-easing);
+}
+
+/* The glyph lies exactly over the button's own, the name beside it, level with it and clear of the capsule the button
+   stands in. */
+.notepad-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: calc(var(--notepad-mark, 32px) + 12px);
+  padding-left: 6px;
+}
+
+.notepad-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--notepad-mark, 32px);
+  height: var(--notepad-mark, 32px);
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  outline: none;
+  background: none;
+  color: rgb(var(--icon-rgb));
+  cursor: pointer;
+}
+
+.notepad-mark:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+/* On the stage the glyph stands in full ink; as the stage goes it takes the button's own tone again, so the button that
+   comes back in its place looks the same. */
+.notepad-glyph {
+  width: var(--notepad-icon, 22px);
+  height: var(--notepad-icon, 22px);
+  overflow: visible;
+  opacity: 0.92;
+  transition: opacity 0.3s ease;
+}
+
+.notepad.is-closing .notepad-glyph {
+  opacity: var(--icon-opacity);
+}
+
+.notepad-word {
+  position: relative;
+  height: 1.1em;
+  color: rgb(var(--composer-accent-rgb));
+  font-family: "OpenGhost Display", var(--font);
+  font-size: clamp(26px, 2.6vw, 34px);
+  line-height: 1.1;
+  translate: 0 -1px;
+  pointer-events: none;
+}
+
+.notepad-hint {
+  max-width: 300px;
+  margin: 8px 0 0 12px;
+  color: rgba(var(--fg-rgb), 0.55);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 17px;
+  text-wrap: balance;
+  pointer-events: none;
+}
+
+.notepad-sheet {
+  position: relative;
+  margin-top: 14px;
+}
+
+.notepad-shell {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 18px 48px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
+  pointer-events: none;
+}
+
+.notepad-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The row a new note is written in, at the top of the sheet: it stays where it is while the notes gather under it. */
+.notepad-form {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 44px;
+  padding: 6px 6px 6px 16px;
+}
+
+.notepad-input {
+  flex: 1;
+  min-width: 0;
+  max-height: 128px;
+  margin: 0;
+  padding: 6px 6px 6px 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: none;
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 20px;
+  field-sizing: content;
+  scrollbar-width: none;
+}
+
+.notepad-input::placeholder {
+  color: rgba(var(--fg-rgb), 0.36);
+}
+
+/* The arrow that keeps the note comes in once there is something to keep. */
+.notepad-add {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: rgb(var(--composer-accent-rgb));
+  color: rgb(var(--composer-on-accent-rgb));
+  cursor: pointer;
+  transition: opacity 0.2s ease, scale 0.45s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
+.notepad-add:disabled {
+  opacity: 0;
+  scale: 0.6;
+  pointer-events: none;
+  transition: opacity 0.15s ease, scale 0.2s ease;
+}
+
+.notepad-add:focus-visible {
+  box-shadow: 0 0 0 2px var(--composer-bg), 0 0 0 4px var(--focus-ring);
+}
+
+.notepad-add svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* The notes, under a hairline; an empty notepad has neither. The scrollbar runs beside the list only. */
+.notepad-pane {
+  position: relative;
+}
+
+.notepad.is-empty .notepad-pane {
+  display: none;
+}
+
+.notepad-pane::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 14px;
+  left: 14px;
+  height: 1px;
+  background: rgba(var(--fg-rgb), 0.07);
+}
+
+.notepad-pane > .notepad-scrollbar {
+  top: 6px;
+  right: 1px;
+  bottom: 14px;
+}
+
+/* The list takes what room there is under the button, down to a little above the window's edge. */
+.notepad-scroll {
+  max-height: clamp(84px, calc(var(--notepad-room, 520px) - 210px), 320px);
+  padding: 5px 6px 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.notepad-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Where the list goes on past its edge, the notes fade out there instead of being cut. */
+.notepad-scroll.is-cut-top {
+  mask-image: linear-gradient(transparent, #000 18px);
+}
+
+.notepad-scroll.is-cut-bottom {
+  mask-image: linear-gradient(#000 calc(100% - 22px), transparent);
+}
+
+.notepad-scroll.is-cut-top.is-cut-bottom {
+  mask-image: linear-gradient(transparent, #000 18px, #000 calc(100% - 22px), transparent);
+}
+
+/* Rows come into place when the notes open; clipped, a row on its way never makes the list look longer than it is. */
+.notepad-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: clip;
+  list-style: none;
+}
+
+.notepad-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 30px;
+  align-items: start;
+  border-radius: 12px;
+}
+
+.notepad-tick {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: none;
+  color: rgba(var(--fg-rgb), 0.36);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.notepad-tick:hover {
+  color: rgba(var(--fg-rgb), 0.7);
+}
+
+.notepad-tick:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+.notepad-tick svg {
+  width: 20px;
+  height: 20px;
+  overflow: visible;
+}
+
+/* Ticked off, the ring fills and the tick is drawn into it. */
+.notepad-tick .tick-fill {
+  fill: rgb(var(--composer-accent-rgb));
+  transform: scale(0);
+  transform-origin: 10px 10px;
+  transition: transform 0.3s ease;
+}
+
+.notepad-tick .tick-check {
+  stroke: rgb(var(--composer-on-accent-rgb));
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0.2s ease;
+}
+
+.notepad-item.is-done .tick-fill {
+  transform: none;
+  transition: transform 0.5s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
+.notepad-item.is-done .tick-check {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.32s var(--motion-easing) 0.14s;
+}
+
+/* A note the agent has brought up and that still waits for the user's word. */
+.notepad-item.is-reminded .notepad-tick {
+  color: rgb(var(--warn-rgb));
+}
+
+.notepad-text {
+  min-width: 0;
+  padding: 6px 4px;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+  transition: color 0.3s ease, background-color 0.2s ease;
+}
+
+.notepad-text:focus {
+  background: rgba(var(--fg-rgb), 0.05);
+}
+
+.notepad-item.is-done .notepad-text {
+  color: rgba(var(--fg-rgb), 0.38);
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--fg-rgb), 0.26);
+}
+
+.notepad-by,
+.notepad-remove {
+  grid-area: 1 / 3;
+  justify-self: center;
+}
+
+/* A small ghost marks a note the agent wrote down; under the pointer it gives way to the cross. */
+.notepad-by {
+  display: none;
+  width: 13px;
+  height: 14px;
+  margin-top: 9px;
+  color: rgba(var(--fg-rgb), 0.3);
+  transition: opacity 0.2s ease;
+}
+
+.notepad-item.is-agent .notepad-by {
+  display: block;
+}
+
+.notepad-by .glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.notepad-by .glyph-ghost-eye {
+  fill: var(--composer-bg);
+}
+
+.notepad-remove {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  outline: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.notepad-remove svg {
+  width: 15px;
+  height: 15px;
+}
+
+.notepad-remove:hover {
+  background: var(--control-hover-bg);
+  color: var(--fg-primary);
+}
+
+.notepad-remove:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+.notepad-item:hover .notepad-remove,
+.notepad-item:focus-within .notepad-remove {
+  opacity: 1;
+}
+
+.notepad-item:hover .notepad-by,
+.notepad-item:focus-within .notepad-by {
+  opacity: 0;
 }
 
 .composer {
@@ -8352,6 +9513,12 @@ h6.md-h {
   filter: blur(8px);
 }
 
+/* The models of a company that is shut: folded away under its name. Many fold at once, so they only fade. */
+.model-slot.is-shut {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
 /* The glow and the letter ripple reach past the rows, only the folding clips them. */
 .model-slot-inner {
   min-height: 0;
@@ -8422,6 +9589,40 @@ h6.md-h {
   font-weight: 500;
   line-height: 1;
   letter-spacing: 0.01em;
+}
+
+/* A company's models stand under its name in smaller type: the company is the row to look for, its models the choice
+   within it. */
+.model-row.is-sub {
+  padding: 7px 0;
+}
+
+.model-row.is-sub .model-text {
+  gap: 6px;
+}
+
+.model-row.is-sub .model-name {
+  font-size: clamp(20px, 2.2vw, 29px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.model-row.is-sub .model-meta {
+  font-size: 12px;
+}
+
+/* The small arrow after a company's count points at the name while the company is shut and down at its models once it
+   is open. */
+.model-chevron {
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  transition: rotate 0.45s var(--motion-easing);
+}
+
+.model-row.is-company[aria-expanded="true"] .model-chevron {
+  rotate: 90deg;
 }
 
 .model-mark {
@@ -8941,6 +10142,14 @@ h6.md-h {
 .settings-tab[aria-selected="true"] .bar-a { d: path("M42 80V48"); }
 .settings-tab[aria-selected="true"] .bar-b { d: path("M60 80V60"); }
 .settings-tab[aria-selected="true"] .bar-c { d: path("M78 80V38"); }
+
+/* Memory: the line on the leaf is written out, and its tail dips, like a ribbon let go. */
+.settings-tab-icon :is(.memo-leaf, .memo-line) {
+  transition: d 0.6s var(--motion-easing);
+}
+
+.settings-tab[aria-selected="true"] .memo-leaf { d: path("M42 37h36v46l-18-19.5L42 83z"); }
+.settings-tab[aria-selected="true"] .memo-line { d: path("M52 50h16"); }
 
 .settings-lead {
   margin: 0 0 4px;
@@ -9798,6 +11007,240 @@ h6.md-h {
   gap: 12px;
 }
 
+.general-access[hidden] {
+  display: none;
+}
+
+.general-access-state {
+  margin-left: auto;
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+}
+
+.general-access.is-given .general-access-state {
+  color: var(--fg-primary);
+}
+
+.general-access-open {
+  margin-top: 12px;
+}
+
+/* Memory. The switch is a small capsule whose knob crosses over on a spring; with the memory off the records step back. */
+.memory-head {
+  align-items: center;
+}
+
+.memory-switch {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.14);
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.memory-switch[aria-checked="true"] {
+  background: rgb(var(--composer-accent-rgb));
+}
+
+.memory-switch:focus-visible {
+  box-shadow: 0 0 0 2px var(--chat-bg), 0 0 0 4px var(--focus-ring);
+}
+
+.memory-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(var(--fg-rgb), 0.9);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.5s cubic-bezier(0.34, 1.45, 0.64, 1), width 0.25s ease, background-color 0.3s ease;
+}
+
+.memory-switch[aria-checked="true"] .memory-switch-knob {
+  background: rgb(var(--composer-on-accent-rgb));
+  transform: translateX(16px);
+}
+
+.memory-switch:active .memory-switch-knob {
+  width: 22px;
+}
+
+.memory-switch[aria-checked="true"]:active .memory-switch-knob {
+  transform: translateX(12px);
+}
+
+.memory-body {
+  margin-top: 14px;
+  transition: opacity 0.35s ease;
+}
+
+.memory-block.is-off .memory-body {
+  opacity: 0.4;
+}
+
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memory-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 -10px;
+  padding: 2px 4px 2px 0;
+  overflow: hidden;
+  border-radius: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.memory-row + .memory-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 10px;
+  left: 10px;
+  height: 1px;
+  background: rgba(var(--fg-rgb), 0.06);
+  transition: opacity 0.2s ease;
+}
+
+.memory-row:is(:hover, :focus-within),
+.memory-block:not(.is-off) .memory-row:is(:hover, :focus-within) + .memory-row {
+  --memory-rule: 0;
+}
+
+.memory-row::before {
+  opacity: var(--memory-rule, 1);
+}
+
+.memory-block:not(.is-off) .memory-row:hover {
+  background: rgba(var(--fg-rgb), 0.04);
+}
+
+.memory-block:not(.is-off) .memory-row:focus-within {
+  background: rgba(var(--fg-rgb), 0.06);
+}
+
+.memory-text {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  field-sizing: content;
+  padding: 8px 10px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg-primary);
+  caret-color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 21px;
+  resize: none;
+  overflow: hidden;
+}
+
+.memory-row .memory-remove {
+  margin-top: 4px;
+}
+
+.memory-row:hover .memory-remove,
+.memory-remove:focus-visible {
+  opacity: 1;
+}
+
+.memory-block.is-off .memory-remove {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.memory-empty {
+  margin: 2px 0 0;
+  color: var(--fg-secondary);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.memory-empty[hidden] {
+  display: none;
+}
+
+.memory-add {
+  margin-top: 12px;
+}
+
+.memory-new {
+  display: block;
+  width: 100%;
+  field-sizing: content;
+  padding: 11px 16px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg-primary);
+  caret-color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 21px;
+  resize: none;
+  overflow: hidden;
+}
+
+.memory-new::placeholder {
+  color: rgb(var(--composer-fg-rgb));
+}
+
+.memory-clear-row {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+}
+
+.memory-clear[hidden],
+.memory-confirm[hidden] {
+  display: none;
+}
+
+.memory-clear:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.memory-confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.memory-confirm-text {
+  margin-right: 6px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.memory-clear-yes {
+  background: rgba(var(--danger-rgb), 0.16);
+  color: rgb(var(--danger-rgb));
+}
+
+.memory-clear-yes:hover {
+  background: rgba(var(--danger-rgb), 0.24);
+}
+
 .general-count {
   color: var(--fg-secondary);
   font-size: 12px;
@@ -10222,6 +11665,78 @@ h6.md-h {
 .theme-option[aria-checked="true"] .theme-check {
   opacity: 1;
   transform: none;
+}
+
+/* Settings → Appearance → Size (settings-appearance.js): Fit screen, then a step down, the size, a step up. */
+.size-row {
+  margin-top: 26px;
+  border-top: 1px solid rgba(var(--fg-rgb), 0.06);
+}
+
+.size-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.size-auto {
+  margin-right: 10px;
+}
+
+.size-step {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.2s ease, transform 0.2s var(--motion-easing);
+}
+
+.size-step svg {
+  width: 16px;
+  height: 16px;
+}
+
+.size-step:hover {
+  background: rgba(var(--fg-rgb), 0.11);
+}
+
+.size-step:active {
+  transform: scale(0.92);
+}
+
+.size-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none;
+}
+
+.size-step:focus-visible {
+  box-shadow: 0 0 0 2px var(--chat-bg), 0 0 0 4px var(--focus-ring);
+}
+
+/* The old number and the new one share one cell while they roll past each other. */
+.size-value {
+  display: grid;
+  min-width: 58px;
+  height: 34px;
+  overflow: hidden;
+  color: var(--fg-primary);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 34px;
+  text-align: center;
+}
+
+.size-number {
+  grid-area: 1 / 1;
 }
 
 .file-icon {
@@ -11116,16 +12631,144 @@ button.attachment-text {
   gap: 10px;
 }
 
-.md-gallery .media.is-linked {
-  cursor: pointer;
+/* A stack whose photos open large (media-slider.js, photo-viewer.js): the user's own and the agent's. */
+.media.is-openable {
+  cursor: zoom-in;
 }
 
-.md-gallery .media.is-linked.is-many {
-  cursor: grab;
-}
-
-.md-gallery .media.is-linked.is-dragging {
+.media.is-openable.is-dragging {
   cursor: grabbing;
+}
+
+/* The photo viewer (photo-viewer.js): the photo large over the chat gone dim and soft, the controls quiet round it. */
+.viewer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--fg-primary);
+}
+
+.viewer::backdrop {
+  background: var(--viewer-veil);
+  -webkit-backdrop-filter: blur(28px) saturate(1.15);
+  backdrop-filter: blur(28px) saturate(1.15);
+}
+
+.viewer-img {
+  position: fixed;
+  display: block;
+  border-radius: 12px;
+  box-shadow: var(--viewer-lift);
+  object-fit: contain;
+  user-select: none;
+  will-change: transform;
+}
+
+.viewer-close,
+.viewer-arrow {
+  position: fixed;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.08);
+  color: var(--fg-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.2s ease, transform 0.2s var(--motion-easing);
+}
+
+.viewer-close svg,
+.viewer-arrow svg {
+  width: 16px;
+  height: 16px;
+}
+
+.viewer-close:hover,
+.viewer-arrow:hover {
+  background: rgba(var(--fg-rgb), 0.14);
+}
+
+.viewer-close:active,
+.viewer-arrow:active {
+  transform: scale(0.92);
+}
+
+.viewer-close:focus-visible,
+.viewer-arrow:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* Below the window's own buttons, which sit over the title bar. */
+.viewer-close {
+  top: calc(var(--titlebar-height) + 16px);
+  right: 24px;
+}
+
+.viewer-arrow {
+  top: calc(50% - 20px);
+}
+
+.viewer-arrow.is-prev {
+  left: 24px;
+}
+
+.viewer-arrow.is-next {
+  right: 24px;
+}
+
+.viewer-arrow.is-next svg {
+  transform: scaleX(-1);
+}
+
+.viewer-arrow.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.viewer-bar {
+  position: fixed;
+  right: 88px;
+  bottom: 30px;
+  left: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 30px;
+  color: var(--fg-secondary);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.viewer-count {
+  color: var(--fg-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.viewer-caption {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-count:empty,
+.viewer-caption:empty,
+.viewer-source:empty {
+  display: none;
 }
 
 /* The pictures behind fan out below the one on top: what is written under the stack starts below their corners. */
@@ -11543,6 +13186,41 @@ button.attachment-text {
   height: 15px;
 }
 
+/* A tab a mini chat's agent works in carries the ghost. */
+.browser-tab-mini {
+  display: none;
+  flex: none;
+  width: 11px;
+  height: 12px;
+  margin-left: -3px;
+  color: rgb(var(--composer-accent-rgb));
+}
+
+.browser-tab.is-mini .browser-tab-mini {
+  display: grid;
+}
+
+/* The ghost stands in for the plain globe; a site's own icon stays beside it. */
+.browser-tab.is-mini .browser-tab-icon[data-key="globe"] {
+  display: none;
+}
+
+.browser-tab.is-mini .browser-tab-icon[data-key="globe"] + .browser-tab-mini {
+  margin-left: 0;
+  width: 13px;
+  height: 14px;
+}
+
+.browser-tab.is-mini .browser-tab-icon[data-key="globe"] + .browser-tab-mini .glyph-ghost {
+  width: 13px;
+  height: 14px;
+}
+
+.browser-tab-mini .glyph-ghost {
+  width: 11px;
+  height: 12px;
+}
+
 .browser-tab-icon img {
   width: 15px;
   height: 15px;
@@ -11762,6 +13440,14 @@ button.attachment-text {
 .browser-view:not(.is-active) {
   visibility: hidden;
   pointer-events: none;
+}
+
+/* A tab an agent works in while another is on screen stays alive behind that one: a hidden page stops drawing, and the
+   agent could neither look at it nor wait for it to settle. */
+.browser-view.is-worked {
+  z-index: -1;
+  visibility: visible;
+  opacity: 0;
 }
 
 .browser-progress {
@@ -12118,6 +13804,7 @@ button.attachment-text {
   .model-slot,
   .model-row,
   .model-name,
+  .model-chevron,
   .chats-folder-action,
   .chat-meta,
   .chat-time,
@@ -12141,7 +13828,11 @@ button.attachment-text {
   .trash-lid,
   .select-menu,
   .mini,
-  .mini::backdrop,
+  .mini-grip,
+  .mini-grip svg,
+  .mini .thread-list,
+  .mini-bones,
+  .mini-bone,
   .mini-empty,
   .mini-clear,
   .mini-clear.is-shown,
@@ -12189,12 +13880,8 @@ button.attachment-text {
   .main::after,
   .composer,
   .composer-placeholder,
-  .sidebar-search-shell,
-  .sidebar-search-button,
-  .sidebar-search.is-expanded .sidebar-search-button,
-  .sidebar-search-placeholder,
-  .sidebar-search-clear,
-  .sidebar-search-clear::before,
+  .spotlight-box::before,
+  .spotlight-glide,
   .settings,
   .settings::backdrop,
   .thread-bottom,
@@ -12215,12 +13902,26 @@ button.attachment-text {
   .general-drop,
   .general-drop svg,
   .theme-frame,
-  .theme-check {
+  .theme-check,
+  .notepad-veil,
+  .notepad-glyph,
+  .notepad-tick .tick-fill,
+  .notepad-tick .tick-check,
+  .notepad-item.is-done .tick-fill,
+  .notepad-item.is-done .tick-check,
+  .notepad-add,
+  .notepad-add:disabled,
+  .top-tools,
+  .thread-note-pill,
+  .thread-note-text,
+  .thread-note-sign .glyph {
     transition: none;
   }
 
   .message.is-user,
   .message-status,
+  .queued-ring rect,
+  .queued-tools,
   .settings-tab .plug {
     animation: none;
   }
