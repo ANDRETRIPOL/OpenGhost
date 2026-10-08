@@ -64,8 +64,10 @@ const nameOf = level => I18n.has(`effort.${level}`) ? I18n.t(`effort.${level}`) 
 const hintOf = level => I18n.has(`effort.${level}.hint`) ? I18n.t(`effort.${level}.hint`) : '';
 
 class EffortStage {
- constructor(panel, { onDismiss, lens }) {
+ // `room`, when it answers with a box, is as far as the veil may reach: in the quick chat the stage keeps to its window.
+ constructor(panel, { onDismiss, lens, room = null }) {
   this.panel = panel;
+  this.room = room;
   this.lens = lens;
   this.veil = document.createElement('div');
   this.veil.className = 'effort-veil';
@@ -161,13 +163,16 @@ class EffortStage {
    box.right = Math.max(box.right, r.right - panel.left);
    box.bottom = Math.max(box.bottom, r.bottom - panel.top);
   }
-  const edge = HALO.pad + HALO.feather, left = box.left - edge, top = box.top - edge, style = this.veil.style;
+  const edge = HALO.pad + HALO.feather, style = this.veil.style, held = this.room?.() || null;
+  const room = held ? { left: held.left - panel.left, top: held.top - panel.top, right: held.right - panel.left, bottom: held.bottom - panel.top } : null;
+  const left = Math.max(box.left - edge, room ? room.left : -Infinity), top = Math.max(box.top - edge, room ? room.top : -Infinity);
+  const right = Math.min(box.right + edge, room ? room.right : Infinity), bottom = Math.min(box.bottom + edge, room ? room.bottom : Infinity);
   if (instant) style.transition = 'none';
   Object.assign(style, {
    left: `${left}px`,
    top: `${top}px`,
-   width: `${box.right - box.left + edge * 2}px`,
-   height: `${box.bottom - box.top + edge * 2}px`,
+   width: `${Math.max(0, right - left)}px`,
+   height: `${Math.max(0, bottom - top)}px`,
    transformOrigin: `${panel.width - left}px ${panel.height - top}px`,
   });
   if (!instant) return;

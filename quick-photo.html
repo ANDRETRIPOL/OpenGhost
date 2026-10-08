@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data: blob: https: http:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>OpenGhost</title>
+  <link rel="stylesheet" href="quick-photo.css">
+</head>
+<body>
+  <div class="frame" role="dialog">
+    <div class="head"><span class="title"></span></div>
+    <div class="room"><img class="photo" alt="" draggable="false"></div>
+    <div class="foot">
+      <span class="leaf">
+        <button type="button" class="arrow is-prev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
+        <span class="count"></span>
+        <button type="button" class="arrow is-next"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
+      </span>
+      <button type="button" class="close"></button>
+    </div>
+  </div>
+  <script src="quick-photo.js"></script>
+</body>
+</html>

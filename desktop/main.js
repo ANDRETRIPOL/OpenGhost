@@ -9,12 +9,20 @@ const LLM = require('./llm');
 const Keys = require('./keys');
 const Pdf = require('./pdf');
 const Size = require('./size');
+const Quick = require('./quick');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
 // Windows takes the .ico; macOS and Linux take the .png.
 const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const TITLE_BAR = { height: 36 };
+// The window of frosted glass: what is behind the app shows through wherever the page leaves it clear. Windows 11 has
+// acrylic for it (Windows 10 has none), macOS has the sidebar's own material, kept while the window is not the front one.
+// Linux has nothing of the kind, so there the window stays as it was.
+const WINDOWS_11 = process.platform === 'win32' && Number(require('node:os').release().split('.')[2]) >= 22000;
+const GLASS = WINDOWS_11 ? { backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
+ : process.platform === 'darwin' ? { vibrancy: 'sidebar', visualEffectState: 'active', backgroundColor: '#00000000' } : null;
+const CLEAR = '#00000000';
 // The theme picked in Settings → Appearance. The window is painted before the page loads,
 // so these colors repeat --chat-bg and --titlebar-symbols from styles.css.
 const THEMES = {
@@ -110,13 +118,15 @@ function createWindow() {
   title: 'OpenGhost',
   icon: ICON,
   backgroundColor: look().background,
+  ...GLASS,
   // Linux window managers draw their own title bar; Windows and macOS get the app's own.
   ...(process.platform === 'linux' ? {} : {
    titleBarStyle: 'hidden',
-   titleBarOverlay: { color: look().background, symbolColor: look().symbols, height: Math.round(TITLE_BAR.height * size.zoom) },
+   titleBarOverlay: { color: GLASS ? CLEAR : look().background, symbolColor: look().symbols, height: Math.round(TITLE_BAR.height * size.zoom) },
   }),
   webPreferences: {
    zoomFactor: size.zoom,
+   additionalArguments: GLASS ? ['--openghost-glass'] : [],
    preload: path.join(__dirname, 'preload.js'),
    contextIsolation: true,
    sandbox: true,
@@ -173,17 +183,22 @@ ipcMain.handle('folder:reveal', (event, folder) => typeof folder === 'string' &&
 ipcMain.handle('folder:chats', () => Tools.CHATS);
 ipcMain.handle('folder:release', (event, folder) => fromApp(event) && Tools.release(folder));
 ipcMain.handle('store:read', (event, key) => readStore(key));
-ipcMain.handle('store:write', (event, key, value) => writeStore(key, value));
-ipcMain.handle('store:remove', (event, key) => removeStore(key));
+// With the quick chat there are two windows over one store: each is told what the other has written.
+const told = (event, key) => { for (const other of BrowserWindow.getAllWindows()) if (other.webContents !== event.sender && !other.isDestroyed()) other.webContents.send('store:changed', key); };
+ipcMain.handle('store:write', (event, key, value) => writeStore(key, value).then(() => told(event, key)));
+ipcMain.handle('store:remove', (event, key) => removeStore(key).then(() => told(event, key)));
 // The page sends its background once it opens and whenever the theme changes: the title bar buttons sit on it,
 // and the window shows it wherever the page has not painted yet, as while resizing.
 ipcMain.on('window:titlebar', (event, color, symbols) => {
  const win = BrowserWindow.fromWebContents(event.sender);
  const hex = value => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
  if (!win || !hex(color)) return;
- win.setBackgroundColor(color);
+ // The quick chat's window is the same page, which sends the same word, but it is clear and has no title bar: it
+ // keeps no background of its own, and asking it for the buttons' colours is an error.
+ if (win === Quick.window) return;
+ if (!GLASS) win.setBackgroundColor(color);
  if (process.platform === 'linux' || typeof win.setTitleBarOverlay !== 'function') return;
- win.setTitleBarOverlay({ color, symbolColor: hex(symbols) ? symbols : look().symbols, height: Size.titleBar(win) });
+ try { win.setTitleBarOverlay({ color: GLASS ? CLEAR : color, symbolColor: hex(symbols) ? symbols : look().symbols, height: Size.titleBar(win) }); } catch {}
 });
 
 const fromApp = event => event.sender.getType() === 'window' && event.senderFrame?.url.startsWith('file:');
@@ -230,23 +245,41 @@ if (process.argv.includes('--create-shortcut')) {
  app.quit();
 } else {
  let win = null;
- app.on('second-instance', () => {
-  if (!win) return;
+ // The main window, made if the app has been waiting in the tray without it; `then` gets it once its page is there.
+ const showMain = then => {
+  const fresh = !win;
+  if (!win) {
+   win = createWindow();
+   const contents = win.webContents;
+   win.on('closed', () => {
+    win = null;
+    // With the quick chat on, the app goes on in the tray, and an agent at work in the quick chat is not stopped: only
+    // what this window asked for is. Without it, closing the window ends everything and the app.
+    if (Quick.on) { LLM.cancelFrom(contents); return; }
+    Tools.cancelAll();
+    LLM.cancelAll();
+    Pdf.cancelAll();
+    app.quit();
+   });
+  }
   if (win.isMinimized()) win.restore();
-  win.focus();
- });
+  if (!fresh) { win.show(); win.focus(); }
+  if (!then) return;
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', () => then(win));
+  else then(win);
+ };
+ app.on('second-instance', () => showMain());
+ app.on('activate', () => showMain());
  app.whenReady().then(() => {
   Browser.setup();
   Keys.load();
-  win = createWindow();
-  win.on('closed', () => {
-   win = null;
-   Tools.cancelAll();
-   LLM.cancelAll();
-   Pdf.cancelAll();
+  Quick.setup({
+   fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
+   preload: path.join(__dirname, 'preload.js'), page: path.join(ROOT, 'index.html'),
   });
+  if (!Quick.startHidden) showMain();
  });
- app.on('window-all-closed', () => app.quit());
+ app.on('window-all-closed', () => { if (!Quick.on) app.quit(); });
  app.on('before-quit', event => {
   Tools.cancelAll();
   if (!writes.size) return;

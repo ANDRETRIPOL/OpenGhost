@@ -1012,7 +1012,8 @@ let env = null;
 window.AgentTools = {
  runs,
  available: !!bridge,
- schemas: SCHEMAS,
+ // The quick chat's window has no built-in browser, so its agent is given no tools for one.
+ schemas: window.openghost?.quick ? SCHEMAS.filter(tool => !tool.function.name.startsWith('browser_')) : SCHEMAS,
  modes: MODES,
  needsApproval,
  describe,

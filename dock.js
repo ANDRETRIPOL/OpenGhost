@@ -203,6 +203,9 @@ class StageWord {
  }
 }
 
+// Where the name stands in the stage (as .dock-title has it), and how far from its host's edge a stage's words stop.
+const TITLE_LEFT = 14, ROOM_EDGE = 16;
+
 // The soft patch of the selection's veil behind a stage. It covers what the stage shows and fades out around it, blooms out
 // of the control the stage grew from, and lifts when the stage goes.
 class StageVeil {
@@ -213,7 +216,8 @@ class StageVeil {
 
  // Covers the boxes (in the stage's own frame) and grows out of `origin` (a point in the same frame). A new name moves it
  // along, wider for a long one.
- fit(boxes, origin, instant = false) {
+ // `room`, when given, is as far as the veil may reach (in the same frame): a stage inside the mini chat keeps to it.
+ fit(boxes, origin, instant = false, room = null) {
   const box = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
   for (const r of boxes) {
    if (!r) continue;
@@ -223,13 +227,15 @@ class StageVeil {
    box.bottom = Math.max(box.bottom, r.bottom);
   }
   if (!Number.isFinite(box.left)) return;
-  const edge = HALO.pad + HALO.feather, left = box.left - edge, top = box.top - edge, style = this.el.style;
+  const edge = HALO.pad + HALO.feather, style = this.el.style;
+  const left = Math.max(box.left - edge, room ? room.left : -Infinity), top = Math.max(box.top - edge, room ? room.top : -Infinity);
+  const right = Math.min(box.right + edge, room ? room.right : Infinity), bottom = Math.min(box.bottom + edge, room ? room.bottom : Infinity);
   if (instant) style.transition = 'none';
   Object.assign(style, {
    left: `${left}px`,
    top: `${top}px`,
-   width: `${box.right - box.left + edge * 2}px`,
-   height: `${box.bottom - box.top + edge * 2}px`,
+   width: `${Math.max(0, right - left)}px`,
+   height: `${Math.max(0, bottom - top)}px`,
    transformOrigin: `${origin.x - left}px ${origin.y - top}px`,
   });
   if (!instant) return;
@@ -301,6 +307,7 @@ class Dock {
   new LiquidGlass(this.lens, LENS);
   for (const item of items) this.add(item);
   if (choice) this.dot = this.row.appendChild(element('span', 'dock-dot'));
+  this.host = host;
   host.append(panel);
 
   panel.addEventListener('pointerover', event => {
@@ -779,9 +786,12 @@ class Dock {
  // The veil's patch covers the name, its line and the capsule; it grows out of the button.
  frost(instant) {
   const panel = this.panel.getBoundingClientRect(), note = this.items[this.named]?.note, from = middle(this.origin || this.source().getBoundingClientRect());
+  // Inside a host of its own the stage keeps to it: the line under the name is no wider than the host has room for.
+  const room = this.host === document.body ? null : within(this.host.getBoundingClientRect(), panel);
+  if (room) this.panel.style.setProperty('--dock-room', `${Math.max(120, Math.floor(room.right - TITLE_LEFT - ROOM_EDGE))}px`);
   const boxes = [{ left: 0, top: 0, right: panel.width, bottom: panel.height }];
   for (const el of [this.words.word, note?.classList.contains('is-shown') ? note : null]) if (el) boxes.push(within(el.getBoundingClientRect(), panel));
-  this.patch.fit(boxes, { x: from.x - panel.left, y: from.y - panel.top }, instant);
+  this.patch.fit(boxes, { x: from.x - panel.left, y: from.y - panel.top }, instant, room);
  }
 }
 

@@ -52,7 +52,7 @@ class EffortSlider {
    onOpened: () => this.onOpened(),
    onClosed: () => this.onClosed(),
   });
-  this.stage = new EffortStage(panel, { onDismiss: () => this.close(), lens: () => this.thumb.getBoundingClientRect() });
+  this.stage = new EffortStage(panel, { onDismiss: () => this.close(), lens: () => this.thumb.getBoundingClientRect(), room: () => this.button.closest('.mini')?.getBoundingClientRect() || null });
   this.ticks = [];
   this.fillTicks();
   const saved = this.efforts.indexOf(settings.effort);
@@ -99,6 +99,14 @@ class EffortSlider {
  toggle(keyboard) {
   if (this.opened) this.close(keyboard);
   else if (!this.locked) this.open();
+ }
+
+ // The level was chosen in another window of the app: the slider and its button take it.
+ follow() {
+  const index = this.efforts.indexOf(this.settings.effort);
+  if (index < 0 || index === this.value || this.opened) return;
+  this.value = this.goal = this.pos = index;
+  this.button.setLevel(index, true);
  }
 
  // While OpenGhost works the effort stays as the turn started with it.

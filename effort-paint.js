@@ -30,6 +30,9 @@ const smooth = v => v * v * (3 - 2 * v);
 const backOut = v => 1 + 2.2 * (v - 1) ** 3 + 1.2 * (v - 1) ** 2;
 const random = (min, max) => min + Math.random() * (max - min);
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Every paint has a filter under a name of its own. With two sliders on one page (the app's and the quick chat's) one
+// name would give both of them the first one's filter, and a filter in a panel that is not open paints nothing.
+let count = 0;
 
 function svg(tag, attrs = {}) {
  const el = document.createElementNS(NS, tag);
@@ -41,7 +44,8 @@ class EffortPaint {
  constructor(panel) {
   this.panel = panel;
   this.root = svg('svg', { class: 'effort-paint', 'aria-hidden': 'true' });
-  this.filter = svg('filter', { id: 'effort-paint-oil', filterUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' });
+  const id = `effort-paint-oil-${++count}`;
+  this.filter = svg('filter', { id, filterUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' });
   this.filter.innerHTML = `
    <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
    <feColorMatrix in="blur" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 22 -9" result="goo"/>
@@ -58,7 +62,7 @@ class EffortPaint {
   window.Theme?.onChange(tint);
   const defs = svg('defs');
   defs.append(this.filter);
-  this.group = svg('g', { filter: 'url(#effort-paint-oil)', fill: '#fff' });
+  this.group = svg('g', { filter: `url(#${id})`, fill: '#fff' });
   this.body = svg('rect');
   this.front = FRONT.map(() => svg('circle'));
   this.tongue = svg('circle');

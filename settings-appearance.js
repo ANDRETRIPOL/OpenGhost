@@ -57,6 +57,7 @@ class AppearanceSettings {
   document.addEventListener('pointermove', event => { if (this.held && !within(this.held, event)) this.hold(null); });
   document.addEventListener('pointerout', event => { if (!event.relatedTarget) this.hold(null); });
   this.paint();
+  if (window.Look) new LookSettings(root);
   if (window.openghost?.size) new SizeSettings(root, window.openghost.size);
  }
 
@@ -92,6 +93,67 @@ class AppearanceSettings {
   const next = this.options[(at + step + this.options.length) % this.options.length];
   next.focus();
   this.pick(next);
+ }
+}
+
+// Settings → Appearance, under the themes: the colour of the user's own messages and the chat's ground (look.js). The
+// rows show what the theme on screen has and change that theme alone; the other theme keeps its own.
+const LOOK_PARTS = ['bubble', 'ground'];
+
+class LookSettings {
+ constructor(root) {
+  root.insertAdjacentHTML('beforeend', LOOK_PARTS.map(part => `
+   <div class="settings-row look-row" data-part="${part}">
+    <div class="look-head">
+     <span class="settings-label" id="look-${part}">${escapeHtml(I18n.t(`settings.look.${part}`))}</span>
+     <span class="look-note"><span class="look-theme"></span><span class="look-name"></span></span>
+    </div>
+    <div class="look-swatches" role="radiogroup" aria-labelledby="look-${part}"></div>
+   </div>`).join(''));
+  this.rows = [...root.querySelectorAll('.look-row')];
+  for (const row of this.rows) {
+   const part = row.dataset.part, box = row.querySelector('.look-swatches');
+   box.addEventListener('click', event => {
+    const swatch = event.target.closest('.look-swatch');
+    if (swatch) Look.set(part, swatch.dataset.id);
+   });
+   box.addEventListener('keydown', event => this.onKey(event, part, box));
+  }
+  Look.onChange(() => this.render());
+  this.render();
+ }
+
+ // The swatches are drawn anew when the theme changes (each theme has its own grounds), and only marked otherwise.
+ render() {
+  const theme = Look.theme;
+  for (const row of this.rows) {
+   const part = row.dataset.part, box = row.querySelector('.look-swatches'), options = Look.options(part), now = Look.get(part);
+   if (box.dataset.theme !== theme) {
+    box.dataset.theme = theme;
+    box.innerHTML = options.map(item => {
+     const name = escapeHtml(I18n.t(`look.${item.id}`));
+     const paint = item.bg ? ` style="background: rgb(${item.bg.join(', ')})${item.fg ? `; color: rgb(${item.fg.join(', ')})` : ''}"` : '';
+     return `<button type="button" class="look-swatch${item.bg ? '' : ' is-stock'}" role="radio" data-id="${item.id}" aria-label="${name}" title="${name}"${paint}>${part === 'bubble' ? 'Aa' : ''}</button>`;
+    }).join('');
+   }
+   for (const swatch of box.children) {
+    const on = swatch.dataset.id === now;
+    swatch.setAttribute('aria-checked', String(on));
+    swatch.tabIndex = on ? 0 : -1;
+   }
+   row.querySelector('.look-theme').textContent = I18n.t(`settings.look.${theme}`);
+   row.querySelector('.look-name').textContent = I18n.t(`look.${now}`);
+  }
+ }
+
+ onKey(event, part, box) {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+  if (!step) return;
+  event.preventDefault();
+  const all = [...box.children], at = all.findIndex(swatch => swatch.dataset.id === Look.get(part));
+  const next = all[(at + step + all.length) % all.length];
+  Look.set(part, next.dataset.id);
+  next.focus();
  }
 }
 

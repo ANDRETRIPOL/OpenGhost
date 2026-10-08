@@ -171,7 +171,9 @@ class ChatList {
   const mark = element('span', 'chat-mark');
   const guard = element('span', 'chat-guard');
   guard.innerHTML = Glyphs.padlock;
-  mark.append(element('span', 'chat-dot'), guard);
+  const bolt = element('span', 'chat-bolt');
+  bolt.innerHTML = Glyphs.bolt;
+  mark.append(element('span', 'chat-dot'), bolt, guard);
   const title = element('span', 'chat-title');
   const meta = element('span', 'chat-meta');
   const time = element('span', 'chat-time');
@@ -191,6 +193,7 @@ class ChatList {
   this.guard(item, chat);
   item.time.textContent = ago(chat.updated);
   item.row.classList.toggle('is-active', active);
+  item.row.classList.toggle('is-quick', !!chat.quick);
   item.row.classList.toggle('is-unread', !active && this.chat.isUnread(chat.id));
   if (active) item.row.setAttribute('aria-current', 'page');
   else item.row.removeAttribute('aria-current');

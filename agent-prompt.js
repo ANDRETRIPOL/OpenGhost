@@ -91,6 +91,11 @@ const AGENT = [
  '- If an action is declined, don\'t try it again another way. Say what you wanted to do and ask, or find a different approach.',
 ].join('\n');
 
+// The quick chat's window is a small one over the user's screen, with no panel for the built-in browser. A chat begun
+// there is told so with what it has of its own, and is no longer told once it goes on in the app's window.
+const QUICK = !!window.openghost?.quick;
+const QUICK_NOTE = '- This chat is in the quick chat window, a small window over the user\'s screen. It has no built-in browser: the browser_* tools are not there, so do not plan on them. web_search and fetch_url work as always. If a task needs the browser, say so in a sentence and tell the user to press the arrows at the top of this window: the chat then goes on in the app, where the browser is.';
+
 // Nothing that differs between chats or changes over time goes into `build`: it opens every request of every chat, and a
 // provider reuses the cached start of a request only while it stays the same, word for word. What a chat has of its own
 // comes after it, in `environment`. What changes while a chat goes on, the day and the permission mode, is told in
@@ -108,6 +113,7 @@ window.AgentPrompt = {
    `- Computer: ${env?.os || SYSTEM.os}, user ${env?.user || 'unknown'}, home folder ${env?.home || 'unknown'}.`,
    `- Shell: ${env?.shell || SYSTEM.fallback}. Git: ${env?.git ? `version ${env.git}` : 'not installed'}.`,
    '- The day and the permission mode you work in come in a note from the app, at the start of the conversation and whenever one of them changes: the latest note holds.',
+   ...(QUICK ? [QUICK_NOTE] : []),
   ].join('\n');
  },
  // The project's AGENTS.md goes with what a chat has of its own. Whoever keeps the folder wrote it, which need not be the

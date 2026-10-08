@@ -40,6 +40,9 @@ function hex(color) {
  return m ? `#${m.slice(1, 4).map(n => (+n).toString(16).padStart(2, '0')).join('')}` : '';
 }
 
+// Where the window is of glass (Windows 11, macOS), the backdrop lets it show through.
+root.classList.toggle('is-glass', !!bridge?.glass);
+
 // The window's own title bar buttons (Windows) sit on the app background and take the theme's symbol color.
 function titleBar() {
  const style = getComputedStyle(root);
@@ -111,6 +114,14 @@ window.Theme = {
  onChange(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
+ },
+ // The theme was picked in another window of the app: this one takes it, with no show made of it.
+ sync() {
+  const next = saved();
+  if (next === choice) return;
+  choice = next;
+  systemDark = system.matches;
+  paint();
  },
  titleBar,
 };

@@ -106,4 +106,8 @@ function attach(win) {
  });
 }
 
-module.exports = { setup, initial, attach, step, pick, titleBar, fit };
+// How large the app is drawn on a screen: fitted to it, or the size picked by hand. A window that is not the app's main
+// one (the quick chat's) draws itself at the same size.
+const zoom = display => choice === 'auto' ? fit(display) : choice;
+
+module.exports = { setup, initial, attach, step, pick, titleBar, fit, zoom };

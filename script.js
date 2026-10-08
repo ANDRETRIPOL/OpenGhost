@@ -104,8 +104,11 @@ let browserPanel = null;
 if (AgentTools.available) {
   modeButton.hidden = false;
   new ModePicker({ button: modeButton, settings, onChange: () => chat.onModeChange() });
-  browserToggle.hidden = false;
-  browserPanel = window.browserPanel = new BrowserPanel({ app, main, toggle: browserToggle });
+  // The quick chat's window has no built-in browser.
+  if (!window.openghost?.quick) {
+    browserToggle.hidden = false;
+    browserPanel = window.browserPanel = new BrowserPanel({ app, main, toggle: browserToggle });
+  }
 }
 const attachments = new Attachments({
   tray: document.querySelector('.composer-attachments'),

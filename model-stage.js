@@ -25,6 +25,8 @@ const GAP = 26;
 const MARK = 30;
 // Room the list keeps: above it for the title bar, and inside it for the glow, the ripple and the drum's sideways drift.
 const ROOM = { top: 52, right: 68, bottom: 10 };
+// The least a list is scaled to when its names are too long for a small window.
+const FIT = 0.62;
 // Many models turn the list into a drum: rows away from its middle drift right, tilt and shrink a little.
 const DRUM = { reach: 320, shift: 34, tilt: 3.2, shrink: 0.07 };
 const GROUPS = { chatgpt: 'ChatGPT', openai: 'OpenAI API', anthropic: 'Anthropic', deepseek: 'DeepSeek', openrouter: 'OpenRouter' };
@@ -353,12 +355,26 @@ class ModelStage {
  place() {
   const b = this.button.getBoundingClientRect(), top = this.button.closest('.composer').getBoundingClientRect().top;
   const bottom = innerHeight - top + GAP;
+  // In a small window of its own (the quick chat) the stage has a box to keep to, `room`: the list stands against the
+  // box's right edge and is no taller and no wider than the box.
+  const room = this.room?.() || null;
   Object.assign(this.list.style, {
-   right: `${Math.max(0, innerWidth - (b.left + b.width / 2) - MARK / 2 - ROOM.right)}px`,
+   right: `${room ? Math.max(0, innerWidth - room.right) : Math.max(0, innerWidth - (b.left + b.width / 2) - MARK / 2 - ROOM.right)}px`,
    bottom: `${bottom - ROOM.bottom}px`,
-   maxHeight: `${Math.max(180, innerHeight - bottom - ROOM.top + ROOM.bottom)}px`,
+   maxHeight: `${Math.max(room ? 120 : 180, innerHeight - bottom - ROOM.top + ROOM.bottom - (room ? room.top : 0))}px`,
+   maxWidth: room ? `${room.width}px` : '',
   });
+  if (room) this.fit(room.width);
   this.bend();
+ }
+
+ // Names too long for the box are set smaller, all by the same measure, so the list stays one column.
+ fit(width) {
+  const list = this.list, style = getComputedStyle(list);
+  list.style.removeProperty('--model-fit');
+  const room = width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  const widest = Math.max(0, ...this.rows.map(row => row.offsetWidth));
+  if (widest > room) list.style.setProperty('--model-fit', Math.max(FIT, room / widest).toFixed(3));
  }
 
  // Scrolls so the row sits in the middle of the list, where the drum is flat.

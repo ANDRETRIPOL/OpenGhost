@@ -30,6 +30,8 @@ class UserContext {
   this.payloads = new Map();
   this.listeners = new Set();
   this.timer = 0;
+  // Changed in another window of the app (the settings are the main window's), they are read again here.
+  store.onChange?.(key => { if (key === KEY && !this.timer) this.load(); });
   this.ready = this.load();
  }
 

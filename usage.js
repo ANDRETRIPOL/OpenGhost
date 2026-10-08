@@ -20,17 +20,42 @@ function daysAgo(back) {
 }
 
 const empty = () => ({ input: 0, cached: 0, written: 0, output: 0, requests: 0, tokens: 0, models: {} });
+const blank = () => ({ version: 1, since: 0, days: {}, names: {} });
+
+// Adds what one count holds into another.
+function add(into, from) {
+ into.since ||= from.since;
+ for (const [day, rows] of Object.entries(from.days)) {
+  const mine = into.days[day] ||= {};
+  for (const [id, row] of Object.entries(rows)) {
+   const sum = mine[id] ||= [0, 0, 0, 0, 0];
+   for (let k = 0; k < sum.length; k++) sum[k] += row[k] || 0;
+  }
+ }
+ Object.assign(into.names, from.names);
+ return into;
+}
 
 class Usage {
  constructor(store) {
   this.store = store;
   this.providers = PROVIDERS;
-  this.data = { version: 1, since: 0, days: {}, names: {} };
+  this.data = blank();
+  // What was counted here and is not on the disk yet. With the quick chat the app has two windows that count: each
+  // adds its own to what the disk holds, so neither writes over what the other counted.
+  this.fresh = null;
   this.listeners = new Set();
   this.timer = 0;
-  this.ready = store.read(KEY).then(saved => {
-   if (saved?.version === 1) this.data = { ...this.data, ...saved };
-  }).catch(() => {});
+  this.ready = this.load();
+  store.onChange?.(key => { if (key === KEY) this.load().then(() => { for (const listener of this.listeners) listener(); }); });
+ }
+
+ // The count as the disk has it, with what is still to be written here on top.
+ async load() {
+  const saved = await this.store.read(KEY).catch(() => null);
+  const data = { ...blank(), ...(saved?.version === 1 ? saved : {}) };
+  if (this.fresh) add(data, this.fresh);
+  this.data = data;
  }
 
  // One answer's tokens as every provider reports them, in the same words: sent, of them read from the provider's cache or
@@ -49,15 +74,17 @@ class Usage {
   if (!parts || !PROVIDERS.includes(provider) || !model) return;
   const { input, cached, written, output } = parts;
   this.ready.then(() => {
-   const data = this.data, id = `${provider}|${model}`;
-   data.since ||= Date.now();
-   const row = (data.days[daysAgo(0)] ||= {})[id] ||= [0, 0, 0, 0, 0];
-   row[INPUT] += input;
-   row[CACHED] += cached;
-   row[WRITTEN] += written;
-   row[OUTPUT] += output;
-   row[REQUESTS] += 1;
-   if (name) data.names[id] = name;
+   const id = `${provider}|${model}`, one = blank();
+   one.since = Date.now();
+   const row = (one.days[daysAgo(0)] = {})[id] = [0, 0, 0, 0, 0];
+   row[INPUT] = input;
+   row[CACHED] = cached;
+   row[WRITTEN] = written;
+   row[OUTPUT] = output;
+   row[REQUESTS] = 1;
+   if (name) one.names[id] = name;
+   add(this.data, one);
+   add(this.fresh ||= blank(), one);
    this.save();
    for (const listener of this.listeners) listener();
   });
@@ -133,8 +160,23 @@ class Usage {
   clearTimeout(this.timer);
   this.timer = setTimeout(() => {
    this.timer = 0;
-   this.store.write(KEY, this.data).catch(() => {});
+   this.write();
   }, SAVE_DELAY);
+ }
+
+ // What was counted here is added to the count on the disk as it is now, and the sum is written.
+ async write() {
+  const fresh = this.fresh;
+  if (!fresh) return;
+  this.fresh = null;
+  let sum = this.data;
+  try {
+   const saved = await this.store.read(KEY);
+   sum = add({ ...blank(), ...(saved?.version === 1 ? saved : {}) }, fresh);
+   // What was counted meanwhile stays in the picture, and is written next.
+   this.data = this.fresh ? add(structuredClone(sum), this.fresh) : sum;
+  } catch {}
+  await this.store.write(KEY, sum).catch(() => {});
  }
 
  flush() {

@@ -29,12 +29,8 @@ const INSET = 6;
 // The veil begins this far inside the stage's left edge, so it fades out before the sidebar's button, which stays sharp.
 const SHY = 70;
 // A pill of the notes in the chat, as it comes in: the chat makes room, the pill settles, its sign is drawn and has its
-// moment (the pencil writes, or knocks), what it says is written out from the left, and a light runs round its edge.
-const PILL = { room: 460, settle: 520, stroke: 360, strokeStep: 110, signAt: 120, moment: 560, wordsAt: 200, label: 320, words: 620, lightAt: 240, rim: 520 };
-// The light: a bright head with a tail that thins out behind it, and its glow about the head. Each stroke by its length
-// along the edge (px), all with their heads together. The light runs at `speed` px/ms, no shorter than `least` ms and no
-// longer than `most`; no stroke is longer than `share` of the edge.
-const LIGHT = { strokes: [['glow', 34], ['halo', 24], ['tail', 150], ['mid', 62], ['head', 18]], speed: 0.5, least: 1100, most: 1800, share: 0.42 };
+// moment (the pencil writes, or knocks), what it says is written out from the left, and its button comes up last.
+const PILL = { room: 460, settle: 520, stroke: 360, strokeStep: 110, signAt: 120, moment: 560, wordsAt: 200, label: 320, words: 620, goAt: 520, go: 360 };
 const SVG = 'http://www.w3.org/2000/svg';
 
 const TICK = '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="tick-ring" cx="10" cy="10" r="7.25" stroke="currentColor" stroke-width="1.5"/><circle class="tick-fill" cx="10" cy="10" r="8"/><path class="tick-check" pathLength="1" d="M6.3 10.3l2.5 2.5 4.9-5.4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -425,10 +421,9 @@ class Notepad {
  }
 }
 
-// What the agent did with the notes, as a small pill in the chat, in the manner of a link's chip: the notes' own sign,
-// what happened («Noted» for a note it wrote down when asked to, «Reminder» for one it brought up) and the note in the
-// user's own words, on one line. It stands with the agent's words and is as quiet as they are; what marks its coming is
-// a thin light the colour of ice that runs once round its edge. A press on it opens the notes at its note.
+// What the agent did with the notes, as a black capsule in the chat: the notes' own sign, what happened in bold («Noted»
+// for a note it wrote down when asked to, «Reminder» for one it brought up), the note in the user's own words after it,
+// and a small white button that opens the notes at that note, as a press anywhere on the capsule does.
 const KINDS = {
  reminder: { name: 'remind', label: 'notes.reminder' },
  noted: { name: 'add', label: 'notes.noted' },
@@ -447,9 +442,10 @@ const NotePill = {
   el.__entry = entry;
   const pill = element('button', 'thread-note-pill');
   pill.type = 'button';
-  pill.innerHTML = `<span class="thread-note-sign" aria-hidden="true">${Glyphs.notes}${CHECK}</span><span class="thread-note-label"></span><span class="thread-note-text"></span>`;
+  pill.innerHTML = `<span class="thread-note-sign" aria-hidden="true">${Glyphs.notes}${CHECK}</span><span class="thread-note-label"></span><span class="thread-note-text"></span><span class="thread-note-go"></span>`;
   const text = pill.querySelector('.thread-note-text');
   text.textContent = entry.text || '';
+  pill.querySelector('.thread-note-go').textContent = I18n.t('notes.pill.open');
   // A note too long for the pill is told in full under the pointer.
   pill.addEventListener('pointerenter', () => { pill.title = text.scrollWidth > text.clientWidth ? text.textContent : ''; });
   el.append(pill);
@@ -470,7 +466,7 @@ const NotePill = {
  },
 
  // Just come into the chat: the chat makes room for the pill, the pill settles into it from the left, its sign is drawn
- // and the pencil has its moment, what the pill says is written out from the left, and the light runs round its edge.
+ // and the pencil has its moment, what the pill says is written out from the left, and its button comes up last.
  enter(el) {
   if (reducedMotion() || !el.isConnected) return;
   const pill = el.querySelector('.thread-note-pill'), sign = el.querySelector('.thread-note-sign'), kind = el.classList.contains('is-add') ? 'add' : 'remind';
@@ -487,40 +483,7 @@ const NotePill = {
   const shut = 'inset(-6px 100% -6px 0)', open = 'inset(-6px -2px -6px 0)';
   el.querySelector('.thread-note-label').animate([{ clipPath: shut, opacity: 0 }, { opacity: 1, offset: 0.4 }, { clipPath: open, opacity: 1 }], { duration: PILL.label, delay: PILL.wordsAt, easing: EASE.out, fill: 'backwards' });
   el.querySelector('.thread-note-text').animate([{ clipPath: shut, opacity: 0 }, { opacity: 1, offset: 0.3 }, { clipPath: open, opacity: 1 }], { duration: PILL.words, delay: PILL.wordsAt + PILL.label * 0.6, easing: EASE.out, fill: 'backwards' });
-  NotePill.light(pill);
- },
-
- // The light the colour of ice: it leaves the pill's upper left corner, runs once round the edge and is gone where it
- // began. It is a few strokes laid along the edge, their heads together; behind it the edge keeps a breath of its colour
- // for a moment.
- light(pill) {
-  const width = pill.offsetWidth, height = pill.offsetHeight, radius = Math.max(0, (parseFloat(getComputedStyle(pill).borderTopLeftRadius) || 0) - 0.5);
-  if (width < 4 || height < 4) return;
-  const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('class', 'thread-note-light');
-  svg.setAttribute('aria-hidden', 'true');
-  const rects = LIGHT.strokes.map(([name]) => {
-   const rect = document.createElementNS(SVG, 'rect');
-   for (const [key, value] of Object.entries({ class: `is-${name}`, x: 0.5, y: 0.5, width: width - 1, height: height - 1, rx: radius, pathLength: 1 })) rect.setAttribute(key, value);
-   svg.append(rect);
-   return rect;
-  });
-  pill.append(svg);
-  // Lengths are shares of the edge, as the strokes count it: the whole way round is 1.
-  const edge = rects[0].getTotalLength() || 2 * (width + height);
-  const lengths = LIGHT.strokes.map(([, length]) => Math.min(LIGHT.share, length / edge)), reach = Math.max(...lengths);
-  const duration = Math.min(LIGHT.most, Math.max(LIGHT.least, edge * (1 + reach) / LIGHT.speed));
-  const run = { duration, delay: PILL.lightAt, easing: 'cubic-bezier(0.42, 0, 0.3, 1)', fill: 'both' };
-  rects.forEach((rect, k) => {
-   const length = lengths[k];
-   rect.style.strokeDasharray = `${length} 3`;
-   // The head goes from just before the corner to a full round on, and as far again as the longest stroke, so the last
-   // of the tail is gone too. A stroke `length` long with its head at h is drawn from h - length on.
-   rect.animate({ strokeDashoffset: [length + 0.01, length - 1 - reach - 0.01] }, run);
-  });
-  const done = () => svg.remove();
-  svg.animate([{ opacity: 0 }, { opacity: 1, offset: 0.08 }, { opacity: 1, offset: 0.84 }, { opacity: 0 }], { ...run, easing: 'linear' }).finished.then(done, done);
-  pill.animate([{ boxShadow: 'inset 0 0 0 1px rgba(var(--ice-glow-rgb), 0)' }, { boxShadow: 'inset 0 0 0 1px rgba(var(--ice-glow-rgb), 0.3)', offset: 0.42 }, { boxShadow: 'inset 0 0 0 1px rgba(var(--ice-glow-rgb), 0)' }], { duration: duration + PILL.rim, delay: PILL.lightAt, easing: 'ease-in-out' });
+  pill.querySelector('.thread-note-go').animate([{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'none' }], { duration: PILL.go, delay: PILL.goAt, easing: EASE.pop, fill: 'backwards' });
  },
 };
 

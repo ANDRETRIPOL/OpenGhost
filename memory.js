@@ -25,6 +25,9 @@ class Memory {
   this.listeners = new Set();
   this.timer = 0;
   this.tidying = null;
+  // Another window of the app (the quick chat's, or the main one) wrote the memory: it is read again, unless this one
+  // has a change of its own on its way.
+  store.onChange?.(key => { if (key === KEY && !this.timer) this.load(); });
   this.ready = this.load();
  }
 
@@ -152,11 +155,11 @@ class Memory {
  }
 }
 
-// That the agent changed the memory, as a small pill in the chat, in the manner of the notes' pill: a sign and two words,
-// «Memory updated». One pill for a reply, however many records went in or out while it was written; what they were is
+// That the agent changed the memory, as a black capsule in the chat, in the manner of the notes' one: a sign, two words,
+// «Memory updated», and a small white button. One pill for a reply, however many records went in or out while it was written; what they were is
 // in the settings, which a press on the pill opens, and under the pointer.
 const SIGN = '<svg class="glyph glyph-memory" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="memory-leaf" pathLength="1" d="M43 39h34v43l-17-12.5L43 82z"/><path class="memory-mark" pathLength="1" d="M53 52h14"/></svg>';
-const PILL = { room: 360, settle: 520, stroke: 460, signAt: 140, strokeStep: 240, moment: 560, wordsAt: 220, words: 520 };
+const PILL = { room: 360, settle: 520, stroke: 460, signAt: 140, strokeStep: 240, moment: 560, wordsAt: 220, words: 520, goAt: 460, go: 360 };
 // The sign's moment, once it is drawn: the leaf dips as if a page were slipped under its ribbon, and comes back.
 const MOMENT = { duration: 760, frames: [{ transform: 'none' }, { transform: 'translateY(2.5px) scaleY(0.94)', offset: 0.3 }, { transform: 'translateY(-1px)', offset: 0.62 }, { transform: 'none' }] };
 const EASE = { motion: 'cubic-bezier(0.32, 0.72, 0, 1)', pop: 'cubic-bezier(0.34, 1.45, 0.64, 1)', out: 'cubic-bezier(0.22, 1, 0.36, 1)' };
@@ -166,9 +169,10 @@ const MemoryPill = {
  build(entry) {
   const el = document.createElement('div');
   el.className = 'thread-note is-memory';
-  el.innerHTML = `<button type="button" class="thread-note-pill"><span class="thread-note-sign" aria-hidden="true">${SIGN}</span><span class="thread-note-text"></span></button>`;
+  el.innerHTML = `<button type="button" class="thread-note-pill"><span class="thread-note-sign" aria-hidden="true">${SIGN}</span><span class="thread-note-text"></span><span class="thread-note-go"></span></button>`;
   const pill = el.firstChild;
   pill.querySelector('.thread-note-text').textContent = I18n.t('memory.pill');
+  pill.querySelector('.thread-note-go').textContent = I18n.t('memory.pill.open');
   pill.addEventListener('click', () => MemoryPill.onOpen?.());
   MemoryPill.paint(el, entry);
   return el;
@@ -180,7 +184,7 @@ const MemoryPill = {
  },
 
  // Just come into the chat: the chat makes room, the pill settles in from the left, its sign is drawn and has its
- // moment, the words are written out from the left, and the light the colour of ice runs once round its edge.
+ // moment, the words are written out from the left, and the button comes up last.
  enter(el) {
   if (reducedMotion() || !el.isConnected) return;
   const pill = el.firstChild, sign = pill.querySelector('.glyph-memory'), height = el.offsetHeight;
@@ -193,16 +197,14 @@ const MemoryPill = {
   sign.animate(MOMENT.frames, { duration: MOMENT.duration, delay: PILL.signAt + PILL.moment, easing: 'ease-in-out' });
   const shut = 'inset(-6px 100% -6px 0)', open = 'inset(-6px -2px -6px 0)';
   pill.querySelector('.thread-note-text').animate([{ clipPath: shut, opacity: 0 }, { opacity: 1, offset: 0.35 }, { clipPath: open, opacity: 1 }], { duration: PILL.words, delay: PILL.wordsAt, easing: EASE.out, fill: 'backwards' });
-  window.NotePill?.light(pill);
+  pill.querySelector('.thread-note-go').animate([{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'none' }], { duration: PILL.go, delay: PILL.goAt, easing: EASE.pop, fill: 'backwards' });
  },
 
- // The pill of a reply takes in what the agent remembered after it was shown: the sign has its moment again and the
- // light runs once more.
+ // The pill of a reply takes in what the agent remembered after it was shown: the sign has its moment again.
  update(el, entry) {
   MemoryPill.paint(el, entry);
   if (reducedMotion() || !el.isConnected) return;
   el.querySelector('.glyph-memory').animate(MOMENT.frames, { duration: MOMENT.duration, easing: 'ease-in-out' });
-  window.NotePill?.light(el.firstChild);
  },
 };
 

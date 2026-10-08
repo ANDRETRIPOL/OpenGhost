@@ -338,6 +338,23 @@ class Settings {
   this.onModels?.();
  }
 
+ // What another window of the app has changed since this one read it: the keys, the sign-in, the providers' lists of
+ // models, and the model, effort and mode last chosen. The quick chat's window takes them in each time it is called.
+ async reread() {
+  this.keys = this.readKeys();
+  for (const provider of Object.keys(KEYS)) {
+   if (this.keys[provider]) this.accepted.add(provider);
+   else this.accepted.delete(provider);
+  }
+  this.catalog = this.readCatalog();
+  this.model = localStorage.getItem(STORAGE.model) || '';
+  const effort = localStorage.getItem(STORAGE.effort), mode = localStorage.getItem(STORAGE.mode);
+  if (effort) this.effort = effort;
+  if (MODES.includes(mode)) this.mode = mode;
+  this.changed();
+  await this.syncAccount();
+ }
+
  async refreshAll() {
   this.read = Date.now();
   await this.syncAccount();

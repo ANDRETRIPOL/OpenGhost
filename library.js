@@ -45,6 +45,11 @@ class Library {
   this.keys = new Map();
   this.titles = new Map();
   this.writes = new Map();
+  // Chats made and removed here that the index on the disk does not know of yet: another window's index must not undo them.
+  this.fresh = new Set();
+  this.gone = new Set();
+  // With the quick chat the app has two windows over one index: each takes in what the other has written.
+  store.onChange?.(key => { if (key === INDEX) this.reload(); });
   this.ready = this.load();
  }
 
@@ -67,6 +72,38 @@ class Library {
  // finds it, as a folder named Chats.
  isHome(chat) {
   return typeof chat?.space === 'string';
+ }
+
+ // The index as another window has just written it. With nothing of its own waiting to be written, this window takes it
+ // whole; otherwise a chat keeps the newer of its two records, and what was made or removed here and is not on the disk
+ // yet stays as it is here. A chat this window knows keeps its own record either way, as open chats hold on to it.
+ async reload() {
+  await this.ready;
+  const index = await this.store.read(INDEX).catch(() => null);
+  if (!index) return;
+  const dirty = !!this.timer, mine = new Map(this.chats.map(chat => [chat.id, chat]));
+  const theirs = (Array.isArray(index.chats) ? index.chats : []).filter(chat => chat?.id && typeof chat.folder === 'string' && !this.gone.has(chat.id));
+  const chats = theirs.map(chat => {
+   const own = mine.get(chat.id);
+   if (!own) return chat;
+   if (!dirty || (chat.updated || 0) > (own.updated || 0)) {
+    for (const key of Object.keys(own)) delete own[key];
+    Object.assign(own, chat);
+   }
+   return own;
+  });
+  const listed = new Set(chats.map(chat => chat.id));
+  for (const chat of this.chats) if (!listed.has(chat.id) && this.fresh.has(chat.id)) chats.push(chat);
+  this.chats = chats;
+  const folders = (Array.isArray(index.folders) ? index.folders : []).filter(folder => typeof folder?.path === 'string');
+  if (dirty) {
+   for (const folder of folders) if (!this.folders.some(item => samePath(item.path, folder.path))) this.folders.push(folder);
+  } else {
+   this.folders = folders;
+   this.home.collapsed = !!index.home?.collapsed;
+  }
+  for (const chat of this.chats) if (!this.isHome(chat)) this.folder({ path: chat.folder });
+  this.onChange();
  }
 
  // Where the agent of a chat works: its project folder, or its own folder among the chats.
@@ -103,6 +140,8 @@ class Library {
  persist() {
   clearTimeout(this.timer);
   this.timer = 0;
+  this.fresh.clear();
+  this.gone.clear();
   return this.store.write(INDEX, { version: 1, folders: this.folders, chats: this.chats, home: { collapsed: this.home.collapsed } });
  }
 
@@ -166,6 +205,9 @@ class Library {
   const now = Date.now(), title = titleFrom(text, attachments);
   const place = folder ? { folder: this.folder(folder).path } : { folder: this.home.path, space: this.space(title) };
   const chat = { id: uid(), title, ...place, created: now, updated: now, pinned: false, named: false };
+  // A chat started in the quick window says so, and the list marks it.
+  if (window.openghost?.quick) chat.quick = true;
+  this.fresh.add(chat.id);
   this.chats.push(chat);
   this.changed();
   return chat;
@@ -210,6 +252,7 @@ class Library {
   const index = this.chats.findIndex(chat => chat.id === id);
   if (index < 0) return;
   const [chat] = this.chats.splice(index, 1);
+  this.gone.add(id);
   this.forget(id);
   this.changed();
   this.store.remove(`chats/${id}`).catch(() => {});
@@ -224,7 +267,10 @@ class Library {
   const gone = this.chats.filter(chat => this.within(chat, path));
   this.chats = this.chats.filter(chat => !this.within(chat, path));
   this.folders = this.folders.filter(folder => !samePath(folder.path, path));
-  for (const chat of gone) this.forget(chat.id);
+  for (const chat of gone) {
+   this.gone.add(chat.id);
+   this.forget(chat.id);
+  }
   this.changed();
   for (const chat of gone) {
    this.store.remove(`chats/${chat.id}`).catch(() => {});

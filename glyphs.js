@@ -41,6 +41,8 @@ window.Glyphs = {
  globe: svg('<circle cx="60" cy="60" r="22"/><path d="M38.5 60h43M60 38c-6.5 6-10 13.5-10 22s3.5 16 10 22c6.5-6 10-13.5 10-22s-3.5-16-10-22z"/>'),
  // An eye for what a field hides; its slash draws across while the field shows it.
  eye: svg('<path d="M35 60c6-9.5 14.5-15 25-15s19 5.5 25 15c-6 9.5-14.5 15-25 15s-19-5.5-25-15z"/><circle cx="60" cy="60" r="6"/><path class="eye-slash" d="M42 42l36 36"/>', 'glyph-eye'),
+ // A chat started in the quick window wears a bolt in the list.
+ bolt: svg('<path d="M64 36 44 64h15l-3 20 20-28H61z"/>'),
  ghost: `<svg class="glyph glyph-ghost" viewBox="-1 -1 60 62" aria-hidden="true"><path d="${GHOST}" fill="currentColor"/><ellipse cx="17" cy="29.5" rx="3.8" ry="4.1" class="glyph-ghost-eye"/><ellipse cx="41" cy="29.5" rx="3.8" ry="4.1" class="glyph-ghost-eye"/></svg>`,
 };
 })();
