@@ -2,27 +2,21 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5)
 
-**v1.4.0 beta**
+**v1.4.5 beta**
 
-[Windows version 1.4.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.0/OpenGhost-1.4.0-Setup.exe)
+[Windows version 1.4.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.5/OpenGhost-1.4.5-Setup.exe)
 
-[Linux version 1.4.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.0/OpenGhost-1.4.0-linux.tar.gz)
+[Linux version 1.4.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.5/OpenGhost-1.4.5-linux.tar.gz)
 
-[macOS version 1.4.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.0/OpenGhost-1.4.0-mac.dmg)
+[macOS version 1.4.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.5/OpenGhost-1.4.5-mac.dmg)
 
 What's new:
-- Memory. OpenGhost remembers who you are and how you like things done, and every chat knows it. You read, rewrite and remove the records in Settings, under Memory, or switch it off.
-- AGENTS.md. A project's own instructions are read from its folder, and "remember this for the project" writes them there.
-- A new search. The magnifier, or Ctrl+K, opens a glass panel in the middle of the chat, with the chats it finds under their folders.
-- Two agents at once. Mini chat now floats, can be dragged and resized, and its agent works alongside the chat's own: each has its own browser tab, they know of each other and never change the same file. A mini chat closed at work goes on working.
-- OpenRouter, with its hundreds of models, sorted by company in the model picker.
-- Notes beside a chat, which the agent reads and brings up when their moment comes.
-- PDFs are read by sight: pages with photos, charts, formulas and scans go to the model as pictures.
-- Drafts stay in their own chats and outlive a restart. A chat answered while you were elsewhere gets a blue dot.
-- A message sent while the agent works waits in a dashed outline and can be taken back. A long sent message folds to twelve lines.
-- After a long chat is compacted, the agent keeps its last steps word for word and goes on by itself.
-- Photos open large, and the interface sizes itself to the screen, from a laptop to 5K.
-- Browser fixes: a step stops on Stop and on Take control, and a tab no longer hangs.
+- Quick chat. A key combination (Alt+Space, or your own) brings a small chat up over whatever you are doing, with the app open or not. It has its own model and effort, can search the web, and its chats are kept in the list with a bolt. Close it at work and its agent goes on.
+- A glass sidebar: what is behind the window shows through it (Windows 11 and macOS).
+- Your colours. In Settings, under Appearance, pick the colour of your own messages and the chat's background, separately for the light and the dark theme.
+- Quieter notices: "Memory updated" and notes are small black capsules now.
+- macOS: the app is sealed with a signature of its own, so the system can remember what you allowed it. It will ask once more after this update.
+- The settings have a plain side: black on the dark theme, white on the light.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
@@ -100,6 +94,12 @@ The magnifier, or Ctrl+K, opens a search in the middle of the chat. Type, and th
 
 ![The search panel over a chat](images/search.jpg)
 
+## Quick chat, from anywhere
+
+Press Alt+Space, or the combination you set in Settings, and a small chat comes up over whatever is on screen: first its message field, then the rest. Ask, read the answer, press Esc. It picks its own model and effort, searches the web, and keeps its chats in the list with a bolt; the arrows in its head open the chat in the app. Give its agent a task and close it: the agent goes on, and the chat is marked when the answer is there. With nothing to do, a closed quick chat sleeps.
+
+![Quick chat over the desktop](images/quick.jpg)
+
 ## Mini chat, with an agent of its own
 
 Select a passage and open Mini chat over the conversation. It floats: drag it by its head, pull the arc in its corner to resize it, and keep writing in the chat behind it. Its agent has the current chat as context and works alongside the chat's own agent, in its own browser tab; the two know of each other and never change the same file. Close a mini chat at work and it goes on working.
@@ -121,6 +121,12 @@ Photos, videos and files attach from the plus menu or by a drop. A video comes i
 In Settings, under General, you write how to answer and what to know about you, and add the files OpenGhost should always have at hand: notes, a style guide, a CV. Every chat gets them, and a long chat keeps them after it is compacted.
 
 ![The General page of the settings: instructions and files kept for every chat](images/general.jpg)
+
+## Make it yours
+
+Light, dark, or the system's theme; the size of the interface; and, new in 1.4.5, the colour of your own messages and of the chat's background, each theme keeping its own. Nothing is picked for you: until you choose, the themes look as they always did.
+
+![The Appearance page of the settings: themes, message colours and chat backgrounds](images/appearance.jpg)
 
 ## Three ways to let it act
 
