@@ -91,6 +91,16 @@ jobs:
           tccutil reset All com.openghost.app >> "$report" 2>&1
           probe "$signed" "signed"
 
+          # The app as built, opened the way a user opens it: does it come up?
+          open "$built"
+          sleep 15
+          osascript -e 'tell application "OpenGhost" to activate' || true
+          sleep 2
+          screencapture -x "$out/opened.png"
+          echo "==== running" >> "$report"
+          pgrep -fl "OpenGhost.app/Contents/MacOS/OpenGhost" | head -3 >> "$report"
+          pkill -f "OpenGhost.app/Contents/MacOS/OpenGhost" 2>/dev/null
+
           echo "==== usage descriptions" >> "$report"
           plutil -p "$built/Contents/Info.plist" | grep -i -E 'Usage|Identifier' >> "$report"
           cat "$report"
