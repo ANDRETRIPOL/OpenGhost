@@ -1,0 +1,102 @@
+name: Mac check
+
+# Looks at how macOS sees the Mac build: how the app is signed, and how the system's privacy guard (TCC) treats it when
+# it reads Documents, Desktop and Downloads, itself and through a shell, the way the agent does. Run by hand; publishes nothing.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npx electron-builder --mac dir --universal --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Look
+        continue-on-error: true
+        run: |
+          set +e
+          out="$RUNNER_TEMP/mac-check"
+          mkdir -p "$out"
+          report="$out/report.txt"
+          built=$(find dist -name 'OpenGhost.app' -type d | head -1)
+          sw_vers | tee -a "$report"
+          uname -m | tee -a "$report"
+
+          signature() {
+            echo "==== signature: $2" >> "$report"
+            codesign -dvvv "$1" >> "$report" 2>&1
+            echo "---- verify" >> "$report"
+            codesign --verify --deep --strict --verbose=2 "$1" >> "$report" 2>&1
+            echo "verify exit: $?" >> "$report"
+            echo "---- requirement" >> "$report"
+            codesign -d -r- "$1" >> "$report" 2>&1
+            echo "---- gatekeeper" >> "$report"
+            spctl -a -vv "$1" >> "$report" 2>&1
+          }
+
+          press() {
+            for name in UserNotificationCenter CoreServicesUIAgent; do
+              for button in Allow OK; do
+                osascript -e "tell application \"System Events\" to tell process \"$name\" to click button \"$button\" of window 1" >> "$report" 2>&1 && echo "pressed $button of $name" >> "$report"
+              done
+            done
+          }
+
+          # The app reads the three guarded folders itself and through zsh, started the way a user starts it.
+          probe() {
+            app="$1"; label="$2"
+            js="const fs=require('fs'),os=require('os'),cp=require('child_process');const out=[];for(const d of ['Documents','Desktop','Downloads']){const at=os.homedir()+'/'+d;try{out.push(d+' itself: ok '+fs.readdirSync(at).length)}catch(e){out.push(d+' itself: '+e.code)}try{out.push(d+' zsh: '+cp.execFileSync('/bin/zsh',['-c','ls '+at+' | wc -l'],{timeout:20000}).toString().trim())}catch(e){out.push(d+' zsh: '+String(e.stderr||e.message).trim().slice(0,160))}}fs.writeFileSync(process.env.PROBE_OUT,out.join('\n')+'\n')"
+            for turn in 1 2; do
+              rm -f "$out/probe-$label-$turn.txt"
+              echo "==== probe: $label, launch $turn" >> "$report"
+              open -n "$app" --env ELECTRON_RUN_AS_NODE=1 --env PROBE_OUT="$out/probe-$label-$turn.txt" --args -e "$js"
+              for step in 1 2 3 4 5 6; do
+                sleep 5
+                screencapture -x "$out/probe-$label-$turn-$step.png"
+                [ -f "$out/probe-$label-$turn.txt" ] && break
+                press
+              done
+              cat "$out/probe-$label-$turn.txt" >> "$report" 2>&1 || echo "no answer: the app was still waiting" >> "$report"
+              pkill -f "OpenGhost.app/Contents/MacOS/OpenGhost" 2>/dev/null
+              sleep 2
+            done
+            echo "---- what the privacy guard said" >> "$report"
+            log show --last 4m --style compact --predicate 'subsystem == "com.apple.TCC"' 2>/dev/null | grep -i -E 'openghost' | grep -i -E 'AUTHREQ|requirement|static code|valid|identif|Prompt|Granting|Denying|store|csreq|attribution' | cut -c1-700 | tail -60 >> "$report"
+            echo "---- its record" >> "$report"
+            sqlite3 "$HOME/Library/Application Support/com.apple.TCC/TCC.db" "select service, client, client_type, auth_value, auth_reason, length(csreq), hex(csreq) from access where client like '%openghost%'" >> "$report" 2>&1
+          }
+
+          # As it is released today: not signed by the build.
+          signature "$built" "as built"
+          tccutil reset All com.openghost.app >> "$report" 2>&1
+          probe "$built" "built"
+
+          # The same app, sealed whole with a signature of its own making (ad hoc).
+          signed="$RUNNER_TEMP/signed/OpenGhost.app"
+          mkdir -p "$RUNNER_TEMP/signed"
+          ditto "$built" "$signed"
+          codesign --force --deep --sign - "$signed" >> "$report" 2>&1
+          signature "$signed" "signed ad hoc"
+          tccutil reset All com.openghost.app >> "$report" 2>&1
+          probe "$signed" "signed"
+
+          echo "==== usage descriptions" >> "$report"
+          plutil -p "$built/Contents/Info.plist" | grep -i -E 'Usage|Identifier' >> "$report"
+          cat "$report"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-check
+          path: ${{ runner.temp }}/mac-check
+          if-no-files-found: ignore
