@@ -2,21 +2,21 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5)
 
-**v1.4.5 beta**
+**v1.4.6 beta**
 
-[Windows version 1.4.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.5/OpenGhost-1.4.5-Setup.exe)
+[Windows version 1.4.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.6/OpenGhost-1.4.6-Setup.exe)
 
-[Linux version 1.4.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.5/OpenGhost-1.4.5-linux.tar.gz)
+[Linux version 1.4.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.6/OpenGhost-1.4.6-linux.tar.gz)
 
-[macOS version 1.4.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.5/OpenGhost-1.4.5-mac.dmg)
+[macOS version 1.4.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.6/OpenGhost-1.4.6-mac.dmg)
 
 What's new:
-- Quick chat. A key combination (Alt+Space, or your own) brings a small chat up over whatever you are doing, with the app open or not. It has its own model and effort, can search the web, and its chats are kept in the list with a bolt. Close it at work and its agent goes on.
-- A glass sidebar: what is behind the window shows through it (Windows 11 and macOS).
-- Your colours. In Settings, under Appearance, pick the colour of your own messages and the chat's background, separately for the light and the dark theme.
-- Quieter notices: "Memory updated" and notes are small black capsules now.
-- macOS: the app is sealed with a signature of its own, so the system can remember what you allowed it. It will ask once more after this update.
-- The settings have a plain side: black on the dark theme, white on the light.
+- The agent asks before it guesses. When a request can go several really different ways, the message field turns into a small deck of cards with choices; pick one or write your own answer. Clear requests are simply done.
+- Languages: English, Italian, French and Russian, in Settings under General. There is an About section too.
+- Limits at a glance: a button at the foot of the sidebar shows your ChatGPT limits and your DeepSeek and OpenRouter balances.
+- One clear glass for the buttons over the chat, the notes, the search and the small menus; a tidier list of chats; photos open in a frame.
+- macOS: the built-in browser names the system it really runs on, which fixes sites that misbehaved.
+- Fixes: chats with many drawings open without jumping, Full Disk Access is detected on macOS, and more.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
