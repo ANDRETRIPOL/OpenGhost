@@ -54,6 +54,9 @@ contextBridge.exposeInMainWorld('openghost', {
  releaseFolder: folder => ipcRenderer.invoke('folder:release', folder),
  setTitleBar: (color, symbols) => ipcRenderer.send('window:titlebar', color, symbols),
  setTheme: choice => ipcRenderer.invoke('theme:set', choice),
+ // The language the page speaks, for what the main process itself puts on screen; and what the About page shows.
+ lang: { set: next => ipcRenderer.invoke('lang:set', next) },
+ about: () => ipcRenderer.invoke('app:about'),
  // How large the app is drawn: fitted to the screen ('auto') or a size picked by hand (see desktop/size.js).
  size: {
   get: () => ipcRenderer.invoke('size:get'),
@@ -64,6 +67,7 @@ contextBridge.exposeInMainWorld('openghost', {
  access: {
   state: () => ipcRenderer.invoke('access:state'),
   open: () => ipcRenderer.invoke('access:open'),
+  restart: () => ipcRenderer.invoke('access:restart'),
  },
  store: {
   read: key => ipcRenderer.invoke('store:read', key),

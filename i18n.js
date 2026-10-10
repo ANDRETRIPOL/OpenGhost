@@ -20,6 +20,16 @@ const STRINGS = {
   'chat.unpin': 'Unpin',
   'chat.delete': 'Delete chat',
   'chat.rename': 'Rename',
+  'chat.more': 'More',
+  'ask.label': 'A question from the agent',
+  'ask.own': 'Or type your own answer…',
+  'ask.skip': 'Skip',
+  'ask.back': 'Previous question',
+  'ask.next': 'Next question',
+  'ask.send': 'Send the answers',
+  'ask.count': '{n} of {total}',
+  'ask.skipped': 'Skipped',
+  'ask.recommended': 'Recommended',
   'chat.deleteConfirm': 'Click again to delete',
   'chat.lock': 'Set a password',
   'chat.unlock': 'Unlock',
@@ -162,11 +172,18 @@ const STRINGS = {
   'compact.switch.done': 'Compacted, now on {name}',
   'compact.switch.failed': 'Couldn’t compact, staying on {name}',
   'time.now': 'now',
+  'time.minutes': '{n}m',
+  'time.hours': '{n}h',
+  'time.days': '{n}d',
   'settings': 'Settings',
   'settings.sections': 'Settings sections',
   'settings.providers': 'Providers',
   'settings.general': 'General',
   'settings.usage': 'Usage',
+  'usage.peek.left': 'Left',
+  'usage.peek.all': 'All usage',
+  'usage.peek.close': 'Close usage',
+  'usage.peek.empty': 'Connect a provider in the settings, and its limits and balance show here.',
   'usage.lead': 'Tokens sent to the models and written back, as the providers count them. The count is kept on this computer.',
   'usage.today': 'Today',
   'usage.week': '7 days',
@@ -216,6 +233,34 @@ const STRINGS = {
   'usage.cell.input': 'Input',
   'usage.cell.output': 'Output',
   'usage.cell.requests': 'Requests',
+  'settings.language': 'Language',
+  'settings.language.hint': 'The language of the app itself. OpenGhost answers in the language you write in.',
+  'settings.language.locked': 'You can change the language when OpenGhost finishes',
+  'lang.en': 'English',
+  'lang.it': 'Italian',
+  'lang.fr': 'French',
+  'lang.ru': 'Russian',
+  'settings.about': 'About',
+  'about.text': 'A desktop app for chatting and working with AI models: an agent for your files and commands, with a browser of its own.',
+  'about.version': 'Version {version}',
+  'about.beta': 'Beta',
+  'about.system': 'System',
+  'about.engine': 'Engine',
+  'about.data': 'Your data',
+  'about.data.text': 'Chats, keys and settings stay on this computer',
+  'about.data.open': 'Open chats folder',
+  'about.copy': 'Copy details',
+  'about.copied': 'Copied',
+  'about.source': 'Source code',
+  'about.source.hint': 'The whole app on GitHub',
+  'about.releases': 'What’s new',
+  'about.releases.hint': 'Every version and what changed in it',
+  'about.report': 'Report a problem',
+  'about.report.hint': 'Something broke or could be better',
+  'about.sponsor': 'Support the project',
+  'about.sponsor.hint': 'OpenGhost is free; sponsors keep it going',
+  'about.licence': 'The source code is under the MIT License. The OpenGhost name, the ghost logo, the animations and the visual design are not part of it and stay with Andrew.',
+  'about.rights': '© 2026 Andrew',
   'settings.general.lead': 'What OpenGhost keeps in mind in every chat.',
   'settings.memory': 'Memory',
   'settings.memory.lead': 'What OpenGhost has learnt about you. Every chat reads it and adds to it.',
@@ -255,6 +300,8 @@ const STRINGS = {
   'settings.access': 'macOS permissions',
   'settings.access.hint': 'macOS itself asks before an app first opens Desktop, Documents, Downloads or another disk, even when the agent has Full access. Give OpenGhost Full Disk Access once and it stops asking. After an update macOS may want it switched off and on again.',
   'settings.access.open': 'Open Full Disk Access',
+  'settings.access.restart': 'Reopen OpenGhost',
+  'settings.access.restart.hint': 'Already switched on in System Settings? macOS gives the access only after the app is opened again.',
   'settings.access.on': 'Full Disk Access is on',
   'settings.access.off': 'Full Disk Access is off',
   'settings.files.tokens': '≈{count} tokens',
@@ -402,6 +449,8 @@ const STRINGS = {
   'notes.reminder.done': 'Done',
   'notes.noted': 'Noted',
   'notes.pill.open': 'Open',
+  'notes.meta.agent': 'by the agent',
+  'notes.meta.reminded': 'brought up',
   'attach.add': 'Add photos, videos and files',
   'attach.label': 'Attachments',
   'attach.remove': 'Remove {name}',
@@ -599,7 +648,15 @@ const STRINGS = {
  },
 };
 
-const lang = 'en';
+// The languages the app speaks, each under its own name. English is written here; the others come from files of their
+// own (i18n-it.js and the like), read before this one. A word a language lacks is said in English.
+const NAMES = { en: 'English', it: 'Italiano', fr: 'Français', ru: 'Русский' };
+const KEY = 'openghost.lang';
+Object.assign(STRINGS, window.I18nMore);
+const saved = (() => { try { return localStorage.getItem(KEY); } catch { return null; } })();
+const lang = Object.hasOwn(STRINGS, saved) ? saved : 'en';
+// The main process speaks it too: in the tray and in the browser's menu.
+window.openghost?.lang?.set(lang)?.catch(() => {});
 
 function t(key, params) {
  const text = STRINGS[lang][key] ?? STRINGS.en[key] ?? key;
@@ -608,6 +665,13 @@ function t(key, params) {
 
 function has(key) {
  return key in STRINGS[lang] || key in STRINGS.en;
+}
+
+// Keeps another language for the next time the page is read; the words on screen are this page's until then.
+function set(next) {
+ if (!Object.hasOwn(STRINGS, next) || next === lang) return false;
+ try { localStorage.setItem(KEY, next); } catch { return false; }
+ return true;
 }
 
 function apply(root = document) {
@@ -621,5 +685,5 @@ function apply(root = document) {
  document.documentElement.lang = lang;
 }
 
-window.I18n = { t, has, apply, lang };
+window.I18n = { t, has, apply, set, lang, languages: Object.keys(NAMES).filter(code => Object.hasOwn(STRINGS, code)).map(code => ({ code, name: NAMES[code] })) };
 })();

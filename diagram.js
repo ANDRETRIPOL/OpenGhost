@@ -7382,7 +7382,9 @@ class DiagramView {
   this.lit = '';
   if (first) this.hideStatus();
   this.scene.set([this.viewSpec(result), ...result.items], { stagger: first && !this.live ? STAGGER.reveal : STAGGER.live, instant: this.instant });
-  this.instant = false;
+  // A saved chat's drawing is set down at once, and at once again when its width is first known: laid out blind, it
+  // would otherwise glide to its real size in front of the reader, moving everything under it.
+  if (!blind) this.instant = false;
   if (!this.live) this.ensureTools();
   return true;
  }

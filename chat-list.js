@@ -57,6 +57,9 @@ function action(className, name, icon) {
  return button;
 }
 
+// Three dots, one over another: the rest of what can be done with a chat.
+const DOTS = '<svg class="glyph glyph-dots" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>';
+
 function label(el, text) {
  el.setAttribute('aria-label', text);
  el.title = text;
@@ -65,9 +68,9 @@ function label(el, text) {
 function ago(time, now = Date.now()) {
  const d = Math.max(0, now - time);
  if (d < MINUTE) return I18n.t('time.now');
- if (d < HOUR) return `${Math.floor(d / MINUTE)}m`;
- if (d < DAY) return `${Math.floor(d / HOUR)}h`;
- if (d < WEEK) return `${Math.floor(d / DAY)}d`;
+ if (d < HOUR) return I18n.t('time.minutes', { n: Math.floor(d / MINUTE) });
+ if (d < DAY) return I18n.t('time.hours', { n: Math.floor(d / HOUR) });
+ if (d < WEEK) return I18n.t('time.days', { n: Math.floor(d / DAY) });
  if (d < 5 * WEEK) return `${Math.floor(d / WEEK)}w`;
  return new Date(time).toLocaleDateString(I18n.lang, { month: 'short', day: 'numeric' });
 }
@@ -98,6 +101,23 @@ class ChatList {
   this.onNewFolder = onNewFolder;
   this.onNewChat = onNewChat;
   this.onLock = onLock;
+  // The dots' menu of a row: what the row's own hidden buttons say and allow, as lines.
+  this.menu = new RowMenu({
+   scroller: root.querySelector('.chats-scroll') || root,
+   items: id => {
+    const item = this.rows.get(id);
+    return item && [
+     { name: 'rename', label: I18n.t('chat.rename'), icon: Glyphs.pencil, disabled: item.rename.disabled },
+     { name: 'lock', label: item.lock.getAttribute('aria-label') || I18n.t('chat.lock'), icon: Glyphs.padlock, disabled: item.lock.disabled },
+     { name: 'delete', label: I18n.t('chat.delete'), icon: Glyphs.trash },
+    ];
+   },
+   act: (name, id, row) => {
+    if (name === 'rename') this.rename(id);
+    else if (name === 'lock') this.onLock?.(id, row);
+    else if (name === 'delete') this.remove(id);
+   },
+  });
   this.query = '';
   this.rows = new Map();
   this.groups = new Map();
@@ -180,9 +200,14 @@ class ChatList {
   const actions = element('span', 'chat-actions');
   const rename = action('chat-action is-rename', 'rename', Glyphs.pencil);
   const lock = action('chat-action is-lock', 'lock', Glyphs.padlock), pin = action('chat-action', 'pin', Glyphs.pin), remove = action('chat-action is-delete', 'delete', Glyphs.trash);
+  // The row shows the pin and the dots. Renaming, the password and deleting are lines of the dots' menu; their buttons
+  // are kept off the page and only hold what the menu says of them (the padlock's words, what is not to be had now).
+  const more = action('chat-action is-more', 'more', DOTS);
   label(rename, I18n.t('chat.rename'));
   label(remove, I18n.t('chat.delete'));
-  actions.append(rename, lock, pin, remove);
+  label(more, I18n.t('chat.more'));
+  more.setAttribute('aria-haspopup', 'menu');
+  actions.append(pin, more);
   meta.append(time, actions);
   row.append(mark, title, meta);
   return { row, mark, title, time, rename, lock, pin, remove, ghost: null, pinned: null, guarded: null, locked: null, veil: 0, confirm: false, timer: 0, editing: null };
@@ -433,6 +458,7 @@ class ChatList {
    else if (button.dataset.action === 'pin') this.togglePin(id);
    else if (button.dataset.action === 'delete') this.askDelete(id);
    else if (button.dataset.action === 'lock') this.onLock?.(id, button.closest('.chat-row'));
+   else if (button.dataset.action === 'more') this.menu.toggle(id, button.closest('.chat-row'), button);
    return;
   }
   const head = event.target.closest('.chats-folder-head');

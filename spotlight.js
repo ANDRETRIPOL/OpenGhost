@@ -2,19 +2,24 @@
 'use strict';
 
 // Search, in the manner of Spotlight: at a press on the magnifier in the sidebar (or Ctrl+K) the magnifier ducks out of
-// the sidebar and a panel of glass opens in the middle of the chat: the search field, its own magnifier drawn in it
-// stroke by stroke. As the user types, the chats that were found come out under the field, in the same panel, which
+// the sidebar and a panel of glass comes out of a blur in the middle of the chat: the search field with a magnifier of
+// its own. As the user types, the chats that were found come out under the field, in the same panel, which
 // grows and shrinks with them on a spring, like the message field with its text. The sidebar's own list stays as it is. A press on a chat that was found, or Enter, opens it.
 const SHOWN = 40;
-// The field's magnifier is drawn: the ring goes round, then the handle comes out of it. Closing, it is taken back quickly.
-const DRAW = { ring: 420, handle: 260, wait: 120, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
-const OPEN = { duration: 460, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
-const CLOSE = { duration: 220, easing: 'cubic-bezier(0.4, 0, 1, 1)' };
+// With nothing typed, the chats used last stand under the field.
+const RECENT = 6;
+// The panel comes as Spotlight's does: quickly out of a blur, a little wider and flatter than it will stand. Closed, it
+// grows a little and goes into a deeper blur, quicker still.
+const OPEN = { duration: 133, easing: 'cubic-bezier(0.37, 0, 0.63, 1)' };
+const CLOSE = { duration: 110, easing: 'ease-out', fill: 'forwards' };
+const FROM = { opacity: 0, transform: 'scale(1.09, 0.96)', filter: 'blur(4px)' };
+const REST = { opacity: 1, transform: 'none', filter: 'blur(0px)' };
+const AWAY = { opacity: 0, transform: 'scale(1.06)', filter: 'blur(12px)' };
 const ROW = { duration: 380, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' };
-const PLACE = { share: 0.2, least: 64, most: 190, width: 620, side: 28 };
-const LENS = '<svg viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" aria-hidden="true"><circle pathLength="1" cx="54.5" cy="54.5" r="15.5" transform="rotate(45 54.5 54.5)"/><path pathLength="1" d="M65.5 65.5 81 81"/></svg>';
+const PLACE = { share: 0.2, least: 64, most: 190, width: 540, side: 28 };
+const LENS = '<svg viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" aria-hidden="true"><circle cx="54.5" cy="54.5" r="15.5"/><path d="M65.5 65.5 81 81"/></svg>';
 const FOLDER = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 5.6a1.8 1.8 0 0 1 1.8-1.8h2.5l1.7 1.9h5a1.8 1.8 0 0 1 1.8 1.8v5a1.8 1.8 0 0 1-1.8 1.8H4.4a1.8 1.8 0 0 1-1.8-1.8z"/></svg>';
-const BAR = 60;
+const BAR = 52;
 const BUBBLE = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3.2c3.5 0 6.1 2.2 6.1 5.1s-2.6 5.1-6.1 5.1c-.7 0-1.4-.1-2-.3L3.6 14.6l.8-2.6C3.500 11 2.900 9.700 2.900 8.300 2.900 5.400 5.500 3.200 9 3.200z"/></svg>';
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -22,9 +27,9 @@ const MINUTE = 60000, HOUR = 60 * MINUTE, DAY = 24 * HOUR, WEEK = 7 * DAY;
 function ago(time, now = Date.now()) {
  const d = Math.max(0, now - time);
  if (d < MINUTE) return I18n.t('time.now');
- if (d < HOUR) return `${Math.floor(d / MINUTE)}m`;
- if (d < DAY) return `${Math.floor(d / HOUR)}h`;
- if (d < WEEK) return `${Math.floor(d / DAY)}d`;
+ if (d < HOUR) return I18n.t('time.minutes', { n: Math.floor(d / MINUTE) });
+ if (d < DAY) return I18n.t('time.hours', { n: Math.floor(d / HOUR) });
+ if (d < WEEK) return I18n.t('time.days', { n: Math.floor(d / DAY) });
  if (d < 5 * WEEK) return `${Math.floor(d / WEEK)}w`;
  return new Date(time).toLocaleDateString(I18n.lang, { month: 'short', day: 'numeric' });
 }
@@ -43,6 +48,7 @@ class Spotlight {
   root.innerHTML = `
    <div class="spotlight-panel glass-lens" role="dialog">
     <div class="spotlight-bar">
+     <span class="spotlight-lens" aria-hidden="true">${LENS}</span>
      <input class="spotlight-input" type="text" role="combobox" aria-autocomplete="list" aria-controls="spotlight-list" aria-expanded="false" autocomplete="off" spellcheck="false">
     </div>
     <div class="spotlight-box">
@@ -53,8 +59,7 @@ class Spotlight {
      </div>
      <div class="scrollbar spotlight-scrollbar" aria-hidden="true"><div class="scrollbar-thumb"></div></div>
     </div>
-   </div>
-   <span class="spotlight-lens" aria-hidden="true">${LENS}</span>`;
+   </div>`;
   document.body.append(root);
   this.panel = root.querySelector('.spotlight-panel');
   this.input = root.querySelector('.spotlight-input');
@@ -63,14 +68,13 @@ class Spotlight {
   this.list = root.querySelector('.spotlight-list');
   this.none = root.querySelector('.spotlight-none');
   this.glider = root.querySelector('.spotlight-glide');
-  this.lens = root.querySelector('.spotlight-lens');
   const label = I18n.t('search.label');
   this.panel.setAttribute('aria-label', label);
   this.input.setAttribute('aria-label', label);
   this.input.placeholder = label;
   this.none.textContent = I18n.t('search.none');
   // The block under the field follows what it holds on a spring.
-  new SmoothHeight(this.box, this.results);
+  this.height = new SmoothHeight(this.box, this.results);
   this.restTimer = 0;
   new ResizeObserver(() => this.settle()).observe(this.panel);
   this.scroll = new Scrollbar(this.results, root.querySelector('.spotlight-scrollbar'));
@@ -116,38 +120,22 @@ class Spotlight {
   style.setProperty('--spot-room', `${Math.round(Math.max(120, area.bottom - area.top - Math.min(PLACE.most, Math.max(PLACE.least, area.height * PLACE.share)) - BAR - 40))}px`);
  }
 
- // The field's magnifier, drawn as the field opens: its ring runs round from where the handle will be, then the handle
- // comes out, and the whole settles from a little smaller. Closing, the strokes are taken back.
- draw(on) {
-  const [ring, handle] = this.lens.querySelectorAll('circle, path');
-  for (const el of [this.lens, ring, handle]) for (const animation of el.getAnimations()) animation.cancel();
-  if (reducedMotion()) return this.lens.animate([{ opacity: on ? 0 : 1 }, { opacity: on ? 1 : 0 }], { duration: 160, fill: 'both' }).finished;
-  const dash = { strokeDasharray: '1 1' }, hidden = { ...dash, strokeDashoffset: 1 }, drawn = { ...dash, strokeDashoffset: 0 };
-  if (!on) {
-   handle.animate([drawn, hidden], { duration: 120, easing: 'ease-in', fill: 'both' });
-   ring.animate([drawn, hidden], { duration: 200, delay: 60, easing: 'ease-in', fill: 'both' });
-   return this.lens.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: 260, fill: 'both' }).finished;
-  }
-  ring.animate([hidden, drawn], { duration: DRAW.ring, delay: DRAW.wait, easing: DRAW.easing, fill: 'both' });
-  handle.animate([hidden, drawn], { duration: DRAW.handle, delay: DRAW.wait + DRAW.ring * 0.72, easing: DRAW.easing, fill: 'both' });
-  return this.lens.animate([{ transform: 'scale(0.82) rotate(-18deg)' }, { transform: 'none' }], { duration: DRAW.wait + DRAW.ring + DRAW.handle, easing: 'cubic-bezier(0.34, 1.4, 0.64, 1)', fill: 'both' }).finished;
- }
-
  show() {
   if (this.open) return;
-  this.open = true;
   this.back = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
   this.input.value = '';
-  this.render([]);
   this.place();
   this.root.showPopover();
+  // The chats used last are a part of the panel as it comes: they stand in it at once, and the panel is its full height.
+  this.search();
+  this.height.snap();
+  this.height.h = null;
+  this.open = true;
   this.root.classList.add('is-open');
   this.button.classList.add('is-away');
   this.input.focus({ preventScroll: true });
   for (const animation of this.panel.getAnimations()) animation.cancel();
-  this.draw(true).catch(() => {});
-  if (reducedMotion()) return;
-  this.panel.animate([{ opacity: 0, transform: 'translateY(-8px) scale(0.965)' }, { opacity: 1, transform: 'none' }], OPEN);
+  this.panel.animate(reducedMotion() ? [{ opacity: 0 }, { opacity: 1 }] : [FROM, REST], OPEN);
  }
 
  close({ focus = true } = {}) {
@@ -159,14 +147,12 @@ class Spotlight {
    if (this.open) return;
    this.button.classList.remove('is-away');
    this.root.hidePopover();
-   for (const el of [this.panel, this.lens]) for (const animation of el.getAnimations()) animation.cancel();
+   for (const animation of this.panel.getAnimations()) animation.cancel();
   };
   if (focus) (this.back?.isConnected ? this.back : this.button).focus?.({ preventScroll: true });
   this.back = null;
-  if (!reducedMotion()) {
-   this.panel.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px) scale(0.975)' }], { ...CLOSE, fill: 'forwards' });
-  }
-  this.draw(false).then(done, done);
+  // From wherever the panel is: closed while still coming, it turns back from there.
+  this.panel.animate(reducedMotion() ? { opacity: 0 } : AWAY, CLOSE).finished.then(done, done);
  }
 
  onKey(event) {
@@ -194,7 +180,7 @@ class Spotlight {
  // title is sealed, so a search never finds it.
  search() {
   const lib = this.library, words = this.input.value.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) { this.render([]); return; }
+  if (!words.length) { this.render(this.grouped(lib.chats.filter(chat => !lib.isLocked?.(chat.id)).sort((a, b) => b.updated - a.updated).slice(0, RECENT))); return; }
   const whole = words.join(' '), found = [];
   for (const chat of lib.chats) {
    if (lib.isLocked?.(chat.id)) continue;
@@ -205,9 +191,13 @@ class Spotlight {
    found.push({ chat, rank });
   }
   found.sort((a, b) => a.rank - b.rank || b.chat.updated - a.chat.updated);
-  // Chats of one folder stand together under its name, where the best of them stands; chats with no folder stand alone.
-  const groups = new Map();
-  for (const { chat } of found.slice(0, SHOWN)) {
+  this.render(this.grouped(found.slice(0, SHOWN).map(item => item.chat)), words);
+ }
+
+ // Chats of one folder stand together under its name, where the best of them stands; chats with no folder stand alone.
+ grouped(chats) {
+  const lib = this.library, groups = new Map();
+  for (const chat of chats) {
    const key = lib.isHome(chat) ? '' : Library.pathKey?.(chat.folder) ?? String(chat.folder).toLowerCase();
    if (!groups.has(key)) groups.set(key, []);
    groups.get(key).push(chat);
@@ -217,7 +207,7 @@ class Spotlight {
    if (key) items.push({ folder: key, name: this.folderOf(chats[0]) });
    for (const chat of chats) items.push({ chat, nested: !!key });
   }
-  this.render(items, words);
+  return items;
  }
 
  folderOf(chat) {
@@ -286,7 +276,7 @@ class Spotlight {
    if (isNew && motion) el.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { ...ROW, delay: Math.min(fresh++, 8) * 22, fill: 'backwards' });
   }
   this.none.hidden = !asked || items.length > 0;
-  this.root.classList.toggle('has-results', asked);
+  this.root.classList.toggle('has-results', asked || items.length > 0);
   this.input.setAttribute('aria-expanded', String(asked && items.length > 0));
   this.results.scrollTop = 0;
   this.at = -1;

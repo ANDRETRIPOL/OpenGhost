@@ -29,15 +29,16 @@
       </nav>
       <div class="sidebar-footer">
         <settings-button class="sidebar-settings" data-i18n="settings">Settings</settings-button>
+        <usage-button class="sidebar-usage"></usage-button>
       </div>
     </aside>
     <main class="main is-empty">
       <div class="top-tools glass-lens">
         <sidebar-toggle class="sidebar-toggle"></sidebar-toggle>
-        <notes-button class="notes-toggle" hidden></notes-button>
         <button type="button" class="mini-toggle" hidden></button>
       </div>
-      <browser-toggle class="browser-toggle" hidden></browser-toggle>
+      <button type="button" class="notes-pill notes-toggle glass-lens" hidden></button>
+      <div class="browser-tools glass-lens"><browser-toggle class="browser-toggle" hidden></browser-toggle></div>
       <div class="thread-view">
         <div class="thread">
           <div class="thread-list"></div>
@@ -52,7 +53,7 @@
       </div>
       <div class="welcome" aria-hidden="true"><div class="welcome-flight"></div></div>
       <div class="composer">
-        <button type="button" class="composer-folder"></button>
+        <button type="button" class="composer-folder glass-lens"></button>
         <div class="composer-attachments"><div class="attachments-row" aria-label="Attachments" data-i18n-attr="aria-label:attach.label"></div></div>
         <input class="composer-picker" type="file" multiple hidden>
         <div class="composer-field">
@@ -123,6 +124,10 @@
           <svg class="settings-tab-icon is-contrast" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="60" cy="60" r="21"/><path class="half" d="M60 39a21 21 0 0 1 0 42z" fill="currentColor"/></svg>
           <span data-i18n="settings.appearance">Appearance</span>
         </button>
+        <button type="button" class="settings-tab" role="tab" data-page="about" aria-controls="settings-about" aria-selected="false" tabindex="-1">
+          <svg class="settings-tab-icon is-info" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="60" cy="60" r="21"/><path d="M60 59v11"/><path class="info-dot" d="M60 49v.1"/></svg>
+          <span data-i18n="settings.about">About</span>
+        </button>
       </div>
     </nav>
     <section class="settings-page" aria-labelledby="settings-page-title">
@@ -138,6 +143,7 @@
       </div>
       <div class="settings-panel" id="settings-usage" role="tabpanel" data-page="usage" aria-labelledby="settings-page-title" hidden></div>
       <div class="settings-panel" id="settings-appearance" role="tabpanel" data-page="appearance" aria-labelledby="settings-page-title" hidden></div>
+      <div class="settings-panel" id="settings-about" role="tabpanel" data-page="about" aria-labelledby="settings-page-title" hidden></div>
     </section>
     <div class="scrollbar settings-scrollbar" aria-hidden="true"><div class="scrollbar-thumb"></div></div>
   </dialog>
@@ -149,15 +155,18 @@
   </div>
   <script src="splash-mist.js"></script>
 
+  <script src="i18n-it.js"></script>
+  <script src="i18n-fr.js"></script>
+  <script src="i18n-ru.js"></script>
   <script src="i18n.js"></script>
   <script src="liquid-glass.js"></script>
   <script src="icon-button.js"></script>
   <script src="sidebar-toggle.js"></script>
   <script src="browser-toggle.js"></script>
-  <script src="notes-button.js"></script>
   <script src="add-button.js"></script>
   <script src="search-button.js"></script>
   <script src="settings-button.js"></script>
+  <script src="usage-button.js"></script>
   <script src="close-button.js"></script>
   <script src="clear-button.js"></script>
   <script src="effort-button.js"></script>
@@ -187,7 +196,9 @@
   <script src="photo-viewer.js"></script>
   <script src="media-embed.js"></script>
   <script src="settings.js"></script>
+  <script src="settings-language.js"></script>
   <script src="settings-general.js"></script>
+  <script src="settings-about.js"></script>
   <script src="settings-appearance.js"></script>
   <script src="effort-paint.js"></script>
   <script src="effort-morph.js"></script>
@@ -198,6 +209,7 @@
   <script src="chat-store.js"></script>
   <script src="usage.js"></script>
   <script src="settings-usage.js"></script>
+  <script src="usage-peek.js"></script>
   <script src="user-context.js"></script>
   <script src="memory.js"></script>
   <script src="settings-memory.js"></script>
@@ -206,8 +218,10 @@
   <script src="agent-tools.js"></script>
   <script src="agent-prompt.js"></script>
   <script src="approval-card.js"></script>
+  <script src="ask-card.js"></script>
   <script src="stats-card.js"></script>
   <script src="chat.js"></script>
+  <script src="row-menu.js"></script>
   <script src="chat-list.js"></script>
   <script src="spotlight.js"></script>
   <script src="folder-pill.js"></script>

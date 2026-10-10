@@ -1,21 +1,24 @@
 (() => {
 'use strict';
 
-// Photos open large: the user's own and the ones the agent showed. The photo flies out of its stack into the middle of
-// the window, over the chat gone dim and soft; the arrows and the keys leaf through the stack it came from, and on closing
-// it flies back to its place, the stack turned to the photo seen last.
+// Photos open large: the user's own and the ones the agent showed. The photo flies out of its stack into a frame in the
+// middle of the window, over the chat gone dim: the frame the quick chat's photo window has, with the photo's name
+// above it and, below, the way through the stack and Close. The arrows and the keys leaf through the stack it came
+// from, and on closing the photo flies back to its place, the stack turned to the photo seen last.
 const FLY = { duration: 440, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
-const BACK = { duration: 360, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const LEAF = { duration: 320, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const FADE = { duration: 260, easing: 'ease', fill: 'forwards' };
-// The photo's room: the arrows at the sides, the close button above, the caption below. A small picture grows to fill
-// it, but not past this many times its own size.
-const ROOM = { side: 88, top: 72, bottom: 96, grow: 2.5 };
-const RADIUS = 12;
+// The frame round the photo: its sides, the name's line above, the gap and the line below, and how near the window's
+// edges it may come. A small picture grows, but not past this many times its own size.
+const FRAME = { pad: 14, head: 44, gap: 0, foot: 44, min: 236, edge: 28, grow: 2.5 };
+const RADIUS = 8;
+// Closing, as the search closes: a little larger, into a blur, quickly.
+const GO = { duration: 110, easing: 'ease-out', fill: 'forwards' };
+const AWAY = { opacity: 0, transform: 'scale(1.06)', filter: 'blur(12px)' };
+const COME = { duration: 360, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', delay: 60, fill: 'backwards' };
 // The picture store the agent's previews come from gives the same picture sharper when asked for it wider.
 const STORE = /^https:\/\/[\w-]+\.mm\.bing\.net\/th\?/;
 const SHARP = 1600;
-const CLOSE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
 const CHEVRON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>';
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -51,10 +54,15 @@ class PhotoViewer {
   dialog.className = 'viewer';
   dialog.setAttribute('aria-label', I18n.t('viewer.label'));
   dialog.innerHTML = `
-   <button type="button" class="viewer-close" aria-label="${escapeHtml(I18n.t('viewer.close'))}">${CLOSE}</button>
-   ${many ? `<button type="button" class="viewer-arrow is-prev" aria-label="${escapeHtml(I18n.t('media.prev'))}">${CHEVRON}</button>
-   <button type="button" class="viewer-arrow is-next" aria-label="${escapeHtml(I18n.t('media.next'))}">${CHEVRON}</button>` : ''}
-   <div class="viewer-bar"><span class="viewer-count"></span><span class="viewer-caption"></span><span class="viewer-source"></span></div>`;
+   <div class="viewer-frame">
+    <div class="viewer-head"><span class="viewer-caption"></span></div>
+    <div class="viewer-foot">
+     <span class="viewer-leaf">${many ? `<button type="button" class="viewer-arrow is-prev" aria-label="${escapeHtml(I18n.t('media.prev'))}">${CHEVRON}</button>` : ''}<span class="viewer-count"></span>${many ? `<button type="button" class="viewer-arrow is-next" aria-label="${escapeHtml(I18n.t('media.next'))}">${CHEVRON}</button>` : ''}</span>
+     <span class="viewer-source"></span>
+     <button type="button" class="viewer-close">${escapeHtml(I18n.t('viewer.close'))}</button>
+    </div>
+   </div>`;
+  this.frame = dialog.querySelector('.viewer-frame');
   this.prev = dialog.querySelector('.is-prev');
   this.next = dialog.querySelector('.is-next');
   dialog.querySelector('.viewer-close').addEventListener('click', () => this.close());
@@ -69,8 +77,11 @@ class PhotoViewer {
   document.body.append(dialog);
   dialog.showModal();
   this.img = this.picture(index);
-  dialog.prepend(this.img);
+  this.frame.after(this.img);
+  this.place(this.img, index);
   this.say();
+  // The sidebar steps back with the chat (see .is-viewing in the styles).
+  document.documentElement.classList.add('is-viewing');
   this.fly();
  }
 
@@ -99,26 +110,33 @@ class PhotoViewer {
   return width && height ? { width, height } : null;
  }
 
- // The photo as large as its room takes, in the middle of it.
+ // The photo as large as its frame may be, and the frame round it in the middle of the window, under the title bar.
  target(k, img = this.img) {
   const natural = this.size(img, k);
   if (!natural) return null;
-  const roomW = Math.max(120, innerWidth - ROOM.side * 2), roomH = Math.max(120, innerHeight - ROOM.top - ROOM.bottom);
-  const scale = Math.min(roomW / natural.width, roomH / natural.height, ROOM.grow);
+  const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--titlebar-height')) || 0;
+  const top = bar + FRAME.edge, tall = Math.max(200, innerHeight - top - FRAME.edge);
+  const roomW = Math.max(120, innerWidth - 2 * (FRAME.edge + FRAME.pad)), roomH = Math.max(120, tall - FRAME.head - FRAME.gap - FRAME.foot);
+  const scale = Math.min(roomW / natural.width, roomH / natural.height, FRAME.grow);
   const width = natural.width * scale, height = natural.height * scale;
-  return { left: (innerWidth - width) / 2, top: ROOM.top + (roomH - height) / 2, width, height };
+  const frameW = Math.max(width + 2 * FRAME.pad, Math.min(FRAME.min, innerWidth - 2 * FRAME.edge)), frameH = FRAME.head + height + FRAME.gap + FRAME.foot;
+  const frameTop = top + (tall - frameH) / 2;
+  return { left: (innerWidth - width) / 2, top: frameTop + FRAME.head, width, height, frame: { left: (innerWidth - frameW) / 2, top: frameTop, width: frameW, height: frameH } };
  }
 
  place(img, k) {
   const box = this.target(k, img);
   if (!img || !box) return;
   Object.assign(img.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+  // The frame stands round the photo in hand.
+  if (img === this.img || !this.img) Object.assign(this.frame.style, { left: `${box.frame.left}px`, top: `${box.frame.top}px`, width: `${box.frame.width}px`, height: `${box.frame.height}px` });
  }
 
  say() {
   const item = this.items[this.index], many = this.items.length > 1;
   this.dialog.querySelector('.viewer-count').textContent = many ? `${this.index + 1} / ${this.items.length}` : '';
   this.dialog.querySelector('.viewer-caption').textContent = item.name || '';
+  this.dialog.querySelector('.viewer-head').dataset.plain = item.name ? '' : I18n.t('viewer.label');
   this.dialog.querySelector('.viewer-source').innerHTML = item.href && window.LinkChip ? LinkChip.html(item.href) : '';
   this.prev?.classList.toggle('is-hidden', this.index === 0);
   this.next?.classList.toggle('is-hidden', this.index === this.items.length - 1);
@@ -148,7 +166,8 @@ class PhotoViewer {
  fly() {
   const box = this.from(this.index), still = reducedMotion();
   this.dialog.animate({ opacity: [0, 1] }, { ...FADE, pseudoElement: '::backdrop' });
-  for (const el of this.dialog.querySelectorAll('.viewer-close, .viewer-arrow, .viewer-bar')) el.animate({ opacity: [0, 1] }, { ...FADE, delay: still ? 0 : 120, fill: 'backwards' });
+  // The frame comes in round the place the photo is flying to.
+  this.frame.animate([{ opacity: 0, transform: still ? 'none' : 'scale(0.96)' }, { opacity: 1, transform: 'none' }], { ...COME, delay: still ? 0 : COME.delay });
   if (still || !box) {
    this.img.animate({ opacity: [0, 1], transform: [still ? 'none' : 'scale(0.96)', 'none'] }, FADE);
    return;
@@ -159,10 +178,14 @@ class PhotoViewer {
 
  go(k) {
   if (this.closing || k < 0 || k >= this.items.length || k === this.index) return;
-  const dir = Math.sign(k - this.index), old = this.img, still = reducedMotion();
+  const dir = Math.sign(k - this.index), old = this.img, still = reducedMotion(), frame = this.frame, was = frame.getBoundingClientRect();
   this.index = k;
   this.img = this.picture(k);
   old.after(this.img);
+  this.place(this.img, k);
+  // The frame takes the new photo's size in one move.
+  const now = frame.getBoundingClientRect(), px = r => ({ left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+  if (!still && (Math.abs(now.width - was.width) > 0.5 || Math.abs(now.height - was.height) > 0.5)) frame.animate([px(was), px(now)], LEAF);
   // The stack turns along behind the veil, so the photo has its card to fly back to.
   this.slider?.go(k);
   if (this.hidden) this.hide(k);
@@ -186,14 +209,18 @@ class PhotoViewer {
   const dialog = this.dialog, still = reducedMotion();
   // The stack may still be turning to this photo: it is set at once, so the photo lands on a card at rest.
   if (this.slider && this.slider.pos !== this.index) { this.slider.pos = this.index; this.slider.vel = 0; this.slider.render(); }
-  const box = still ? null : this.hidden && this.from(this.index);
-  dialog.animate({ opacity: [1, 0] }, { ...FADE, duration: BACK.duration, pseudoElement: '::backdrop' });
-  for (const el of dialog.querySelectorAll('.viewer-close, .viewer-arrow, .viewer-bar')) el.animate({ opacity: [1, 0] }, { ...FADE, duration: 160 });
-  const flight = box
-   ? this.img.animate([{ transform: 'none', borderRadius: `${RADIUS}px` }, this.onto(box, this.img)], { ...BACK, fill: 'forwards' })
-   : this.img.animate({ opacity: [1, 0], transform: ['none', still ? 'none' : 'scale(0.96)'] }, { ...FADE, duration: BACK.duration });
+  // It goes as the search does: the frame and its photo grow a little, as one thing, into a blur, quickly. The photo's
+  // card in the stack is there again at once, so the chat under the going frame is whole.
+  if (this.hidden) this.hidden.style.visibility = '';
+  this.hidden = null;
+  document.documentElement.classList.remove('is-viewing');
+  const at = this.frame.getBoundingClientRect(), own = this.img.getBoundingClientRect();
+  this.img.style.transformOrigin = `${at.left + at.width / 2 - own.left}px ${at.top + at.height / 2 - own.top}px`;
+  const away = still ? { opacity: 0 } : AWAY;
+  dialog.animate({ opacity: [1, 0] }, { ...GO, pseudoElement: '::backdrop' });
+  this.frame.animate(away, GO);
+  const flight = this.img.animate(away, GO);
   const done = () => {
-   if (this.hidden) this.hidden.style.visibility = '';
    dialog.close();
    dialog.remove();
    this.slider?.el.focus?.({ preventScroll: true });

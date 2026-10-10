@@ -32,7 +32,9 @@ const describe = provider => entry => {
   provider,
   api: entry.slug,
   name: entry.display_name || entry.slug,
-  context: Number(entry.context_window) || UNKNOWN.context,
+  // The catalogue gives two windows: the one Codex works in unless told otherwise, and the most the model takes. The
+  // app works in the whole of it.
+  context: Number(entry.max_context_window) || Number(entry.context_window) || UNKNOWN.context,
   vision: !Array.isArray(entry.input_modalities) || entry.input_modalities.includes('image'),
   efforts,
   defaultEffort: efforts.includes(entry.default_reasoning_level) ? entry.default_reasoning_level : efforts.includes('medium') ? 'medium' : efforts[0],

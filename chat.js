@@ -10,6 +10,10 @@ const FINISH_NOTES = ['length', 'content_filter', 'insufficient_system_resource'
 const LEAVE = { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
 const SWITCH = { duration: 280, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const PIN_TIME = 2000;
+// A chat opened for the first time is laid out out of sight and shown once it stands still: `calm` frames in a row
+// with its height unchanged and its pictures in, or after `most` at the latest. A wait that lasts longer than `wait`
+// (the chat still being read from the disk, or still settling) shows the ghost in the meantime.
+const HOLD = { calm: 3, most: 1500, wait: 220 };
 // How far below the top of the chat a card too tall for the room over the composer keeps its top: where the first message sits.
 const ANCHOR_GAP = 56;
 // The chat on screen keeps its messages under the lock screen while it frosts over (FROST in lock-ui.js), then lets them go.
@@ -83,6 +87,13 @@ const Desk = {
  },
 };
 const TASK_SHOWN = 220;
+// What the agent's question to the user answers when no answer came (ask-card.js shows the question).
+const ASK = {
+ bad: 'Error: ask_user needs questions: one to four, each with a question, a short header and two to four options that have a label and a description. Call it again in that shape, or go on without asking.',
+ message: 'The user did not answer the question and sent a new message instead, read it next.',
+ side: 'Error: no question can be shown here right now. Go on without asking: choose what is most sensible and say what you chose.',
+};
+
 // The user's notepad beside a chat (notepad.js), and what the agent's notepad tool answers.
 const PAD = {
  max: 1000,
@@ -680,11 +691,58 @@ class Chat {
    if (this.library.isLocked(id)) conv.locked = true;
    else conv.ready = this.load(conv);
   }
+  // A chat that takes its time to be read does not leave the old one standing as if nothing was asked.
+  const slow = conv.ready && setTimeout(() => { if (token === this.opening) this.showWait(true); }, HOLD.wait);
   return Promise.resolve(conv.ready).then(() => {
+   clearTimeout(slow);
    if (token !== this.opening) return;
    this.activate(conv);
    this.onChange();
   });
+ }
+
+ // The ghost in the middle of the chat while a chat is on its way; what is on screen meanwhile steps back.
+ showWait(on) {
+  if (on === !!this.waitEl) return;
+  this.main.classList.toggle('is-waiting', on);
+  if (on) {
+   this.waitEl = document.createElement('div');
+   this.waitEl.className = 'thread-wait';
+   this.waitEl.innerHTML = '<ghost-thinking></ghost-thinking>';
+   this.thread.after(this.waitEl);
+   return;
+  }
+  this.waitEl.remove();
+  this.waitEl = null;
+ }
+
+ // A chat shown for the first time stays out of sight until it stands still: its drawings are laid out for the width
+ // they now have, its pictures are in and its long messages are folded. Then it comes, already at its place.
+ hold(conv, show) {
+  const list = conv.list, started = performance.now();
+  let height = -1, calm = 0;
+  const pictures = () => [...list.querySelectorAll('img')].every(img => img.complete || img.loading === 'lazy');
+  list.classList.add('is-settling');
+  const step = () => {
+   if (this.active !== conv) { list.classList.remove('is-settling'); return; }
+   const now = list.offsetHeight, waited = performance.now() - started;
+   calm = now === height ? calm + 1 : 0;
+   height = now;
+   if (conv.follow) this.pin();
+   else this.thread.scrollTop = conv.scrollTop;
+   this.lastTop = this.thread.scrollTop;
+   if ((calm >= HOLD.calm && pictures()) || waited > HOLD.most) {
+    list.classList.remove('is-settling');
+    conv.seen = true;
+    this.showWait(false);
+    show();
+    this.syncBottom();
+    return;
+   }
+   if (waited > HOLD.wait) this.showWait(true);
+   requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
  }
 
  // A chat's messages come with the notes kept beside it; a mini chat has none of its own.
@@ -827,7 +885,14 @@ class Chat {
   else this.thread.scrollTop = conv.scrollTop;
   this.lastTop = this.thread.scrollTop;
   this.pinUntil = performance.now() + PIN_TIME;
-  if (prev?.list.childElementCount && !empty && !reducedMotion()) conv.list.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], SWITCH);
+  const show = () => { if (prev?.list.childElementCount && !empty && !reducedMotion()) conv.list.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], SWITCH); };
+  // Seen before, empty, or being written into right now: it is there at once.
+  if (empty || conv.seen || conv.turn || conv.locked) {
+   if (!conv.locked) conv.seen = true;
+   this.showWait(false);
+   show();
+  } else this.hold(conv, show);
+  this.syncAsk();
   this.syncBottom();
  }
 
@@ -893,6 +958,7 @@ class Chat {
   turn.release?.('abort');
   if (turn.tool) AgentTools.cancel(turn.tool);
   for (const pending of turn.approvals) pending.card.settle('deny');
+  conv.ask?.settle(TOOL_NOTES.cancelled);
  }
 
  onModeChange() {
@@ -1081,6 +1147,7 @@ class Chat {
   QueuedRing.put(bubble, { edit: () => this.withdraw(conv, bubble, true), remove: () => this.withdraw(conv, bubble) });
   this.dismissGhost(turn.part.view);
   for (const pending of turn.approvals) pending.card.settle(TOOL_NOTES.message);
+  conv.ask?.settle(ASK.message);
   turn.release?.('message');
  }
 
@@ -1306,6 +1373,7 @@ class Chat {
   }
   // The notepad is the app's own: nothing on the computer changes, so it never waits for approval.
   if (name === 'notepad') return this.useNotepad(conv, turn, args);
+  if (name === 'ask_user') return this.useAsk(conv, turn, view, args);
   if (name === 'memory') return this.useMemory(conv, turn, args);
   // A file another agent is changing in its own turn is that agent's until it is done.
   if (name === 'write_file' || name === 'edit_file') {
@@ -1366,6 +1434,40 @@ class Chat {
   } finally {
    turn.tool = '';
   }
+ }
+
+ // The agent asks the user (the ask_user tool): the composer of this chat turns into the card with the questions
+ // (AskDeck), and the call waits there for as long as the user takes. Stop ends the wait, and so does a new message.
+ async useAsk(conv, turn, view, args) {
+  const questions = AskDeck.clean(args.questions);
+  if (!questions.length) return ASK.bad;
+  if (turn.queue.length) return ASK.message;
+  if (!this.main.querySelector('.composer')) return ASK.side;
+  this.dismissGhost(view);
+  if (turn.next) this.dismissGhost(turn.next);
+  const answers = await new Promise(resolve => {
+   conv.ask = { questions, settle: resolve };
+   this.syncAsk();
+   // Asked in a chat that is not on screen: its row is marked, as for a reply that came in.
+   if (conv !== this.active && conv.record && this.library.chat(conv.id)) this.library.update(conv.id, { unread: true });
+  });
+  conv.ask = null;
+  this.syncAsk();
+  if (typeof answers === 'string') return answers;
+  turn.pills.push({ role: 'asked', items: AskDeck.record(questions, answers) });
+  if (!turn.controller.signal.aborted) this.showGhost(turn.next || view);
+  return AskDeck.report(questions, answers);
+ }
+
+ // The composer shows the question of the chat on screen, if it has one waiting.
+ syncAsk() {
+  const host = this.main.querySelector('.composer');
+  if (!host) return;
+  const ask = this.active?.ask || null;
+  if (!ask && !this.deck) return;
+  this.deck ||= new AskDeck(host);
+  if (ask) this.deck.show(ask);
+  else this.deck.hide();
  }
 
  async approve(conv, turn, view, request) {
@@ -1702,7 +1804,7 @@ class Chat {
    if (after.isConnected) after.after(el);
    else conv.list.append(el);
    after = el;
-   (entry.role === 'memory' ? MemoryPill : NotePill).enter(el);
+   (entry.role === 'memory' ? MemoryPill : entry.role === 'asked' ? AskRecord : NotePill).enter(el);
    if (conv === this.active) this.followBottom();
   }
  }
@@ -1818,6 +1920,7 @@ class Chat {
   if (entry.role === 'compact') return this.compactNotice(false);
   if (entry.role === 'reminder' || entry.role === 'noted') return NotePill.build(entry);
   if (entry.role === 'memory') return MemoryPill.build(entry);
+  if (entry.role === 'asked') return AskRecord.build(entry);
   if (entry.role === 'stats') {
    const el = StatsCard.build(entry.stats);
    el.__entry = entry;

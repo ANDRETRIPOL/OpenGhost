@@ -13,6 +13,7 @@
 const { app, BrowserWindow, Menu, Tray, globalShortcut, ipcMain, nativeImage, screen } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const Lang = require('./lang');
 
 // The card as it first comes and the least it shrinks to.
 const CARD = { width: 380, height: 540, minWidth: 340, minHeight: 380 };
@@ -370,10 +371,10 @@ function photoClosed(index) {
 
 function trayMenu() {
  return Menu.buildFromTemplate([
-  { label: 'Open OpenGhost', click: () => host.showMain() },
-  { label: 'Quick chat', accelerator: failed ? undefined : config.shortcut, click: show },
+  { label: Lang.t('tray.open'), click: () => host.showMain() },
+  { label: Lang.t('tray.quick'), accelerator: failed ? undefined : config.shortcut, click: show },
   { type: 'separator' },
-  { label: 'Quit OpenGhost', click: () => app.quit() },
+  { label: Lang.t('tray.quit'), click: () => app.quit() },
  ]);
 }
 
@@ -515,8 +516,21 @@ function setup(options) {
  if (config.on) setTimeout(() => { if (config.on && !win) create(); }, 2500);
 }
 
+// The language has changed: the tray's menu is written anew, and the quick chat's window is made anew unless it is in
+// sight or its agent is at work in it (then it keeps the old language until the app opens next). Made anew, not read
+// anew: a page read anew in the same window no longer gets the pointer's moves sent on to it while the window lets the
+// pointer through, so it could never say the pointer is back over the card, and the card took no press again.
+function relabel() {
+ if (tray) tray.setContextMenu(trayMenu());
+ if (!win || win.isDestroyed() || working || win.isVisible()) return;
+ win.destroy();
+ win = null;
+ if (config.on) create();
+}
+
 module.exports = {
  setup,
+ relabel,
  show,
  hide,
  toggle,

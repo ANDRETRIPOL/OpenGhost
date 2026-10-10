@@ -104,6 +104,7 @@ class GeneralSettings {
   const t = key => escapeHtml(I18n.t(key));
   root.innerHTML = `
    <p class="settings-lead">${t('settings.general.lead')}</p>
+   <section class="general-block general-language"></section>
    <section class="general-block">
     <div class="general-head">
      <label class="settings-label" for="settings-instructions">${t('settings.instructions')}</label>
@@ -136,12 +137,18 @@ class GeneralSettings {
      <span class="general-access-state" role="status"></span>
     </div>
     <p class="settings-hint">${t('settings.access.hint')}</p>
-    <button type="button" class="settings-button general-access-open">${t('settings.access.open')}</button>
+    <div class="general-access-actions">
+     <button type="button" class="settings-button general-access-open">${t('settings.access.open')}</button>
+     <button type="button" class="settings-button general-access-restart">${t('settings.access.restart')}</button>
+    </div>
+    <p class="settings-hint general-access-note">${t('settings.access.restart.hint')}</p>
    </section>`;
+  new LanguageSettings(root.querySelector('.general-language'));
   this.quick = new QuickSettings(root.querySelector('.general-quick'));
   // A Mac asks the user itself before the app first opens some folders. The block is there only on a Mac.
   this.access = root.querySelector('.general-access');
   root.querySelector('.general-access-open').addEventListener('click', () => window.openghost?.access?.open());
+  root.querySelector('.general-access-restart').addEventListener('click', () => window.openghost?.access?.restart());
   window.addEventListener('focus', () => this.paintAccess());
   this.paintAccess();
   this.input = root.querySelector('.general-input');

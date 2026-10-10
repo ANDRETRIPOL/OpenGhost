@@ -557,7 +557,7 @@ class LockCard {
   });
   // A press anywhere else puts the card away; the lock button itself toggles it.
   document.addEventListener('pointerdown', event => {
-   if (this.id && !root.contains(event.target) && !event.target.closest?.('[data-action="lock"]')) this.close();
+   if (this.id && !root.contains(event.target) && !event.target.closest?.('[data-action="more"], .row-menu')) this.close();
   }, true);
   window.addEventListener('resize', () => this.close(true));
   scroller?.addEventListener('scroll', () => this.close(), { passive: true });
@@ -589,7 +589,8 @@ class LockCard {
   if (this.chat.isLocked(id)) { this.chat.open(id); return; }
   this.id = id;
   this.row = row;
-  this.button = row.querySelector('.chat-action.is-lock');
+  // The card is called from the dots' menu of the row; the dots are the button it belongs to.
+  this.button = row.querySelector('.chat-action.is-more');
   this.mode = record.lock ? 'guard' : 'set';
   this.step = 1;
   this.first = '';
@@ -599,8 +600,8 @@ class LockCard {
   row.classList.add('is-carding');
   (this.body.querySelector('.pass-input') || this.body.querySelector('[data-act="lock"]'))?.focus({ preventScroll: true });
   this.title(this.mode === 'set' ? 'lock.set.title' : 'lock.guard.title', { delay: 150, instant: true });
-  this.patch.bloom();
-  if (!reducedMotion()) this.grow();
+  // It comes as the usage panel does: in from a little wider and flatter, out of a slight blur.
+  this.root.animate(reducedMotion() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'scale(1.09, 0.96)', filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'blur(0px)' }], { duration: 133, easing: 'cubic-bezier(0.37, 0, 0.63, 1)' });
  }
 
  render() {
@@ -916,42 +917,12 @@ class LockCard {
  // The title dissolves, the padlock flies back into the lock button, shutting on its way, and the capsule folds into the button.
  close(instant = false) {
   if (!this.id) return;
-  const button = this.button, glyph = button?.querySelector('.glyph');
-  const back = !instant && !reducedMotion() && !!button?.getBoundingClientRect().width;
   this.release();
-  if (!back) {
-   this.hide();
-   return;
-  }
-  this.ground();
-  button.classList.add('is-away');
-  for (const el of [this.capsule, this.shell, this.seal, ...this.body.querySelectorAll('.lock-say, .lock-card-note, .lock-card-form, .lock-actions')]) {
-   for (const animation of el?.getAnimations() || []) animation.cancel();
-  }
-  const from = this.capsule.getBoundingClientRect(), to = button.getBoundingClientRect(), mark = glyph?.getBoundingClientRect(), seal = this.seal, box = seal.getBoundingClientRect();
-  this.fade();
-  this.body.querySelector('.lock-card-form, .lock-actions')?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: EASE.out, fill: 'forwards' });
-  const waits = [];
-  if (mark?.width) {
-   const timing = { duration: FLIGHT.back, easing: EASE.motion };
-   const plane = this.plane = flyer(this.root, box.width, 1);
-   seal.style.visibility = 'hidden';
-   crossover(plane, true, timing);
-   setOpen(plane.firstElementChild, 0, SPRING.snap);
-   waits.push(quiet(fly(plane, { ...center(box), size: box.width }, { ...center(mark), size: boxFor(mark) }, { ...timing, bend: -0.16 })));
-  }
-  const fold = this.leaving = this.shell.animate([
-   { left: '0px', top: '0px', width: `${from.width}px`, height: `${from.height}px`, opacity: 1 },
-   { opacity: 1, offset: 0.7 },
-   { left: `${to.left - from.left}px`, top: `${to.top - from.top}px`, width: `${to.width}px`, height: `${to.height}px`, opacity: 0 },
-  ], { duration: 380, easing: EASE.motion, fill: 'forwards' });
-  waits.push(quiet(fold), quiet(this.patch.lift(Dock.lift)));
-  Promise.all(waits).then(() => {
-   if (this.leaving !== fold) return;
-   this.hide();
-   button.classList.remove('is-away');
-   glyph?.animate([{ transform: 'scale(0.86)' }, { transform: 'none' }], SPRING.settle);
-  });
+  if (instant || reducedMotion()) { this.hide(); return; }
+  // It goes as the usage panel does: a little larger, into a deeper blur.
+  const gone = this.leaving = this.root.animate({ opacity: 0, transform: 'scale(1.06)', filter: 'blur(12px)' }, { duration: 110, easing: 'ease-out', fill: 'forwards' });
+  const done = () => { if (this.leaving === gone) this.hide(); };
+  gone.finished.then(done, done);
  }
 
  // Whatever is still moving comes to rest at once, a padlock still flying lands, and the card is gone.

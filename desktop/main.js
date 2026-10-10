@@ -10,6 +10,7 @@ const Keys = require('./keys');
 const Pdf = require('./pdf');
 const Size = require('./size');
 const Quick = require('./quick');
+const Lang = require('./lang');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
@@ -209,14 +210,33 @@ const FULL_DISK = 'x-apple.systempreferences:com.apple.preference.security?Priva
 function diskAccess() {
  if (process.platform !== 'darwin') return null;
  try {
-  fs.accessSync(path.join(app.getPath('home'), 'Library', 'Application Support', 'com.apple.TCC', 'TCC.db'), fs.constants.R_OK);
+  // Opened, not only asked about: it is the opening that the system lets through or refuses.
+  fs.closeSync(fs.openSync(path.join(app.getPath('home'), 'Library', 'Application Support', 'com.apple.TCC', 'TCC.db'), 'r'));
   return { full: true };
  } catch {
   return { full: false };
  }
 }
 ipcMain.handle('access:state', event => fromApp(event) ? diskAccess() : null);
+// The system gives the access to an app only from its next start: switched on while the app runs, it stays refused
+// until the app is opened again.
+ipcMain.handle('access:restart', event => {
+ if (!fromApp(event) || process.platform !== 'darwin') return;
+ app.relaunch();
+ app.quit();
+});
 ipcMain.handle('access:open', event => { if (fromApp(event) && process.platform === 'darwin') shell.openExternal(FULL_DISK); });
+
+// The language the page speaks: the tray and the browser's menu follow it, and the quick chat's window is read anew.
+ipcMain.handle('lang:set', (event, next) => {
+ if (fromApp(event) && Lang.set(next)) Quick.relabel();
+});
+
+// What the About page shows: the app's version and what it runs on.
+ipcMain.handle('app:about', event => fromApp(event) ? {
+ version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
+ platform: process.platform, arch: process.arch, system: process.getSystemVersion(),
+} : null);
 
 // Answers whether the app ends up dark: for 'system' only this side knows what the computer uses right now.
 ipcMain.handle('theme:set', (event, choice) => {
@@ -271,6 +291,7 @@ if (process.argv.includes('--create-shortcut')) {
  app.on('second-instance', () => showMain());
  app.on('activate', () => showMain());
  app.whenReady().then(() => {
+  Lang.load();
   Browser.setup();
   Keys.load();
   Quick.setup({

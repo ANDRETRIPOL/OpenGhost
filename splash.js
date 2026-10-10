@@ -319,7 +319,7 @@ function open(fly, word, soft, ghost) {
  return fly.animate({ translate: ['0 0', `${dx}px ${dy}px`], scale: [1, s] }, { ...OPEN, delay: LEAVE.fly, fill: 'both' }).finished;
 }
 
-splash.addEventListener('pointerdown', () => skip());
-window.addEventListener('keydown', () => skip(), { once: true });
+// A press or a key during the scene changes nothing: cut short, it ended in a jolt, the app thrown open at once. The
+// scene is short and plays to its end.
 play().catch(finish);
 })();

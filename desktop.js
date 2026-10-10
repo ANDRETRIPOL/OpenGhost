@@ -13,5 +13,8 @@ if (window.openghost?.quick) {
  const [top = 0, side = 0, bottom = 0] = window.openghost.quickRoom || [];
  for (const [name, value] of [['top', top], ['side', side], ['bottom', bottom]]) root.style.setProperty(`--quick-${name}`, `${value}px`);
 }
-if (!window.openghost?.quick && (root.classList.contains('is-desktop') || params.has('splash')) && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) root.classList.add('is-splash');
+// A page read anew for a new language comes up at once, with no opening.
+let reopened = false;
+try { reopened = !!sessionStorage.getItem('openghost.reopen'); } catch {}
+if (!reopened && !window.openghost?.quick && (root.classList.contains('is-desktop') || params.has('splash')) && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) root.classList.add('is-splash');
 })();

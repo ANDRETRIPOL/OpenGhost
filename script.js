@@ -39,28 +39,32 @@ MemoryPill.onOpen = () => {
   settings.page('memory');
 };
 new AppearanceSettings(document.querySelector('#settings-appearance'));
+new AboutSettings(document.querySelector('#settings-about'));
 new UsageSettings({ root: document.querySelector('#settings-usage'), settings, dialog: settings.dialog });
+// Usage at a glance: the button beside Settings in the sidebar grows into a small panel.
+new UsagePeek({ button: document.querySelector('.sidebar-usage'), settings });
 const settingsScrollbar = new Scrollbar(document.querySelector('.settings-page'), document.querySelector('.settings-scrollbar'));
 for (const panel of document.querySelectorAll('.settings-panel')) settingsScrollbar.observe(panel);
 const threadBottom = document.querySelector('.thread-bottom');
-new LiquidGlass(threadBottom, { width: 36, height: 36 });
+new LiquidGlass(threadBottom, { width: 44, height: 30, edge: 7.5, band: 9 });
 // The capsule at the top of the chat holds the sidebar's button and, once the chat exists, the notes' button: it is as
 // wide as what it holds. Growing, its lens takes the new size at once, so the far end is glass as it comes out.
 // The third is the ghost of a mini chat that was closed while its agent was at work: it brings the mini chat back.
-const TOP_TOOLS = { one: 36, step: 32, height: 36 };
+const TOP_TOOLS = { one: 44, step: 28, height: 30 };
 const topTools = document.querySelector('.top-tools');
 const notesToggle = document.querySelector('.notes-toggle');
 const miniToggle = document.querySelector('.mini-toggle');
-const topGlass = new LiquidGlass(topTools);
+// The lens bends as the Effort thumb's does, in the measure of this pill's own height.
+const topGlass = new LiquidGlass(topTools, { edge: 7.5, band: 9 });
 let topCount = 1;
 const fitTopTools = () => {
-  const count = 1 + (notesToggle.hidden ? 0 : 1) + (miniToggle.hidden ? 0 : 1);
-  topTools.classList.toggle('has-notes', !notesToggle.hidden);
-  topTools.style.setProperty('--top-count', count);
+  const count = 1 + (miniToggle.hidden ? 0 : 1);
+  topTools.parentElement.style.setProperty('--top-count', count);
   if (count > topCount) topGlass.resize(TOP_TOOLS.one + TOP_TOOLS.step * (count - 1), TOP_TOOLS.height);
   topCount = count;
 };
-for (const button of [notesToggle, miniToggle]) new MutationObserver(fitTopTools).observe(button, { attributes: true, attributeFilter: ['hidden'] });
+new MutationObserver(fitTopTools).observe(miniToggle, { attributes: true, attributeFilter: ['hidden'] });
+new LiquidGlass(notesToggle, { edge: 7.5, band: 9 });
 miniToggle.innerHTML = `${Glyphs.ghost}<span class="mini-toggle-dot"></span>`;
 const library = new Library(ChatStore, syncAll);
 window.addEventListener('pagehide', () => {
@@ -81,6 +85,7 @@ const lockScreen = new LockScreen({ main, chat, composer, onOpen: () => composer
 const lockCard = new LockCard({ chat, library, scroller: document.querySelector('.chats-scroll'), screen: lockScreen });
 new WelcomeGhost({ main, root: document.querySelector('.welcome'), input: composerInput });
 folderPill = new FolderPill({ button: document.querySelector('.composer-folder'), library, chat });
+new LiquidGlass(document.querySelector('.composer-folder'), { edge: 7.5, band: 9 });
 chatList = new ChatList({
   root: document.querySelector('.chats'),
   library,
@@ -100,6 +105,7 @@ chatList = new ChatList({
 document.querySelector('.titlebar-name').innerHTML = `${Glyphs.ghost}<span>OpenGhost</span>`;
 const modeButton = document.querySelector('.composer-mode');
 const browserToggle = document.querySelector('.browser-toggle');
+new LiquidGlass(browserToggle.parentElement, { width: 44, height: 30, edge: 7.5, band: 9 });
 let browserPanel = null;
 if (AgentTools.available) {
   modeButton.hidden = false;
@@ -316,3 +322,16 @@ document.addEventListener('keydown', (event) => {
 composerSend.addEventListener('composer-send', () => send());
 
 syncComposer();
+
+// The language can't change while an agent is at work in this window: the page is read anew for it.
+LanguageSettings.busy = () => [chat, MiniChat.current?.chat, ...[...MiniChat.away.values()].map(mini => mini.chat)]
+  .some(one => one && [...one.conversations.values()].some(conv => conv.turn));
+// Read anew for a new language, the page comes back where it was left: in the settings.
+try {
+  const page = sessionStorage.getItem('openghost.reopen');
+  if (page) {
+    sessionStorage.removeItem('openghost.reopen');
+    settings.open();
+    settings.page(page, true);
+  }
+} catch {}

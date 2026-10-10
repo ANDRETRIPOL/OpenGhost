@@ -3,6 +3,7 @@
 const { app, clipboard, Menu, nativeImage, session, webContents } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const Lang = require('./lang');
 
 const PARTITION = 'persist:browser';
 const WORLD = 1077;
@@ -12,7 +13,10 @@ const SHOT = { max: 1280, quality: 82, tall: 4 };
 const READ_MAX = 4 * 1024 * 1024;
 const WAIT_MAX = 60;
 const ALLOWED = new Set(['clipboard-sanitized-write', 'fullscreen', 'pointerLock']);
-const UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+// The browser names itself a plain Chrome on the computer it really runs on: a system in this line that differs from the
+// one a page can see for itself reads as a forgery, and sign-in is then refused (Google on a Mac).
+const SYSTEM = { win32: 'Windows NT 10.0; Win64; x64', darwin: 'Macintosh; Intel Mac OS X 10_15_7' }[process.platform] || 'X11; Linux x86_64';
+const UA = `Mozilla/5.0 (${SYSTEM}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 const KEYS = {
  enter: ['Enter', 'Enter', 13, '\r'], return: ['Enter', 'Enter', 13, '\r'], tab: ['Tab', 'Tab', 9], escape: ['Escape', 'Escape', 27], esc: ['Escape', 'Escape', 27],
  backspace: ['Backspace', 'Backspace', 8], delete: ['Delete', 'Delete', 46], space: [' ', 'Space', 32, ' '],
@@ -357,30 +361,30 @@ function adopt(host, guest) {
   const add = (label, click, enabled = true) => items.push({ label, click, enabled });
   const line = () => { if (items.length && items.at(-1).type !== 'separator') items.push({ type: 'separator' }); };
   if (params.linkURL) {
-   add('Open link in new tab', () => tell('open', { url: params.linkURL, background: false }));
-   add('Copy link address', () => clipboard.writeText(params.linkURL));
+   add(Lang.t('menu.openLink'), () => tell('open', { url: params.linkURL, background: false }));
+   add(Lang.t('menu.copyLink'), () => clipboard.writeText(params.linkURL));
    line();
   }
   if (params.mediaType === 'image' && params.srcURL) {
-   add('Open image in new tab', () => tell('open', { url: params.srcURL, background: false }));
-   add('Copy image', () => guest.copyImageAt(params.x, params.y));
+   add(Lang.t('menu.openImage'), () => tell('open', { url: params.srcURL, background: false }));
+   add(Lang.t('menu.copyImage'), () => guest.copyImageAt(params.x, params.y));
    line();
   }
   if (params.isEditable) {
-   add('Cut', () => guest.cut(), params.editFlags.canCut);
-   add('Copy', () => guest.copy(), params.editFlags.canCopy);
-   add('Paste', () => guest.paste(), params.editFlags.canPaste);
-   add('Select all', () => guest.selectAll());
+   add(Lang.t('menu.cut'), () => guest.cut(), params.editFlags.canCut);
+   add(Lang.t('menu.copy'), () => guest.copy(), params.editFlags.canCopy);
+   add(Lang.t('menu.paste'), () => guest.paste(), params.editFlags.canPaste);
+   add(Lang.t('menu.selectAll'), () => guest.selectAll());
    line();
   } else if (params.selectionText) {
-   add('Copy', () => guest.copy());
+   add(Lang.t('menu.copy'), () => guest.copy());
    line();
   }
-  add('Back', () => guest.navigationHistory.goBack(), guest.navigationHistory.canGoBack());
-  add('Forward', () => guest.navigationHistory.goForward(), guest.navigationHistory.canGoForward());
-  add('Reload', () => guest.reload());
+  add(Lang.t('menu.back'), () => guest.navigationHistory.goBack(), guest.navigationHistory.canGoBack());
+  add(Lang.t('menu.forward'), () => guest.navigationHistory.goForward(), guest.navigationHistory.canGoForward());
+  add(Lang.t('menu.reload'), () => guest.reload());
   line();
-  add('Inspect', () => guest.inspectElement(params.x, params.y));
+  add(Lang.t('menu.inspect'), () => guest.inspectElement(params.x, params.y));
   Menu.buildFromTemplate(items).popup();
  });
 }

@@ -154,6 +154,31 @@ const SCHEMAS = [
   id: { type: 'string', description: 'For remind and done: the id of the note, like n3' },
   text: { type: 'string', description: 'For add: the note, one short line in the user\'s own words and language' },
  }, ['action']),
+ fn('ask_user', 'Ask the user one to four questions, each with ready choices, when their answer decides what you do next and you cannot find it out yourself. The app turns the message field into a card: the user picks a choice with one press or writes an answer in their own words, and you get the answers back as the result of this call. The app adds the line for their own words itself, so never add a choice like "Other". When you have a reason to prefer one choice, put it first and end its label with "(Recommended)", in English exactly so: the app shows it as a mark in the user\'s language. Write everything else in the user\'s language.', {
+  questions: {
+   type: 'array', minItems: 1, maxItems: 4, description: 'The questions, the one that matters most first. Each is one decision.',
+   items: {
+    type: 'object',
+    properties: {
+     question: { type: 'string', description: 'The whole question, short and concrete, ending with a question mark' },
+     header: { type: 'string', description: 'What the question is about in one or two words, at most 12 characters, e.g. "Level", "Goal", "Format"' },
+     options: {
+      type: 'array', minItems: 2, maxItems: 4, description: 'Two to four choices that really differ and lead to different results',
+      items: {
+       type: 'object',
+       properties: {
+        label: { type: 'string', description: 'The choice in one to five words' },
+        description: { type: 'string', description: 'One short line: what this choice means or what it leads to' },
+       },
+       required: ['label', 'description'],
+      },
+     },
+     multiSelect: { type: 'boolean', description: 'true when several choices can hold at once; otherwise the user takes one' },
+    },
+    required: ['question', 'header', 'options'],
+   },
+  },
+ }, ['questions']),
 ];
 
 const BROWSER_FREE = new Set(['browser_snapshot', 'browser_screenshot', 'browser_read', 'browser_wait', 'browser_scroll']);

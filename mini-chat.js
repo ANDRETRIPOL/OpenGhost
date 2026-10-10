@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 
-const CLOSE_TIME = 360;
+const CLOSE_TIME = 110;
 const CONFIRM_TIME = 3000;
 const WIPE = { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
 const FRAME = 'openghost.mini.frame';
