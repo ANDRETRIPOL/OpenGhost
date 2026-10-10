@@ -1,10 +1,10 @@
 window.OpenGhostLocaleText.fr = {
   pageTitle: "OpenGhost — Un petit fantôme. Beaucoup de choses faites.",
-  metaDescription: "Découvrez OpenGhost : un agent IA de bureau au code ouvert pour macOS, Windows et Linux. Travaillez avec des fichiers, des commandes, git et le Web, et voyez ce qu’il explique.",
+  metaDescription: "Découvrez OpenGhost : un agent IA de bureau open source pour macOS, Windows et Linux. Travaillez avec des fichiers, des commandes, git et le Web, et voyez ce qu’il explique.",
   skip: "Aller au contenu",
   navFeatures: "Fonctionnalités",
   navHow: "Comment ça marche",
-  navSource: "Code ouvert",
+  navSource: "Open source",
   navChangelog: "Nouveautés",
   navGet: "Télécharger",
   navGithub: "Voir sur GitHub ↗",
