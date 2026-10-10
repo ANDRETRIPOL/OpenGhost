@@ -24,6 +24,12 @@ The code is under the MIT license. The name OpenGhost, the ghost logo, the anima
 
 OpenGhost is an open desktop agent for Windows, macOS and Linux. It runs commands, edits files, keeps git and works on the web in a browser of its own. And it shows what it explains: charts, schemes, photos and videos stand next to the text.
 
+## An agent built for visualization
+
+OpenGhost is an agent built for visualization. When something is better shown than told, the answer comes with a drawing beside it, and the whole app is made so that reading and working with documents feels comfortable. A new chat needs no folder: type, and it goes to Chats at the top of the list, with a folder of its own for the files the agent makes. A chat about a project still lives in that project's folder.
+
+![OpenGhost, an agent built for visualization](images/welcome.jpg)
+
 ## Written from scratch
 
 Nothing in OpenGhost is assembled from ready parts. There is no UI framework inside, no Markdown library, no Mermaid, no chart library and no agent framework. Every part is our own code:
@@ -38,9 +44,9 @@ The app stands on two things only: Electron, which gives it a window, and Anthro
 
 ## It shows what it explains
 
-Ask how something works, and the answer comes with drawings: the whole as a scheme, the curves the topic is known for as charts, the key numbers as tiles. Here three training runs stand on one chart: a healthy one, one that blows up and one that barely moves.
+Ask how something works, and the answer comes with drawings: the whole as a scheme, the curves the topic is known for as charts, the key numbers as tiles. The engine knows more than forty kinds of drawings, from a day of meals and the route of a trip to the heavy charts of physics and any other science. Here one series of games stands as a mindmap of its universes and as a ring of what each universe holds.
 
-![A chart of three training runs and tiles with the key numbers](images/visual.jpg)
+![A mindmap of the GTA universes and a ring of the games by universe](images/visual.jpg)
 
 ## A scheme with the detail in it
 
@@ -74,11 +80,15 @@ OpenGhost has a built-in browser and drives it itself. It opens a page, moves it
 
 ![Chat beside the built-in browser](images/browser.jpg)
 
-## Start with a question, not with a folder
+## It works in your accounts
 
-A new chat needs no folder. Type, and it goes to Chats at the top of the list, with a folder of its own for the files the agent makes. A chat about a project still lives in that project's folder.
+The browser panel is signed in where you are, so the agent works inside your own accounts and not only on open pages. A custom MCP server of ours gives it the control it needs over the sites it drives. One request can cover a whole round: open my Reddit account, tell me the view counts of my three most recent posts, then go through the comments and pull out the ones that matter, both the suggestions and the bugs people ran into.
 
-![A new chat with the ghost above the composer](images/welcome.jpg)
+![A request about three Reddit posts, and the note the agent wrote down](images/notes.jpg)
+
+## Notes it keeps an eye on
+
+Ask the agent to write a note down, or write one yourself, for example "Add to my notes: check my DMs on X today". The notes stay in the list beside the chat, the agent reads them and keeps them in mind, and when a conversation arrives at what a note is about, the agent brings it up by itself and asks whether to deal with it now. It never acts on a note on its own.
 
 ## It remembers you
 
@@ -96,15 +106,15 @@ The magnifier, or Ctrl+K, opens a search in the middle of the chat. Type, and th
 
 ## Quick chat, from anywhere
 
-Press Alt+Space, or the combination you set in Settings, and a small chat comes up over whatever is on screen: first its message field, then the rest. Ask, read the answer, press Esc. It picks its own model and effort, searches the web, and keeps its chats in the list with a bolt; the arrows in its head open the chat in the app. Give its agent a task and close it: the agent goes on, and the chat is marked when the answer is there. With nothing to do, a closed quick chat sleeps.
+Press Alt+Space, or the combination you set in Settings, and a small chat comes up over whatever is on screen: first its message field, then the rest. It is a full agent, called from anywhere: ask, read the answer, press Esc. It picks its own model and effort, searches the web, and keeps its chats in the list with a bolt; the arrows in its head open the chat in the app. Give its agent a task and close it, and the agent goes on with the app out of the way: the chat is marked when the answer is there, and you never had to open OpenGhost. With nothing to do, a closed quick chat sleeps.
 
 ![Quick chat over the desktop](images/quick.jpg)
 
 ## Mini chat, with an agent of its own
 
-Select a passage and open Mini chat over the conversation. It floats: drag it by its head, pull the arc in its corner to resize it, and keep writing in the chat behind it. Its agent has the current chat as context and works alongside the chat's own agent, in its own browser tab; the two know of each other and never change the same file. Close a mini chat at work and it goes on working.
+Open Mini chat over the conversation and ask the second question you have in mind. It floats: drag it by its head, pull the arc in its corner to resize it, and keep writing in the chat behind it. The agent inside is a full agent that sees the history of the main chat, and it works in parallel with the agent of the chat, in its own browser tab: the two coordinate and never get in each other's way, they only add to each other. Close a mini chat at work and its agent goes on by itself and finishes the task.
 
-![Mini chat over a conversation](images/mini.jpg)
+![Mini chat over a conversation, the browser beside it](images/mini.jpg)
 
 ## What a chat costs
 
@@ -118,9 +128,11 @@ Photos, videos and files attach from the plus menu or by a drop. A video comes i
 
 ## Tell it once, for every chat
 
-In Settings, under General, you write how to answer and what to know about you, and add the files OpenGhost should always have at hand: notes, a style guide, a CV. Every chat gets them, and a long chat keeps them after it is compacted.
+The app itself speaks English, Italian, French and Russian, and you choose the language in Settings, under General. There too you write how to answer and what to know about you, and add the files OpenGhost should always have at hand: notes, a style guide, a CV. Every chat gets them, and a long chat keeps them after it is compacted.
 
-![The General page of the settings: instructions and files kept for every chat](images/general.jpg)
+The memory is the other side of the same page: everything OpenGhost has remembered about you is there to read and to change, to add to or to remove, or to switch off.
+
+![The General page of the settings: the four languages, instructions and files kept for every chat](images/general.jpg)
 
 ## Make it yours
 
