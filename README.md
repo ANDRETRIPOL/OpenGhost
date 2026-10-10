@@ -52,23 +52,15 @@ Ask how something works, and the answer comes with drawings: the whole as a sche
 
 A block carries its name and a line about what happens in it. Stages stand in groups, and a process that repeats closes into a ring.
 
-![A scheme of how a model is trained, in three stages](images/scheme.jpg)
-
 ## Drawings made for the subject
 
 Food, recipes, documents, matches, languages, PC builds, device settings and trips have drawings of their own. A day of meals is a ring of calories with protein, fat and carbs against the goal.
 
-![A day of meals: calories, protein, fat and carbs against the goal](images/food.jpg)
-
 A trip is a route with its legs, and words to learn come with their sound and an example.
-
-![A route through Portugal and a list of words for a café](images/trip.jpg)
 
 ## Change the drawing where it stands
 
 A drawing is not a finished picture. Open it and change the layout, the blocks and the arrows in a table, or edit its source. The drawing follows as you type.
-
-![A flowchart with its editor open](images/editor.jpg)
 
 ## Photos and videos in the reply
 
@@ -77,8 +69,6 @@ When a thing is better seen than described, a dish, a place, a game, the agent l
 ## A browser with its own cursor
 
 OpenGhost has a built-in browser and drives it itself. It opens a page, moves its own cursor, clicks, types, and sees what is on the screen. The panel sits on the right of the chat. Close it and the agent still works.
-
-![Chat beside the built-in browser](images/browser.jpg)
 
 ## It works in your accounts
 
@@ -94,15 +84,11 @@ Ask the agent to write a note down, or write one yourself, for example "Add to m
 
 Tell OpenGhost about yourself once, in any chat, and every chat knows it: who you are, what you work with, how you like answers. It keeps short records, changes a record when the thing changes instead of writing a second one, and never keeps passwords or the details of one task. Everything it remembers is on one page of the settings, where you can rewrite a record, remove it, add your own, or switch the memory off.
 
-![The Memory page of the settings: what OpenGhost remembers](images/memory.jpg)
-
 A project can have its own instructions too: put an AGENTS.md in its folder, and the agent working there follows it.
 
 ## Find a chat
 
 The magnifier, or Ctrl+K, opens a search in the middle of the chat. Type, and the chats it finds come out under it, each under its folder.
-
-![The search panel over a chat](images/search.jpg)
 
 ## Quick chat, from anywhere
 
@@ -119,8 +105,6 @@ Open Mini chat over the conversation and ask the second question you have in min
 ## What a chat costs
 
 Chat stats, in the plus menu, show what a chat has spent: the tokens of every reply, the share of each model, how much of it came from the cache and how full the context is. Compact chat, next to it, frees the context of a long conversation, and the app does the same by itself before the model's window fills.
-
-![The chat stats card](images/stats.jpg)
 
 ## Show it a photo, a video, a PDF
 
@@ -144,19 +128,13 @@ Light, dark, or the system's theme; the size of the interface; and, new in 1.4.5
 
 Ask waits for approval before commands, file changes, and the web. Auto works inside the project folder and asks before a risky step. Full access does not ask.
 
-![Ask, Auto, and Full access](images/modes.jpg)
-
 ## The key stays on this computer
 
 OpenGhost works with ChatGPT, OpenAI, Claude, DeepSeek and OpenRouter: sign in with your ChatGPT account, or connect OpenAI, Claude, DeepSeek and OpenRouter with an API key. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
 
-![The Providers page of the settings: ChatGPT, OpenAI, Anthropic, DeepSeek and OpenRouter](images/settings.jpg)
-
 ## It opens with the ghost
 
 The app starts on its own screen. The ghost flies in through the mist, then the name OpenGhost appears.
-
-![OpenGhost splash screen](images/splash.jpg)
 
 ## Build it yourself
 
