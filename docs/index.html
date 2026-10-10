@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" id="theme-color-meta" content="#0d100e">
+  <meta name="description" content="Meet OpenGhost: an open desktop AI agent for macOS, Windows, and Linux. Work with files, commands, git, and the web—and see what it explains.">
+  <meta property="og:title" content="OpenGhost — A little ghost. A lot done.">
+  <meta property="og:description" content="An AI agent for your desktop. Work with files, run commands, and use the web. Choose your model and decide what it can do.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://andretripol.github.io/OpenGhost/">
+  <meta property="og:site_name" content="OpenGhost">
+  <meta property="og:image" content="https://andretripol.github.io/OpenGhost/assets/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="OpenGhost showing three model-training curves and live metric tiles in a dark chat interface">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="OpenGhost — A little ghost. A lot done.">
+  <meta name="twitter:description" content="An AI agent for your desktop. Work with files, run commands, and use the web. Choose your model and decide what it can do.">
+  <meta name="twitter:image" content="https://andretripol.github.io/OpenGhost/assets/og-image.jpg">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://andretripol.github.io/OpenGhost/">
+  <title>OpenGhost — A little ghost. A lot done.</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="preload" href="assets/visual.jpg" as="image">
+  <script>(function(){try{var t=localStorage.getItem('openghost-site-theme');var d=(t==='light'||t==='dark')?t:(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',d);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OpenGhost",
+    "description": "An open desktop AI agent for macOS, Windows, and Linux. It runs commands, edits files, keeps git, and works on the web in a browser of its own, and it shows what it explains.",
+    "url": "https://andretripol.github.io/OpenGhost/",
+    "image": "https://andretripol.github.io/OpenGhost/assets/og-image.jpg",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, Windows, Linux",
+    "softwareVersion": "1.4.6",
+    "releaseNotes": "https://github.com/ANDRETRIPOL/OpenGhost/releases",
+    "downloadUrl": "https://github.com/ANDRETRIPOL/OpenGhost/releases",
+    "license": "https://github.com/ANDRETRIPOL/OpenGhost/blob/main/LICENSE",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Person", "name": "Andrew", "url": "https://github.com/ANDRETRIPOL" }
+  }
+  </script>
+  <style>
+    :root{color-scheme:dark;--bg:#101110;--surface:#181a18;--surface-2:#1e211e;--text:#eeeee7;--text-2:#bdc1b7;--muted:#a0a39b;--dim:#8a9082;--line:rgba(230,238,220,.12);--line-strong:rgba(230,238,220,.28);--accent:#f5a46d;--accent-fill:#f5a46d;--accent-soft:#d1916a;--green:#afc9a4;--panel:#111310;--panel-1:#1a1e17;--panel-2:#151713;--panel-3:#232720;--glass:rgba(255,255,255,.025);--tint:rgba(220,218,199,.035);--sheen:rgba(255,255,255,.14);--header-bg:rgba(16,17,16,.91);--line-accent:rgba(219,231,207,.25);--green-line:rgba(175,201,164,.3);--green-line-soft:rgba(175,201,164,.18);--ember:#74694e;--float-bg:linear-gradient(120deg,rgba(43,45,39,.93),rgba(25,27,24,.93));--float-line:rgba(225,228,207,.14);--footer-bg:#0d0f0d;--radius:20px;--max:1160px}
+    :root[data-theme="light"]{color-scheme:light;--bg:#f5f4ee;--surface:#ffffff;--surface-2:#edece5;--text:#1b1d19;--text-2:#3d4137;--muted:#575d51;--dim:#666c60;--line:rgba(27,29,25,.12);--line-strong:rgba(27,29,25,.3);--accent:#a9521f;--accent-fill:#f0a06a;--accent-soft:#b9643a;--green:#3f6b3a;--panel:#ebeae3;--panel-1:#f2f1eb;--panel-2:#e4e3da;--panel-3:#dbdad0;--glass:rgba(27,29,25,.03);--tint:rgba(70,68,40,.04);--sheen:rgba(255,255,255,.55);--header-bg:rgba(245,244,238,.92);--line-accent:rgba(110,100,50,.35);--green-line:rgba(63,107,58,.35);--green-line-soft:rgba(63,107,58,.2);--ember:#8a6d2f;--float-bg:linear-gradient(120deg,rgba(255,255,255,.97),rgba(246,245,239,.97));--float-line:rgba(27,29,25,.12);--footer-bg:#e9e8e0}
+    *,*::before,*::after{box-sizing:border-box}
+    html{scroll-behavior:smooth;scroll-padding-top:100px}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+    body::before{content:"";position:absolute;inset:0 0 auto;height:900px;pointer-events:none;background:radial-gradient(ellipse at 75% 34%,rgba(158,112,72,.08),transparent 49%)}
+    body.modal-open{overflow:hidden}
+    ::selection{background:#f5a46d;color:#101110}
+    a{color:inherit;text-decoration:none}
+    button,input{font:inherit}
+    button,a{-webkit-tap-highlight-color:transparent}
+    button{color:inherit;cursor:pointer}
+    button:disabled{cursor:default}
+    img{max-width:100%;display:block}
+    button:focus-visible,a:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:5px}
+    h1,h2,h3,p{margin:0}
+    h1,h2,h3{font-weight:500;text-wrap:balance}
+    p,li,summary{text-wrap:pretty}
+    svg{display:block}
+    .icon{width:20px;height:20px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+    .icon-sm{width:16px;height:16px}
+    .ghost-icon{width:25px;height:27px;fill:currentColor;stroke:none}
+    .container{width:calc(100% - 80px);max-width:var(--max);margin-inline:auto}
+    .skip-link{position:fixed;z-index:200;top:12px;left:12px;transform:translateY(-160%);background:var(--text);color:var(--bg);padding:12px 18px;border-radius:8px}
+    .skip-link:focus{transform:translateY(0)}
+    .site-header{position:sticky;top:0;z-index:50;border-bottom:1px solid transparent;transition:background var(--dur-2),border-color var(--dur-2);isolation:isolate}
+    .site-header.scrolled,.site-header.menu-open{background:var(--header-bg);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-color:var(--line)}
+    .nav{height:88px;display:flex;align-items:center;gap:38px}
+    .brand{display:inline-flex;align-items:center;gap:11px;font-weight:600;font-size:20px;letter-spacing:-.6px}
+    .nav-links{display:flex;align-items:center;gap:29px;margin-left:auto;font-size:13px;color:var(--muted)}
+    .nav-links a{transition:color var(--dur-2)}
+    .nav-links a:hover{color:var(--text)}
+    .nav-actions{display:flex;align-items:center;gap:20px}
+    .github-link{color:var(--muted);transition:color var(--dur-2)}
+    .github-link:hover{color:var(--text)}
+    .button{display:inline-flex;justify-content:center;align-items:center;gap:10px;min-height:49px;padding:12px 21px;border-radius:9px;border:1px solid var(--line);font-size:13px;font-weight:500;white-space:nowrap;transition:background var(--dur-2),transform var(--dur-2),border-color var(--dur-2)}
+    .button:hover{transform:translateY(-2px);border-color:var(--line-strong)}
+    .button-primary{background:var(--accent-fill);border-color:var(--accent-fill);color:#1c1a17}
+    .button-primary:hover{background:#ffb986;border-color:#ffb986}
+    .button-secondary{background:var(--glass)}
+    .button-small{min-height:38px;padding:8px 15px;font-size:12px;background:var(--text);color:var(--bg);border-color:var(--text)}
+    .button-small:hover{background:#fff;border-color:#fff}
+    .menu-toggle{display:none;background:none;border:1px solid var(--line);border-radius:8px;width:40px;height:40px;align-items:center;justify-content:center}
+    .mobile-menu{display:none}
+    .hero{display:grid;grid-template-columns:1.16fr 1fr;align-items:center;min-height:625px;padding-top:48px;padding-bottom:70px;position:relative}
+    .hero-copy{position:relative;z-index:2}
+    .release-pill{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:30px;padding:5px 11px;font-size:11px;line-height:1.8;color:var(--text-2);letter-spacing:.15px;background:var(--glass);font-variant-numeric:tabular-nums;transition:border-color var(--dur-2)}
+    .release-pill:hover{border-color:var(--accent-soft)}
+    .status-dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 9px var(--green-line);flex-shrink:0}
+    .release-pill .pill-separator{height:10px;width:1px;background:var(--line);margin-inline:2px}
+    .release-pill .icon{width:12px;height:12px}
+    h1{font-size:clamp(60px,6.2vw,83px);line-height:1.06;letter-spacing:-4.7px;margin-top:28px;font-weight:500}
+    h1 .accent{color:var(--accent)}
+    .hero-description{font-size:17px;line-height:1.7;color:var(--muted);max-width:405px;margin-top:26px}
+    .hero-ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+    .hero-meta{display:flex;align-items:center;gap:9px;margin-top:19px;font-size:11px;color:var(--dim)}
+    .hero-meta .icon{width:13px;height:13px}
+    .platform-mini{display:flex;align-items:center;gap:10px;margin-right:2px;color:#a5a99e}
+    .hero-art{position:relative;aspect-ratio:1/1;display:grid;place-items:center;margin-left:0;isolation:isolate}
+    .art-grid{position:absolute;inset:9%;background-image:linear-gradient(var(--tint) 1px,transparent 1px),linear-gradient(90deg,var(--tint) 1px,transparent 1px);background-size:36px 36px;mask-image:radial-gradient(ellipse,#000,transparent 70%);-webkit-mask-image:radial-gradient(ellipse,#000,transparent 70%)}
+    .orbit{position:absolute;border:1px solid rgba(194,190,164,.09);border-radius:50%;width:91%;height:91%}
+    .orbit::after{content:"";position:absolute;left:12%;top:15%;width:5px;height:5px;border-radius:50%;background:var(--ember);box-shadow:0 0 14px var(--ember)}
+    .orbit-inner{width:73%;height:73%;border-style:dashed;opacity:.7}
+    .art-aura{position:absolute;inset:14%;border-radius:50%;background:radial-gradient(ellipse at 50% 65%,rgba(226,150,94,.15),rgba(190,175,139,.04) 40%,transparent 68%);filter:blur(20px)}
+    .hero-ghost{position:relative;z-index:1;width:49%;height:auto;filter:drop-shadow(0 15px 22px rgba(0,0,0,.3));animation:float 7s ease-in-out infinite}
+    [data-theme="light"] .hero-ghost path{fill:#161616;stroke:none}
+    [data-theme="light"] .hero-ghost ellipse{fill:var(--bg)}
+    .hero-ghost ellipse{transform:translate(var(--eye-x,0px),var(--eye-y,0px));transition:transform var(--dur-3) var(--ease-out)}
+    .ghost-shadow{position:absolute;bottom:17%;width:40%;height:13px;filter:blur(9px);background:rgba(0,0,0,.45);border-radius:50%;animation:shadow 7s ease-in-out infinite}
+    .art-caption{position:absolute;bottom:3%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+    .floating-label{position:absolute;z-index:3;display:flex;gap:12px;align-items:center;padding:13px 17px;border:1px solid var(--float-line);background:var(--float-bg);border-radius:12px;box-shadow:0 8px 32px #0003;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-size:11px}
+    .floating-label .label-icon{width:30px;height:30px;background:rgba(175,201,164,.08);border:1px solid rgba(175,201,164,.14);border-radius:8px;display:grid;place-items:center;color:var(--green)}
+    .floating-label strong{font-size:11px;display:block;font-weight:500;letter-spacing:.1px}
+    .floating-label small{font-size:10px;color:var(--dim);display:block;margin-top:2px}
+    .label-terminal{left:-3%;top:24%;transform:rotate(-6deg)}
+    .label-browser{right:-2%;bottom:25%;transform:rotate(5deg)}
+    .label-browser .label-icon{color:var(--accent);border-color:rgba(245,164,109,.14);background:rgba(245,164,109,.08)}
+    .art-spark{position:absolute;right:23%;top:15%;font-size:24px;font-weight:200;color:#84735a}
+    .overview-strip{border-block:1px solid var(--line);display:grid;grid-template-columns:1.6fr repeat(3,1fr);padding-block:22px;gap:25px;align-items:center}
+    .overview-strip>p{font-size:12px;color:var(--dim)}
+    .strip-item{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--text-2)}
+    .strip-item .icon{color:var(--dim);width:17px;height:17px}
+    .section{padding-top:112px}
+    .eyebrow{color:var(--accent-soft);font-size:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:2px;text-transform:uppercase;display:flex;align-items:center;gap:10px;margin-bottom:18px}
+    .eyebrow::before{content:"";width:16px;height:1px;background:var(--accent-soft)}
+    h2{font-size:clamp(32px,3.55vw,45px);line-height:1.14;letter-spacing:-1.8px}
+    h2 .muted-heading{color:var(--dim)}
+    .section-heading{display:flex;gap:40px;justify-content:space-between;align-items:flex-end;margin-bottom:37px}
+    .section-heading>p{max-width:325px;color:var(--muted);font-size:13px;line-height:1.75;margin-bottom:4px}
+    .preview-card{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);overflow:hidden}
+    .preview-tabs{display:flex;gap:8px;padding:15px 22px;border-bottom:1px solid var(--line);align-items:center;overflow:auto;scrollbar-width:none}
+    .preview-tabs::-webkit-scrollbar{display:none}
+    .preview-tab{border:1px solid transparent;background:none;display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12px;padding:9px 13px;border-radius:7px;white-space:nowrap;transition:color var(--dur-2),background var(--dur-2)}
+    .preview-tab:hover{color:var(--text)}
+    .preview-tab[aria-selected="true"]{background:var(--panel-3);color:var(--text);border-color:rgba(202,218,182,.13)}
+    .preview-tab .icon{width:15px;height:15px}
+    .preview-live{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:10px;color:var(--dim);white-space:nowrap;padding-left:20px}
+    .preview-layout{display:grid;grid-template-columns:255px 1fr;min-height:560px}
+    .preview-story{padding:38px 27px;display:flex;flex-direction:column;align-items:flex-start;border-right:1px solid var(--line);background:linear-gradient(170deg,rgba(175,201,164,.025),transparent 70%)}
+    .preview-number{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:1px;color:var(--dim);margin-bottom:72px}
+    .preview-story h3{font-size:24px;line-height:1.25;letter-spacing:-.7px;margin-bottom:18px;max-width:180px}
+    .preview-story p{font-size:12px;line-height:1.8;color:var(--muted)}
+    .preview-tag{font-size:10px;padding:5px 9px;border:1px solid var(--green-line-soft);background:rgba(175,201,164,.04);color:var(--green);border-radius:5px;margin-top:20px}
+    .preview-story .text-link{margin-top:auto;padding-top:42px}
+    .text-link{display:inline-flex;gap:9px;align-items:center;color:var(--text-2);font-size:12px;border:none;padding:0;background:none}
+    .text-link .icon{width:15px;height:15px;transition:transform var(--dur-2)}
+    .text-link:hover{color:var(--accent)}
+    .text-link:hover .icon{transform:translate(2px,-2px)}
+    .screenshot-wrap{display:grid;place-items:center;position:relative;background:#141514;min-width:0;padding:24px;overflow:hidden}
+    .screenshot-wrap::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,rgba(150,163,128,.055),transparent 70%);pointer-events:none}
+    .screenshot-button{padding:0;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:none;position:relative;width:100%;box-shadow:0 15px 40px #0004}
+    .screenshot-button img{width:100%;height:auto;aspect-ratio:1600/1202;object-fit:contain;background:#121312;transition:opacity var(--dur-1)}
+    .screenshot-button:hover img{opacity:.9}
+    .expand-badge{position:absolute;right:12px;bottom:12px;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:rgba(16,17,16,.84);backdrop-filter:blur(6px);padding:7px 10px;border-radius:6px;font-size:10px;color:#ddd}
+    .expand-badge .icon{width:13px;height:13px}
+    .preview-caption{margin-top:13px;display:flex;align-items:center;justify-content:space-between;gap:20px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;color:var(--dim)}
+    .caption-right{display:flex;align-items:center;gap:7px}
+    .bento-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+    .feature-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:29px;position:relative;overflow:hidden;transition:border-color var(--dur-2)}
+    .feature-card:hover{border-color:rgba(219,231,207,.23)}
+    .feature-icon{color:var(--green);display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--green-line-soft);background:rgba(175,201,164,.035);border-radius:10px;margin-bottom:23px}
+    .feature-card h3{font-size:20px;letter-spacing:-.6px;margin-bottom:9px}
+    .feature-card>p{font-size:12px;color:var(--muted);line-height:1.8;max-width:350px}
+    .release-notes-grid .release-note-card{grid-column:span 3}
+    .release-note-card.release-note-empty{grid-column:1 / -1}
+    .release-note-card ul{margin:10px 0 0 17px;padding:0;color:var(--muted);font-size:12px;line-height:1.8}
+    .release-note-card li+li{margin-top:7px}
+    .release-note-card a{color:var(--text-2);text-decoration:underline;text-underline-offset:3px}
+    .release-note-card pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;color:var(--text-2)}
+    .release-note-card h4,.release-note-card h5{font-size:14px;margin:15px 0 6px}
+    @media(max-width:680px){.release-notes-grid .release-note-card{grid-column:auto}}
+    .feature-tools{grid-column:span 3}
+    .feature-models{grid-column:span 3}
+    .feature-memory,.feature-media,.feature-control{grid-column:span 2}
+    .terminal{margin-top:27px;border:1px solid var(--line);border-radius:9px;background:#121412;padding:16px 18px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;line-height:2;position:relative}
+    .terminal-head{display:flex;align-items:center;justify-content:space-between;color:var(--dim);font-size:9px;margin-bottom:15px}
+    .terminal-dots{display:flex;gap:5px}
+    .terminal-dots i{display:block;width:5px;height:5px;border-radius:50%;background:#44483f}
+    .terminal-line{color:#b4bcab;display:flex;gap:11px}
+    .terminal-line .prompt{color:var(--accent)}
+    .terminal-success{color:#8ea680;margin-top:9px;display:flex;align-items:center;gap:7px}
+    .terminal-success .icon{width:12px;height:12px}
+    .demo-note{font-size:9px;color:var(--dim);margin-top:9px;display:block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .provider-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:31px;max-width:420px}
+    .provider{display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;font-size:11px;background:var(--panel-2);color:var(--text-2)}
+    .provider-note{font-size:10px;color:var(--dim);margin-top:19px;display:flex;align-items:center;gap:7px}
+    .provider-note .icon{width:12px;height:12px}
+    .memory-example{margin-top:24px;border:1px solid var(--line);background:#131513;border-radius:9px;padding:13px 14px}
+    .memory-example-head{display:flex;align-items:center;gap:6px;color:var(--green);font-size:9px;margin-bottom:8px}
+    .memory-example-head .icon{width:11px;height:11px}
+    .memory-example p{font-size:11px;color:#b9c0b1;line-height:1.7}
+    .attachment-row{display:flex;gap:8px;align-items:center;margin-top:33px;justify-content:space-between}
+    .attachment-tile{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;width:calc((100% - 24px)/4);aspect-ratio:1/1.13;border:1px solid var(--line);border-radius:9px;background:#1c1f1b;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:8px}
+    .attachment-tile:nth-child(2){color:var(--accent-soft)}
+    .attachment-tile:nth-child(3){color:var(--green)}
+    .mode-picker{display:flex;gap:3px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-top:25px}
+    .mode-button{flex:1;white-space:nowrap;padding:7px 4px;border:0;border-radius:5px;background:none;font-size:10px;color:var(--dim);transition:color var(--dur-2),background var(--dur-2)}
+    .mode-button[aria-pressed="true"]{background:var(--panel-3);color:var(--text)}
+    .mode-description{min-height:51px!important;font-size:10px!important;line-height:1.7!important;color:var(--dim)!important;margin-top:12px}
+    .how-section{padding-bottom:104px}
+    .steps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:52px;padding-top:13px}
+    .step{position:relative}
+    .step:not(:last-child)::after{content:"";position:absolute;top:19px;left:57px;right:-23px;height:1px;background:var(--line)}
+    .step-number{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;display:grid;place-items:center;width:38px;height:38px;border:1px solid var(--line);border-radius:50%;font-size:11px;color:var(--accent-soft);background:var(--bg);margin-bottom:25px;position:relative;z-index:1}
+    .step h3{font-size:19px;letter-spacing:-.5px;margin-bottom:9px}
+    .step p{font-size:12px;color:var(--muted);line-height:1.9;max-width:285px}
+    .step .text-link{margin-top:18px;font-size:11px}
+    .source-band{border-block:1px solid var(--line);background:linear-gradient(115deg,var(--panel-1),var(--panel-2) 70%);position:relative;overflow:hidden}
+    .source-band::after{content:"";pointer-events:none;position:absolute;right:-100px;top:-120px;width:650px;height:650px;border:1px solid rgba(199,213,178,.035);border-radius:50%;box-shadow:0 0 0 50px rgba(199,213,178,.025),0 0 0 100px rgba(199,213,178,.015)}
+    .source-layout{display:grid;grid-template-columns:1fr 1fr;gap:95px;padding-block:72px;align-items:center;position:relative;z-index:1}
+    .source-layout>*{min-width:0}
+    .source-copy>p{font-size:13px;color:var(--muted);max-width:375px;margin-top:20px;line-height:1.8}
+    .source-copy .text-link{margin-top:24px}
+    .code-card{--text:#eeeee7;--text-2:#c9cfbf;--muted:#a3a99b;--dim:#8a9082;--line:rgba(230,238,220,.12);background:#0f120e;border:1px solid rgba(205,220,185,.16);border-radius:13px;overflow:hidden;box-shadow:0 15px 40px #0002}
+    .code-top{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 20px;border-bottom:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--dim)}
+    .code-top span{display:flex;gap:7px;align-items:center}
+    .copy-button{display:flex;gap:6px;align-items:center;background:none;border:0;border-radius:4px;font-size:10px;color:var(--muted);padding:4px}
+    .copy-button:hover{color:var(--text)}
+    .copy-button .icon{width:13px;height:13px}
+    .code-card pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:2.1;font-size:11px;padding:23px 22px 27px;margin:0;overflow:auto;color:var(--text-2)}
+    .code-comment{color:#849379}
+    .code-prompt{color:var(--accent-soft);user-select:none}
+    .code-card-bottom{display:flex;gap:7px;align-items:center;font-size:9px;padding:12px 20px;color:var(--dim);border-top:1px solid var(--line)}
+    .code-card-bottom .icon{width:12px;height:12px}
+    .source-license{font-size:10px;color:var(--dim);margin-top:15px;line-height:1.8}
+    .source-license a{text-decoration:underline;text-underline-offset:3px}
+    .download-section{text-align:center;padding-top:106px;padding-bottom:78px}
+    .download-section .eyebrow{justify-content:center}
+    .download-section h2{font-size:clamp(38px,4.5vw,57px);letter-spacing:-2.3px}
+    .download-description{color:var(--muted);font-size:13px;margin-top:18px}
+    .download-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:39px;text-align:left}
+    .download-card{border:1px solid var(--line);background:var(--surface);border-radius:15px;padding:25px;position:relative;transition:border-color var(--dur-2),transform var(--dur-2)}
+    .download-card:hover{transform:translateY(-3px);border-color:var(--line-accent)}
+    .download-card.recommended{border-color:rgba(245,164,109,.36);background:linear-gradient(140deg,rgba(245,164,109,.035),var(--surface))}
+    .recommended-label{display:none;position:absolute;right:18px;top:24px;color:var(--accent-soft);font-size:9px;letter-spacing:.1px;border:1px solid rgba(245,164,109,.2);border-radius:4px;padding:2px 6px}
+    .recommended .recommended-label{display:block}
+    .platform-icon{width:26px;height:26px;color:var(--text);margin-bottom:29px}
+    .download-card h3{font-size:18px;letter-spacing:-.3px}
+    .download-card p{font-size:11px;color:var(--dim);margin-top:4px}
+    .download-card .button{width:100%;justify-content:space-between;margin-top:21px;min-height:42px;background:var(--panel-3);border-color:rgba(219,231,207,.12);font-size:11px;padding:10px 13px;color:var(--text-2)}
+    .download-card .button:hover{background:#2c3227}
+    .recommended .button{background:var(--accent-fill);border-color:var(--accent-fill);color:#231e1a}
+    .recommended .button:hover{background:#ffb986}
+    .download-footnote{display:flex;justify-content:center;align-items:center;gap:22px;margin-top:22px;color:var(--dim);font-size:10px}
+    .download-footnote a{display:flex;align-items:center;gap:6px}
+    .download-footnote a:hover{color:var(--accent)}
+    .download-footnote .icon{width:12px;height:12px}
+    .beta-note{margin:24px auto 0;font-size:10px;line-height:1.9;color:var(--dim);max-width:590px}
+    .beta-note a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+    .update-note{margin-top:12px}
+    .faq-section{display:grid;grid-template-columns:.8fr 1.2fr;gap:100px;padding-top:43px;padding-bottom:91px;border-top:1px solid var(--line)}
+    .faq-heading h2{font-size:31px;letter-spacing:-1px}
+    .faq-heading p{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.8;max-width:230px}
+    .faq-heading .text-link{margin-top:21px}
+    details{border-bottom:1px solid var(--line)}
+    details:first-child{border-top:1px solid var(--line)}
+    summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:19px 0;font-size:12px;color:var(--text-2)}
+    summary::-webkit-details-marker{display:none}
+    summary .icon{color:var(--dim);width:15px;height:15px;transition:transform var(--dur-2)}
+    details[open] summary .icon{transform:rotate(45deg)}
+    details p{padding:0 28px 21px 0;font-size:11px;color:var(--muted);line-height:1.9}
+    details p a{color:var(--accent-soft);text-decoration:underline;text-underline-offset:3px}
+    .site-footer{border-top:1px solid var(--line);background:var(--footer-bg);padding-top:34px;padding-bottom:27px}
+    .footer-top{display:flex;align-items:center;justify-content:space-between;gap:25px}
+    .footer-top .brand{font-size:17px}
+    .footer-top .ghost-icon{width:22px;height:23px}
+    .footer-links{display:flex;gap:25px;color:var(--muted);font-size:11px;flex-wrap:wrap}
+    .footer-links a:hover{color:var(--text)}
+    .footer-bottom{display:flex;align-items:center;justify-content:space-between;gap:30px;margin-top:29px;padding-top:22px;border-top:1px solid var(--line);font-size:9px;color:var(--dim);line-height:1.8}
+    .footer-bottom a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+    .footer-bottom a:hover{color:var(--accent)}
+    .footer-built{display:flex;align-items:center;gap:6px;white-space:nowrap}
+    .footer-built .icon{width:12px;height:12px;color:var(--accent-soft)}
+    .image-dialog{color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;background:var(--panel);width:min(1250px,94vw);max-height:92dvh;overflow:auto;box-shadow:0 25px 100px #0008}
+    .image-dialog::backdrop{background:rgba(0,0,0,.8);backdrop-filter:blur(7px)}
+    .dialog-top{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;position:sticky;top:0;background:var(--panel-2);z-index:2;border-bottom:1px solid var(--line);font-size:12px}
+    .dialog-close{display:grid;place-items:center;width:31px;height:31px;border:1px solid var(--line);border-radius:7px;background:var(--panel-3)}
+    .image-dialog img{max-height:calc(92dvh - 80px);width:100%;object-fit:contain;background:var(--panel)}
+    .dialog-caption{font-size:10px;color:var(--dim);padding:10px 18px}
+    .toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,20px);background:#e4eadc;color:#20261b;border:1px solid #f6f8ef;border-radius:10px;box-shadow:0 10px 35px #0004;padding:11px 17px;font-size:12px;z-index:100;opacity:0;pointer-events:none;transition:opacity var(--dur-2),transform var(--dur-2);max-width:calc(100vw - 40px);text-align:center}
+    .toast.visible{opacity:1;transform:translate(-50%,0)}
+    @keyframes float{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-15px) rotate(2deg)}}
+    @keyframes shadow{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(.85);opacity:.5}}
+    @media(min-width:1600px){.hero{min-height:670px}.hero-art{max-width:510px;margin-left:auto;width:100%}}
+    @media(max-width:1050px){.container{width:calc(100% - 56px)}.nav{gap:26px}.nav-links{gap:22px}.hero{min-height:600px}h1{font-size:68px;letter-spacing:-3.9px}.hero-description{max-width:345px;font-size:15px}.floating-label{padding:11px 13px}.label-terminal{left:-1%;top:17%}.label-browser{right:-1%;bottom:19%}.hero-art{margin-left:10px}.preview-layout{grid-template-columns:220px 1fr;min-height:auto}.preview-story{padding:29px 23px}.preview-number{margin-bottom:46px}.preview-story h3{font-size:22px}.screenshot-wrap{padding:20px}.feature-card{padding:24px}.source-layout{gap:50px}.faq-section{gap:60px}.overview-strip{grid-template-columns:1.1fr repeat(3,1fr);gap:18px}.strip-item{font-size:11px}.attachment-row{gap:6px}.attachment-tile{width:calc((100% - 18px)/4)}}
+    @media(max-width:800px){.nav{height:76px}.nav-links{display:none}.nav-actions{gap:11px}.github-link{display:none}.menu-toggle{display:flex;width:36px;height:36px}.mobile-menu{padding:4px 20px 20px;border-top:1px solid var(--line)}.mobile-menu:not([hidden]){display:flex;flex-direction:column;gap:2px}.mobile-menu a{font-size:11px;padding:9px 0;color:var(--muted)}.brand{font-size:18px}.hero{min-height:555px;grid-template-columns:1.15fr 1fr;padding-top:45px;padding-bottom:55px}h1{font-size:56px;letter-spacing:-3px}.hero-description{font-size:14px;margin-top:21px;max-width:300px}.hero-ctas{gap:9px;margin-top:25px}.hero-ctas .button{padding:11px 14px;font-size:11px;min-height:43px}.hero-meta{font-size:9px}.hero-art{margin-left:15px}.floating-label{gap:8px;padding:10px;border-radius:9px}.floating-label .label-icon{width:25px;height:25px}.floating-label strong{font-size:9px}.floating-label small{font-size:8px}.orbit{width:100%;height:100%}.orbit-inner{width:80%;height:80%}.label-terminal{left:-5%;top:5%}.label-browser{right:-3%;bottom:5%}.art-caption{bottom:-15%;font-size:7px}.hero-ghost{width:54%}.overview-strip{grid-template-columns:repeat(3,1fr)}.overview-strip>p{display:none}.section{padding-top:80px}.section-heading>p{max-width:245px;font-size:12px}.preview-tabs{padding:13px;gap:2px}.preview-tab{font-size:11px;padding:8px 10px}.preview-live{display:none}.preview-layout{grid-template-columns:180px 1fr}.preview-story{padding:24px 19px}.preview-number{margin-bottom:26px}.preview-story h3{font-size:20px;max-width:150px}.preview-story p{font-size:11px}.preview-tag{font-size:8px;padding:4px 6px}.preview-story .text-link{font-size:10px;padding-top:25px}.screenshot-wrap{padding:15px}.feature-tools,.feature-models{grid-column:span 3}.feature-memory,.feature-media{grid-column:span 3}.feature-control{grid-column:span 6}.feature-control .mode-picker{max-width:310px}.feature-control .mode-description{min-height:0!important;max-width:420px}.feature-control>p{max-width:500px}.steps-grid{gap:30px}.step p{font-size:11px}.step h3{font-size:17px}.how-section{padding-bottom:80px}.source-layout{grid-template-columns:1fr;gap:35px;padding-block:57px}.source-copy{max-width:540px}.source-copy>p{max-width:500px}.code-card pre{font-size:12px}.download-section{padding-top:80px}.download-grid{gap:12px}.download-card{padding:20px}.recommended-label{top:20px;right:13px;font-size:8px}.download-card p{font-size:10px}.download-card .button{font-size:10px;padding:9px 11px}.download-card .button .icon{width:14px;height:14px}.faq-section{grid-template-columns:1fr;gap:29px;padding-bottom:70px}.faq-heading p{max-width:none}.faq-heading .text-link{margin-top:13px}.faq-heading h2{font-size:30px}.footer-bottom{align-items:flex-start}.footer-bottom>p{max-width:390px}}
+    @media(max-width:680px){.container{width:calc(100% - 40px)}.nav{gap:20px;height:72px}.nav-links{display:none}.nav-actions{margin-left:auto;gap:11px}.nav-actions .button{font-size:10px;padding:7px 12px;min-height:36px}.menu-toggle{display:flex;width:36px;height:36px}.mobile-menu{padding:4px 20px 20px;border-top:1px solid var(--line)}.mobile-menu:not([hidden]){display:flex;flex-direction:column;gap:2px}.mobile-menu a{font-size:13px;padding:10px 0;color:var(--muted)}.hero{display:flex;flex-direction:column;align-items:stretch;min-height:0;padding-top:38px;padding-bottom:42px}.hero-copy{text-align:center}.release-pill{font-size:10px}h1{font-size:clamp(49px,12.4vw,73px);letter-spacing:-3.1px;line-height:1.06;margin-top:26px}.hero-description{margin:22px auto 0;max-width:345px;font-size:14px;line-height:1.8}.hero-ctas{justify-content:center;margin-top:27px}.hero-ctas .button{min-height:46px;font-size:11px;padding:11px 17px}.hero-meta{justify-content:center;font-size:10px;margin-top:17px;gap:8px}.hero-art{max-width:360px;width:100%;margin:44px auto 0;aspect-ratio:1/.87}.hero-ghost{width:45%}.orbit{width:88%;height:100%}.orbit-inner{width:66%;height:76%}.label-terminal{left:0;top:18%}.label-browser{right:0;bottom:15%}.floating-label{padding:11px 12px}.floating-label strong{font-size:10px}.floating-label small{font-size:9px}.art-caption{bottom:-3%;font-size:8px}.ghost-shadow{bottom:15%;width:35%}.art-spark{top:5%}.overview-strip{padding-block:18px;gap:8px}.strip-item{justify-content:center;flex-direction:column;font-size:10px;gap:6px;text-align:center}.strip-item .icon{width:16px;height:16px}.section{padding-top:66px}.eyebrow{font-size:9px;letter-spacing:1.6px;margin-bottom:15px}h2{font-size:33px;letter-spacing:-1.3px}.section-heading{display:block;margin-bottom:28px}.section-heading>p{margin-top:16px;max-width:340px;font-size:12px}.preview-tabs{gap:4px;padding:12px}.preview-tab{padding:8px 10px;font-size:10px}.preview-tab .icon{width:13px;height:13px}.preview-layout{display:flex;flex-direction:column-reverse}.screenshot-wrap{padding:12px}.preview-story{padding:22px;border:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr auto;column-gap:20px;row-gap:0}.preview-number{margin-bottom:9px;grid-column:1 / -1;font-size:9px}.preview-story h3{font-size:21px;max-width:none;margin-bottom:9px;grid-column:1 / -1}.preview-story p{font-size:11px;grid-column:1 / -1}.preview-tag{margin-top:16px;font-size:9px;justify-self:start}.preview-story .text-link{padding-top:16px;margin:0;align-self:center;font-size:10px}.preview-caption{font-size:8px;gap:10px}.caption-right{display:none}.expand-badge{font-size:8px;padding:6px 8px}.bento-grid{grid-template-columns:1fr;gap:12px}.feature-card{grid-column:auto;padding:25px;border-radius:15px}.feature-icon{margin-bottom:19px}.feature-card h3{font-size:20px}.feature-card>p{font-size:12px;max-width:none}.terminal{margin-top:22px;font-size:10px}.provider-list{margin-top:24px;gap:8px}.provider{font-size:11px;padding:10px 12px}.provider-note{font-size:9px}.feature-control .mode-picker{max-width:none}.mode-button{font-size:11px;padding:9px 5px}.feature-control .mode-description{font-size:11px!important}.attachment-row{max-width:330px;margin-top:24px}.attachment-tile{aspect-ratio:1.05/1;font-size:9px}.steps-grid{grid-template-columns:1fr;gap:31px;padding-top:0}.step{display:grid;grid-template-columns:38px 1fr;gap:0 19px}.step-number{grid-row:1 / 4;margin-bottom:0}.step h3{font-size:18px;margin-bottom:7px}.step p{font-size:12px;max-width:none}.step .text-link{font-size:11px;margin-top:11px}.step:not(:last-child)::after{width:1px;height:calc(100% + 5px);left:19px;right:auto;top:38px}.how-section{padding-bottom:64px}.source-layout{padding-block:49px;gap:29px}.source-copy h2{font-size:33px}.source-copy>p{font-size:12px;margin-top:17px}.code-top{padding:12px 15px}.code-card pre{font-size:9px;padding:18px 15px;line-height:2.3}.code-card-bottom{font-size:8px;padding:12px 15px}.source-license{font-size:9px}.download-section{padding-top:65px;padding-bottom:56px}.download-section h2{font-size:38px;letter-spacing:-1.7px}.download-description{font-size:12px;max-width:280px;margin:17px auto 0;line-height:1.8}.download-grid{grid-template-columns:1fr;gap:12px;margin-top:29px}.download-card{padding:22px;display:grid;grid-template-columns:30px 1fr;gap:0 15px}.platform-icon{margin:3px 0 0;grid-row:1 / 3;width:25px;height:25px}.download-card h3{font-size:17px}.download-card p{font-size:10px;margin:2px 0 0}.download-card .button{grid-column:1 / -1;font-size:11px;margin-top:20px;min-height:43px;padding:11px 13px}.recommended-label{top:24px;right:20px;font-size:8px}.download-footnote{font-size:9px;gap:16px;flex-wrap:wrap}.beta-note{font-size:9px;margin-top:20px;line-height:1.9}.faq-section{padding-top:33px;padding-bottom:54px}.faq-heading h2{font-size:28px}.faq-heading p{font-size:11px}.faq-heading .text-link{font-size:11px}summary{font-size:12px;padding:18px 0}details p{font-size:11px}.footer-top{align-items:flex-start;gap:24px;flex-direction:column}.footer-links{gap:23px;font-size:11px}.footer-bottom{gap:16px;flex-direction:column;margin-top:24px;padding-top:18px}.footer-bottom>p{font-size:9px}.footer-built{font-size:9px}.image-dialog{width:96vw;max-height:94dvh}.dialog-caption{font-size:9px}}
+    @media(max-width:520px){.nav-actions>.button{display:none}}
+    .brand-logo{display:block;width:18px;height:18px;object-fit:contain;flex-shrink:0}
+    .brand-monochrome{filter:brightness(0) invert(1)}
+    [data-theme="light"] .brand-monochrome{filter:none}
+    [data-theme="light"] .terminal,[data-theme="light"] .memory-example,[data-theme="light"] .attachment-tile{background:var(--panel);border-color:var(--line)}
+    [data-theme="light"] .terminal-line{color:#3d4137}
+    [data-theme="light"] .terminal-success{color:#3f6b3a}
+    [data-theme="light"] .terminal-dots i{background:#b3b2a7}
+    [data-theme="light"] .memory-example p{color:#3d4137}
+    [data-theme="light"] .code-card{--text:#1b1d19;--text-2:#333a2e;--muted:#575d51;--dim:#666c60;--line:rgba(27,29,25,.12);background:var(--panel);border-color:var(--line);box-shadow:0 12px 30px #0000000d}
+    [data-theme="light"] .code-comment{color:#5f6b52}
+    .button-discord{background:#5865f2;border-color:#5865f2;color:#fff}
+    .button-discord:hover{background:#4752c4;border-color:#4752c4}
+    .button-discord .brand-logo{width:20px;height:20px}
+    .hero-community{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:inherit}
+    .button{transition:background var(--dur-2),transform var(--dur-2),border-color var(--dur-2),box-shadow var(--dur-2)}
+    .button:active{transform:translateY(0) scale(.98)}
+    .button-support{background:rgba(231,165,189,.06);border-color:rgba(231,165,189,.35)}
+    .button-support .icon{color:#e7a5bd;transition:transform var(--dur-2)}
+    .button-support:hover{background:rgba(231,165,189,.1);border-color:rgba(231,165,189,.65);box-shadow:0 6px 22px rgba(231,165,189,.08)}
+    .button-discord:hover{box-shadow:0 6px 24px rgba(88,101,242,.18)}
+    .feature-icon{transition:transform var(--dur-2),background var(--dur-2),border-color var(--dur-2)}
+    .nav-links a{position:relative}
+    .nav-links a::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:1px;background:var(--accent-soft);transform:scaleX(0);transform-origin:left;transition:transform var(--dur-2)}
+    .nav-links a:hover::after,.nav-links a:focus-visible::after{transform:scaleX(1)}
+    @media(min-width:1051px){.hero-ctas{gap:10px}.hero-ctas .button{padding-inline:16px;font-size:12px}}
+    :root{--ease-out:cubic-bezier(.22,1,.36,1);--ease-ui:cubic-bezier(.2,.7,.2,1);--ease-in-out:cubic-bezier(.4,0,.2,1);--dur-1:.16s;--dur-2:.24s;--dur-3:.38s;--dur-4:.6s}
+    .motion-enabled .hero-copy> *{animation:soft-in .72s var(--ease-out) both}
+    .motion-enabled .hero-art{animation:art-in .95s var(--ease-out) .12s both}
+    .motion-enabled .orbit:not(.orbit-inner){animation:orbit-turn 80s linear infinite}
+    .motion-enabled .floating-label{animation:label-drift 8s ease-in-out infinite;animation-delay:-2s;translate:calc(var(--art-x,0px) * -.65) calc(var(--art-y,0px) * -.65);transition:translate .6s var(--ease-out)}
+    .motion-enabled .label-browser{animation-direction:reverse;animation-delay:-4s}
+    .motion-enabled .hero-ghost{translate:var(--art-x,0px) var(--art-y,0px);transition:translate .6s var(--ease-out)}
+    .motion-enabled .art-grid{translate:calc(var(--art-x,0px) * -.3) calc(var(--art-y,0px) * -.3);transition:translate .6s var(--ease-out)}
+    .hero-paused .hero-ghost,.hero-paused .ghost-shadow,.hero-paused .floating-label,.hero-paused .orbit{animation-play-state:paused!important}
+    .hero-paused .hero-ghost,.hero-paused .floating-label,.hero-paused .art-grid{translate:none}
+    .preview-card{box-shadow:0 1px 0 var(--glass) inset,0 20px 60px #0001}
+    .feature-card,.download-card{background-image:linear-gradient(145deg,var(--glass),transparent 55%);box-shadow:0 1px 0 var(--glass) inset}
+    .preview-tabs,.mode-picker{position:relative;isolation:isolate}
+    .preview-tab,.mode-button{position:relative;z-index:1}
+    .selection-indicator{position:absolute;left:0;top:0;pointer-events:none;border-radius:7px;background:var(--panel-3);border:1px solid var(--line);transition:transform var(--dur-3) var(--ease-out),width var(--dur-3) var(--ease-out),height var(--dur-3) var(--ease-out);z-index:0}
+    .mode-picker .selection-indicator{border:0;border-radius:5px}
+    .has-indicator .preview-tab[aria-selected="true"],.has-indicator .mode-button[aria-pressed="true"]{background:transparent;border-color:transparent}
+    .has-indicator .preview-tab:hover{background:var(--glass)}
+    .preview-outgoing{position:absolute!important;inset:0;z-index:1;pointer-events:none}
+    .expand-badge{z-index:2}
+    .screenshot-button{transition:transform var(--dur-3) var(--ease-out),box-shadow var(--dur-3) var(--ease-out),border-color var(--dur-2)}
+    .screenshot-button:hover img{opacity:1}
+    .screenshot-button:hover{border-color:var(--line-strong);box-shadow:0 20px 48px #0005}
+    .expand-badge{transition:background var(--dur-2),transform var(--dur-3) var(--ease-out)}
+    .screenshot-button:hover .expand-badge,.screenshot-button:focus-visible .expand-badge{transform:translateY(-2px);background:rgba(16,17,16,.96)}
+    .release-pill .icon{transition:transform var(--dur-3) var(--ease-out)}
+    .release-pill:hover .icon{transform:translateX(3px)}
+    .download-card .button:hover{background:var(--panel-1);color:var(--text)}
+    .recommended .button:hover{background:#ffb986;color:#231e1a}
+    .button-small:hover{background:var(--text);color:var(--bg);border-color:var(--text);box-shadow:0 5px 18px #0002}
+    .nav-links a[aria-current="location"]{color:var(--text)}
+    .nav-links a[aria-current="location"]::after{transform:scaleX(1)}
+    .reveal-ready{opacity:0;transform:translateY(18px)}
+    .reveal-ready:has(:focus-visible){opacity:1;transform:none}
+    @keyframes art-in{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:none}}
+    @keyframes orbit-turn{to{transform:rotate(360deg)}}
+    @keyframes label-drift{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-7px) rotate(-4deg)}}
+    .motion-enabled .label-browser{animation-name:browser-drift}
+    @keyframes browser-drift{0%,100%{transform:translateY(0) rotate(5deg)}50%{transform:translateY(-7px) rotate(3deg)}}
+    @supports(interpolate-size:allow-keywords){
+      .motion-enabled details{interpolate-size:allow-keywords}
+      .motion-enabled details::details-content{block-size:0;overflow:clip;transition:block-size var(--dur-3) var(--ease-ui),content-visibility var(--dur-3) allow-discrete}
+      .motion-enabled details[open]::details-content{block-size:auto}
+    }
+    .motion-enabled .hero-copy>h1{animation-delay:.06s}
+    .motion-enabled .hero-copy>.hero-description{animation-delay:.12s}
+    .motion-enabled .hero-copy>.hero-ctas{animation-delay:.18s}
+    .motion-enabled .hero-copy>.hero-meta{animation-delay:.24s}
+    .button{position:relative;overflow:hidden;isolation:isolate}
+    .button::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(105deg,transparent 30%,var(--sheen) 50%,transparent 70%);transform:translateX(-160%) skewX(-16deg)}
+    .button:hover::after,.button:focus-visible::after{animation:button-sheen .65s ease-out}
+    .site-header::after{content:"";position:absolute;left:0;bottom:-1px;width:100%;height:1px;background:var(--accent-soft);opacity:.7;transform:scaleX(var(--scroll-progress,0));transform-origin:left;pointer-events:none}
+    .step-number{transition:transform var(--dur-2),border-color var(--dur-2),box-shadow var(--dur-2)}
+    .step:hover .step-number,.step:focus-within .step-number{transform:translateY(-2px);border-color:var(--accent-soft);box-shadow:0 0 0 4px rgba(209,145,106,.05)}
+    .motion-enabled .menu-open .mobile-menu:not([hidden]){animation:soft-in .22s ease-out}
+    .motion-enabled .menu-open .mobile-menu a{animation:soft-in .25s both}
+    .motion-enabled .menu-open .mobile-menu a:nth-child(2){animation-delay:.03s}
+    .motion-enabled .menu-open .mobile-menu a:nth-child(3){animation-delay:.06s}
+    .motion-enabled .menu-open .mobile-menu a:nth-child(4){animation-delay:.09s}
+    .image-dialog[open]{animation:dialog-in .26s cubic-bezier(.22,1,.36,1)}
+    .image-dialog[open]::backdrop{animation:backdrop-in .22s ease-out}
+    .dialog-close{transition:background var(--dur-2),transform var(--dur-2)}
+    .dialog-close:hover{background:var(--surface-2);transform:rotate(6deg)}
+    .reveal-in .provider,.reveal-in .attachment-tile{animation:badge-in .3s both}
+    .reveal-in .provider:nth-child(2),.reveal-in .attachment-tile:nth-child(2){animation-delay:.04s}
+    .reveal-in .provider:nth-child(3),.reveal-in .attachment-tile:nth-child(3){animation-delay:.08s}
+    .reveal-in .provider:nth-child(4),.reveal-in .attachment-tile:nth-child(4){animation-delay:.12s}
+    .reveal-in .provider:nth-child(5){animation-delay:.16s}
+    .reveal-in .terminal-line,.reveal-in .terminal-success{animation:soft-in .32s both}
+    .reveal-in .terminal-line:nth-child(2){animation-delay:.05s}
+    .reveal-in .terminal-line:nth-child(3){animation-delay:.1s}
+    .reveal-in .terminal-line:nth-child(4){animation-delay:.15s}
+    .reveal-in .terminal-success{animation-delay:.2s}
+    @keyframes button-sheen{from{transform:translateX(-160%) skewX(-16deg)}to{transform:translateX(160%) skewX(-16deg)}}
+    @keyframes badge-in{from{opacity:0;transform:translateY(5px) scale(.97)}to{opacity:1;transform:none}}
+    @keyframes dialog-in{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+    @keyframes backdrop-in{from{opacity:0}to{opacity:1}}
+    .reveal-in{animation:reveal-fade var(--dur-3) var(--ease-out) both,reveal-rise var(--dur-4) var(--ease-out) both;animation-delay:var(--reveal-delay,0ms)}
+    .reveal-in:has(:focus-visible){animation:none}
+    .provider{transition:transform var(--dur-2),border-color var(--dur-2),background var(--dur-2)}
+    .feature-card{transition:border-color var(--dur-2),transform var(--dur-2),box-shadow var(--dur-2)}
+    details[open] p{animation:soft-in .24s ease-out}
+    @keyframes soft-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+    @keyframes reveal-fade{from{opacity:0}to{opacity:1}}
+    @keyframes reveal-rise{from{transform:translateY(18px)}to{transform:none}}
+    @media(hover:hover) and (pointer:fine){.feature-card:hover{transform:translateY(-3px);box-shadow:0 12px 30px #0002}.feature-card:hover .feature-icon{transform:translateY(-2px);background:rgba(175,201,164,.07);border-color:var(--green-line)}.button-support:hover .icon{transform:scale(1.08)}.provider:hover{transform:translateY(-2px);border-color:var(--line-accent);background:var(--panel-3)}}
+    html{scrollbar-gutter:stable}
+    :root{scrollbar-color:var(--line-strong) transparent}
+    @media(prefers-reduced-transparency:reduce){
+      .site-header.scrolled,.site-header.menu-open{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
+      .floating-label{background:var(--panel-1);backdrop-filter:none;-webkit-backdrop-filter:none}
+      .expand-badge{background:#101110;backdrop-filter:none;-webkit-backdrop-filter:none}
+      .image-dialog::backdrop{backdrop-filter:none;-webkit-backdrop-filter:none}
+    }
+    @media(prefers-contrast:more){
+      :root{--line:rgba(230,238,220,.34);--line-strong:rgba(230,238,220,.58);--muted:#cdd1c7;--dim:#bcc1b3;--text-2:#d8dcd1}
+      :root[data-theme="light"]{--line:rgba(27,29,25,.34);--line-strong:rgba(27,29,25,.58);--muted:#3a3f35;--dim:#494f43;--text-2:#2a2e26}
+    }
+    @media(forced-colors:active){
+      .button,.release-pill,.preview-card,.feature-card,.download-card,.screenshot-wrap,.floating-label,.terminal,.code-card{border:1px solid CanvasText}
+      .button-primary,.recommended .button{border:2px solid ButtonText}
+      .hero-ghost path{fill:CanvasText}
+      .hero-ghost ellipse{fill:Canvas}
+      .orbit::after,.status-dot,.art-spark,.pill-separator{forced-color-adjust:none}
+    }
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after,details::details-content{animation:none!important;transition:none!important}.reveal-ready,.reveal-in{opacity:1;transform:none}.hero-ghost,.floating-label,.art-grid{translate:none!important}.feature-card:hover,.provider:hover,.feature-card:hover .feature-icon,.button-support:hover .icon,.button:active,.step:hover .step-number,.step:focus-within .step-number,.dialog-close:hover,.release-pill:hover .icon,.screenshot-button:hover .expand-badge{transform:none}}
+    @media print{*,*::before,*::after{animation:none!important;transition:none!important}.reveal-ready,.reveal-in{opacity:1;transform:none}.hero-ghost,.floating-label,.art-grid{translate:none!important}}
+  </style>
+  <style id="language-picker-style">
+    .language-picker{position:relative;display:grid;place-items:center;flex-shrink:0;width:44px;height:36px;border:1px solid var(--line);border-radius:7px;background:var(--glass);color:var(--muted);font-size:10px}
+    .language-picker[hidden]{display:none}
+    .theme-toggle{display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;border:1px solid var(--line);border-radius:9px;background:var(--glass);color:var(--muted);cursor:pointer;transition:color var(--dur-2),border-color var(--dur-2),background var(--dur-2)}
+    .theme-toggle:hover{color:var(--text);border-color:var(--line-strong)}
+    .theme-toggle[hidden]{display:none}
+    .theme-toggle .icon{width:16px;height:16px}
+    ::view-transition-old(root),::view-transition-new(root){animation-duration:.7s;animation-timing-function:ease-in-out}
+    @media(prefers-reduced-motion:reduce){::view-transition-old(root),::view-transition-new(root){animation:none}}
+@media(max-width:680px){.language-picker,.language-picker select{width:30px}.theme-toggle{width:30px;height:36px}}
+@media(max-width:400px){.nav-actions{gap:7px}.nav-actions .button{padding:7px 10px}.brand{gap:8px}}
+    .language-picker select{position:absolute;inset:-1px;width:44px;height:36px;opacity:0;cursor:pointer;font:inherit;font-size:13px}
+    .language-picker span{display:flex;align-items:center;gap:1px;pointer-events:none;line-height:1}
+    .language-picker span::after{content:"▾";font-size:7px}
+    .language-picker:has(select:focus-visible){outline:2px solid var(--accent);outline-offset:3px}
+  </style>
+  <style id="polish-style">
+    /* ───────── Polish layer: readable type, depth, light and finish ───────── */
+    :root{--shadow-card:0 1px 0 rgba(255,255,255,.05) inset,0 1px 2px rgba(0,0,0,.28),0 18px 40px -24px rgba(0,0,0,.6);--spot:rgba(245,164,109,.13);--grain-opacity:.05}
+    :root[data-theme="light"]{--shadow-card:0 1px 0 rgba(255,255,255,.9) inset,0 1px 2px rgba(27,29,25,.06),0 18px 40px -26px rgba(27,29,25,.22);--spot:rgba(169,82,31,.09);--grain-opacity:.035}
+    body{font-feature-settings:"cv11","ss01","calt";text-rendering:optimizeLegibility}
+    h1,h2,h3{font-feature-settings:"ss01","cv11","calt"}
+
+    /* Atmosphere: warm ambient light and a fine film grain */
+    body::before{height:1100px;background:radial-gradient(ellipse 60% 55% at 78% 30%,rgba(190,125,78,.13),transparent 70%),radial-gradient(ellipse 45% 40% at 8% 4%,rgba(130,160,120,.07),transparent 70%)}
+    [data-theme="light"] body::before{background:radial-gradient(ellipse 60% 55% at 78% 30%,rgba(240,160,106,.2),transparent 70%),radial-gradient(ellipse 45% 40% at 8% 4%,rgba(170,200,150,.16),transparent 70%)}
+    body::after{content:"";position:fixed;inset:0;z-index:300;pointer-events:none;opacity:var(--grain-opacity);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+    [data-theme="light"] body::after{mix-blend-mode:multiply;filter:invert(1)}
+
+    /* Type: nothing below 11px, body copy at a comfortable 13–15px */
+    .nav-links{font-size:13.5px}
+    .release-pill{font-size:12px}
+    .hero-description{font-size:18px;max-width:440px}
+    .hero-meta{font-size:12px}
+    .floating-label strong{font-size:12.5px}
+    .floating-label small{font-size:11px}
+    .art-caption{font-size:10px}
+    .strip-item,.overview-strip>p{font-size:13px}
+    .eyebrow{font-size:11px;letter-spacing:2.2px}
+    .section-heading>p{font-size:14.5px;max-width:370px;line-height:1.7}
+    .preview-tab{font-size:13px}
+    .preview-live{font-size:11px}
+    .preview-story p{font-size:13.5px;line-height:1.75}
+    .preview-story h3{font-size:26px;max-width:210px}
+    .preview-number{font-size:11px}
+    .preview-tag{font-size:11px;padding:6px 10px}
+    .preview-caption{font-size:10.5px}
+    .expand-badge{font-size:11px}
+    .text-link{font-size:13.5px}
+    .feature-card h3{font-size:22px;letter-spacing:-.7px;margin-bottom:11px}
+    .feature-card>p{font-size:14px;line-height:1.72;max-width:480px}
+    .terminal{font-size:12px;line-height:2.05}
+    .terminal-head,.demo-note{font-size:10.5px}
+    .provider{font-size:13px;padding:11px 15px}
+    .provider-note{font-size:11.5px}
+    .memory-example-head{font-size:11px}
+    .memory-example p{font-size:13px}
+    .attachment-tile{font-size:10px}
+    .mode-button{font-size:12.5px;padding:8px 4px}
+    .mode-description{font-size:12.5px!important;min-height:56px!important}
+    .release-note-card ul{font-size:13.5px;line-height:1.72}
+    .release-note-card pre{font-size:12.5px}
+    .step h3{font-size:21px}
+    .step p{font-size:14px;line-height:1.75;max-width:320px}
+    .step .text-link{font-size:13px}
+    .source-copy>p{font-size:15px;max-width:440px}
+    .code-top,.code-card-bottom{font-size:11px}
+    .code-card pre{font-size:12.5px}
+    .copy-button{font-size:11.5px}
+    .source-license{font-size:12px}
+    .download-description{font-size:15px}
+    .download-card h3{font-size:20px}
+    .download-card p{font-size:12.5px}
+    .download-card .button{font-size:13px;min-height:46px}
+    .recommended-label{font-size:10.5px;padding:3px 8px}
+    .download-footnote{font-size:12px}
+    .beta-note{font-size:12px;max-width:640px}
+    .faq-heading h2{font-size:36px}
+    .faq-heading p{font-size:14px;max-width:270px}
+    summary{font-size:15.5px;padding:22px 0}
+    details p{font-size:14px;line-height:1.8;max-width:640px}
+    .footer-links{font-size:13px}
+    .footer-bottom{font-size:12px}
+    .dialog-top{font-size:13px}.dialog-caption{font-size:12px}
+    .toast{font-size:13px}
+
+    /* Depth: cards that catch the light */
+    .feature-card,.download-card,.preview-card{box-shadow:var(--shadow-card)}
+    .feature-card,.download-card{border-radius:22px;--mx:50%;--my:0%}
+    .feature-card>*:not(.recommended-label),.download-card>*:not(.recommended-label){position:relative;z-index:1}
+    .feature-card::before,.download-card::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;opacity:0;background:radial-gradient(420px circle at var(--mx) var(--my),var(--spot),transparent 65%);transition:opacity var(--dur-3) var(--ease-out)}
+    .feature-card::after,.download-card::after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:inherit;padding:1px;opacity:0;background:radial-gradient(260px circle at var(--mx) var(--my),rgba(245,164,109,.55),transparent 70%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;transition:opacity var(--dur-3) var(--ease-out)}
+    @media(hover:hover) and (pointer:fine){.feature-card:hover::before,.download-card:hover::before,.feature-card:hover::after,.download-card:hover::after{opacity:1}}
+    .feature-card:focus-within::before,.feature-card:focus-within::after{opacity:1}
+    .feature-icon{width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,rgba(175,201,164,.09),rgba(175,201,164,.02))}
+    .feature-icon .icon{width:19px;height:19px}
+    .bento-grid{gap:18px}
+    .release-notes-grid{align-items:start}
+    .release-note-card h3{margin-bottom:14px}
+
+    /* Product preview */
+    .preview-layout{grid-template-columns:300px 1fr}
+    .preview-card{border-radius:24px}
+    .screenshot-wrap{background:radial-gradient(ellipse at 50% 0%,rgba(245,164,109,.06),transparent 60%),#121312}
+    [data-theme="light"] .screenshot-wrap{background:radial-gradient(ellipse at 50% 0%,rgba(245,164,109,.14),transparent 60%),#ecebe4}
+    .screenshot-button{border-radius:12px;box-shadow:0 30px 60px -20px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04)}
+
+    /* Hero: warmer halo and a quiet gradient on the title */
+    .art-aura{inset:6%;background:radial-gradient(ellipse at 50% 62%,rgba(236,150,92,.24),rgba(190,175,139,.06) 42%,transparent 68%);filter:blur(26px)}
+    h1{background:linear-gradient(180deg,var(--text) 35%,var(--text-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    h1 .accent{background:linear-gradient(180deg,#ffbd8c,var(--accent) 60%,#e08e58);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    [data-theme="light"] h1 .accent{background:linear-gradient(180deg,#c4642b,#a9521f);-webkit-background-clip:text;background-clip:text}
+    .button-primary{box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 10px 28px -10px rgba(245,164,109,.55)}
+    .button-primary:hover{box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 14px 34px -10px rgba(245,164,109,.7)}
+    .overview-strip{border-image:linear-gradient(90deg,transparent,var(--line-strong) 20%,var(--line-strong) 80%,transparent) 1}
+    [data-theme="light"] .ghost-shadow{bottom:16%;width:36%;height:11px;background:rgba(27,29,25,.3);filter:blur(8px)}
+
+    /* Sections: breathing room and a glow behind the download choice */
+    .section{padding-top:128px}
+    .download-section{position:relative;isolation:isolate}
+    .download-section::before{content:"";position:absolute;z-index:-1;left:50%;top:6%;width:min(900px,100%);height:520px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(245,164,109,.1),transparent 65%);pointer-events:none}
+    .download-card.recommended{border-color:rgba(245,164,109,.5);box-shadow:var(--shadow-card),0 24px 70px -28px rgba(245,164,109,.4)}
+    .platform-icon{width:30px;height:30px}
+    .source-band{background:radial-gradient(ellipse 50% 90% at 100% 0%,rgba(245,164,109,.06),transparent 70%),linear-gradient(115deg,var(--panel-1),var(--panel-2) 70%)}
+    .code-card{box-shadow:0 30px 60px -28px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.03)}
+    .site-footer{background:linear-gradient(180deg,var(--footer-bg),var(--bg))}
+    [data-theme="light"] .site-footer{background:var(--footer-bg)}
+
+    /* Small refinements */
+    .site-header.scrolled,.site-header.menu-open{box-shadow:0 10px 30px -20px rgba(0,0,0,.6)}
+    .github-link,.theme-toggle,.language-picker,.menu-toggle{transition:color var(--dur-2),border-color var(--dur-2),background var(--dur-2)}
+    .faq-list details{transition:background var(--dur-2)}
+    summary:hover{color:var(--text)}
+    summary:hover .icon{color:var(--accent)}
+    ::-webkit-scrollbar{width:11px;height:11px}
+    ::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:8px;border:3px solid var(--bg)}
+    ::-webkit-scrollbar-track{background:transparent}
+
+    @media(max-width:1050px){.preview-layout{grid-template-columns:240px 1fr}.hero-description{font-size:16px;max-width:380px}.section{padding-top:104px}}
+    @media(min-width:681px){
+      .bento-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:18px}
+      .download-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .steps-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    }
+    @media(min-width:801px){
+      .source-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+      .faq-section{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}
+      .overview-strip{grid-template-columns:minmax(0,1.6fr) repeat(3,minmax(0,1fr))}
+    }
+    @media(max-width:1000px){.download-card .button{white-space:normal;font-size:12px;padding:10px 12px;gap:8px}}
+    @media(max-width:800px){.hero-description{font-size:15.5px;max-width:340px}.preview-layout{grid-template-columns:200px 1fr}.preview-story h3{font-size:22px;max-width:170px}.preview-story p{font-size:12.5px}.step p{font-size:13.5px}.mobile-menu a{font-size:15px}.section{padding-top:88px}}
+    @media(max-width:680px){
+      .hero-description{font-size:16px;max-width:360px}
+      .hero-meta{font-size:11.5px}
+      .section{padding-top:76px}
+      .eyebrow{font-size:10.5px}
+      .section-heading>p{font-size:14px;max-width:360px}
+      .preview-tab{font-size:12px}
+      .preview-story p{font-size:13.5px}
+      .preview-story h3{font-size:23px}
+      .preview-story .text-link{font-size:12.5px}
+      .preview-caption{font-size:10px}
+      .feature-card{border-radius:18px}
+      .bento-grid{gap:12px}
+      .feature-card>p{font-size:14px}
+      .feature-card h3{font-size:21px}
+      .terminal{font-size:11.5px}
+      .provider{font-size:12.5px}
+      .mode-button{font-size:12.5px}
+      .attachment-tile{font-size:10px}
+      .release-note-card ul{font-size:13.5px}
+      .step p{font-size:14px}.step h3{font-size:20px}.step .text-link{font-size:13px}
+      .source-copy>p{font-size:14px}
+      .code-card pre{font-size:10.5px}
+      .code-card-bottom{font-size:10px}
+      .source-license{font-size:11.5px}
+      .download-description{font-size:14px;max-width:320px}
+      .download-card p{font-size:12px}
+      .download-card .button{font-size:13px}
+      .recommended-label{font-size:10px}
+      .download-footnote{font-size:11.5px}
+      .beta-note{font-size:11.5px}
+      .faq-heading h2{font-size:31px}
+      .faq-heading p{font-size:13.5px}
+      summary{font-size:15px}
+      details p{font-size:13.5px}
+      .footer-links{font-size:13px}
+      .footer-bottom>p,.footer-built{font-size:11.5px}
+      .dialog-caption{font-size:11px}
+    }
+    @media(prefers-reduced-motion:reduce){.feature-card::before,.download-card::before,.feature-card::after,.download-card::after{transition:none}}
+    @media(forced-colors:active){body::after,.feature-card::before,.feature-card::after,.download-card::before,.download-card::after{display:none}h1,h1 .accent{-webkit-text-fill-color:currentColor;background:none}}
+    @media print{body::after{display:none}}
+  </style>
+  <link rel="stylesheet" href="art-direction.css">
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+    <defs>
+      <symbol id="i-ghost" viewBox="0 0 58 60"><path fill-rule="evenodd" d="M0 29A29 29 0 0 1 58 29L58 57A2.5 2.5 0 0 1 53 57A6 6 0 0 0 41 57A3 3 0 0 1 35 57A6 6 0 0 0 23 57A3 3 0 0 1 17 57A6 6 0 0 0 5 57A2.5 2.5 0 0 1 0 57ZM13.2 29.5A3.8 4.1 0 1 0 20.8 29.5A3.8 4.1 0 1 0 13.2 29.5ZM37.2 29.5A3.8 4.1 0 1 0 44.8 29.5A3.8 4.1 0 1 0 37.2 29.5Z"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+      <symbol id="i-external" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3m6 0h4"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16M7 15l4-6 4 3 5-7"/></symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-12h-7z"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15z"/></symbol>
+      <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-14-2 16"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6z"/><path d="m8 12 3 3 5-6"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-3-3 3-3m-6 0 3-3"/></symbol>
+      <symbol id="i-memory" viewBox="0 0 24 24"><path d="M12 5a4 4 0 0 0-7-2 4 4 0 0 0-2 6 4 4 0 0 0 0 6 4 4 0 0 0 2 6 4 4 0 0 0 7-2V5Zm0 0a4 4 0 0 1 7-2 4 4 0 0 1 2 6 4 4 0 0 1 0 6 4 4 0 0 1-2 6 4 4 0 0 1-7-2M5 9c2 0 3 1 3 3m11-3c-2 0-3 1-3 3M7 17c2 0 3-1 3-3m7 3c-2 0-3-1-3-3"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8zM14 3v5h5M8 13h8m-8 4h5"/></symbol>
+      <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 17 5-5 4 4 4-7 5 8"/></symbol>
+      <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 8 6 4-6 4z"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v13h5"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+      <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-7 7M4 14v6h6M4 20l7-7"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 21 3 12a5.5 5.5 0 0 1 9-7 5.5 5.5 0 0 1 9 7z"/></symbol>
+      <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4 1-4-2-6-2m13 5v-4c0-1-.2-2-1-2 4 0 6-2 6-5 0-1-.5-3-1.5-4 .5-1 .5-3 0-4-1.5 0-3 1-4 2a12 12 0 0 0-7 0C7.5 4 6 3 4.5 3c-.5 1-.5 3 0 4C3.5 8 3 10 3 11c0 3 2 5 6 5-.8.7-1 1.5-1 2v4"/></symbol>
+      <symbol id="i-apple" viewBox="0 0 24 24"><path d="M16.5 2c0 2-1.5 4-3.5 4 0-2 1.5-4 3.5-4ZM12 7c-2-1-5-1-7 1-3 3-1 9 1 12 1 2 3 2 5 1 1-.5 2-.5 3 0 2 1 4 1 5-1 1-1.5 2-3 2-4-4-2-4-6-1-8-2-2-5-2-8-1Z"/></symbol>
+      <symbol id="i-windows" viewBox="0 0 24 24"><path d="m3 5 8-1v7H3zm10-1 8-1v8h-8zM3 13h8v7l-8-1zm10 0h8v8l-8-1z"/></symbol>
+      <symbol id="i-linux" viewBox="0 0 24 24"><path d="M8 9V7a4 4 0 1 1 8 0v2c0 3 4 5 3 10-1 2-4 3-7 3s-6-1-7-3c-1-5 3-7 3-10Z"/><path d="m9 11 3 2 3-2m-4-4v1m2-1v1M5 18l3 2m11-2-3 2"/></symbol>
+    </defs>
+  </svg>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header" id="site-header">
+    <nav class="nav container" aria-label="Main navigation">
+      <a class="brand" href="#" aria-label="OpenGhost home"><svg class="ghost-icon" aria-hidden="true"><use href="#i-ghost"/></svg>OpenGhost</a>
+      <div class="nav-links"><a href="#features">Features</a><a href="#whats-new">Changelog</a><a href="#how-it-works">How it works</a><a href="#open-source">Open source</a></div>
+      <div class="nav-actions">
+        <button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Switch to light mode" title="Switch to light mode"><svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg></button>
+        <div class="language-picker" title="Website language" hidden>
+          <span id="language-code" aria-hidden="true">EN</span>
+          <select id="language-select" aria-label="Website language">
+            <option value="en" lang="en">English</option>
+            <option value="it" lang="it">Italiano</option>
+            <option value="es" lang="es">Español</option>
+            <option value="fr" lang="fr">Français</option>
+            <option value="ru" lang="ru">Русский</option>
+          </select>
+        </div>
+        <a class="github-link" href="https://github.com/ANDRETRIPOL/OpenGhost" target="_blank" rel="noopener noreferrer" aria-label="OpenGhost on GitHub (opens in a new tab)"><svg class="icon"><use href="#i-github"/></svg></a>
+        <a class="button button-small" href="#download">Get OpenGhost<svg class="icon icon-sm" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-menu"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button>
+      </div>
+    </nav>
+    <nav class="mobile-menu" id="mobile-menu" aria-label="Mobile navigation" hidden><a href="#features">Features</a><a href="#whats-new">Changelog</a><a href="#how-it-works">How it works</a><a href="#open-source">Open source</a><a href="#download">Get OpenGhost</a><a href="https://github.com/ANDRETRIPOL/OpenGhost" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a></nav>
+  </header>
+  <main id="main">
+    <section class="hero container" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <a class="release-pill" id="release-pill" href="https://github.com/ANDRETRIPOL/OpenGhost/releases" target="_blank" rel="noopener noreferrer"><span class="status-dot"></span><span id="release-pill-version">v1.4.6 beta</span><span class="pill-separator"></span><span id="release-pill-label">Latest release</span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        <h1 id="hero-title">A little ghost.<br><span class="accent">A lot done.</span></h1>
+        <p class="hero-description">An AI agent for your desktop. Work with files, run commands, and use the web. Choose your model and decide what it can do.</p>
+        <div class="hero-ctas">
+          <a class="button button-primary" id="hero-download" href="#download"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"/></svg><span id="hero-download-label">Download OpenGhost</span></a>
+          <a class="button button-secondary" href="https://github.com/ANDRETRIPOL/OpenGhost" target="_blank" rel="noopener noreferrer">Explore the code<svg class="icon icon-sm" aria-hidden="true"><use href="#i-external"/></svg></a>
+          <div class="hero-community">
+            <a class="button button-discord" id="hero-discord" href="https://discord.gg/6cKd2UND5" target="_blank" rel="noopener noreferrer"><img class="brand-logo" src="assets/brands/discord.svg" width="20" height="20" alt="" aria-hidden="true">Join Discord</a>
+            <a class="button button-support" id="hero-support" href="https://github.com/sponsors/ANDRETRIPOL" target="_blank" rel="noopener noreferrer"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-heart"/></svg>Support</a>
+          </div>
+        </div>
+        <div class="hero-meta"><span class="platform-mini" role="img" aria-label="macOS, Windows, and Linux"><svg class="icon" aria-hidden="true"><use href="#i-apple"/></svg><svg class="icon" aria-hidden="true"><use href="#i-windows"/></svg><svg class="icon" aria-hidden="true"><use href="#i-linux"/></svg></span><span>Free to download</span><span aria-hidden="true">·</span><span>Bring your own AI</span></div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="art-grid"></div><div class="art-aura"></div>
+        <div class="orbital-halo"></div><div class="orbit"></div><div class="orbit orbit-inner"></div>
+        <div class="art-stardust"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="art-horizon"></div><div class="ghost-shadow"></div>
+        <svg class="hero-ghost" viewBox="-6 -8 70 80"><defs><linearGradient id="ghost-fill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffff4"/><stop offset=".2" stop-color="#f5f6e9"/><stop offset=".55" stop-color="#d8dfca"/><stop offset=".85" stop-color="#b3bea4"/><stop offset="1" stop-color="#8e9b7f"/></linearGradient><linearGradient id="ghost-edge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffff7" stop-opacity=".95"/><stop offset="1" stop-color="#d7d8c8" stop-opacity=".1"/></linearGradient><linearGradient id="ghost-fill-light" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#465440"/><stop offset=".45" stop-color="#293527"/><stop offset="1" stop-color="#121c12"/></linearGradient><linearGradient id="ghost-edge-light" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#66745c"/><stop offset="1" stop-color="#152011"/></linearGradient></defs><path fill="url(#ghost-fill)" stroke="url(#ghost-edge)" stroke-width=".6" d="M0 29A29 29 0 0 1 58 29L58 57A2.5 2.5 0 0 1 53 57A6 6 0 0 0 41 57A3 3 0 0 1 35 57A6 6 0 0 0 23 57A3 3 0 0 1 17 57A6 6 0 0 0 5 57A2.5 2.5 0 0 1 0 57Z"/><ellipse cx="17" cy="29.5" rx="3.8" ry="4.1" fill="#252820"/><ellipse cx="41" cy="29.5" rx="3.8" ry="4.1" fill="#252820"/></svg>
+        <div class="floating-label label-terminal"><div class="label-icon"><svg class="icon icon-sm"><use href="#i-terminal"/></svg></div><div><strong>From idea to done</strong><small>Files. Commands. Git.</small></div><svg class="icon icon-sm" style="color:var(--green)"><use href="#i-check"/></svg></div>
+        <div class="floating-label label-browser"><div class="label-icon"><svg class="icon icon-sm"><use href="#i-globe"/></svg></div><div><strong>Your browser, too.</strong><small>One shared workspace</small></div></div>
+        <span class="art-spark">✦</span><span class="art-caption">A presence. Not another tab.</span>
+      </div>
+    </section>
+    <div class="overview-strip container"><p>A desktop app, built from scratch.</p><div class="strip-item"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg>Works on your desktop</div><div class="strip-item"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>Shows what it explains</div><div class="strip-item"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg>Written from scratch</div></div>
+
+    <section class="section container" id="features" aria-labelledby="showcase-title">
+      <div class="section-heading"><div><span class="eyebrow">Inside the app</span><h2 id="showcase-title">See OpenGhost<br><span class="muted-heading">at work.</span></h2></div><p>Explore a chart, share the browser with the agent, or ask a quick question without switching windows.</p></div>
+      <div class="preview-card">
+        <div class="preview-tabs" role="tablist" aria-label="Explore OpenGhost features">
+          <button class="preview-tab" id="tab-visual" type="button" role="tab" aria-selected="true" aria-controls="feature-panel" data-preview="visual"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>Visual answers</button>
+          <button class="preview-tab" id="tab-browser" type="button" role="tab" aria-selected="false" aria-controls="feature-panel" tabindex="-1" data-preview="browser"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg>Built-in browser</button>
+          <button class="preview-tab" id="tab-quick" type="button" role="tab" aria-selected="false" aria-controls="feature-panel" tabindex="-1" data-preview="quick"><svg class="icon" aria-hidden="true"><use href="#i-bolt"/></svg>Quick chat</button>
+          <button class="preview-tab" id="tab-editor" type="button" role="tab" aria-selected="false" aria-controls="feature-panel" tabindex="-1" data-preview="editor"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg>Live editing</button>
+          <span class="preview-live"><span class="status-dot"></span>Actual app screenshots</span>
+        </div>
+        <div class="preview-layout" id="feature-panel" role="tabpanel" aria-labelledby="tab-visual" tabindex="0">
+          <div class="screenshot-wrap"><button class="screenshot-button" id="expand-preview" type="button" aria-label="Enlarge the visual answers screenshot"><img id="preview-image" src="assets/visual.jpg" width="1600" height="1202" alt="OpenGhost showing three model-training curves and live metric tiles in a dark chat interface" fetchpriority="high"><span class="expand-badge"><svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg>Expand</span></button></div>
+          <div class="preview-story"><span class="preview-number" id="preview-number">01 / VISUAL ANSWERS</span><h3 id="preview-title">It shows what it explains.</h3><p id="preview-description">Charts and diagrams appear right in the reply. There are 43 drawing types, including training curves, meals, and travel routes. Hover to explore them or open the editor to make changes.</p><span class="preview-tag" id="preview-tag">Built-in drawing engine</span><a class="text-link" id="preview-docs" href="https://github.com/ANDRETRIPOL/OpenGhost#it-shows-what-it-explains" target="_blank" rel="noopener noreferrer">Take a closer look<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div>
+        </div>
+      </div>
+      <div class="preview-caption"><span>THE REAL APP. NO RENDERED MOCKUPS.</span><span class="caption-right"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-plus"/></svg>Click the preview to explore</span></div>
+    </section>
+
+    <section class="section container" id="capabilities" aria-labelledby="tools-title">
+      <div class="section-heading"><div><span class="eyebrow">What it can do</span><h2 id="tools-title">Work on a project.<br><span class="muted-heading">Or start with a question.</span></h2></div><p>Ask it to fix a bug, read a document, or help plan a trip. The tools are there when the task needs them.</p></div>
+      <div class="bento-grid">
+        <article class="feature-card feature-tools"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg></div><h3>Files, commands, and git.</h3><p>Run commands. Read and edit files. Keep changes in git. Let the agent work in your project folder, with you in control.</p><div class="terminal" aria-label="Illustrative task workflow"><div class="terminal-head"><span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>~/your-next-idea</span></div><div class="terminal-line"><span class="prompt">›</span><span>Read the project and find the issue</span></div><div class="terminal-line"><span class="prompt">›</span><span>Make the fix. Run the tests.</span></div><div class="terminal-line"><span class="prompt">›</span><span>Commit a working change</span></div><div class="terminal-success"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>A workflow, not just a suggestion.</div></div><span class="demo-note">Illustrative workflow</span></article>
+        <article class="feature-card feature-models"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg></div><h3>Choose your model.</h3><p>Sign in with your ChatGPT account or connect OpenAI, Claude, DeepSeek, or OpenRouter with an API key. The available models come from each provider itself, so you can choose what fits the task.</p><div class="provider-list" aria-label="Supported providers"><span class="provider"><img class="brand-logo brand-monochrome" src="assets/brands/openai.svg" width="18" height="18" alt="" aria-hidden="true">ChatGPT</span><span class="provider"><img class="brand-logo brand-monochrome" src="assets/brands/openai.svg" width="18" height="18" alt="" aria-hidden="true">OpenAI</span><span class="provider"><img class="brand-logo" src="assets/brands/claude.svg" width="18" height="18" alt="" aria-hidden="true">Claude</span><span class="provider"><img class="brand-logo" src="assets/brands/deepseek.svg" width="18" height="18" alt="" aria-hidden="true">DeepSeek</span><span class="provider"><img class="brand-logo brand-monochrome" src="assets/brands/openrouter.svg" width="18" height="18" alt="" aria-hidden="true">OpenRouter</span></div><div class="provider-note"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg>Credentials encrypted by your operating system.</div></article>
+        <article class="feature-card feature-memory"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-memory"/></svg></div><h3>Memory across chats.</h3><p>Tell it once, not every chat. Memory keeps short records across conversations and updates them when things change. In Settings you can edit, add, remove, or switch it off. Passwords and one-task details do not belong in memory.</p><div class="memory-example"><div class="memory-example-head"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>Example memory</div><p>Prefers concise answers, clean code, and a little less back-and-forth.</p></div></article>
+        <article class="feature-card feature-media"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg></div><h3>Photos, videos, and PDFs.</h3><p>Drop in a PDF, a photo, or a video. It reads the document, looks at the pages, and watches the frames.</p><div class="attachment-row" aria-label="Supported attachments"><div class="attachment-tile"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg>PDF</div><div class="attachment-tile"><svg class="icon" aria-hidden="true"><use href="#i-photo"/></svg>IMAGE</div><div class="attachment-tile"><svg class="icon" aria-hidden="true"><use href="#i-video"/></svg>VIDEO</div><div class="attachment-tile"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg>CODE</div></div></article>
+        <article class="feature-card feature-control"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></div><h3>Ask, Auto, or Full access.</h3><p>Three permission modes. Choose how much freedom the agent gets for the work at hand.</p><div class="mode-picker" role="group" aria-label="Learn about permission modes"><button class="mode-button" type="button" aria-pressed="true" data-mode="ask">Ask</button><button class="mode-button" type="button" aria-pressed="false" data-mode="auto">Auto</button><button class="mode-button" type="button" aria-pressed="false" data-mode="full">Full access</button></div><p class="mode-description" id="mode-description" aria-live="polite">Waits for your approval before commands, file changes, and the web.</p></article>
+      </div>
+    </section>
+
+    <section class="section container" id="everyday" aria-labelledby="everyday-title">
+      <div class="section-heading"><div><span class="eyebrow">Day-to-day features</span><h2 id="everyday-title">Follow-ups, search,<br><span class="muted-heading">and a few useful extras.</span></h2></div><p>Keep a follow-up separate, find an old conversation, and check your usage without leaving the app.</p></div>
+      <div class="bento-grid">
+        <article class="feature-card feature-tools"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></div><h3>Follow up in Mini chat.</h3><p>Select a passage and open Mini chat over the conversation. Drag it, resize it, and keep writing behind it. Its own agent uses the current chat as context, works in a separate browser tab, and coordinates with the main agent so they do not change the same file. Close it during a task and the work continues.</p><div class="provider-note"><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#mini-chat-with-an-agent-of-its-own" target="_blank" rel="noopener noreferrer">Explore Mini chat<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div></article>
+        <article class="feature-card feature-models"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg></div><h3>Find where you left off.</h3><p>Click the magnifier or press Ctrl+K to search your chats. Results are grouped under their folders, so a useful conversation does not disappear into a long list. New chats can start without a project; OpenGhost gives them a folder of their own for the files the agent creates.</p><div class="provider-note"><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#find-a-chat" target="_blank" rel="noopener noreferrer">See chat search<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div></article>
+        <article class="feature-card feature-tools"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg></div><h3>Know what a chat costs.</h3><p>Open Chat stats from the plus menu to see spending, tokens for each reply, each model’s share, cache usage, and context fullness. Compact chat frees space in a long conversation; OpenGhost also compacts automatically before the model’s context window fills.</p><div class="provider-note"><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#what-a-chat-costs" target="_blank" rel="noopener noreferrer">Inside Chat stats<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div></article>
+        <article class="feature-card feature-models"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-memory"/></svg></div><h3>Your instructions, always there.</h3><p>In Settings → General, write how you want answers and what the agent should know. Add files it should always have at hand, such as notes, a style guide, or a CV. Every chat receives them, even after compaction. For a project’s own rules, put an AGENTS.md in its folder.</p><div class="provider-note"><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#tell-it-once-for-every-chat" target="_blank" rel="noopener noreferrer">Set your preferences<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div></article>
+        <article class="feature-card feature-tools"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-edit"/></svg></div><h3>Make the space yours.</h3><p>Choose light, dark, or your system’s theme and adjust the interface size. Pick your message colour and the chat background separately for each theme. Until you choose, the original themes stay as they are. The app opens with its ghost flying through the mist.</p><div class="provider-note"><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#make-it-yours" target="_blank" rel="noopener noreferrer">Explore Appearance<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div></article>
+        <article class="feature-card feature-models"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-video"/></svg></div><h3>See the actual thing.</h3><p>When a picture says more, the agent searches for photos and videos itself. Pictures arrive in a stack you can leaf through, with a link to their source. Videos become preview cards with a name and length, opening in your browser. Live drawings have their own forms for recipes, meals, documents, matches, languages, PC builds, settings, and trips.</p><div class="provider-note"><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#photos-and-videos-in-the-reply" target="_blank" rel="noopener noreferrer">Beyond text replies<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div></article>
+      </div>
+    </section>
+
+    <section class="section container" id="whats-new" aria-labelledby="release-title">
+      <div class="section-heading"><div><span class="eyebrow"><span id="release-prefix">What’s new ·</span> <span id="release-version">v1.4.6 beta</span></span><h2 id="release-title">Latest release notes</h2></div><p>Live notes from GitHub’s newest published release. The download buttons update automatically when a new release is available.</p></div>
+      <div class="bento-grid" id="release-highlights">
+        <article class="feature-card feature-tools"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></div><h3>The agent asks before it guesses.</h3><p>When a request can go several really different ways, a small deck of cards appears over the message field. Pick a choice, or write your own answer. Clear requests are simply done, as before.</p></article>
+        <article class="feature-card feature-models"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg></div><h3>Limits at a glance.</h3><p>A button at the foot of the sidebar shows your ChatGPT limits and your DeepSeek and OpenRouter balances, without opening Settings.</p></article>
+        <article class="feature-card feature-tools"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-globe"/></svg></div><h3>Four languages in the app.</h3><p>English, Italian, French, and Russian, in Settings under General, with a new About section. The Italian and French wording has not yet been checked by a native speaker; report anything that sounds off.</p></article>
+        <article class="feature-card feature-models"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></div><h3>One clear glass, a tidier list.</h3><p>The buttons over the chat, the notes, the search, and the small menus share one clear glass. Each chat row keeps its pin and a menu of three dots, and photos open in a frame.</p></article>
+        <article class="feature-card feature-tools"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-apple"/></svg></div><h3>The browser tells the truth on macOS.</h3><p>The built-in browser no longer presents itself as Chrome on Windows. It names the system it really runs on, which fixes sign-in pages and sites that looked or behaved wrong.</p></article>
+        <article class="feature-card feature-models"><div class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-bolt"/></svg></div><h3>Fixes that matter.</h3><p>Chats with many drawings open without jumping. Full Disk Access is detected correctly on macOS, with a button to restart the app. Quick chat no longer freezes after the language changes.</p></article>
+      </div>
+      <div class="download-footnote"><a id="release-notes-link" href="https://github.com/ANDRETRIPOL/OpenGhost/releases" target="_blank" rel="noopener noreferrer">Full release notes &amp; known limitations<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a><a href="#download">Get OpenGhost<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a></div>
+    </section>
+
+    <section class="section how-section container" id="how-it-works" aria-labelledby="how-title">
+      <div class="section-heading"><div><span class="eyebrow">Getting started</span><h2 id="how-title">Set up in three steps.</h2></div><p>No project folder required to begin.<br>Just open a chat and start with a question.</p></div>
+      <div class="steps-grid"><article class="step"><span class="step-number">01</span><h3>Download the app.</h3><p>Download OpenGhost for macOS, Windows, or Linux. Same app. Your desktop.</p><a class="text-link" href="#download">Choose your platform<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a></article><article class="step"><span class="step-number">02</span><h3>Connect a model.</h3><p>Connect your ChatGPT account or a supported API provider in Settings. Pick your model.</p><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#the-key-stays-on-this-computer" target="_blank" rel="noopener noreferrer">See supported providers<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></article><article class="step"><span class="step-number">03</span><h3>Start a chat.</h3><p>Ask a question, attach a file, or open a project. Choose a permission mode and get to work.</p><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#three-ways-to-let-it-act" target="_blank" rel="noopener noreferrer">Understand permissions<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></article></div>
+    </section>
+
+    <section class="source-band" id="open-source" aria-labelledby="source-title"><div class="source-layout container"><div class="source-copy"><span class="eyebrow">Source code</span><h2 id="source-title">Not assembled.<br>Written from scratch.</h2><p>Its own agent loop, tools, and approval cards. Its own browser tooling and drawing engine. Its own streaming Markdown renderer, code highlighting, and math. Every interface control, its motion, and its glass is plain JavaScript and CSS.</p><p>No UI framework, Markdown library, Mermaid, chart library, or agent framework. Built on Electron and Anthropic’s official SDK. The source is there for you to read, build, and understand.</p><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>ANDRETRIPOL / OpenGhost<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div><div><div class="code-card"><div class="code-top"><span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-terminal"/></svg>Build it yourself</span><button class="copy-button" id="copy-command" type="button" aria-label="Copy the build commands"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span id="copy-label">Copy</span></button></div><pre tabindex="0" role="region" aria-label="Build commands"><code><span class="code-comment"># A desktop agent. From the source.</span>
+<span class="code-prompt">$ </span>git clone https://github.com/ANDRETRIPOL/OpenGhost.git
+<span class="code-prompt">$ </span>cd OpenGhost
+<span class="code-prompt">$ </span>npm ci
+<span class="code-prompt">$ </span>npm start</code></pre><div class="code-card-bottom"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg>Node.js 22+<span aria-hidden="true">·</span>Runs on macOS, Windows, and Linux</div></div><p class="source-license">Source code is MIT-licensed. The name, logo, animations, and app design have <a href="https://github.com/ANDRETRIPOL/OpenGhost/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">separate terms</a>.</p><div id="build-installers" aria-label="Installer build commands">
+      <details><summary>Build a Windows installer<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>After <code>npm ci</code>, run <code>npm run dist</code> on Windows. The installer is written to <code>dist/OpenGhost-&lt;version&gt;-Setup.exe</code>.</p></details>
+      <details><summary>Build a macOS disk image<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>After <code>npm ci</code>, run <code>npm run dist:mac</code> on macOS. The disk image is written to <code>dist/OpenGhost-&lt;version&gt;-mac.dmg</code>.</p></details>
+      <details><summary>Build a Linux archive<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>After <code>npm ci</code>, run <code>npm run dist:linux</code> on Linux. The archive is written to <code>dist/OpenGhost-&lt;version&gt;-linux.tar.gz</code>.</p></details>
+      <details><summary>Build with GitHub Actions instead<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>No Mac or Linux machine available? In your GitHub fork, enable Actions, open the Build workflow, and choose Run workflow. Download the files from that run’s page. See the <a href="https://github.com/ANDRETRIPOL/OpenGhost#build-it-yourself" target="_blank" rel="noopener noreferrer">build documentation</a>. These commands build the desktop app, not this static website.</p></details>
+    </div></div></div></section>
+
+    <section class="download-section container" id="download" aria-labelledby="download-title"><div class="download-mark" aria-hidden="true"><svg class="ghost-icon"><use href="#i-ghost"/></svg></div><span class="eyebrow">Download OpenGhost</span><h2 id="download-title">Choose your desktop.</h2><p class="download-description"><span id="download-intro">Get</span> <span id="download-version">v1.4.6 beta</span> <span id="download-description-tail">for macOS, Windows, or Linux. The app is free; your model provider’s charges still apply.</span></p><div class="download-grid">
+      <article class="download-card" data-platform="mac"><span class="recommended-label">For your device</span><svg class="icon platform-icon" aria-hidden="true"><use href="#i-apple"/></svg><h3>macOS</h3><p>Apple silicon &amp; Intel · .dmg</p><a class="button" data-download="mac" href="https://github.com/ANDRETRIPOL/OpenGhost/releases">Download for macOS<svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"/></svg></a></article>
+      <article class="download-card" data-platform="windows"><span class="recommended-label">For your device</span><svg class="icon platform-icon" aria-hidden="true"><use href="#i-windows"/></svg><h3>Windows</h3><p>Desktop installer · .exe</p><a class="button" data-download="windows" href="https://github.com/ANDRETRIPOL/OpenGhost/releases">Download for Windows<svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"/></svg></a></article>
+      <article class="download-card" data-platform="linux"><span class="recommended-label">For your device</span><svg class="icon platform-icon" aria-hidden="true"><use href="#i-linux"/></svg><h3>Linux</h3><p>Desktop archive · .tar.gz</p><a class="button" data-download="linux" href="https://github.com/ANDRETRIPOL/OpenGhost/releases">Download for Linux<svg class="icon icon-sm" aria-hidden="true"><use href="#i-download"/></svg></a></article>
+    </div><div class="download-footnote"><span id="download-meta-version">v1.4.6 beta</span><a id="download-release-link" href="https://github.com/ANDRETRIPOL/OpenGhost/releases" target="_blank" rel="noopener noreferrer">Release notes<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a><a href="https://github.com/ANDRETRIPOL/OpenGhost/releases" target="_blank" rel="noopener noreferrer">All releases<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a></div><p class="beta-note update-note">Release notes and downloads update automatically from GitHub.</p><p class="beta-note">This is beta software. macOS may require a right-click → Open or Privacy &amp; Security → Open Anyway the first time. Read the <a id="limitations-link" href="https://github.com/ANDRETRIPOL/OpenGhost/releases" target="_blank" rel="noopener noreferrer">latest release notes</a> for current platform limitations before installing.</p></section>
+
+    <section class="faq-section container" aria-labelledby="faq-title"><div class="faq-heading"><span class="eyebrow">Good questions</span><h2 id="faq-title">A few things<br>worth knowing.</h2><p>Still curious? The repository has the full story.</p><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost#readme" target="_blank" rel="noopener noreferrer">Read the documentation<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div><div class="faq-list">
+      <details><summary>Is OpenGhost really free?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Yes. The app is free to download and use. You bring your own ChatGPT account or API credentials; provider subscriptions, limits, and API usage costs still apply. You can support development through <a href="https://github.com/sponsors/ANDRETRIPOL" target="_blank" rel="noopener noreferrer">GitHub Sponsors</a>.</p></details>
+      <details><summary>Will it ask me questions before it starts?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Only when a request can go several really different ways. Then a small deck of cards appears over the message field: pick a choice, or write your own answer. Clear requests are simply done.</p></details>
+      <details><summary>Does it run AI models locally?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>OpenGhost is a desktop app, not a bundled local model. It connects to ChatGPT, OpenAI, Claude, DeepSeek, and OpenRouter. Your keys and sign-ins stay encrypted on your machine, but prompts and relevant context are sent to the provider you choose.</p></details>
+      <details><summary>What can it do on my computer?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>It can run commands, read and change files, work with git, search the web, and use its shared browser. Ask mode waits for approval; Auto works inside the project and asks before risky steps; Full access does not ask. Operating-system permissions still apply. Start with Ask while you get familiar with it.</p></details>
+      <details><summary>How are my credentials and chats protected?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Keys and provider sign-ins are stored on your computer, encrypted by the operating system. You can also lock an individual chat with a password: its content is encrypted locally, not merely hidden behind a lock screen. This does not make model requests offline; prompts and relevant context still go to the provider you select.</p></details>
+      <details><summary>What is the difference between Quick chat and Mini chat?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Quick chat opens over your desktop with Alt+Space or your own shortcut. It has its own model and effort and can search the web, but it has no built-in browser. Use its header arrows to open the conversation in the main app for browser work. Mini chat opens from a selected passage inside a conversation. It uses that chat as context, floats above it, and has its own agent and browser tab. Both can keep working when their small window is closed.</p></details>
+      <details><summary>Why does Quick chat’s shortcut not work?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Alt+Space may already belong to the operating system or another app. Settings → General shows a shortcut conflict; choose another combination there. On Linux, Wayland may not allow an app a global shortcut at all, and starting OpenGhost with the computer is configured through your desktop’s own settings.</p></details>
+      <details><summary>Why does the app stay running after I close it?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>With Quick chat enabled, closing the main window keeps OpenGhost in the tray so the shortcut still works. Quit from the tray icon, or turn Quick chat off in Settings → General. On Linux desktops without a tray, such as GNOME out of the box, start OpenGhost again to bring the window back; turn Quick chat off before closing the window to quit.</p></details>
+      <details><summary>Why does macOS still ask for permissions?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Ask, Auto, and Full access govern the agent, not macOS. The system separately controls access to Desktop, Documents, Downloads, and other apps. Approve the access you need, or use the Full Disk Access button in Settings → General to open the system setting. The app’s ad hoc signature lets macOS remember approvals for each build, but a new update needs approval again. It is not an Apple Developer ID signature, so first launch also requires right-click → Open or Privacy &amp; Security → Open Anyway.</p></details>
+      <details><summary>Do I need a project folder to start?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>No. Start a new chat and ask your question. It appears under Chats with a folder of its own for files the agent makes. When you work on a project, the conversation lives in that project’s folder. A project can provide its own instructions through an AGENTS.md file.</p></details>
+      <details><summary>How do memory and saved instructions differ?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Memory keeps short, editable records about you across chats, changing an existing record when something changes. You can add, edit, remove, or disable it in Settings → Memory. General settings are the instructions and reference files you explicitly supply for every chat. Those instructions and files remain available after a conversation is compacted.</p></details>
+      <details><summary>What happens when a conversation gets long?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>The plus menu’s Chat stats shows how full the context is, along with spending, tokens per reply, model share, and cache usage. Compact chat frees context, and the app also compacts automatically before the model’s window fills. Your saved General instructions and reference files are kept available through compaction.</p></details>
+      <details><summary>Can I build or modify it myself?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Yes, the source code is MIT-licensed. You need Node.js 22 or newer to build it. The OpenGhost name, logo, animations, and application design are excluded from that license. A published or distributed modified app must have its own name, logo, animations, and visual design. The excluded materials may not be used commercially; uses beyond the license’s allowances need the author’s written permission. Run the official app or an unchanged personal source build under the stated terms. See the <a href="#build-installers">installer commands</a> above and read the <a href="https://github.com/ANDRETRIPOL/OpenGhost/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">full license</a> before publishing.</p></details>
+      <details><summary>Where do I report a bug or share an idea?<svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Open an <a href="https://github.com/ANDRETRIPOL/OpenGhost/issues" target="_blank" rel="noopener noreferrer">issue on GitHub</a> with your operating system, OpenGhost version, and steps to reproduce it. You can also join the <a href="https://discord.gg/6cKd2UND5" target="_blank" rel="noopener noreferrer">Discord community</a>.</p></details>
+    </div></section>
+
+    <section class="source-band" id="community" aria-labelledby="community-title"><div class="source-layout container"><div class="source-copy"><span class="eyebrow">Support and feedback</span><h2 id="community-title">Support<br>the project.</h2><p>OpenGhost is free. Testing every release on real models costs money; sponsorship pays for API time and the work on new versions. If the app is useful to you, you can support its author directly.</p><a class="text-link" href="https://github.com/sponsors/ANDRETRIPOL" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-heart"/></svg>Sponsor the project<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></div><div class="source-copy"><h3>A useful report makes a difference.</h3><p>Found a bug? Include your operating system, OpenGhost version, steps to reproduce, and what you expected. Check screenshots and logs for private information before sharing them.</p><a class="text-link" href="https://github.com/ANDRETRIPOL/OpenGhost/issues" target="_blank" rel="noopener noreferrer">Report a bug or suggest an idea<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a><p>Join the Discord community to talk about the app and share what you are making.</p><a class="text-link" href="https://discord.gg/6cKd2UND5" target="_blank" rel="noopener noreferrer">Join Discord<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a><p class="source-license">Thanks to <a href="https://github.com/kodachromez" target="_blank" rel="noopener noreferrer">@kodachromez</a> and <a href="https://github.com/Bruno8R" target="_blank" rel="noopener noreferrer">@Bruno8R</a> for reports that led to fixes in v1.2.0 and v1.4.0.</p></div></div></section>
+  </main>
+  <footer class="site-footer"><div class="container"><div class="footer-top"><a class="brand" href="#" aria-label="Back to top"><svg class="ghost-icon" aria-hidden="true"><use href="#i-ghost"/></svg>OpenGhost</a><div class="footer-links"><a href="https://github.com/ANDRETRIPOL/OpenGhost" target="_blank" rel="noopener noreferrer">GitHub ↗</a><a href="https://github.com/ANDRETRIPOL/OpenGhost/releases" target="_blank" rel="noopener noreferrer">Releases</a><a href="https://discord.gg/6cKd2UND5" target="_blank" rel="noopener noreferrer">Discord</a><a href="https://github.com/sponsors/ANDRETRIPOL" target="_blank" rel="noopener noreferrer">Sponsor</a></div></div><div class="footer-signature" aria-hidden="true"><span>OpenGhost</span><svg class="ghost-icon"><use href="#i-ghost"/></svg></div><div class="footer-bottom"><p>Website concept and implementation by <a href="https://github.com/scadavide55" target="_blank" rel="noopener noreferrer">scadavide55</a>, for <a href="https://github.com/ANDRETRIPOL/OpenGhost" target="_blank" rel="noopener noreferrer">ANDRETRIPOL/OpenGhost</a>. Project name, logo, and product screenshots belong to ANDRETRIPOL and stay with him.</p><span class="footer-built"><svg class="icon" aria-hidden="true"><use href="#i-heart"/></svg>Built for the things you want to make.</span></div></div></footer>
+  <dialog class="image-dialog" id="image-dialog" aria-labelledby="dialog-title"><div class="dialog-top"><span id="dialog-title">Visual answers — OpenGhost</span><button class="dialog-close" id="dialog-close" type="button" aria-label="Close screenshot"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><img id="dialog-image" src="assets/visual.jpg" alt="OpenGhost visual answers screenshot"><p class="dialog-caption">Original screenshot from the OpenGhost repository.</p></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="locales/en.js"></script>
+  <script src="locales/it.js"></script>
+  <script src="locales/es.js"></script>
+  <script src="locales/fr.js"></script>
+  <script src="locales/ru.js"></script>
+  <script src="theme.js"></script>
+  <script src="locales/i18n.js"></script>
+  <script src="release-feed.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const $ = (selector) => document.querySelector(selector);
+      const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      document.documentElement.classList.toggle('motion-enabled', !reducedMotion.matches);
+      const previewAnimations = [];
+      const revealSelector = '.section-heading, .preview-card, .feature-card, .step, .source-copy, .code-card, .download-card, .faq-heading, .faq-list';
+      const revealTargets = new Set($$(revealSelector));
+      const revealed = new WeakSet();
+      let revealObserver;
+      const clearReveal = element => {
+        element.classList.remove('reveal-ready', 'reveal-in');
+        element.style.removeProperty('--reveal-delay');
+      };
+      const reveal = (element, instant = false) => {
+        if (revealObserver) revealObserver.unobserve(element);
+        if (revealed.has(element)) return;
+        revealed.add(element);
+        element.classList.remove('reveal-ready');
+        // Focus and anchor navigation must never wait for decoration.
+        if (instant || reducedMotion.matches || element.matches(':has(:focus-visible)')) {
+          clearReveal(element);
+          return;
+        }
+        const siblings = Array.from(element.parentElement.children).filter(child => child.matches(revealSelector));
+        const index = siblings.indexOf(element);
+        element.style.setProperty('--reveal-delay', `${Math.min(Math.max(index, 0), 2) * 60}ms`);
+        element.classList.add('reveal-in');
+      };
+      const observeReveal = element => {
+        if (!revealObserver || revealed.has(element)) return;
+        // Only prepare off-screen elements. Above-the-fold content never flashes hidden.
+        if (element.getBoundingClientRect().top >= window.innerHeight) element.classList.add('reveal-ready');
+        revealObserver.observe(element);
+      };
+      const startReveals = () => {
+        if (revealObserver) revealObserver.disconnect();
+        revealObserver = null;
+        if (reducedMotion.matches || typeof window.IntersectionObserver !== 'function') return;
+        try {
+          revealObserver = new IntersectionObserver(entries => {
+            entries.forEach(entry => { if (entry.isIntersecting) reveal(entry.target); });
+          }, { threshold: 0, rootMargin: '0px 0px -16px 0px' });
+          revealTargets.forEach(observeReveal);
+        } catch {
+          revealTargets.forEach(clearReveal);
+        }
+      };
+      ['animationend', 'animationcancel'].forEach(type => document.addEventListener(type, event => {
+        if (!revealTargets.has(event.target)) return;
+        // An entrance is more than one animation; clear only after the last of them.
+        if (typeof event.target.getAnimations !== 'function') { clearReveal(event.target); return; }
+        if (event.target.getAnimations().some(animation => animation.playState === 'running')) return;
+        clearReveal(event.target);
+      }, true));
+      document.addEventListener('focusin', event => {
+        if (!event.target.matches(':focus-visible')) return;
+        const target = event.target.closest(revealSelector);
+        if (target) reveal(target, true);
+      });
+      const revealAnchor = () => {
+        const target = document.getElementById(window.location.hash.slice(1));
+        if (!target) return;
+        revealTargets.forEach(element => {
+          if (target === element || target.contains(element) || element.contains(target)) reveal(element, true);
+        });
+      };
+      window.addEventListener('hashchange', revealAnchor);
+      const clearPreviewAnimations = () => {
+        previewAnimations.forEach(animation => animation.cancel());
+        previewAnimations.length = 0;
+        $$('.preview-outgoing').forEach(element => element.remove());
+      };
+      reducedMotion.addEventListener('change', () => {
+        document.documentElement.classList.toggle('motion-enabled', !reducedMotion.matches);
+        revealTargets.forEach(clearReveal);
+        clearPreviewAnimations();
+        startReveals();
+      });
+      startReveals();
+      revealAnchor();
+      // The release feed can replace its fallback cards after this script has run.
+      if (typeof MutationObserver === 'function') {
+        new MutationObserver(() => {
+          revealTargets.forEach(element => {
+            if (!element.isConnected) {
+              if (revealObserver) revealObserver.unobserve(element);
+              revealTargets.delete(element);
+            }
+          });
+          $$('#release-highlights .feature-card').forEach(element => {
+            if (revealTargets.has(element)) return;
+            revealTargets.add(element);
+            observeReveal(element);
+          });
+        }).observe($('#release-highlights'), { childList: true });
+      }
+      const heroArt = $('.hero-art');
+      const pointerQuery = window.matchMedia('(hover: hover) and (pointer: fine)');
+      let heroInView = true;
+      let artFrame = 0;
+      let artPoint = null;
+      const resetArt = () => {
+        if (artFrame) cancelAnimationFrame(artFrame);
+        artFrame = 0;
+        artPoint = null;
+        heroArt.style.removeProperty('--art-x');
+        heroArt.style.removeProperty('--art-y');
+        heroArt.style.removeProperty('--eye-x');
+        heroArt.style.removeProperty('--eye-y');
+      };
+      const updateHeroActivity = () => {
+        const paused = reducedMotion.matches || document.hidden || !heroInView;
+        heroArt.classList.toggle('hero-paused', paused);
+        if (paused) resetArt();
+      };
+      if (typeof window.IntersectionObserver === 'function') {
+        const heroObserver = new IntersectionObserver(entries => {
+          heroInView = entries[0].isIntersecting;
+          updateHeroActivity();
+        });
+        heroObserver.observe(heroArt);
+      }
+      heroArt.addEventListener('pointermove', event => {
+        if (reducedMotion.matches || !pointerQuery.matches || document.hidden || !heroInView || event.pointerType === 'touch') return;
+        artPoint = { x: event.clientX, y: event.clientY };
+        if (artFrame) return;
+        artFrame = requestAnimationFrame(() => {
+          artFrame = 0;
+          if (!artPoint) return;
+          const bounds = heroArt.getBoundingClientRect();
+          const x = Math.max(-1, Math.min(1, (artPoint.x - bounds.left) / bounds.width * 2 - 1));
+          const y = Math.max(-1, Math.min(1, (artPoint.y - bounds.top) / bounds.height * 2 - 1));
+          heroArt.style.setProperty('--art-x', `${(x * 7).toFixed(2)}px`);
+          heroArt.style.setProperty('--art-y', `${(y * 5).toFixed(2)}px`);
+          heroArt.style.setProperty('--eye-x', `${(x * 1.8).toFixed(2)}px`);
+          heroArt.style.setProperty('--eye-y', `${(y * 1.1).toFixed(2)}px`);
+        });
+      }, { passive: true });
+      heroArt.addEventListener('pointerleave', resetArt);
+      window.addEventListener('resize', resetArt, { passive: true });
+      pointerQuery.addEventListener('change', resetArt);
+      document.addEventListener('visibilitychange', updateHeroActivity);
+      reducedMotion.addEventListener('change', updateHeroActivity);
+      updateHeroActivity();
+      const header = $('#site-header');
+      const menuButton = $('.menu-toggle');
+      const mobileMenu = $('#mobile-menu');
+      const sectionLinks = $$('.nav-links a, #mobile-menu a[href^="#"]');
+      const navigationSections = ['features', 'whats-new', 'how-it-works', 'open-source', 'download'].map(id => document.getElementById(id));
+      const updateHeader = () => {
+        header.classList.toggle('scrolled', window.scrollY > 16);
+        const distance = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        header.style.setProperty('--scroll-progress', String(Math.max(0, Math.min(1, window.scrollY / distance))));
+        let active = null;
+        navigationSections.forEach(section => {
+          if (section.getBoundingClientRect().top <= Math.max(120, window.innerHeight * .28)) active = section.id;
+        });
+        sectionLinks.forEach(link => {
+          if (link.getAttribute('href') === `#${active}`) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        });
+      };
+      let headerFrame = 0;
+      const queueHeaderUpdate = () => {
+        if (headerFrame) return;
+        headerFrame = requestAnimationFrame(() => { headerFrame = 0; updateHeader(); });
+      };
+      window.addEventListener('scroll', queueHeaderUpdate, { passive: true });
+      window.addEventListener('resize', queueHeaderUpdate, { passive: true });
+      document.addEventListener('toggle', queueHeaderUpdate, true);
+      updateHeader();
+      const setMenu = (open) => {
+        mobileMenu.hidden = !open;
+        menuButton.setAttribute('aria-expanded', String(open));
+        menuButton.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+        menuButton.querySelector('use').setAttribute('href', open ? '#i-close' : '#i-menu');
+        header.classList.toggle('menu-open', open);
+        queueHeaderUpdate();
+      };
+      menuButton.addEventListener('click', () => setMenu(menuButton.getAttribute('aria-expanded') !== 'true'));
+      $$('#mobile-menu a').forEach(link => link.addEventListener('click', () => setMenu(false)));
+      document.addEventListener('keydown', event => { if (event.key === 'Escape' && !mobileMenu.hidden) { setMenu(false); menuButton.focus(); } });
+      window.matchMedia('(min-width:681px)').addEventListener('change', event => { if (event.matches) setMenu(false); });
+
+      // A mobile device must never be mistaken for a desktop Mac or Linux computer.
+      const userAgent = navigator.userAgent;
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      let platform = null;
+      if (!isMobile) {
+        const device = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || userAgent;
+        if (/Mac/i.test(device)) platform = 'mac';
+        else if (/Win/i.test(device)) platform = 'windows';
+        else if (/Linux/i.test(device)) platform = 'linux';
+      }
+      if (platform) {
+        const names = { mac: 'macOS', windows: 'Windows', linux: 'Linux' };
+        $('#hero-download').href = $(`[data-download="${platform}"]`).href;
+        $('#hero-download-label').textContent = `Download for ${names[platform]}`;
+        $(`[data-platform="${platform}"]`).classList.add('recommended');
+      }
+
+      const previews = {
+        visual: { number: '01 / VISUAL ANSWERS', title: 'It shows what it explains.', description: 'Charts and diagrams appear right in the reply. There are 43 drawing types, including training curves, meals, and travel routes. Hover to explore them or open the editor to make changes.', tag: 'Built-in drawing engine', alt: 'OpenGhost showing three model-training curves and live metric tiles in a dark chat interface', docs: '#it-shows-what-it-explains', label: 'Visual answers' },
+        browser: { number: '02 / BUILT-IN BROWSER', title: 'One browser. Both of you.', description: 'The agent opens pages, clicks, types, and reads in a browser panel you share. Watch it work, or take the controls yourself.', tag: 'A cursor of its own', alt: 'OpenGhost displaying a model-routing diagram beside its built-in browser on the right', docs: '#a-browser-with-its-own-cursor', label: 'Built-in browser' },
+        quick: { number: '03 / QUICK CHAT', title: 'A chat, one shortcut away.', description: 'Press Alt+Space, or your own shortcut. A small chat appears over your work. Ask, read, and close it. An active task can keep going.', tag: 'Since v1.4.5', alt: 'OpenGhost Quick chat floating over a blue desktop, showing a currency conversion example', docs: '#quick-chat-from-anywhere', label: 'Quick chat' },
+        editor: { number: '04 / LIVE EDITING', title: 'Make the drawing yours.', description: 'Change blocks, arrows, or the layout right inside the reply. Edit a table or the source, and watch the drawing follow as you type.', tag: 'Live, editable drawings', alt: 'OpenGhost with a flowchart and its interactive diagram editor open', docs: '#change-the-drawing-where-it-stands', label: 'Live editing' }
+      };
+      let activePreview = 'visual';
+      const tabs = $$('.preview-tab');
+      const image = $('#preview-image');
+      const dialog = $('#image-dialog');
+      // These are decoration only: native buttons continue to own state and focus.
+      const addIndicator = (parent, selected) => {
+        const marker = document.createElement('span');
+        marker.className = 'selection-indicator';
+        marker.setAttribute('aria-hidden', 'true');
+        const update = () => {
+          const button = parent.querySelector(selected);
+          if (!button) return;
+          marker.style.width = `${button.offsetWidth}px`;
+          marker.style.height = `${button.offsetHeight}px`;
+          marker.style.transform = `translate(${button.offsetLeft}px, ${button.offsetTop}px)`;
+        };
+        parent.prepend(marker);
+        update();
+        parent.classList.add('has-indicator');
+        if (typeof ResizeObserver === 'function') {
+          const observer = new ResizeObserver(update);
+          observer.observe(parent);
+          Array.from(parent.querySelectorAll('button')).forEach(button => observer.observe(button));
+        } else {
+          window.addEventListener('resize', update, { passive: true });
+        }
+        return update;
+      };
+      const updateTabIndicator = addIndicator($('.preview-tabs'), '[aria-selected="true"]');
+      const updateModeIndicator = addIndicator($('.mode-picker'), '[aria-pressed="true"]');
+      let previewRequest = 0;
+      let lastLoadedImage = { src: image.getAttribute('src'), alt: image.alt };
+      const selectPreview = (name, moveFocus = false) => {
+        const preview = previews[name];
+        if (!preview) return;
+        const changed = name !== activePreview;
+        activePreview = name;
+        tabs.forEach(tab => {
+          const selected = tab.dataset.preview === name;
+          tab.setAttribute('aria-selected', String(selected));
+          tab.tabIndex = selected ? 0 : -1;
+          if (selected && moveFocus) { tab.focus({ preventScroll: true }); tab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }); }
+        });
+        $('#feature-panel').setAttribute('aria-labelledby', `tab-${name}`);
+        $('#preview-number').textContent = preview.number;
+        $('#preview-title').textContent = preview.title;
+        $('#preview-description').textContent = preview.description;
+        $('#preview-tag').textContent = preview.tag;
+        $('#preview-docs').href = `https://github.com/ANDRETRIPOL/OpenGhost${preview.docs}`;
+        updateTabIndicator();
+        if (!changed) return;
+        const request = ++previewRequest;
+        clearPreviewAnimations();
+        let outgoing = null;
+        const canAnimate = !reducedMotion.matches && typeof image.animate === 'function';
+        if (canAnimate) {
+          outgoing = document.createElement('img');
+          outgoing.className = 'preview-outgoing';
+          outgoing.src = lastLoadedImage.src;
+          outgoing.alt = '';
+          outgoing.setAttribute('aria-hidden', 'true');
+          outgoing.width = 1600;
+          outgoing.height = 1202;
+          $('#expand-preview').append(outgoing);
+          previewAnimations.push($('.preview-story').animate(
+            [{ opacity: .55, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+            { duration: 340, easing: 'cubic-bezier(.22,1,.36,1)' }
+          ));
+        }
+        image.src = `assets/${name}.jpg`;
+        image.alt = preview.alt;
+        $('#expand-preview').setAttribute('aria-label', `Enlarge the ${preview.label.toLowerCase()} screenshot`);
+        $('#feature-panel').setAttribute('aria-busy', 'true');
+        const loaded = typeof image.decode === 'function' ? image.decode() : new Promise((resolve, reject) => {
+          if (image.complete) { image.naturalWidth ? resolve() : reject(); return; }
+          image.addEventListener('load', resolve, { once: true });
+          image.addEventListener('error', reject, { once: true });
+        });
+        loaded.then(() => {
+          if (request !== previewRequest) return;
+          lastLoadedImage = { src: image.getAttribute('src'), alt: preview.alt };
+          $('#feature-panel').removeAttribute('aria-busy');
+          if (outgoing && outgoing.isConnected && !reducedMotion.matches) {
+            const fade = outgoing.animate([{ opacity: 1 }, { opacity: 0 }],
+              { duration: 300, easing: 'ease-out', fill: 'forwards' });
+            previewAnimations.push(fade);
+            previewAnimations.push(image.animate(
+              [{ opacity: .7, transform: 'scale(.992)' }, { opacity: 1, transform: 'none' }],
+              { duration: 420, easing: 'cubic-bezier(.22,1,.36,1)' }
+            ));
+            fade.finished.then(() => outgoing.remove(), () => outgoing.remove());
+          } else if (outgoing) outgoing.remove();
+        }).catch(() => {
+          if (request !== previewRequest) return;
+          // A damaged/missing asset must not leave a blank image or a stuck overlay.
+          image.src = lastLoadedImage.src;
+          image.alt = lastLoadedImage.alt;
+          $('#feature-panel').removeAttribute('aria-busy');
+          if (outgoing) outgoing.remove();
+        });
+      };
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => selectPreview(tab.dataset.preview));
+        tab.addEventListener('keydown', event => {
+          let next;
+          if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+          else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+          else if (event.key === 'Home') next = 0;
+          else if (event.key === 'End') next = tabs.length - 1;
+          else return;
+          event.preventDefault();
+          selectPreview(tabs[next].dataset.preview, true);
+        });
+      });
+      $('#expand-preview').addEventListener('click', () => {
+        const displayed = Object.keys(previews).find(name => image.getAttribute('src') === `assets/${name}.jpg`) || activePreview;
+        const preview = previews[displayed];
+        $('#dialog-image').src = image.src;
+        $('#dialog-image').alt = image.alt;
+        $('#dialog-title').textContent = `${preview.label} — OpenGhost`;
+        dialog.showModal();
+        document.body.classList.add('modal-open');
+      });
+      $('#dialog-close').addEventListener('click', () => dialog.close());
+      dialog.addEventListener('click', event => { if (event.target === dialog) { const bounds = dialog.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close(); } });
+      dialog.addEventListener('close', () => document.body.classList.remove('modal-open'));
+
+      const modes = {
+        ask: 'Waits for your approval before commands, file changes, and the web.',
+        auto: 'Works inside the project folder and asks before a risky step.',
+        full: 'Acts without asking. Operating-system permissions still apply. Use with care.'
+      };
+      let modeAnimation;
+      reducedMotion.addEventListener('change', () => { if (modeAnimation) modeAnimation.cancel(); });
+      $$('.mode-button').forEach(button => button.addEventListener('click', () => {
+        const changed = button.getAttribute('aria-pressed') !== 'true';
+        $$('.mode-button').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+        $('#mode-description').textContent = modes[button.dataset.mode];
+        updateModeIndicator();
+        if (modeAnimation) modeAnimation.cancel();
+        if (changed && !reducedMotion.matches && typeof button.animate === 'function') {
+          modeAnimation = $('#mode-description').animate(
+            [{ opacity: .5, transform: 'translateY(3px)' }, { opacity: 1, transform: 'none' }],
+            { duration: 260, easing: 'ease-out' }
+          );
+        }
+      }));
+      let toastTimer;
+      const showToast = message => {
+        const toast = $('#toast');
+        toast.textContent = message;
+        toast.classList.add('visible');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('visible'), 3500);
+      };
+      const commands = 'git clone https://github.com/ANDRETRIPOL/OpenGhost.git\ncd OpenGhost\nnpm ci\nnpm start';
+      $('#copy-command').addEventListener('click', async () => {
+        const button = $('#copy-command');
+        button.disabled = true;
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(commands);
+          } else {
+            const field = document.createElement('textarea');
+            field.value = commands;
+            field.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+            document.body.appendChild(field);
+            field.select();
+            let copied = false;
+            try { copied = document.execCommand('copy'); } finally { field.remove(); button.focus({ preventScroll: true }); }
+            if (!copied) throw new Error('Clipboard unavailable');
+          }
+          $('#copy-label').textContent = 'Copied';
+          button.querySelector('use').setAttribute('href', '#i-check');
+          showToast('Build commands copied to your clipboard.');
+          setTimeout(() => { $('#copy-label').textContent = 'Copy'; button.querySelector('use').setAttribute('href', '#i-copy'); }, 2500);
+        } catch {
+          showToast('Clipboard unavailable. Select and copy the commands above.');
+        } finally { button.disabled = false; }
+      });
+
+      /* A soft light follows the pointer across cards. Without a fine pointer, or with reduced motion, nothing runs. */
+      const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
+      let spotFrame = 0, spotCard = null, spotX = 0, spotY = 0;
+      document.addEventListener('pointermove', event => {
+        if (!finePointer.matches || reducedMotion.matches) return;
+        if (event.pointerType && event.pointerType !== 'mouse') return;
+        const card = event.target && event.target.closest ? event.target.closest('.feature-card, .download-card') : null;
+        if (!card) return;
+        spotCard = card; spotX = event.clientX; spotY = event.clientY;
+        if (spotFrame) return;
+        spotFrame = requestAnimationFrame(() => {
+          spotFrame = 0;
+          const box = spotCard.getBoundingClientRect();
+          spotCard.style.setProperty('--mx', ((spotX - box.left) / box.width * 100).toFixed(2) + '%');
+          spotCard.style.setProperty('--my', ((spotY - box.top) / box.height * 100).toFixed(2) + '%');
+        });
+      }, { passive: true });
+    })();
+  </script>
+</body>
+</html>

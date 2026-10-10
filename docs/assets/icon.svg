@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="228" fill="#fafafa"/>
+  <g transform="translate(232.00 230.83) scale(9.6552)">
+    <path fill="#0f0f0f" d="M0 29A29 29 0 0 1 58 29L58 57A2.5 2.5 0 0 1 53 57A6 6 0 0 0 41 57A3 3 0 0 1 35 57A6 6 0 0 0 23 57A3 3 0 0 1 17 57A6 6 0 0 0 5 57A2.5 2.5 0 0 1 0 57Z"/>
+    <ellipse fill="#fafafa" cx="17" cy="29.5" rx="3.8" ry="4.1"/>
+    <ellipse fill="#fafafa" cx="41" cy="29.5" rx="3.8" ry="4.1"/>
+  </g>
+</svg>
