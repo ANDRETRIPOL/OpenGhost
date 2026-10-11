@@ -7,7 +7,7 @@ const bridge = window.openghost?.llm || null;
 const listeners = new Map();
 bridge?.onEvent(data => listeners.get(data.id)?.(data));
 
-const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', openrouter: 'OpenRouter' };
+const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', openrouter: 'OpenRouter', local: 'Local', custom: 'Custom API' };
 
 class ProviderError extends Error {
  constructor(message, status = 0) {
@@ -19,6 +19,11 @@ class ProviderError extends Error {
 
 function explain(provider, { status = 0, code = '', message = '' }) {
  const name = NAMES[provider] || provider;
+ // A local server is the user's own program: when it is not there the app says so in plain words, and when it answers
+ // with an error, its own words say more than a status would (a model too large for the memory, a name it does not know).
+ if (provider === 'local') return code === 'network' ? I18n.t('error.local') : message || I18n.t('error.statusOf', { provider: name, status });
+ // A service at the user's own address: the same, but a key it does not take is said as with any other provider.
+ if (provider === 'custom' && status !== 401) return code === 'network' ? I18n.t('error.custom') : message || I18n.t('error.statusOf', { provider: name, status });
  if (code === 'network') return I18n.t('error.connect', { provider: name });
  if (status === 401) return I18n.t(provider === 'chatgpt' ? 'error.signin' : 'error.key', { provider: name });
  if (status === 402 || code === 'insufficient_quota' || code === 'billing_error') return I18n.t('error.quota', { provider: name });
@@ -34,7 +39,7 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxT
  if (!bridge) return Promise.reject(new ProviderError(I18n.t('error.desktop', { provider: NAMES[config.provider] })));
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
-  provider: config.provider, key: config.key, model: config.model, effort: config.effort, vision: config.vision,
+  provider: config.provider, key: config.key, address: config.address, model: config.model, effort: config.effort, vision: config.vision,
   thinking: config.thinking, output: config.output, messages, tools, maxTokens, session, once,
  };
  return new Promise((resolve, reject) => {
@@ -96,10 +101,11 @@ async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
  return result.content.trim();
 }
 
-async function models(provider, key) {
+// `extra`: what a provider needs besides its key (see the main process's side).
+async function models(provider, key, extra) {
  if (provider === 'deepseek') return (await DeepSeek.listModels(key)).map(model => ({ ...model, provider: 'deepseek', api: model.id }));
  if (!bridge) return [];
- const reply = await bridge.models(provider, key);
+ const reply = await bridge.models(provider, key, extra);
  if (reply.error) throw new ProviderError(explain(provider, reply.error), reply.error.status);
  return reply.models;
 }

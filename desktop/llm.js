@@ -1,15 +1,17 @@
 'use strict';
 
-// Requests to OpenAI, Anthropic and OpenRouter run here in the main process: the Codex backend and the ChatGPT sign-in are out of reach of the page.
+// Requests to OpenAI, Anthropic, OpenRouter and a local server run here in the main process: the Codex backend, the ChatGPT sign-in and the
+// user's own computer are out of reach of the page.
 // The page starts a run by id and gets its deltas, then the result or the error, back as events.
 const { app, ipcMain } = require('electron');
 const OpenAI = require('./openai');
 const Claude = require('./anthropic');
 const ChatGPT = require('./chatgpt');
 const OpenRouter = require('./openrouter');
+const Local = require('./local');
 
 const runs = new Map();
-const ENGINES = { openai: OpenAI, chatgpt: OpenAI, anthropic: Claude, openrouter: OpenRouter };
+const ENGINES = { openai: OpenAI, chatgpt: OpenAI, anthropic: Claude, openrouter: OpenRouter, local: Local, custom: Local };
 const PROVIDERS = new Set(Object.keys(ENGINES));
 
 const engine = provider => ENGINES[provider];
@@ -39,10 +41,12 @@ async function start(sender, id, request) {
 function register(fromApp) {
  ipcMain.on('llm:start', (event, id, request) => { if (fromApp(event)) start(event.sender, id, request); });
  ipcMain.on('llm:abort', (event, id) => { if (fromApp(event)) runs.get(id)?.abort(); });
- ipcMain.handle('llm:models', async (event, provider, key) => {
+ // `extra`: what a provider needs besides its key: the address of a service, the names of models written in by hand.
+ ipcMain.handle('llm:models', async (event, provider, key, extra) => {
   if (!fromApp(event) || !PROVIDERS.has(provider)) return { models: [] };
+  const address = typeof extra?.address === 'string' ? extra.address : '', names = Array.isArray(extra?.names) ? extra.names.filter(name => typeof name === 'string' && name).slice(0, 50) : [];
   try {
-   return { models: await engine(provider).models({ provider, key }, { chatgpt: ChatGPT.credentials, version: app.getVersion() }) };
+   return { models: await engine(provider).models({ provider, key, address, names }, { chatgpt: ChatGPT.credentials, version: app.getVersion() }) };
   } catch (error) {
    return { error: { status: error.status || 0, code: error.code || '', message: error.message } };
   }

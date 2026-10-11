@@ -2,9 +2,9 @@
 'use strict';
 
 const STORAGE = { effort: 'deepseek.effort', mode: 'openghost.mode', model: 'openghost.model', catalog: 'openghost.catalog' };
-const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey', openrouter: 'openrouter.apiKey' };
+const KEYS = { openai: 'openai.apiKey', anthropic: 'anthropic.apiKey', deepseek: 'deepseek.apiKey', openrouter: 'openrouter.apiKey', local: 'local.address', custom: 'custom.apiKey' };
 // The order providers appear in, in the settings and in the model picker.
-const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek', 'openrouter'];
+const ORDER = ['chatgpt', 'openai', 'anthropic', 'deepseek', 'openrouter', 'local', 'custom'];
 // The provider the app starts with: the settings ask for its key when nothing is connected, and new chats take its first
 // model until the user picks another.
 const FIRST_PROVIDER = 'deepseek';
@@ -19,6 +19,20 @@ const LINKS = {
  deepseek: ['https://platform.deepseek.com/api_keys', 'platform.deepseek.com'],
  openrouter: ['https://openrouter.ai/keys', 'openrouter.ai'],
 };
+// What the user may write in by hand where a provider's own word is not enough. `models`: names of models its list
+// does not hold. `context`: the size of the window, for the providers whose servers may not tell it. `address`: where a
+// service lives, for the one that is reached by address and not only by key.
+const HAND = {
+ openai: { models: 'openai.models' },
+ anthropic: { models: 'anthropic.models' },
+ local: { models: 'local.models', context: 'local.context' },
+ custom: { models: 'custom.models', context: 'custom.context', address: 'custom.address' },
+};
+// A local server stands where a key would: its address is kept as one. `window`: the window a model is taken to have
+// when neither the server nor the user says.
+const LOCAL = { window: 32768, presets: [['Ollama', 'http://localhost:11434'], ['LM Studio', 'http://localhost:1234']] };
+// The providers reached by an address the user gives.
+const SERVED = new Set(['local', 'custom']);
 const PLACEHOLDERS = { anthropic: 'sk-ant-…', openrouter: 'sk-or-…' };
 const MODES = ['ask', 'auto', 'full'];
 const DEFAULT_MODE = 'ask';
@@ -27,6 +41,8 @@ const PAGE = { duration: 460, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const escapeHtml = text => String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+const checking = provider => I18n.t(I18n.has(`settings.${provider}.checking`) ? `settings.${provider}.checking` : 'settings.key.checking');
 
 function keyRow(provider) {
  const [href, host] = LINKS[provider];
@@ -45,6 +61,58 @@ function keyRow(provider) {
     <p class="settings-status" data-provider="${provider}" role="status"></p>
    </div>
   </div>`;
+}
+
+// A field for what is written by hand: a model's name, the size of a window, an address.
+function handRow(provider, name, placeholder, extra = '') {
+ const t = key => escapeHtml(I18n.t(`settings.${provider}.${key}`));
+ return `
+  <div class="settings-row">
+   <div class="settings-text">
+    <label class="settings-label" for="settings-${provider}-${name}">${t(name)}</label>
+    <p class="settings-hint">${t(`${name}.hint`)}</p>
+   </div>
+   <div class="settings-control">
+    <input id="settings-${provider}-${name}" class="settings-key settings-field" data-hand="${provider}.${name}" type="text" placeholder="${placeholder}" autocomplete="off" spellcheck="false">${extra}
+   </div>
+  </div>`;
+}
+
+function localRows() {
+ const t = name => escapeHtml(I18n.t(`settings.local.${name}`));
+ return `
+  <div class="settings-row">
+   <div class="settings-text">
+    <label class="settings-label" for="settings-key-local">${t('key')}</label>
+    <p class="settings-hint">${t('hint')}</p>
+   </div>
+   <div class="settings-control">
+    <div class="settings-key-box">
+     <input id="settings-key-local" class="settings-key settings-field" data-provider="local" type="text" placeholder="${LOCAL.presets[0][1]}" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="settings-presets">${LOCAL.presets.map(([name, address]) => `<button type="button" class="settings-preset" data-address="${address}">${name}</button>`).join('')}</div>
+    <p class="settings-status" data-provider="local" role="status"></p>
+   </div>
+  </div>${handRow('local', 'models', 'my-model')}${handRow('local', 'context', String(LOCAL.window))}`;
+}
+
+// A service that speaks the OpenAI API: where it lives, the key it asks for if it asks for one, and by hand what it
+// does not tell.
+function customRows() {
+ const t = name => escapeHtml(I18n.t(`settings.custom.${name}`));
+ return `${handRow('custom', 'address', 'https://api.example.com/v1', '\n    <p class="settings-status" data-provider="custom" role="status"></p>')}
+  <div class="settings-row">
+   <div class="settings-text">
+    <label class="settings-label" for="settings-key-custom">${t('key')}</label>
+    <p class="settings-hint">${t('hint')}</p>
+   </div>
+   <div class="settings-control">
+    <div class="settings-key-box">
+     <input id="settings-key-custom" class="settings-key" data-provider="custom" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false">
+     <button type="button" class="settings-key-eye" aria-label="${escapeHtml(I18n.t('settings.key.show'))}" aria-pressed="false">${Glyphs.eye}</button>
+    </div>
+   </div>
+  </div>${handRow('custom', 'models', 'model-id')}${handRow('custom', 'context', String(LOCAL.window))}`;
 }
 
 function accountRow() {
@@ -84,6 +152,7 @@ class Settings {
   this.list = dialog.querySelector('.settings-providers');
   this.unsaved = new Set();
   this.keys = this.readKeys();
+  this.hand = this.readHand();
   this.account = { connected: false };
   this.catalog = this.readCatalog();
   this.models = [];
@@ -99,7 +168,7 @@ class Settings {
   this.checks = {};
   this.checked = new Set();
   // Keys saved in an earlier session count as working until a check says otherwise.
-  this.accepted = new Set(Object.keys(KEYS).filter(provider => this.keys[provider]));
+  this.accepted = new Set(Object.keys(KEYS).filter(provider => this.has(provider)));
   this.build();
   this.pager();
   this.collect();
@@ -184,6 +253,35 @@ class Settings {
   return { ...Object.fromEntries(ORDER.map(provider => [provider, []])), ...saved };
  }
 
+ // What the user wrote by hand for each provider that takes it.
+ readHand() {
+  const read = name => name ? String(localStorage.getItem(name) || '').trim() : '';
+  return Object.fromEntries(Object.entries(HAND).map(([provider, at]) => {
+   const context = Math.round(Number(read(at.context).replace(/[\s,._]/g, ''))) || 0;
+   return [provider, { names: [...new Set(read(at.models).split(',').map(name => name.trim()).filter(Boolean))], context: context > 0 ? context : 0, address: read(at.address) }];
+  }));
+ }
+
+ // Whether a provider has been given what it is reached by: its key, or for a service at an address, the address.
+ has(provider) {
+  return provider === 'custom' ? !!this.hand.custom.address : !!this.keys[provider];
+ }
+
+ // What goes to a provider's list of models besides its key.
+ extra(provider) {
+  if (provider === 'custom') return { address: this.hand.custom.address };
+  if (HAND[provider]) return { names: this.hand[provider].names };
+  return undefined;
+ }
+
+ // A server's list with the user's own word laid over it: a name written by hand is a model even if the server did
+ // not list it, and a window written by hand is the window of every model of that provider.
+ byHand(provider, models) {
+  const hand = this.hand[provider], listed = new Set(models.map(model => model.api));
+  const own = hand.names.filter(name => !listed.has(name)).map(name => ({ id: `${provider}:${name}`, provider, api: name, name, context: 0, output: 0, vision: provider === 'custom', tools: true, efforts: ['none'], defaultEffort: 'none', thinking: 'none' }));
+  return [...models, ...own].map(model => ({ ...model, context: hand.context || model.context || LOCAL.window }));
+ }
+
  saveCatalog() {
   try { localStorage.setItem(STORAGE.catalog, JSON.stringify(this.catalog)); } catch {}
  }
@@ -224,6 +322,7 @@ class Settings {
  // The eye beside a key shows it for a moment's check; closing the settings hides every key again.
  reveal(provider, shown) {
   const input = this.inputs[provider], eye = input.nextElementSibling;
+  if (!eye) return;
   input.type = shown ? 'text' : 'password';
   input.parentElement.classList.toggle('is-revealed', shown);
   eye.setAttribute('aria-pressed', String(shown));
@@ -235,7 +334,7 @@ class Settings {
  }
 
  connected(provider) {
-  return provider === 'chatgpt' ? !!this.account.connected : !!this.keys[provider];
+  return provider === 'chatgpt' ? !!this.account.connected : this.has(provider);
  }
 
  // The badge turns green only once the provider has taken the key, so a mistyped key never looks connected.
@@ -276,6 +375,7 @@ class Settings {
    model: model?.api || id,
    name: model?.name || id,
    key: this.keys[provider] || '',
+   address: provider === 'custom' ? this.hand.custom.address : undefined,
    ready: !!model && this.connected(provider),
    effort,
    efforts,
@@ -342,8 +442,9 @@ class Settings {
  // models, and the model, effort and mode last chosen. The quick chat's window takes them in each time it is called.
  async reread() {
   this.keys = this.readKeys();
+  this.hand = this.readHand();
   for (const provider of Object.keys(KEYS)) {
-   if (this.keys[provider]) this.accepted.add(provider);
+   if (this.has(provider)) this.accepted.add(provider);
    else this.accepted.delete(provider);
   }
   this.catalog = this.readCatalog();
@@ -359,7 +460,7 @@ class Settings {
   this.read = Date.now();
   await this.syncAccount();
   await Promise.all([
-   ...Object.keys(KEYS).filter(provider => this.keys[provider]).map(provider => this.checkKey(provider)),
+   ...Object.keys(KEYS).filter(provider => this.has(provider)).map(provider => this.checkKey(provider)),
    this.account.connected ? this.refresh('chatgpt').catch(() => {}) : null,
   ]);
  }
@@ -383,9 +484,17 @@ class Settings {
  // Loads a provider's models into the catalog; the last request for a provider wins.
  async refresh(provider) {
   const token = (this.checks[provider] = (this.checks[provider] || 0) + 1);
-  const models = await Providers.models(provider, this.keys[provider]);
+  let models;
+  try {
+   models = await Providers.models(provider, this.keys[provider], this.extra(provider));
+  } catch (error) {
+   // A server that gives no list still serves the models the user named by hand. A key it does not take is another
+   // matter: nothing would answer.
+   if (!SERVED.has(provider) || !this.hand[provider].names.length || error.status === 401 || error.status === 403) throw error;
+   models = [];
+  }
   if (token !== this.checks[provider]) return false;
-  this.catalog[provider] = models;
+  this.catalog[provider] = SERVED.has(provider) ? this.byHand(provider, models) : models;
   this.saveCatalog();
   this.changed();
   return true;
@@ -393,18 +502,35 @@ class Settings {
 
  build() {
   this.list.innerHTML = [
-   section('openai', 'OpenAI', accountRow() + keyRow('openai')),
-   section('anthropic', 'Anthropic', keyRow('anthropic')),
+   section('openai', 'OpenAI', accountRow() + keyRow('openai') + handRow('openai', 'models', 'gpt-…')),
+   section('anthropic', 'Anthropic', keyRow('anthropic') + handRow('anthropic', 'models', 'claude-…')),
    section('deepseek', 'DeepSeek', keyRow('deepseek')),
    section('openrouter', 'OpenRouter', keyRow('openrouter')),
+   section('local', I18n.t('settings.local.name'), localRows()),
+   section('custom', I18n.t('settings.custom.name'), customRows()),
   ].join('');
   this.inputs = {};
-  for (const input of this.list.querySelectorAll('.settings-key')) {
+  for (const input of this.list.querySelectorAll('.settings-key[data-provider]')) {
    const provider = input.dataset.provider;
    this.inputs[provider] = input;
    input.value = this.keys[provider];
    input.addEventListener('input', () => this.onKeyInput(provider));
-   input.nextElementSibling.addEventListener('click', () => this.reveal(provider, input.type === 'password'));
+   input.nextElementSibling?.addEventListener('click', () => this.reveal(provider, input.type === 'password'));
+  }
+  for (const button of this.list.querySelectorAll('.settings-preset')) {
+   button.addEventListener('click', () => { this.inputs.local.value = button.dataset.address; this.onKeyInput('local'); });
+  }
+  // What is written by hand is kept as it is typed, and the provider's list is read again with it.
+  for (const input of this.list.querySelectorAll('[data-hand]')) {
+   const [provider, name] = input.dataset.hand.split('.'), at = HAND[provider][name];
+   input.value = localStorage.getItem(at) || '';
+   input.addEventListener('input', () => {
+    const value = input.value.trim();
+    if (value) localStorage.setItem(at, value);
+    else localStorage.removeItem(at);
+    this.hand = this.readHand();
+    if (this.has(provider) || name === 'address') this.onKeyInput(provider);
+   });
   }
   this.statuses = Object.fromEntries([...this.list.querySelectorAll('.settings-status')].map(node => [node.dataset.provider, node]));
   this.accountBox = this.list.querySelector('.settings-account');
@@ -483,7 +609,7 @@ class Settings {
    return;
   }
   for (const provider of Object.keys(KEYS)) {
-   if (this.keys[provider] && !this.checked.has(provider)) this.checkKey(provider);
+   if (this.has(provider) && !this.checked.has(provider)) this.checkKey(provider);
   }
  }
 
@@ -495,20 +621,20 @@ class Settings {
   this.timer = { ...this.timer };
   this.checked.delete(provider);
   this.accepted.delete(provider);
-  if (!key) {
+  if (!this.has(provider)) {
    this.setStatus(provider, '');
    this.changed();
    return;
   }
   this.paint();
-  this.setStatus(provider, I18n.t('settings.key.checking'));
+  this.setStatus(provider, checking(provider));
   this.timer[provider] = setTimeout(() => this.checkKey(provider), CHECK_DELAY);
  }
 
  // A working key shows only in the badge; the line under the field is for the check in progress and for what went wrong.
  async checkKey(provider) {
   const key = this.keys[provider];
-  this.setStatus(provider, I18n.t('settings.key.checking'));
+  this.setStatus(provider, checking(provider));
   try {
    const current = await this.refresh(provider);
    if (!current || key !== this.keys[provider]) return;
@@ -519,7 +645,9 @@ class Settings {
   } catch (error) {
    if (key !== this.keys[provider]) return;
    this.accepted.delete(provider);
-   this.setStatus(provider, error.message, 'error');
+   // A service that wants a key and was given none is not one that turned a key down.
+   const keyless = provider === 'custom' && !key && error.status === 401;
+   this.setStatus(provider, keyless ? I18n.t('settings.custom.needsKey') : error.message, 'error');
   }
   this.paint();
  }

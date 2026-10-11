@@ -13,8 +13,10 @@ const SHOT = { max: 1280, quality: 82, tall: 4 };
 const READ_MAX = 4 * 1024 * 1024;
 const WAIT_MAX = 60;
 const ALLOWED = new Set(['clipboard-sanitized-write', 'fullscreen', 'pointerLock']);
-// The browser names itself a plain Chrome on the computer it really runs on: a system in this line that differs from the
-// one a page can see for itself reads as a forgery, and sign-in is then refused (Google on a Mac).
+// The browser names itself a plain Chrome on the computer it really runs on. Not on a Mac: there Google refuses a new
+// sign-in to a browser that calls itself Chrome and is not ("This browser or app may not be secure"), and lets in the
+// one that says what it is, so on a Mac the name is left as Electron gives it.
+const PLAIN = process.platform !== 'darwin';
 const SYSTEM = { win32: 'Windows NT 10.0; Win64; x64', darwin: 'Macintosh; Intel Mac OS X 10_15_7' }[process.platform] || 'X11; Linux x86_64';
 const UA = `Mozilla/5.0 (${SYSTEM}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 const KEYS = {
@@ -311,7 +313,7 @@ function setup() {
  if (ready) return;
  ready = true;
  const ses = session.fromPartition(PARTITION);
- ses.setUserAgent(UA);
+ if (PLAIN) ses.setUserAgent(UA);
  ses.setPermissionRequestHandler((contents, permission, callback) => callback(ALLOWED.has(permission)));
  ses.setPermissionCheckHandler((contents, permission) => ALLOWED.has(permission));
  ses.on('will-download', (event, item, contents) => {

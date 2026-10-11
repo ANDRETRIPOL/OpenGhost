@@ -220,7 +220,9 @@ class BrowserPanel {
  }
 
  addTab(url, { title = '', after = null } = {}) {
-  const tab = { url, title, icon: '', loading: false, error: '', view: null, id: 0, ready: null, el: null };
+  // `agent`: the chat's agent opened this tab, by itself or by a link that opens in a new one, and the user has not
+  // taken it up since. The agent is told which these are, so that it closes them when done.
+  const tab = { url, title, icon: '', loading: false, error: '', view: null, id: 0, ready: null, el: null, agent: false };
   const at = after ? this.tabs.indexOf(after) + 1 : this.tabs.length;
   this.tabs.splice(at, 0, tab);
   while (this.tabs.length > TABS_MAX) this.close(this.tabs.find(item => item !== tab && item !== this.active) || this.tabs[0], { quiet: true });
@@ -319,6 +321,7 @@ class BrowserPanel {
   if (!url) return;
   const tab = this.active || this.newTab('', { focus: false });
   tab.error = '';
+  tab.agent = false;
   if (tab.view) tab.view.loadURL(url).catch(() => {});
   else this.createView(tab, url);
   tab.url = url;
@@ -404,8 +407,11 @@ class BrowserPanel {
 
  onEvent(data) {
   const from = this.tabs.find(tab => tab.id === data.id);
-  if (data.type === 'open') this.newTab(data.url, { after: from, background: data.background });
-  else if (data.type === 'key') {
+  if (data.type === 'open') {
+   // A page the chat's agent is at work in opened it, in the middle of a step of the agent's.
+   const agent = !!from && !from.owner && this.steps.size > 0 && this.control === 'agent' && from === this.current(null);
+   this.newTab(data.url, { after: from, background: data.background }).agent = agent;
+  } else if (data.type === 'key') {
    if (data.action === 'address') this.url.focus();
    else if (data.action === 'new') this.newTab();
    else if (data.action === 'close' && from) this.close(from);
@@ -526,6 +532,7 @@ class BrowserPanel {
  // The step the agent is in the middle of stops here: what it had not yet done to the page is not done.
  take() {
   this.control = 'user';
+  if (this.active) this.active.agent = false;
   for (const id of this.steps) { this.cut.add(id); tools?.cancel(id); }
   this.sync();
   this.active?.view?.focus();
@@ -592,7 +599,8 @@ class BrowserPanel {
    if (seat) return tab.owner === seat ? (tab === mine ? ' — your own tab, the one you work in' : ' — your own tab') : ' — not yours, leave it alone';
    return tab.owner ? ' — the mini chat\'s own tab, leave it to it' : tab === mine ? ' active' : '';
   };
-  return this.tabs.map((tab, k) => `${k + 1}. ${tab.title || (blank(tab.url) ? 'New tab' : hostOf(tab.url))}${blank(tab.url) ? '' : ` (${tab.url})`}${mark(tab)}`).join('\n');
+  const opened = tab => !seat && tab.agent && !tab.owner ? ' — opened by you' : '';
+  return this.tabs.map((tab, k) => `${k + 1}. ${tab.title || (blank(tab.url) ? 'New tab' : hostOf(tab.url))}${blank(tab.url) ? '' : ` (${tab.url})`}${mark(tab)}${opened(tab)}`).join('\n');
  }
 
  // A click of the agent's moves the keyboard into the page, as any click would, and the user's typing in the chat would
@@ -646,7 +654,10 @@ class BrowserPanel {
      tab.owner = apart;
      this.seats.set(apart, tab);
      this.settle(tab);
-    } else tab = this.newTab('', { focus: false });
+    } else {
+     tab = this.newTab('', { focus: false });
+     tab.agent = true;
+    }
     if (!args.url) return { text: `Opened a new empty tab.\n\nTabs:\n${this.tabsText(apart)}` };
     await this.ensure(apart);
     const result = await tools.run(id, 'browser_navigate', { url: args.url, tab: tab.id }, cwd);
@@ -673,7 +684,11 @@ class BrowserPanel {
  tabsLine(seat) {
   if (this.tabs.length < 2) return '';
   const mine = this.current(seat);
-  return `Tabs: ${this.tabs.map((tab, k) => `${k + 1}. ${tab.title || hostOf(tab.url) || 'New tab'}${tab === mine ? ' (this one)' : !seat && tab.owner ? ' (the mini chat\'s)' : ''}`).join(' · ')}`;
+  // The tabs the chat's agent opened and left behind the one it works in: one may be there to compare with, more are
+  // forgotten ones.
+  const left = seat ? [] : this.tabs.filter(tab => tab.agent && !tab.owner && tab !== mine);
+  const line = `Tabs: ${this.tabs.map((tab, k) => `${k + 1}. ${tab.title || hostOf(tab.url) || 'New tab'}${tab === mine ? ' (this one)' : !seat && tab.owner ? ' (the mini chat\'s)' : left.includes(tab) ? ' (opened by you)' : ''}`).join(' · ')}`;
+  return left.length > 1 ? `${line}\nYou have ${left.length} tabs open behind this one that you opened yourself. Close the ones you are done with (browser_tabs, action close) before you go on.` : line;
  }
 
  // What the browser holds, for the note at the end of each request; a closed browser with nothing in it says nothing.

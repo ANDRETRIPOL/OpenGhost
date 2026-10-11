@@ -13,8 +13,11 @@ const CLIENT_VERSION = '99.0.0';
 // What is taken of a model nothing more is known about: the window Codex itself works in, and the effort levels every
 // reasoning model has.
 const UNKNOWN = { context: 272000, efforts: ['low', 'medium', 'high'] };
-// With names alone to go by: which of them are chat models, and how many of the newest the picker gets.
-const NAMED = { chat: /^gpt-\d[\w.-]*$/, other: /audio|realtime|image|tts|transcribe|search|embedding|moderation|instruct|-\d{4}-\d{2}-\d{2}$/, max: 12 };
+// With names alone to go by: which of them are chat models. The rest of what a key lists draws, speaks, listens or
+// counts, and can't hold a chat.
+const NAMED = { chat: /^(gpt-\d|o\d|chatgpt-|ft:)/, other: /audio|realtime|image|tts|transcribe|search|embedding|moderation|instruct/ };
+// The models that turned down a word about thinking, remembered while the app runs: they are asked without one.
+const plain = new Set();
 
 const error = (message, status = 0, code = '') => Object.assign(new Error(message), { status, code });
 
@@ -66,12 +69,14 @@ async function catalog(who, headers, codexUrl) {
  return list;
 }
 
-// Without the catalogue only names are known: the chat models among them, the newest first.
+// A model only its name is known of: one the catalogue does not hold, or one the user wrote in by hand.
 const title = id => id.replace(/^gpt/, 'GPT').replace(/-([a-z])/g, (match, letter) => `-${letter.toUpperCase()}`);
-const named = list => list.filter(item => NAMED.chat.test(item.id) && !NAMED.other.test(item.id)).sort((a, b) => (b.created || 0) - (a.created || 0))
- .slice(0, NAMED.max).map(item => describe('openai')({ slug: item.id, display_name: title(item.id) }));
+const byName = id => ({ ...describe('openai')({ slug: id, display_name: /^ft:/.test(id) ? id : title(id) }), ...(plain.has(id) ? { efforts: ['none'], defaultEffort: 'none' } : {}) });
+const chats = list => list.filter(item => NAMED.chat.test(item.id) && !NAMED.other.test(item.id)).sort((a, b) => (b.created || 0) - (a.created || 0));
 
-async function models({ provider, key }, { chatgpt, version = '', apiUrl = API_URL, codexUrl = CODEX_URL } = {}) {
+// A key gets every chat model it may use: first the ones the catalogue describes, in the catalogue's order, then the
+// others by their names, the newest first, then the ones the user named by hand that neither holds.
+async function models({ provider, key, names = [] }, { chatgpt, version = '', apiUrl = API_URL, codexUrl = CODEX_URL } = {}) {
  if (provider === 'chatgpt') {
   const account = await chatgpt();
   return offered(await catalog(`chatgpt ${account.account || ''}`, signed(account, version), codexUrl)).map(describe('chatgpt'));
@@ -80,8 +85,14 @@ async function models({ provider, key }, { chatgpt, version = '', apiUrl = API_U
  if (!response.ok) throw await failure(response);
  const usable = new Map(((await response.json()).data || []).map(item => [item.id, item]));
  const listed = await catalog(`key ${key}`, { Authorization: `Bearer ${key}`, ...client(version) }, codexUrl).catch(() => null);
- if (!listed) return named([...usable.values()]);
- return offered(listed).filter(entry => entry.supported_in_api !== false && usable.has(entry.slug)).map(describe('openai'));
+ const rich = (listed || []).filter(entry => entry?.slug && entry.supported_in_api !== false && usable.has(entry.slug))
+  .sort((a, b) => (a.visibility === 'list' ? 0 : 1) - (b.visibility === 'list' ? 0 : 1) || (a.priority ?? Infinity) - (b.priority ?? Infinity)).map(describe('openai'));
+ // What the catalogue says is not for a key stays out, though the key's own list names it.
+ const have = new Set([...rich.map(model => model.api), ...(listed || []).filter(entry => entry?.supported_in_api === false).map(entry => entry.slug)]);
+ const rest = chats([...usable.values()]).filter(item => !have.has(item.id)).map(item => byName(item.id));
+ for (const model of rest) have.add(model.api);
+ const hand = [...new Set(names)].filter(id => !have.has(id)).map(byName);
+ return [...rich, ...rest, ...hand];
 }
 
 const text = content => typeof content === 'string' ? content : (content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
@@ -160,6 +171,9 @@ async function stream(request, context) {
   include: ['reasoning.encrypted_content'],
   reasoning: effort && effort !== 'none' ? { effort, summary: 'auto' } : { effort: 'none' },
  };
+ // A model that does not think takes no word about thinking.
+ const unthinking = () => { delete body.include; delete body.reasoning; };
+ if (plain.has(api)) unthinking();
  if (tools?.length) {
   body.tools = tools.map(tool => ({ type: 'function', name: tool.function.name, description: tool.function.description, parameters: tool.function.parameters, strict: false }));
   body.tool_choice = 'auto';
@@ -169,15 +183,28 @@ async function stream(request, context) {
  // sends the same key; the ChatGPT backend also reads it from the session-id header.
  if (request.session) body.prompt_cache_key = request.session;
  const { url, headers } = await target(request, context);
- let response;
- try {
-  response = await fetch(url, { method: 'POST', signal, headers: { ...headers, 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(body) });
- } catch (cause) {
-  if (cause.name === 'AbortError') throw cause;
-  throw error('network', 0, 'network');
+ const post = async () => {
+  try {
+   return await fetch(url, { method: 'POST', signal, headers: { ...headers, 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(body) });
+  } catch (cause) {
+   if (cause.name === 'AbortError') throw cause;
+   throw error('network', 0, 'network');
+  }
+ };
+ let response = await post(), stale = false;
+ if (!response.ok) {
+  const problem = await failure(response);
+  // An older model, one the catalogue does not describe, turns down the word about thinking every request carries: it
+  // is asked again without it, and the list of models is read anew so the app shows it as a model that does not think.
+  if (!(request.provider !== 'chatgpt' && body.reasoning && problem.status === 400 && /reasoning|encrypted_content/i.test(problem.message))) throw problem;
+  plain.add(api);
+  unthinking();
+  stale = true;
+  response = await post();
+  if (!response.ok) throw await failure(response);
  }
- if (!response.ok) throw await failure(response);
  const result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null, native: { provider: 'openai', items: [] } };
+ if (stale) result.stale = true;
  let textItem = '';
  const say = delta => { result.content += delta; onEvent({ type: 'content', delta }); };
  for await (const event of events(response.body)) {

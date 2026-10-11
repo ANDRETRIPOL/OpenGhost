@@ -16615,3 +16615,37 @@ html:not([data-theme="light"]) .viewer-frame .viewer-close:hover {
   height: 44px;
   border-top: 0;
 }
+
+/* The fields of the local models' section hold plain words, not keys: nothing to hide, so no eye and no room for one. */
+.settings-field {
+  padding-right: 16px;
+}
+
+.settings-presets {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.settings-preset {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 13px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: rgba(var(--fg-rgb), 0.8);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.settings-preset:hover {
+  background: rgba(var(--fg-rgb), 0.12);
+}
+
+.settings-preset:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}

@@ -29,7 +29,7 @@ const ROOM = { top: 52, right: 68, bottom: 10 };
 const FIT = 0.62;
 // Many models turn the list into a drum: rows away from its middle drift right, tilt and shrink a little.
 const DRUM = { reach: 320, shift: 34, tilt: 3.2, shrink: 0.07 };
-const GROUPS = { chatgpt: 'ChatGPT', openai: 'OpenAI API', anthropic: 'Anthropic', deepseek: 'DeepSeek', openrouter: 'OpenRouter' };
+const GROUPS = { chatgpt: 'ChatGPT', openai: 'OpenAI API', anthropic: 'Anthropic', deepseek: 'DeepSeek', openrouter: 'OpenRouter', local: 'Local', custom: 'Custom API' };
 // A provider with many models of many companies shows the companies, and a company opens into its models on a press:
 // from how many models on, how its models come out (the nearest first, a step apart, only as many as can be seen), and
 // how long the list takes to settle after a company opens or shuts.
