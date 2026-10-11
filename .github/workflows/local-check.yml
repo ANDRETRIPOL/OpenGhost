@@ -1,0 +1,45 @@
+name: Local models check
+
+# Runs the app's engine for local models against a real Ollama, on a machine of GitHub's. Started by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: A small model that calls tools
+        default: qwen2.5:3b
+      plain:
+        description: A small model that calls no tools
+        default: tinyllama:latest
+
+jobs:
+  ollama:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+      - name: Start Ollama
+        run: |
+          if ! curl -s -m 3 http://127.0.0.1:11434/api/version; then (nohup ollama serve > ollama.log 2>&1 &); fi
+          for i in $(seq 1 30); do curl -s -m 2 http://127.0.0.1:11434/api/version && break; sleep 1; done
+          ollama -v
+      - name: Pull the models
+        run: |
+          ollama pull "${{ inputs.model }}"
+          ollama pull "${{ inputs.plain }}"
+          ollama list
+      - name: The app's engine against the real server
+        env:
+          MODEL: ${{ inputs.model }}
+          PLAIN: ${{ inputs.plain }}
+        run: node .github/checks/local-real.js
+      - name: Ollama's own log
+        if: always()
+        run: |
+          ollama ps || true
+          (journalctl -u ollama --no-pager -n 80 2>/dev/null || true)
+          (tail -n 80 ollama.log 2>/dev/null || true)
