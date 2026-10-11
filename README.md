@@ -4,21 +4,21 @@
 
 Website: [andretripol.github.io/OpenGhost](https://andretripol.github.io/OpenGhost/)
 
-**v1.4.7 beta**
+**v1.4.6 beta**
 
-[Windows version 1.4.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.7/OpenGhost-1.4.7-Setup.exe)
+[Windows version 1.4.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.6/OpenGhost-1.4.6-Setup.exe)
 
-[Linux version 1.4.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.7/OpenGhost-1.4.7-linux.tar.gz)
+[Linux version 1.4.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.6/OpenGhost-1.4.6-linux.tar.gz)
 
-[macOS version 1.4.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.7/OpenGhost-1.4.7-mac.dmg)
+[macOS version 1.4.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.6/OpenGhost-1.4.6-mac.dmg)
 
 What's new:
-- Local models: give the address of Ollama, LM Studio or llama.cpp running on your computer, and its models show up in the model picker; the size of a model's context is set by hand or by the app itself.
-- Any OpenAI-compatible API, in a section of its own: the address of a service and its key.
-- Every model your key can use: an Anthropic key lists all its models, an OpenAI key every chat model, and both take a model by its ID.
-- The agent sees a task through: a result you can act on at once, with the exact items, prices, links and its own pick.
-- The agent keeps its browser tabs in order and closes the ones it is done with.
-- macOS: Google takes a new sign-in in the built-in browser.
+- The agent asks before it guesses. When a request can go several really different ways, the message field turns into a small deck of cards with choices; pick one or write your own answer. Clear requests are simply done.
+- Languages: English, Italian, French and Russian, in Settings under General. There is an About section too.
+- Limits at a glance: a button at the foot of the sidebar shows your ChatGPT limits and your DeepSeek and OpenRouter balances.
+- One clear glass for the buttons over the chat, the notes, the search and the small menus; a tidier list of chats; photos open in a frame.
+- macOS: the built-in browser names the system it really runs on, which fixes sites that misbehaved.
+- Fixes: chats with many drawings open without jumping, Full Disk Access is detected on macOS, and more.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
