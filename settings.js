@@ -262,6 +262,15 @@ class Settings {
   }));
  }
 
+ // The models of a server whose window is too small for the agent's own instructions, said under the address so the
+ // user learns it in the settings and not from a chat that goes wrong.
+ cramped(provider) {
+  if (!SERVED.has(provider)) return '';
+  const small = (this.catalog[provider] || []).filter(model => model.context < Providers.NEED);
+  if (!small.length) return '';
+  return I18n.t('settings.window.small', { models: small.slice(0, 3).map(model => `${model.name} (${model.context.toLocaleString('en-US')})`).join(', '), need: Providers.NEED.toLocaleString('en-US') });
+ }
+
  // Whether a provider has been given what it is reached by: its key, or for a service at an address, the address.
  has(provider) {
   return provider === 'custom' ? !!this.hand.custom.address : !!this.keys[provider];
@@ -279,7 +288,9 @@ class Settings {
  byHand(provider, models) {
   const hand = this.hand[provider], listed = new Set(models.map(model => model.api));
   const own = hand.names.filter(name => !listed.has(name)).map(name => ({ id: `${provider}:${name}`, provider, api: name, name, context: 0, output: 0, vision: provider === 'custom', tools: true, efforts: ['none'], defaultEffort: 'none', thinking: 'none' }));
-  return [...models, ...own].map(model => ({ ...model, context: hand.context || model.context || LOCAL.window }));
+  // A window written by hand is held to the largest the model can take, where the server tells that.
+  const sized = model => hand.context ? (model.limit ? Math.min(hand.context, model.limit) : hand.context) : model.context || (model.limit ? Math.min(model.limit, LOCAL.window) : LOCAL.window);
+  return [...models, ...own].map(model => ({ ...model, context: sized(model) }));
  }
 
  saveCatalog() {
@@ -376,6 +387,8 @@ class Settings {
    name: model?.name || id,
    key: this.keys[provider] || '',
    address: provider === 'custom' ? this.hand.custom.address : undefined,
+   // The window a model on a server of the user's works in: Ollama is asked for it with every request.
+   window: SERVED.has(provider) ? model?.context || LOCAL.window : undefined,
    ready: !!model && this.connected(provider),
    effort,
    efforts,
@@ -641,7 +654,10 @@ class Settings {
    this.accepted.add(provider);
    this.checked.add(provider);
    if (this.unsaved.has(provider)) this.setStatus(provider, I18n.t('settings.key.unsaved'), 'error');
-   else this.setStatus(provider, '');
+   else {
+    const small = this.cramped(provider);
+    this.setStatus(provider, small, small ? 'error' : '');
+   }
   } catch (error) {
    if (key !== this.keys[provider]) return;
    this.accepted.delete(provider);

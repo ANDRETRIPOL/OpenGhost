@@ -16649,3 +16649,11 @@ html:not([data-theme="light"]) .viewer-frame .viewer-close:hover {
 .settings-preset:focus-visible {
   box-shadow: 0 0 0 2px var(--focus-ring);
 }
+
+/* A long word under a field (a server's own error, a warning that names models) wraps under the field instead of
+   pushing the row apart. A short one stands as it did. */
+.settings-status {
+  max-width: 260px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}

@@ -7,6 +7,8 @@ const bridge = window.openghost?.llm || null;
 const listeners = new Map();
 bridge?.onEvent(data => listeners.get(data.id)?.(data));
 
+// The least window a model needs to hold the agent's instructions and tools (about 12,400 tokens) and still answer.
+const NEED = 16000;
 const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', openrouter: 'OpenRouter', local: 'Local', custom: 'Custom API' };
 
 class ProviderError extends Error {
@@ -39,7 +41,7 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxT
  if (!bridge) return Promise.reject(new ProviderError(I18n.t('error.desktop', { provider: NAMES[config.provider] })));
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
-  provider: config.provider, key: config.key, address: config.address, model: config.model, effort: config.effort, vision: config.vision,
+  provider: config.provider, key: config.key, address: config.address, window: config.window, model: config.model, effort: config.effort, vision: config.vision,
   thinking: config.thinking, output: config.output, messages, tools, maxTokens, session, once,
  };
  return new Promise((resolve, reject) => {
@@ -79,6 +81,8 @@ function counted(config, result) {
 }
 
 async function stream(config, options) {
+ // A model whose window is smaller than the agent's instructions would lose them without a word: said before it is asked.
+ if (config.window && config.window < NEED) throw new ProviderError(I18n.t('error.window', { window: config.window.toLocaleString('en-US'), need: NEED.toLocaleString('en-US') }));
  if (config.provider !== 'deepseek') return counted(config, await viaMain(config, options));
  const { messages, tools, signal, onReasoning, onContent } = options;
  return counted(config, await DeepSeek.streamChat({ key: config.key, model: config.model, effort: config.effort, vision: config.vision, messages, tools, signal, onReasoning, onContent }));
@@ -117,5 +121,5 @@ async function account(provider, key) {
  return reply?.account || null;
 }
 
-window.Providers = { stream, complete, models, account, NAMES, available: !!bridge };
+window.Providers = { stream, complete, models, account, NAMES, NEED, available: !!bridge };
 })();
