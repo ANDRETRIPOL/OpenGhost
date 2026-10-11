@@ -12,6 +12,9 @@
 // Ollama is spoken to in its own API, not the OpenAI one: its documentation says the OpenAI API has no way of setting a
 // model's context size, and Ollama starts a model with 4,096 tokens on most computers, far less than the agent's
 // instructions take. Every other server is spoken to through Chat Completions, made from the OpenRouter engine.
+const http = require('node:http');
+const https = require('node:https');
+
 const NO_VISION = '[A picture was here, but the selected model can\'t see pictures]';
 // A server that does not answer a question about itself is not waited for.
 const ASK = 2500;
@@ -47,11 +50,37 @@ function place(request) {
 
 const auth = token => token ? { Authorization: `Bearer ${token}` } : {};
 
+// A request for an answer that may be long in coming. A model on a slow computer reads the agent's instructions for
+// minutes before it sends anything at all, and `fetch` gives up on a server that has sent no headers within five (seen
+// with a real Ollama on a machine with no graphics card: the chat failed at 304 seconds). This one waits as long as the
+// model takes, and stops only when the user stops it. It answers in the shape of a fetch response: `ok`, `status`,
+// `body` to read in pieces, `json()`.
+function patient(url, { method = 'POST', headers = {}, body, signal } = {}) {
+ return new Promise((resolve, reject) => {
+  if (signal?.aborted) { reject(Object.assign(new Error('Aborted'), { name: 'AbortError' })); return; }
+  const target = new URL(url);
+  const request = (target.protocol === 'https:' ? https : http).request(target, { method, headers: { ...headers, ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}) } }, response => {
+   resolve({
+    ok: response.statusCode >= 200 && response.statusCode < 300,
+    status: response.statusCode,
+    body: response,
+    json: async () => { const pieces = []; for await (const piece of response) pieces.push(piece); return JSON.parse(Buffer.concat(pieces).toString('utf8')); },
+   });
+  });
+  const stop = () => request.destroy(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+  signal?.addEventListener('abort', stop, { once: true });
+  request.on('error', cause => reject(cause));
+  request.on('close', () => signal?.removeEventListener('abort', stop));
+  request.end(body);
+ });
+}
+
 // One request to the OpenAI API, at the first of the place's addresses that has such a path.
-async function reach(where, path, init = {}) {
+// `patient`: for a chat, whose answer may be long in coming.
+async function reach(where, path, init = {}, ask = fetch) {
  let response;
  for (const base of where.bases) {
-  response = await fetch(`${base}${path}`, { ...init, headers: { ...auth(where.token), ...init.headers } });
+  response = await ask(`${base}${path}`, { ...init, headers: { ...auth(where.token), ...init.headers } });
   if (response.status !== 404 && response.status !== 405) {
    found.set(where.id, base);
    where.bases = [base, ...where.bases.filter(item => item !== base)];
@@ -302,7 +331,7 @@ async function asking(request, at, send) {
 
 const sent = async (url, body, signal, headers = {}) => {
  try {
-  return await fetch(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  return await patient(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
  } catch (cause) {
   if (cause.name === 'AbortError') throw cause;
   throw error('network', 0, 'network');
@@ -386,7 +415,7 @@ async function stream(request, { signal, onEvent = () => {} } = {}) {
  if (where.root && await kindOf(where.root) === 'ollama') return chatOllama(request, where.root, { signal, onEvent });
  const { response, stale } = await asking(request, where.id, async asked => {
   try {
-   return await reach(where, '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(build({ ...request, vision: asked.pictures }, { tools: asked.tools })) });
+   return await reach(where, '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(build({ ...request, vision: asked.pictures }, { tools: asked.tools })) }, patient);
   } catch (cause) {
    if (cause.name === 'AbortError') throw cause;
    throw error('network', 0, 'network');

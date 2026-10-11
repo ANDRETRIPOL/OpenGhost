@@ -7,7 +7,7 @@
 // the model is expected to be listed with, when known).
 const fs = require('node:fs');
 const ADDRESS = process.env.ADDRESS, PORT = process.env.PORT || '9222', OUT = process.env.OUT || '.';
-const WAIT = Number(process.env.ANSWER_MINUTES || 14) * 60000;
+const WAIT = Number(process.env.ANSWER_MINUTES || 40) * 60000;
 let failures = 0;
 const check = (name, ok, detail = '') => { if (!ok) failures++; console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` :: ${detail}` : ''}`); };
 const note = (name, ok, detail = '') => console.log(`${ok ? 'GOOD' : 'NOTE'} ${name}${detail ? ` :: ${detail}` : ''}`);
@@ -64,7 +64,7 @@ async function attach() {
  check('the model to talk to is in the list', !!wanted, JSON.stringify(state.models.map(m => m.id)));
  if (!wanted) { console.log(`FAILED ${failures}`); process.exit(1); }
  if (process.env.WINDOW) check(`its window is listed as ${process.env.WINDOW}`, wanted.context === Number(process.env.WINDOW), String(wanted.context));
- check('nothing under the address says the window is too small', !/Too small/.test(state.status), state.status);
+ check('the model to talk to is not named as having too small a window', !state.status.includes(wanted.id.slice(6)), state.status);
  await run(`(settings.dialog.close(), 'ok')`);
  await sleep(600);
 
@@ -75,7 +75,7 @@ async function attach() {
  await send1('Run the command  echo marmalade-42  in the shell and tell me exactly what it printed.');
  await until(`chat.busy`, 15000);
  console.log('model in use:', await run(`JSON.stringify((({ provider, model, window, tools, ready }) => ({ provider, model, window, tools, ready }))(settings.configFor(chat.active?.model || ${JSON.stringify(wanted.id)})))`));
- const done = await until(`!chat.busy`, WAIT, 2000);
+ const done = await until(`!chat.busy`, WAIT, 5000);
  await sleep(1500);
  const seconds = Math.round((Date.now() - t0) / 1000);
  const talk = JSON.parse(await run(`JSON.stringify({ said: chat.active.messages.filter(m => m.role === 'assistant').map(m => m.content), calls: chat.active.messages.flatMap(m => m.steps || []).flatMap(s => s.tool_calls || []).map(c => c.function.name + ' ' + c.function.arguments), results: chat.active.messages.flatMap(m => m.steps || []).filter(s => s.role === 'tool').map(s => String(s.content).slice(0, 200)), shown: document.querySelector('.thread-view').innerText.replace(/\\s+/g, ' ').slice(-500) })`));

@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: The release to check
-        default: v1.4.7
+        description: The release to check, or "main" to build the app from the code as it stands
+        default: main
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -15,26 +15,33 @@ env:
 jobs:
   llamacpp:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: The released app
+      - name: The app
         run: |
-          gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --pattern '*linux.tar.gz'
-          mkdir app && tar -xzf *linux.tar.gz -C app --strip-components=1
-          ls app | head -20
+          if [ "${{ inputs.tag }}" = "main" ]; then
+            npm ci
+            npm run dist:linux
+            mv dist/linux-unpacked app
+          else
+            gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --pattern '*linux.tar.gz'
+            mkdir app && tar -xzf *linux.tar.gz -C app --strip-components=1
+          fi
           npx --yes @electron/asar extract app/resources/app.asar unpacked
-          node -e "console.log('released version:', require('./unpacked/package.json').version)"
+          node -e "console.log('app version:', require('./unpacked/package.json').version)"
       - name: A real llama.cpp server with a real model
         run: |
-          gh release download --repo ggml-org/llama.cpp --pattern 'llama-b*-bin-ubuntu-x64.tar.gz' --dir llama
+          build=$(gh api "repos/ggml-org/llama.cpp/releases?per_page=20" --jq '[.[] | select(.tag_name | test("^b[0-9]+$"))][0].tag_name')
+          echo "llama.cpp build: $build"
+          gh release download "$build" --repo ggml-org/llama.cpp --pattern "llama-$build-bin-ubuntu-x64.tar.gz" --dir llama
           mkdir llama/bin && tar -xzf llama/*.tar.gz -C llama/bin
           server=$(find llama/bin -type f -name llama-server | head -1)
           echo "server: $server"
-          curl -L --fail -o model.gguf https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
+          curl -sL --fail -o model.gguf https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
           ls -la model.gguf
           export LD_LIBRARY_PATH="$(dirname "$server"):$LD_LIBRARY_PATH"
           nohup "$server" -m model.gguf -c 32768 --host 127.0.0.1 --port 8080 --jinja > llama.log 2>&1 &
@@ -70,24 +77,31 @@ jobs:
 
   ollama:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: The released app
+      - name: The app
         run: |
-          gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --pattern '*linux.tar.gz'
-          mkdir app && tar -xzf *linux.tar.gz -C app --strip-components=1
+          if [ "${{ inputs.tag }}" = "main" ]; then
+            npm ci
+            npm run dist:linux
+            mv dist/linux-unpacked app
+          else
+            gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --pattern '*linux.tar.gz'
+            mkdir app && tar -xzf *linux.tar.gz -C app --strip-components=1
+          fi
           npx --yes @electron/asar extract app/resources/app.asar unpacked
-          node -e "console.log('released version:', require('./unpacked/package.json').version)"
+          node -e "console.log('app version:', require('./unpacked/package.json').version)"
       - name: A real Ollama with real models
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           if ! curl -s -m 3 http://127.0.0.1:11434/api/version; then (nohup ollama serve > ollama.log 2>&1 &); fi
           for i in $(seq 1 30); do curl -s -m 2 http://127.0.0.1:11434/api/version && break; sleep 1; done
           ollama pull qwen2.5:3b
+          ollama pull qwen2.5:1.5b
           ollama pull tinyllama:latest
           ollama list
       - name: The released engine against the real server
@@ -99,7 +113,7 @@ jobs:
       - name: The released app, used as a user would
         env:
           ADDRESS: http://127.0.0.1:11434
-          MODEL: qwen2.5:3b
+          MODEL: qwen2.5:1.5b
           WINDOW: 32768
           OUT: ${{ runner.temp }}/shots
         run: |
