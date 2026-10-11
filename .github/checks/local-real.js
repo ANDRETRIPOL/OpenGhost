@@ -3,7 +3,8 @@
 // The app's own engine for local models (desktop/local.js) against a real Ollama, started by the workflow beside it.
 // Nothing here stands in for the server: every answer is Ollama's. Prints what it got, and fails when a check fails.
 const path = require('node:path');
-const Local = require(path.join(__dirname, '..', '..', 'desktop', 'local.js'));
+// ENGINE: the engine file to test, when it is not the repository's own (the one unpacked from a release, say).
+const Local = require(process.env.ENGINE || path.join(__dirname, '..', '..', 'desktop', 'local.js'));
 
 const ROOT = 'http://127.0.0.1:11434';
 const MODEL = process.env.MODEL || 'qwen2.5:3b';

@@ -1,0 +1,121 @@
+name: Release check with real local models
+
+# Takes a released OpenGhost for Linux, starts a real local server beside it with a real small model, and uses the app
+# the way a user would: the address into the settings, a model picked, a message sent. Started by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release to check
+        default: v1.4.7
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  llamacpp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The released app
+        run: |
+          gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --pattern '*linux.tar.gz'
+          mkdir app && tar -xzf *linux.tar.gz -C app --strip-components=1
+          ls app | head -20
+          npx --yes @electron/asar extract app/resources/app.asar unpacked
+          node -e "console.log('released version:', require('./unpacked/package.json').version)"
+      - name: A real llama.cpp server with a real model
+        run: |
+          gh release download --repo ggml-org/llama.cpp --pattern 'llama-b*-bin-ubuntu-x64.tar.gz' --dir llama
+          mkdir llama/bin && tar -xzf llama/*.tar.gz -C llama/bin
+          server=$(find llama/bin -type f -name llama-server | head -1)
+          echo "server: $server"
+          curl -L --fail -o model.gguf https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
+          ls -la model.gguf
+          export LD_LIBRARY_PATH="$(dirname "$server"):$LD_LIBRARY_PATH"
+          nohup "$server" -m model.gguf -c 32768 --host 127.0.0.1 --port 8080 --jinja > llama.log 2>&1 &
+          for i in $(seq 1 120); do curl -s -m 2 http://127.0.0.1:8080/health | grep -q ok && break; sleep 2; done
+          curl -s http://127.0.0.1:8080/health
+          "$server" --version 2>&1 | head -3 || true
+      - name: The released engine against the real server
+        env:
+          ENGINE: ${{ github.workspace }}/unpacked/desktop/local.js
+          ADDRESS: http://127.0.0.1:8080
+          WINDOW: 32768
+        run: node .github/checks/llamacpp-real.js
+      - name: The released app, used as a user would
+        env:
+          ADDRESS: http://127.0.0.1:8080
+          WINDOW: 32768
+          OUT: ${{ runner.temp }}/shots
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          mkdir -p "$OUT"
+          xvfb-run -a -s '-screen 0 1440x900x24' bash -c "./app/openghost --no-sandbox --remote-debugging-port=9222 --user-data-dir='$RUNNER_TEMP/profile' > app.log 2>&1 & node .github/checks/app-real.js"
+      - name: The servers' own logs
+        if: always()
+        run: |
+          tail -n 60 llama.log || true
+          tail -n 40 app.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: llamacpp-shots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: ignore
+
+  ollama:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The released app
+        run: |
+          gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --pattern '*linux.tar.gz'
+          mkdir app && tar -xzf *linux.tar.gz -C app --strip-components=1
+          npx --yes @electron/asar extract app/resources/app.asar unpacked
+          node -e "console.log('released version:', require('./unpacked/package.json').version)"
+      - name: A real Ollama with real models
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          if ! curl -s -m 3 http://127.0.0.1:11434/api/version; then (nohup ollama serve > ollama.log 2>&1 &); fi
+          for i in $(seq 1 30); do curl -s -m 2 http://127.0.0.1:11434/api/version && break; sleep 1; done
+          ollama pull qwen2.5:3b
+          ollama pull tinyllama:latest
+          ollama list
+      - name: The released engine against the real server
+        env:
+          ENGINE: ${{ github.workspace }}/unpacked/desktop/local.js
+          MODEL: qwen2.5:3b
+          PLAIN: tinyllama:latest
+        run: node .github/checks/local-real.js
+      - name: The released app, used as a user would
+        env:
+          ADDRESS: http://127.0.0.1:11434
+          MODEL: qwen2.5:3b
+          WINDOW: 32768
+          OUT: ${{ runner.temp }}/shots
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          mkdir -p "$OUT"
+          xvfb-run -a -s '-screen 0 1440x900x24' bash -c "./app/openghost --no-sandbox --remote-debugging-port=9222 --user-data-dir='$RUNNER_TEMP/profile' > app.log 2>&1 & node .github/checks/app-real.js"
+          echo "what Ollama runs the model with after the app's chat:"
+          curl -s http://127.0.0.1:11434/api/ps
+      - name: The servers' own logs
+        if: always()
+        run: |
+          ollama ps || true
+          tail -n 40 app.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ollama-shots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: ignore
