@@ -54,7 +54,7 @@ async function attach() {
  await sleep(800);
  await run(`(() => { const input = settings.inputs.local; input.focus(); input.value = ${JSON.stringify(ADDRESS)}; input.dispatchEvent(new Event('input', { bubbles: true })); return 'ok'; })()`);
  const connected = await until(`settings.accepted.has('local') && settings.catalog.local.length > 0`, 30000);
- const state = JSON.parse(await run(`JSON.stringify({ models: settings.catalog.local.map(m => ({ id: m.id, context: m.context, limit: m.limit, vision: m.vision, tools: m.tools })), status: settings.statuses.local.textContent, badge: document.querySelector('.provider[data-provider="local"] .provider-state').textContent, count: document.querySelector('.provider[data-provider="local"] .provider-models').textContent })`));
+ const state = JSON.parse(await run(`JSON.stringify({ models: settings.catalog.local.map(m => ({ id: m.id, context: m.context, limit: m.limit, vision: m.vision, tools: m.tools, efforts: m.efforts, thinking: m.thinking })), status: settings.statuses.local.textContent, badge: document.querySelector('.provider[data-provider="local"] .provider-state').textContent, count: document.querySelector('.provider[data-provider="local"] .provider-models').textContent })`));
  console.log('settings:', JSON.stringify(state));
  check('the app connects to the server and lists its models', connected && state.badge === 'Connected' && state.models.length > 0, state.status);
  await run(`(document.querySelector('.provider[data-provider="local"]').scrollIntoView({ block: 'center' }), 'ok')`);

@@ -287,7 +287,10 @@ class Settings {
  // not list it, and a window written by hand is the window of every model of that provider.
  byHand(provider, models) {
   const hand = this.hand[provider], listed = new Set(models.map(model => model.api));
-  const own = hand.names.filter(name => !listed.has(name)).map(name => ({ id: `${provider}:${name}`, provider, api: name, name, context: 0, output: 0, vision: provider === 'custom', tools: true, efforts: ['none'], defaultEffort: 'none', thinking: 'none' }));
+  // A model named by hand is one nobody told anything about: a service's is offered the effort the OpenAI API takes,
+  // a local server's is left to think as it does by itself.
+  const think = provider === 'custom' ? { efforts: ['auto', 'low', 'medium', 'high'], defaultEffort: 'auto', thinking: 'levels' } : { efforts: ['auto'], defaultEffort: 'auto', thinking: 'none' };
+  const own = hand.names.filter(name => !listed.has(name)).map(name => ({ id: `${provider}:${name}`, provider, api: name, name, context: 0, output: 0, vision: provider === 'custom', tools: true, ...think }));
   // A window written by hand is held to the largest the model can take, where the server tells that.
   const sized = model => hand.context ? (model.limit ? Math.min(hand.context, model.limit) : hand.context) : model.context || (model.limit ? Math.min(model.limit, LOCAL.window) : LOCAL.window);
   return [...models, ...own].map(model => ({ ...model, context: sized(model) }));

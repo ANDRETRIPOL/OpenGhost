@@ -48,6 +48,17 @@ jobs:
           for i in $(seq 1 120); do curl -s -m 2 http://127.0.0.1:8080/health | grep -q ok && break; sleep 2; done
           curl -s http://127.0.0.1:8080/health
           "$server" --version 2>&1 | head -3 || true
+          curl -sL --fail -o think.gguf https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q8_0.gguf
+          nohup "$server" -m think.gguf -c 8192 --host 127.0.0.1 --port 8081 --jinja > think.log 2>&1 &
+          for i in $(seq 1 120); do curl -s -m 2 http://127.0.0.1:8081/health | grep -q ok && break; sleep 2; done
+          curl -s http://127.0.0.1:8081/health
+      - name: The effort of a thinking model, on the real server
+        env:
+          ENGINE: ${{ github.workspace }}/unpacked/desktop/local.js
+          SERVER: llamacpp
+          ADDRESS: http://127.0.0.1:8081
+          PLAIN_ADDRESS: http://127.0.0.1:8080
+        run: node .github/checks/effort-real.js
       - name: The released engine against the real server
         env:
           ENGINE: ${{ github.workspace }}/unpacked/desktop/local.js
@@ -103,7 +114,15 @@ jobs:
           ollama pull qwen2.5:3b
           ollama pull qwen2.5:1.5b
           ollama pull tinyllama:latest
+          ollama pull qwen3:1.7b
+          ollama pull deepseek-r1:1.5b
           ollama list
+      - name: The effort of thinking models, on the real server
+        env:
+          ENGINE: ${{ github.workspace }}/unpacked/desktop/local.js
+          SERVER: ollama
+          ADDRESS: http://127.0.0.1:11434
+        run: node .github/checks/effort-real.js
       - name: The released engine against the real server
         env:
           ENGINE: ${{ github.workspace }}/unpacked/desktop/local.js

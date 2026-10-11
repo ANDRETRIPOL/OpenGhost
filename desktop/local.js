@@ -112,7 +112,39 @@ async function ask(url, init = {}) {
 }
 
 const number = value => Number.isFinite(Number(value)) && Number(value) > 0 ? Math.round(Number(value)) : 0;
-const refusedTools = new Set(), refusedPictures = new Set();
+const refusedTools = new Set(), refusedPictures = new Set(), refusedThinking = new Set();
+
+// How much a model thinks, as the effort control shows it. 'none' is no thinking at all, 'on' thinking with no levels
+// to choose from, 'auto' whatever the model does by itself where the server does not tell; the rest are the model's own
+// levels. `thinking` says what the app may do about it: 'levels' it chooses among the efforts, 'fixed' the model always
+// thinks and takes no word about it, 'none' it does not think.
+// All of it is as the servers themselves answer, asked on 2026-10-11 (Ollama 0.40.3, llama.cpp b11557):
+//   Ollama      /api/show gives `thinking: { values, default }`: booleans for off and on, strings for named levels.
+//               qwen3 answers values [false, true]; with think false it does not think. deepseek-r1 has "thinking"
+//               among its capabilities and no `thinking` object: it thinks whatever it is told, think false included.
+//               A model with neither answers `think: true` with 400 "does not support thinking".
+//   llama.cpp   does not tell whether its model thinks: /props `chat_template_caps` is the same for a model that does
+//               and one that does not. `reasoning_effort: "none"` in a request stops qwen3's thinking and does no harm
+//               to a model that never thinks; named levels reach the template only when the caps say
+//               `supports_reasoning_effort`.
+//   LM Studio   /api/v1/models gives `capabilities.reasoning: { allowed_options, default }`, of off, on, low, medium,
+//               high (from its documentation; it was not run).
+const ORDER = ['none', 'auto', 'on', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+const sorted = levels => [...new Set(levels)].sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
+const NO_THINKING = { efforts: ['none'], defaultEffort: 'none', thinking: 'none' };
+const ALWAYS = { efforts: ['on'], defaultEffort: 'on', thinking: 'fixed' };
+const UNTOLD = { efforts: ['auto'], defaultEffort: 'auto', thinking: 'none' };
+// A server's own names for off and on, in the effort control's.
+const named = value => value === false || value === 'off' ? 'none' : value === true ? 'on' : typeof value === 'string' ? value : '';
+
+function chosen(values, standard) {
+ const efforts = sorted((values || []).map(named).filter(Boolean));
+ if (!efforts.some(level => level !== 'none')) return NO_THINKING;
+ // A model that can only think has nothing to choose.
+ if (efforts.length === 1) return { efforts, defaultEffort: efforts[0], thinking: 'fixed' };
+ const usual = named(standard);
+ return { efforts, defaultEffort: efforts.includes(usual) ? usual : efforts.find(level => level !== 'none'), thinking: 'levels' };
+}
 // Lists of models also hold ones that are no chat models, and say so only in their names.
 const NOT_CHAT = /whisper|tts|embed|rerank|moderation|speech|transcri|dall-e/i;
 
@@ -135,7 +167,8 @@ async function ollama(root) {
   const limit = number(Object.entries(shown?.model_info || {}).find(([name]) => name.endsWith('.context_length'))?.[1]);
   const can = Array.isArray(shown?.capabilities) ? shown.capabilities : null, runs = running.get(id) || 0;
   const context = runs >= AUTO ? runs : limit ? Math.min(limit, AUTO) : AUTO;
-  return { id, context, limit, chat: can ? can.includes('completion') : undefined, vision: can ? can.includes('vision') : undefined, tools: can ? can.includes('tools') : undefined };
+  const think = Array.isArray(shown?.thinking?.values) ? chosen(shown.thinking.values, shown.thinking.default) : can?.includes('thinking') ? ALWAYS : NO_THINKING;
+  return { id, context, limit, chat: can ? can.includes('completion') : undefined, vision: can ? can.includes('vision') : undefined, tools: can ? can.includes('tools') : undefined, think };
  }));
 }
 
@@ -152,6 +185,7 @@ async function lmstudio(root) {
   context: number(item.loaded_instances?.[0]?.config?.context_length),
   limit: number(item.max_context_length),
   vision: item.capabilities ? !!item.capabilities.vision : undefined,
+  think: Array.isArray(item.capabilities?.reasoning?.allowed_options) ? chosen(item.capabilities.reasoning.allowed_options, item.capabilities.reasoning.default) : NO_THINKING,
  }));
 }
 
@@ -169,7 +203,9 @@ async function llamacpp(root) {
  const props = await ask(`${root}/props`);
  const context = number(props.default_generation_settings?.n_ctx);
  if (!context && !props.modalities) throw error('not llama.cpp');
- return [{ id: '*', context, limit: context, vision: props.modalities ? !!props.modalities.vision : undefined }];
+ // Whether the model thinks is not told, so the choice is between what it does by itself and no thinking at all.
+ const levels = props.chat_template_caps?.supports_reasoning_effort ? ['low', 'medium', 'high'] : [];
+ return [{ id: '*', context, limit: context, vision: props.modalities ? !!props.modalities.vision : undefined, think: { efforts: sorted(['none', 'auto', ...levels]), defaultEffort: 'auto', thinking: 'levels' } }];
 }
 
 async function look(root) {
@@ -190,7 +226,7 @@ function kindOf(root) {
 const windowOf = item => number(item.context_length ?? item.context_window ?? item.max_context_length ?? item.max_model_len);
 
 // `at`: the server the model lives on. What a model turned down is remembered for that server alone.
-const described = (provider, at, { id, name = id, context = 0, limit = 0, vision, tools }) => ({
+const described = (provider, at, { id, name = id, context = 0, limit = 0, vision, tools, think }) => ({
  id: `${provider}:${id}`,
  provider,
  api: id,
@@ -204,7 +240,9 @@ const described = (provider, at, { id, name = id, context = 0, limit = 0, vision
  // see them once it has turned one down.
  vision: (provider === 'custom' ? vision !== false : vision === true) && !refusedPictures.has(`${at} ${id}`),
  tools: tools !== false && !refusedTools.has(`${at} ${id}`),
- efforts: ['none'], defaultEffort: 'none', thinking: 'none',
+ // A service does not say how its model thinks: the effort the OpenAI API takes is offered, and a model that turns it
+ // down is left to itself from then on. A local server that says nothing leaves the model to itself too.
+ ...(refusedThinking.has(`${at} ${id}`) ? UNTOLD : think || (provider === 'custom' ? { efforts: ['auto', 'low', 'medium', 'high'], defaultEffort: 'auto', thinking: 'levels' } : UNTOLD)),
 });
 
 // The models the server has. Reading the list is also the check that the address is right, the server is running and
@@ -237,6 +275,7 @@ async function models(request) {
    limit: told.limit || number(model.meta?.n_ctx_train) || (provider === 'custom' ? windowOf(model) : 0),
    vision: told.vision,
    tools: told.tools,
+   think: told.think,
   });
  });
 }
@@ -275,9 +314,11 @@ function convert(messages, { vision = false } = {}) {
 
 const functions = tools => tools.map(tool => ({ type: 'function', function: { name: tool.function.name, description: tool.function.description, parameters: tool.function.parameters } }));
 
-function build(request, { tools = true } = {}) {
+// `effort`: the word about thinking to send, in the server's own terms; nothing when there is none to send.
+function build(request, { tools = true, effort = '' } = {}) {
  const body = { model: request.model, messages: convert(request.messages, { vision: request.vision === true }), stream: true, stream_options: { include_usage: true } };
  if (request.maxTokens) body.max_tokens = request.maxTokens;
+ if (effort) body.reasoning_effort = effort;
  if (tools && request.tools?.length) body.tools = functions(request.tools);
  return body;
 }
@@ -318,18 +359,19 @@ function finished(result, calls, stale) {
 
 // A model that calls no tools, or sees no pictures, says so only when it is sent some: it is then asked again without
 // them, and the list of models is read anew so the app knows it too. `send(asked)` makes one request.
-async function asking(request, at, send) {
+// `thinking`: whether this request carries a word about thinking at all.
+async function asking(request, at, send, thinking = false) {
  const model = `${at} ${request.model}`;
  const pictured = request.vision === true && request.messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === 'image_url'));
- const asked = { tools: !refusedTools.has(model) && !!request.tools?.length, pictures: pictured && !refusedPictures.has(model) };
+ const asked = { tools: !refusedTools.has(model) && !!request.tools?.length, pictures: pictured && !refusedPictures.has(model), thinking: thinking && !refusedThinking.has(model) };
  let stale = false;
  for (;;) {
   const response = await send(asked);
   if (response.ok) return { response, stale };
   const problem = await failure(response);
-  const turned = problem.status !== 400 ? '' : asked.tools && /tool|function/i.test(problem.message) ? 'tools' : asked.pictures && /image|vision|multimodal|multi-modal/i.test(problem.message) ? 'pictures' : '';
+  const turned = problem.status !== 400 ? '' : asked.tools && /tool|function/i.test(problem.message) ? 'tools' : asked.pictures && /image|vision|multimodal|multi-modal/i.test(problem.message) ? 'pictures' : asked.thinking && /think|reason|effort/i.test(problem.message) ? 'thinking' : '';
   if (!turned) throw problem;
-  (turned === 'tools' ? refusedTools : refusedPictures).add(model);
+  ({ tools: refusedTools, pictures: refusedPictures, thinking: refusedThinking })[turned].add(model);
   asked[turned] = false;
   stale = true;
  }
@@ -376,12 +418,14 @@ function ollamaBody(request, asked) {
  if (number(request.window)) options.num_ctx = number(request.window);
  if (request.maxTokens) options.num_predict = request.maxTokens;
  const body = { model: request.model, messages: ollamaMessages(request.messages, asked.pictures), stream: true, options };
+ // `think`: false and true for off and on, a model's own word for a level. Sent only to a model that takes a choice.
+ if (asked.thinking) body.think = request.effort === 'none' ? false : request.effort === 'on' ? true : request.effort;
  if (asked.tools) body.tools = functions(request.tools);
  return body;
 }
 
 async function chatOllama(request, root, { signal, onEvent }) {
- const { response, stale } = await asking(request, root, asked => sent(`${root}/api/chat`, ollamaBody(request, asked), signal));
+ const { response, stale } = await asking(request, root, asked => sent(`${root}/api/chat`, ollamaBody(request, asked), signal), request.thinking === 'levels' && !!request.effort);
  const calls = [], result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
  try {
   for await (const line of lines(response.body)) {
@@ -418,15 +462,19 @@ async function chatOllama(request, root, { signal, onEvent }) {
 
 async function stream(request, { signal, onEvent = () => {} } = {}) {
  const where = place(request);
- if (where.root && await kindOf(where.root) === 'ollama') return chatOllama(request, where.root, { signal, onEvent });
+ const kind = where.root ? await kindOf(where.root) : 'service';
+ if (kind === 'ollama') return chatOllama(request, where.root, { signal, onEvent });
+ // The word about thinking, as each server takes it: LM Studio calls no thinking "off", the others "none"; 'auto'
+ // is the model left to itself, which is said by saying nothing.
+ const level = request.thinking !== 'levels' || !request.effort || request.effort === 'auto' ? '' : kind === 'lmstudio' && request.effort === 'none' ? 'off' : request.effort;
  const { response, stale } = await asking(request, where.id, async asked => {
   try {
-   return await reach(where, '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(build({ ...request, vision: asked.pictures }, { tools: asked.tools })) }, patient);
+   return await reach(where, '/chat/completions', { method: 'POST', signal, headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(build({ ...request, vision: asked.pictures }, { tools: asked.tools, effort: asked.thinking ? level : '' })) }, patient);
   } catch (cause) {
    if (cause.name === 'AbortError') throw cause;
    throw error('network', 0, 'network');
   }
- });
+ }, !!level);
  const calls = [], result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
  try {
   for await (const event of events(response.body)) {
