@@ -84,7 +84,7 @@ async function attach() {
  check('the answer came, with no error in the chat', done && talk.said.join('').trim().length > 0 && !/not answering|returned error|Retry$/.test(talk.shown), talk.shown);
  // Whether a small model follows the agent's long instructions is the model's doing, not the app's: noted, not failed.
  note('the model called a tool of the agent\'s', talk.calls.length > 0, talk.calls.join(' | '));
- note('and the answer holds what the command printed', /marmalade-42/.test(talk.said.join(' ')), talk.said.join(' ').slice(0, 200));
+ note('and the tool really ran and printed it', talk.results.some(text => /marmalade-42/.test(text)), talk.results.join(' | ').slice(0, 200));
 
  console.log(failures ? `FAILED ${failures}` : 'ALL PASSED');
  process.exit(failures ? 1 : 0);

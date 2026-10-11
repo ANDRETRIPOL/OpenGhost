@@ -59,7 +59,13 @@ function patient(url, { method = 'POST', headers = {}, body, signal } = {}) {
  return new Promise((resolve, reject) => {
   if (signal?.aborted) { reject(Object.assign(new Error('Aborted'), { name: 'AbortError' })); return; }
   const target = new URL(url);
-  const request = (target.protocol === 'https:' ? https : http).request(target, { method, headers: { ...headers, ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}) } }, response => {
+  const request = (target.protocol === 'https:' ? https : http).request(target, {
+   method,
+   // A connection of its own for every request: llama.cpp closes one after an answer, and a request sent down a
+   // connection kept from the last answer dies with it (seen with a real llama.cpp: the second message failed).
+   agent: false,
+   headers: { ...headers, ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}) },
+  }, response => {
    resolve({
     ok: response.statusCode >= 200 && response.statusCode < 300,
     status: response.statusCode,
