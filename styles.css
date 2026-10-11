@@ -16657,3 +16657,8 @@ html:not([data-theme="light"]) .viewer-frame .viewer-close:hover {
   text-align: right;
   overflow-wrap: anywhere;
 }
+
+/* A model with no effort to choose has no effort control in the composer. */
+.composer-effort[hidden] {
+  display: none;
+}

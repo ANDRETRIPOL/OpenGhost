@@ -45,6 +45,8 @@ class EffortSlider {
   this.locked = false;
   this.lens = 0;
   this.efforts = settings.efforts?.length ? settings.efforts.slice() : EFFORTS.slice();
+  // A model with one level has nothing to choose: its control is not shown at all.
+  button.toggleAttribute('hidden', this.efforts.length < 2);
   this.morph = new EffortMorph({
    panel, button, track: this.track, fill: this.fill, levels: this.efforts.length,
    onProgress: m => this.onMorph(m),
@@ -227,6 +229,8 @@ class EffortSlider {
   const same = next.length === this.efforts.length && next.every((level, i) => level === this.efforts[i]);
   if (same) return;
   this.efforts = next;
+  this.button.toggleAttribute('hidden', next.length < 2);
+  if (next.length < 2 && this.opened) this.close();
   this.button.setCount(next.length);
   this.morph.setLevels(next.length);
   this.fillTicks();
