@@ -2,8 +2,6 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5)
 
-Website: [andretripol.github.io/OpenGhost](https://andretripol.github.io/OpenGhost/)
-
 **v1.4.7 beta**
 
 [Windows version 1.4.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.7/OpenGhost-1.4.7-Setup.exe)
