@@ -1,33 +1,3 @@
-OpenGhost is covered by two terms.
-
-The MIT License below applies to the source code: the agent engine, the tools, and the rendering engine.
-
-It does not apply to the excluded materials. Those stay with Andrew, all rights reserved.
-
-Excluded materials:
-
-- the name OpenGhost, and any name close enough to be taken for it
-- the ghost logo, including the icon, the glyph, and the ghost on the splash screen
-- the animations
-- the visual design of the application, including its layout, its colours and its interface, in whole or in part
-- the images of the application and of the project: the screenshots, the artwork, and the website
-
-The excluded materials are not granted to anyone, in whole or in part, by this license or by anything short of written permission from Andrew.
-
-What you may do with the excluded materials:
-
-- run the official OpenGhost, and build and run it from this repository unchanged, for yourself
-- keep a fork on GitHub in order to propose changes to this repository
-
-What you may not do with the excluded materials, paid or free:
-
-- use any of them, in whole or in part, in anything you publish, distribute or host: not in a modified version, not under another name, not in a project of your own, not as a starting point, and not in a new design made to be taken for them. Renaming the project, replacing the logo, or redrawing the design does not lift this ban.
-- publish, distribute or host a modified version of the application, under any name. Only Andrew publishes OpenGhost, changed or unchanged.
-- redistribute the application, changed or unchanged, as your own project, under another name, or in a way that can be taken for the official OpenGhost
-- use them for any commercial purpose. Commercial purpose means any use in a product, a service or a company, or any use that is paid, advertised or made for profit. This includes a fork, a rebrand and a hosted version.
-
-Any other use of the excluded materials needs written permission from Andrew.
-
 MIT License
 
 Copyright (c) 2026 Andrew

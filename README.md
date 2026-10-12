@@ -159,6 +159,6 @@ OpenGhost is free. Testing it on real models costs money for every release, and 
 
 [@kodachromez](https://github.com/kodachromez) found eight real bugs in a single report, and [@Bruno8R](https://github.com/Bruno8R) noticed that API keys were kept in plain text. All of it is fixed in v1.2.0. @kodachromez then went through 1.3.0 and found where the browser could not be stopped and where a tab hung: fixed in v1.4.0. Thank you both.
 
-## License
+## Building on OpenGhost
 
-The code is under the MIT license. Everything visual is not: the name OpenGhost, the ghost logo, the animations, the visual design of the application and its images stay with the author, all rights reserved. No one may use them, in whole or in part, in anything published, distributed or hosted, and a modified version may not be published at all, under any name, paid or free. See [LICENSE](LICENSE).
+If you are working on a project that is related to OpenGhost and uses "openghost" as part of its name, for example "openghost-dashboard" or "openghost-mobile", please add a note to your README to clarify that it is not built by the OpenGhost author and is not affiliated with him in any way.
