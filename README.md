@@ -1,6 +1,6 @@
 # OpenGhost
 
-[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5)
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
 **v1.4.7 beta**
 
@@ -19,6 +19,8 @@ What's new:
 - macOS: Google takes a new sign-in in the built-in browser.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
+
+Try the app in your browser, with no install, on [the website](https://andretripol.github.io/OpenGhost/).
 
 OpenGhost is an open desktop agent for Windows, macOS and Linux. It runs commands, edits files, keeps git and works on the web in a browser of its own. And it shows what it explains: charts, schemes, photos and videos stand next to the text.
 
