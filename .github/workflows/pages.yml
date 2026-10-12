@@ -2,29 +2,21 @@ name: Website
 
 # Publishes the website (site/) to GitHub Pages, with the real app from this repository inside it as the demo.
 # It runs when main changes and when a release is published, so the page always shows the latest version
-# (release.json) and links straight to its files.
+# (release.json) and links straight to its files. A pull request gets the same build as a check, without publishing.
 on:
   push:
     branches: [main]
+  pull_request:
   release:
     types: [published, edited]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,9 +42,34 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > _site/release.json || echo '{}' > _site/release.json
           touch _site/.nojekyll
 
-      - uses: actions/configure-pages@v5
+      - name: Check the site
+        run: |
+          set -euo pipefail
+          for script in _site/app/*.js; do node --check "$script"; done
+          # Every file the page and the app ask for is there.
+          for name in splash-mist.js ghost-thinking.js liquid-glass.js splash.js desktop/icon.png; do test -f "_site/app/$name"; done
+          for name in $(grep -o 'src="[^"]*\.js"' _site/app/index.html | sed 's/src="//;s/"$//'); do test -f "_site/app/$name" || { echo "missing app/$name"; exit 1; }; done
+          for name in $(grep -o 'src="media/[^"]*"' _site/index.html | sed 's/src="//;s/"$//'); do test -f "_site/$name" || { echo "missing $name"; exit 1; }; done
+
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: _site
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
       - id: deployment
         uses: actions/deploy-pages@v4
