@@ -2710,9 +2710,9 @@ function radarScene(data, tones, { width }) {
  const W = Math.max(2 * (labelW + 16 + R), legend ? legend.width : 0), cx = W / 2, cy = top + 22 + R;
  const angle = i => -Math.PI / 2 + i * 2 * Math.PI / n;
  const at = (i, r) => [cx + Math.cos(angle(i)) * r, cy + Math.sin(angle(i)) * r];
- const ring = r => data.circle ? Array.from({ length: 64 }, (_, k) => [cx + Math.cos(k / 64 * 2 * Math.PI) * r, cy + Math.sin(k / 64 * 2 * Math.PI) * r]).flat() : data.axes.flatMap((_, i) => at(i, r));
+ const outline = r => data.circle ? Array.from({ length: 64 }, (_, k) => [cx + Math.cos(k / 64 * 2 * Math.PI) * r, cy + Math.sin(k / 64 * 2 * Math.PI) * r]).flat() : data.axes.flatMap((_, i) => at(i, r));
  for (let k = 1; k <= data.levels; k++) {
-  items.push({ key: `rg:${k}`, type: 'poly', layer: 'back', order: k * 0.1, props: { vs: ring(R * k / data.levels) }, fixed: { cx, cy, cls: `dg-radar-grid${k === data.levels ? ' is-outer' : ''}` } });
+  items.push({ key: `rg:${k}`, type: 'poly', layer: 'back', order: k * 0.1, props: { vs: outline(R * k / data.levels) }, fixed: { cx, cy, cls: `dg-radar-grid${k === data.levels ? ' is-outer' : ''}` } });
   if (k < data.levels) items.push({ key: `rt:${k}`, type: 'label', layer: 'front', order: 0.6, props: { x: cx + 5, y: cy - R * k / data.levels - 6 }, fixed: { lines: [format(lo + (hi - lo) * k / data.levels)], anchor: 'start', cls: 'dg-tick is-radar' } });
  }
  let low = cy + R;
