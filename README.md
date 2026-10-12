@@ -1,3 +1,7 @@
+**Visualize, explore and learn in a new way, with OpenGhost.**
+
+![OpenGhost answering a question and drawing the charts that explain it](images/demo.gif)
+
 # OpenGhost
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
