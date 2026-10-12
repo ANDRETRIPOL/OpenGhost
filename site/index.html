@@ -1,0 +1,1777 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="OpenGhost">
+<meta property="og:title" content="OpenGhost — the AI agent that shows you">
+<meta property="og:description" content="A free, open desktop AI agent for Windows, macOS and Linux. It runs commands, edits files, browses the web and answers with charts, schemes and photos. Works with Claude, ChatGPT, DeepSeek, OpenRouter and local models.">
+<meta property="og:url" content="https://andretripol.github.io/OpenGhost/">
+<meta property="og:image" content="https://andretripol.github.io/OpenGhost/media/visual.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#eef1f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111216" media="(prefers-color-scheme: dark)">
+<title>OpenGhost</title>
+<meta name="description" content="OpenGhost is a free, open desktop AI agent for Windows, macOS and Linux that answers with charts, schemes and photos. Try the real app in your browser.">
+<link rel="icon" href="app/desktop/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500..700&family=Inter:opsz,wght@14..32,400..650&family=JetBrains+Mono:wght@400;500&display=swap">
+<script>
+// Before the first paint: the theme, the language, and whether the opening plays.
+(() => {
+  const root = document.documentElement;
+  // Inside another site's frame, animation frames can be timed from the outer page's start; every frame gets this page's own time.
+  const raf = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = callback => raf(() => callback(performance.now()));
+  const read = (store, key) => { try { return window[store].getItem(key); } catch { return null; } };
+  const host = root.getAttribute('data-theme');
+  const picked = read('sessionStorage', 'og.site.theme');
+  root.dataset.theme = picked === 'light' || picked === 'dark' ? picked : host === 'light' || host === 'dark' ? host : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  window.__hostTheme = host === 'light' || host === 'dark' ? host : '';
+  const lang = read('localStorage', 'og.site.lang');
+  root.lang = lang === 'ru' || lang === 'en' ? lang : /^(ru|be|uk|kk)\b/i.test(navigator.language || '') ? 'ru' : 'en';
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) root.classList.add('is-splash');
+  // The app's ghost asks for its label in the app's words; the website has one word for it.
+  window.I18n = { t: () => 'OpenGhost' };
+})();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  /* Ground: the app's own light, falling from the left corners onto a cool paper. */
+  --bg: rgb(238, 241, 246);
+  --haze-1: rgba(198, 213, 236, 0.95);
+  --haze-2: rgba(212, 208, 240, 0.85);
+  --haze-3: rgba(246, 232, 214, 0.55);
+  --haze-4: rgba(255, 255, 255, 0.8);
+  /* Ink, from what you read first to what only frames it. */
+  --ink-rgb: 12, 15, 22;
+  --ink-1: rgba(var(--ink-rgb), 0.92);
+  --ink-2: rgba(var(--ink-rgb), 0.64);
+  --ink-soft: rgba(var(--ink-rgb), 0.46);
+  --ink-3: rgba(var(--ink-rgb), 0.58);
+  --ink-4: rgba(var(--ink-rgb), 0.12);
+  --line: rgba(var(--ink-rgb), 0.08);
+  /* The one solid colour: the app's black pill, white on the dark theme. */
+  --solid-rgb: 23, 23, 23;
+  --on-solid: rgb(255, 255, 255);
+  /* Light that means "live" or "here": focus, the version dot. */
+  --glow-rgb: 92, 118, 230;
+  /* Surfaces of glass. */
+  --pane: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.5));
+  --pane-rim: linear-gradient(155deg, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.35) 30%, rgba(30, 48, 88, 0.09) 62%, rgba(255, 255, 255, 0.9));
+  --pane-shade: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 1px rgba(30, 48, 88, 0.04);
+  --pane-drop: 0 1px 2px rgba(30, 48, 88, 0.05), 0 22px 50px -26px rgba(30, 48, 88, 0.28);
+  --pane-blur: blur(22px) saturate(1.6);
+  /* The app's glass buttons, as they are in the app. */
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.55) 55%, rgba(255, 255, 255, 0.7));
+  --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 1), rgba(0, 0, 0, 0.1) 32%, rgba(0, 0, 0, 0.06) 62%, rgba(255, 255, 255, 0.8));
+  --glass-shade: inset 0 1px 1px rgba(255, 255, 255, 0.9), inset 0 -1px 2px rgba(0, 0, 0, 0.06);
+  --glass-drop: 0 3px 10px rgba(0, 0, 0, 0.1);
+  --glass-backdrop: blur(10px) saturate(1.5) brightness(1.03);
+  /* The drawing engine's palette, for the small drawings. */
+  --t1: 72, 133, 223;
+  --t2: 202, 103, 25;
+  --t3: 9, 148, 133;
+  --t4: 128, 84, 226;
+  --up: 22, 138, 70;
+  --down: 214, 48, 40;
+  --shot-filter: none;
+  /* What the app's opening reads. */
+  --chat-bg: var(--bg);
+  --composer-accent-rgb: 23, 23, 23;
+  --splash-night: rgb(243, 244, 250);
+  --splash-mist-deep: rgb(200, 203, 230);
+  --splash-mist-lit: rgb(255, 255, 255);
+  --splash-glow: rgb(124, 116, 228);
+  --splash-core: rgb(88, 80, 204);
+  --splash-mist-alpha: 0.75;
+  --splash-glow-alpha: 0.42;
+  --splash-trail: 0.9;
+  --splash-motes: 0;
+  --splash-shade: 0.07;
+  --splash-aura: rgba(166, 186, 242, 0.4);
+  --splash-glow-rgb: 92, 118, 230;
+
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display: "Inter Tight", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --gutter: clamp(16px, 4vw, 40px);
+  --wide: 1180px;
+  --measure: 62ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: rgb(17, 18, 22);
+    --haze-1: rgba(62, 76, 112, 0.55);
+    --haze-2: rgba(64, 58, 104, 0.48);
+    --haze-3: rgba(38, 72, 84, 0.3);
+    --haze-4: rgba(120, 140, 200, 0.08);
+    --ink-rgb: 255, 255, 255;
+    --ink-1: rgba(var(--ink-rgb), 0.93);
+    --ink-2: rgba(var(--ink-rgb), 0.66);
+    --ink-soft: rgba(var(--ink-rgb), 0.44);
+    --ink-3: rgba(var(--ink-rgb), 0.52);
+    --ink-4: rgba(var(--ink-rgb), 0.13);
+    --line: rgba(var(--ink-rgb), 0.09);
+    --solid-rgb: 250, 250, 250;
+    --on-solid: rgb(15, 15, 15);
+    --glow-rgb: 150, 172, 255;
+    --pane: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03));
+    --pane-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08) 32%, rgba(255, 255, 255, 0.03) 62%, rgba(255, 255, 255, 0.18));
+    --pane-shade: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 -1px 1px rgba(0, 0, 0, 0.2);
+    --pane-drop: 0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 56px -24px rgba(0, 0, 0, 0.75);
+    --pane-blur: blur(22px) saturate(1.4);
+    --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 55%, rgba(255, 255, 255, 0.05));
+    --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.14) 32%, rgba(255, 255, 255, 0.05) 62%, rgba(255, 255, 255, 0.38));
+    --glass-shade: inset 0 1px 1px rgba(255, 255, 255, 0.22), inset 0 -1px 2px rgba(0, 0, 0, 0.25);
+    --glass-drop: 0 3px 10px rgba(0, 0, 0, 0.35);
+    --glass-backdrop: blur(10px) saturate(1.6) brightness(1.08);
+    --t1: 96, 156, 240;
+    --t2: 232, 132, 52;
+    --t3: 38, 186, 166;
+    --t4: 160, 126, 255;
+    --up: 110, 205, 140;
+    --down: 255, 115, 105;
+    --shot-filter: brightness(0.92);
+    --composer-accent-rgb: 250, 250, 250;
+    --splash-night: rgb(13, 14, 22);
+    --splash-mist-deep: rgb(26, 30, 48);
+    --splash-mist-lit: rgb(150, 168, 240);
+    --splash-glow: rgb(150, 170, 255);
+    --splash-core: rgb(232, 238, 255);
+    --splash-mist-alpha: 0.55;
+    --splash-glow-alpha: 0.5;
+    --splash-trail: 0.35;
+    --splash-motes: 1;
+    --splash-shade: 0.5;
+    --splash-aura: rgba(86, 104, 172, 0.34);
+    --splash-glow-rgb: 150, 172, 255;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: rgb(17, 18, 22);
+  --haze-1: rgba(62, 76, 112, 0.55);
+  --haze-2: rgba(64, 58, 104, 0.48);
+  --haze-3: rgba(38, 72, 84, 0.3);
+  --haze-4: rgba(120, 140, 200, 0.08);
+  --ink-rgb: 255, 255, 255;
+  --ink-1: rgba(var(--ink-rgb), 0.93);
+  --ink-2: rgba(var(--ink-rgb), 0.66);
+  --ink-soft: rgba(var(--ink-rgb), 0.44);
+  --ink-3: rgba(var(--ink-rgb), 0.52);
+  --ink-4: rgba(var(--ink-rgb), 0.13);
+  --line: rgba(var(--ink-rgb), 0.09);
+  --solid-rgb: 250, 250, 250;
+  --on-solid: rgb(15, 15, 15);
+  --glow-rgb: 150, 172, 255;
+  --pane: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03));
+  --pane-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08) 32%, rgba(255, 255, 255, 0.03) 62%, rgba(255, 255, 255, 0.18));
+  --pane-shade: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 -1px 1px rgba(0, 0, 0, 0.2);
+  --pane-drop: 0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 56px -24px rgba(0, 0, 0, 0.75);
+  --pane-blur: blur(22px) saturate(1.4);
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 55%, rgba(255, 255, 255, 0.05));
+  --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.14) 32%, rgba(255, 255, 255, 0.05) 62%, rgba(255, 255, 255, 0.38));
+  --glass-shade: inset 0 1px 1px rgba(255, 255, 255, 0.22), inset 0 -1px 2px rgba(0, 0, 0, 0.25);
+  --glass-drop: 0 3px 10px rgba(0, 0, 0, 0.35);
+  --glass-backdrop: blur(10px) saturate(1.6) brightness(1.08);
+  --t1: 96, 156, 240;
+  --t2: 232, 132, 52;
+  --t3: 38, 186, 166;
+  --t4: 160, 126, 255;
+  --up: 110, 205, 140;
+  --down: 255, 115, 105;
+  --shot-filter: brightness(0.92);
+  --composer-accent-rgb: 250, 250, 250;
+  --splash-night: rgb(13, 14, 22);
+  --splash-mist-deep: rgb(26, 30, 48);
+  --splash-mist-lit: rgb(150, 168, 240);
+  --splash-glow: rgb(150, 170, 255);
+  --splash-core: rgb(232, 238, 255);
+  --splash-mist-alpha: 0.55;
+  --splash-glow-alpha: 0.5;
+  --splash-trail: 0.35;
+  --splash-motes: 1;
+  --splash-shade: 0.5;
+  --splash-aura: rgba(86, 104, 172, 0.34);
+  --splash-glow-rgb: 150, 172, 255;
+}
+
+/* ———————————————————— Base ———————————————————— */
+
+* { box-sizing: border-box; }
+
+html {
+  background: var(--bg);
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink-1);
+  font: 400 16px/1.55 var(--font);
+  font-optical-sizing: auto;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+a { color: inherit; }
+img { display: block; max-width: 100%; }
+button { font: inherit; color: inherit; }
+
+::selection { background: rgba(var(--glow-rgb), 0.22); }
+
+:focus-visible {
+  outline: 2px solid rgba(var(--glow-rgb), 0.75);
+  outline-offset: 3px;
+}
+
+.wrap {
+  width: 100%;
+  max-width: calc(var(--wide) + var(--gutter) * 2);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* The sky behind everything: the app's soft light, drifting slowly. */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+.sky i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  will-change: transform;
+}
+
+.sky .a { width: 80vmax; height: 70vmax; left: -28vmax; top: -30vmax; background: radial-gradient(closest-side, var(--haze-1), transparent); animation: drift-a 46s ease-in-out infinite alternate; }
+.sky .b { width: 70vmax; height: 64vmax; left: -24vmax; bottom: -34vmax; background: radial-gradient(closest-side, var(--haze-2), transparent); animation: drift-b 52s ease-in-out infinite alternate; }
+.sky .c { width: 60vmax; height: 56vmax; right: -26vmax; top: 16vh; background: radial-gradient(closest-side, var(--haze-3), transparent); animation: drift-c 60s ease-in-out infinite alternate; }
+.sky .d { width: 40vmax; height: 30vmax; left: 30vw; top: -12vmax; background: radial-gradient(closest-side, var(--haze-4), transparent); animation: drift-a 40s ease-in-out infinite alternate-reverse; }
+
+@keyframes drift-a { to { transform: translate3d(8vmax, 6vmax, 0) scale(1.08); } }
+@keyframes drift-b { to { transform: translate3d(10vmax, -6vmax, 0) scale(0.94); } }
+@keyframes drift-c { to { transform: translate3d(-8vmax, 10vmax, 0) scale(1.1); } }
+
+/* ———————————————————— Type ———————————————————— */
+
+.display {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(46px, 7.4vw, 96px);
+  font-weight: 640;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+
+.h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(34px, 4.8vw, 60px);
+  font-weight: 640;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.display .soft, .h2 .soft { color: var(--ink-soft); }
+
+/* Cyrillic sets wider than Latin: it is tracked less tightly. */
+:lang(ru) .display { letter-spacing: -0.034em; }
+:lang(ru) .h2 { letter-spacing: -0.03em; }
+:lang(ru) .h3, :lang(ru) .tile-name { letter-spacing: -0.012em; }
+
+.h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 620;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--ink-2);
+  font-size: clamp(17px, 1.45vw, 19.5px);
+  line-height: 1.55;
+  letter-spacing: -0.011em;
+  text-wrap: pretty;
+}
+
+.body {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 15.5px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.small {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.eyebrow::before {
+  content: "";
+  width: 18px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.mono { font-family: var(--mono); font-size: 0.92em; letter-spacing: 0; }
+
+/* ———————————————————— Glass ———————————————————— */
+
+.pane {
+  position: relative;
+  isolation: isolate;
+  border-radius: 24px;
+  background: var(--pane);
+  box-shadow: var(--pane-shade), var(--pane-drop);
+  -webkit-backdrop-filter: var(--pane-blur);
+  backdrop-filter: var(--pane-blur);
+}
+
+.pane::after, .glass::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--pane-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* The app's glass button: a lens that bends what is behind it (liquid-glass.js), with the same rim and shade. */
+.glass {
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shade), var(--glass-drop);
+  -webkit-backdrop-filter: var(--glass-lens,) var(--glass-backdrop);
+  backdrop-filter: var(--glass-lens,) var(--glass-backdrop);
+}
+
+.glass::after { background: var(--glass-rim); }
+
+/* ———————————————————— Buttons ———————————————————— */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 15.5px;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.5s var(--spring), box-shadow 0.4s var(--ease), background-color 0.3s ease, opacity 0.3s ease;
+}
+
+.btn:active { transform: scale(0.97); transition-duration: 0.12s; }
+
+.btn svg { width: 18px; height: 18px; flex: none; }
+
+.btn-solid {
+  background: rgb(var(--solid-rgb));
+  color: var(--on-solid);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08), 0 10px 26px -10px rgba(var(--solid-rgb), 0.55);
+}
+
+.btn-solid:hover { transform: translateY(-1px); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08), 0 16px 34px -12px rgba(var(--solid-rgb), 0.6); }
+
+.btn-glass { color: var(--ink-1); }
+.btn-glass:hover { transform: translateY(-1px); }
+
+.btn-small { height: 38px; padding: 0 16px; font-size: 14px; }
+
+.btn .sub {
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+/* ———————————————————— Navigation ———————————————————— */
+
+.nav {
+  position: fixed;
+  z-index: 50;
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: min(calc(100% - 2 * var(--gutter)), 980px);
+  height: 56px;
+  padding: 0 8px 0 16px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  transition: height 0.5s var(--ease), width 0.6s var(--ease), box-shadow 0.4s ease;
+}
+
+.nav.is-tight { height: 50px; width: min(calc(100% - 2 * var(--gutter)), 900px); }
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-right: auto;
+  font-family: var(--display);
+  font-size: 16.5px;
+  font-weight: 640;
+  letter-spacing: -0.025em;
+  text-decoration: none;
+}
+
+.brand ghost-thinking { width: 22px; height: 24px; --ghost-rgb: var(--composer-accent-rgb); --ghost-eye: var(--bg); }
+
+.nav-links { display: flex; gap: 2px; }
+
+.nav-links a {
+  padding: 8px 13px;
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.nav-links a:hover { color: var(--ink-1); background: rgba(var(--ink-rgb), 0.05); }
+
+.nav-tools { display: flex; align-items: center; gap: 6px; margin-left: 10px; }
+
+.seg {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.06);
+}
+
+.seg button {
+  position: relative;
+  z-index: 1;
+  min-width: 38px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.25s ease;
+}
+
+.seg button[aria-pressed="true"] { color: var(--ink-1); }
+
+.seg .knob {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: 38px;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shade), 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: transform 0.55s var(--ease), width 0.55s var(--ease);
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.5s var(--spring);
+}
+
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn .moon { display: none; }
+:root[data-theme="dark"] .icon-btn .sun { display: none; }
+:root[data-theme="dark"] .icon-btn .moon { display: block; }
+
+/* ———————————————————— Opening (the app's splash.js) ———————————————————— */
+
+.splash { display: none; }
+
+.is-splash .splash {
+  --splash-size: 112px;
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+}
+
+.splash.is-opening { pointer-events: none; }
+.is-splash .app { will-change: transform, opacity; }
+.is-splash .welcome { visibility: hidden; }
+.is-splash .nav { opacity: 0; }
+
+.splash-bg { position: absolute; inset: 0; overflow: hidden; background: var(--chat-bg); }
+
+.splash-aura {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1200px;
+  height: 1200px;
+  margin: -600px 0 0 -600px;
+  background: radial-gradient(closest-side, var(--splash-aura), transparent);
+  opacity: 0;
+}
+
+.splash-mist { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.splash-fly {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--splash-size);
+  height: calc(var(--splash-size) * 70 / 64);
+  margin: calc(var(--splash-size) * -35 / 64) 0 0 calc(var(--splash-size) / -2);
+  opacity: 0;
+}
+
+.splash-ghost, .splash-ghost-body, .splash ghost-thinking { width: 100%; height: 100%; }
+.splash ghost-thinking { --ghost-rgb: var(--composer-accent-rgb); --ghost-eye: var(--chat-bg); }
+
+.splash-word {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: rgb(var(--composer-accent-rgb));
+  font-family: var(--display);
+  font-size: 48px;
+  font-weight: 640;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  white-space: pre;
+  transform: translateY(-54%);
+  text-shadow: 0 0 34px rgba(var(--splash-glow-rgb), 0.2);
+  visibility: hidden;
+}
+
+.splash-word.is-set { visibility: visible; }
+.splash-haze span { color: transparent; text-shadow: 0 0 10px rgb(var(--composer-accent-rgb)); }
+.splash-word span { display: inline-block; opacity: 0; }
+
+/* ———————————————————— Hero ———————————————————— */
+
+.hero {
+  display: grid;
+  justify-items: center;
+  gap: 28px;
+  padding-block: calc(env(safe-area-inset-top, 0px) + 150px) 64px;
+  text-align: center;
+}
+
+.welcome { width: 84px; height: 92px; }
+.welcome-flight, .welcome ghost-thinking { width: 100%; height: 100%; }
+.welcome ghost-thinking { --ghost-rgb: var(--composer-accent-rgb); --ghost-eye: var(--bg); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 14px 0 12px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.badge .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(var(--glow-rgb));
+  box-shadow: 0 0 0 4px rgba(var(--glow-rgb), 0.16);
+}
+
+.badge .ver { color: var(--ink-1); font-family: var(--mono); font-size: 12.5px; }
+.badge .sep { width: 1px; height: 14px; background: var(--ink-4); }
+
+.hero .display { max-width: 15ch; }
+.hero .lead { max-width: 56ch; }
+
+.hero-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 6px; }
+.hero-meta { margin-top: -6px; }
+
+.word { display: inline-block; }
+
+/* ———————————————————— Sections ———————————————————— */
+
+section { scroll-margin-top: 90px; }
+
+.section { padding-block: clamp(80px, 11vw, 140px) 0; }
+
+.section-head { display: grid; gap: 18px; justify-items: start; max-width: 900px; margin-bottom: 44px; }
+.section-head .lead { max-width: 64ch; }
+.section-head.center { justify-items: center; margin-inline: auto; text-align: center; }
+
+/* ———————————————————— Demo ———————————————————— */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 26px;
+  max-width: 900px;
+}
+
+.chip {
+  height: 38px;
+  padding: 0 16px;
+  color: var(--ink-1);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 0.5s var(--spring), opacity 0.3s ease;
+}
+
+.chip:hover { transform: translateY(-1px); }
+.chip:active { transform: scale(0.96); transition-duration: 0.12s; }
+.chip:disabled { opacity: 0.5; cursor: progress; transform: none; }
+
+.stage-wrap { perspective: 1800px; }
+
+.window {
+  position: relative;
+  border-radius: 22px;
+  padding: 7px;
+  transform-origin: 50% 0%;
+  will-change: transform;
+}
+
+.window-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px 5px;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.window-bar .dots { display: flex; gap: 6px; }
+.window-bar .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--ink-4); }
+.window-bar .title { position: absolute; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 7px; }
+.window-bar .title svg { width: 13px; height: 14px; }
+.window-bar .live { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.window-bar .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--up)); box-shadow: 0 0 0 3px rgba(var(--up), 0.16); }
+
+.stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.stage iframe {
+  display: block;
+  border: 0;
+  transform-origin: 0 0;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.stage.is-loaded iframe { opacity: 1; }
+
+.stage-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+  font-size: 13.5px;
+  transition: opacity 0.5s ease;
+}
+
+.stage.is-loaded .stage-wait { opacity: 0; pointer-events: none; }
+
+.demo-note { margin: 18px auto 0; text-align: center; }
+
+/* ———————————————————— Drawings ———————————————————— */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tile {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 210px;
+  padding: 18px 18px 16px;
+  border: 0;
+  border-radius: 22px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.6s var(--spring), box-shadow 0.4s var(--ease);
+}
+
+.tile:hover { transform: translateY(-3px); }
+.tile:active { transform: scale(0.98); transition-duration: 0.12s; }
+
+.glyph { width: 100%; height: auto; aspect-ratio: 120 / 72; margin-bottom: 12px; overflow: visible; }
+.glyph .ink { stroke: var(--ink-3); }
+.glyph .faint { stroke: var(--ink-4); }
+.glyph .fill-faint { fill: var(--ink-4); }
+.glyph .fill-ink { fill: var(--ink-1); }
+.glyph .fill-soft { fill: var(--ink-soft); }
+.glyph [data-draw] { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.is-in .glyph [data-draw] { animation: draw 1.4s var(--ease) forwards; animation-delay: var(--d, 0.15s); }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+.tile-name { font-family: var(--display); font-size: 18px; font-weight: 620; letter-spacing: -0.02em; color: var(--ink-1); }
+.tile-hint { color: var(--ink-2); font-size: 14px; line-height: 1.45; }
+.tile-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  transition: color 0.25s ease, gap 0.4s var(--ease);
+}
+
+.tile:hover .tile-go { color: var(--ink-1); gap: 10px; }
+
+/* ———————————————————— Features ———————————————————— */
+
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 26px;
+  overflow: hidden;
+}
+
+.card.span-6 { grid-column: span 6; }
+.card.span-4 { grid-column: span 4; }
+.card.span-3 { grid-column: span 3; }
+.card.span-2 { grid-column: span 2; }
+
+.card .shot {
+  margin: 14px -26px -26px;
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.card .shot img { width: 100%; height: auto; filter: var(--shot-filter); }
+
+.card.split { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); align-items: center; gap: 30px; padding-right: 0; padding-bottom: 0; padding-top: 0; }
+.card.split .copy { display: grid; gap: 10px; padding-block: 34px; align-self: start; }
+.card.split .shot { margin: 30px 0 0; border-top: 0; border-left: 1px solid var(--line); border-top-left-radius: 14px; align-self: end; }
+
+.card .num {
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+}
+
+.modes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.modes span { padding: 5px 11px; border-radius: 999px; background: rgba(var(--ink-rgb), 0.05); color: var(--ink-2); font-size: 13px; font-weight: 500; }
+
+/* ———————————————————— Models ———————————————————— */
+
+.models { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+
+.models .card { padding: 30px; }
+
+.chipset { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+
+.chipset span {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: rgba(var(--ink-rgb), 0.05);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-1);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.chipset.mono span { font-family: var(--mono); font-size: 12.5px; font-weight: 400; color: var(--ink-2); }
+
+.steps { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; counter-reset: step; }
+
+.steps li {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  color: var(--ink-2);
+  font-size: 15px;
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.06);
+  color: var(--ink-1);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  transform: translateY(-1px);
+}
+
+.steps code {
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: rgba(var(--ink-rgb), 0.06);
+  color: var(--ink-1);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.card .tag {
+  justify-self: start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(var(--glow-rgb), 0.12);
+  color: rgb(var(--glow-rgb));
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ———————————————————— Download ———————————————————— */
+
+.platforms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+
+.platform { display: grid; gap: 6px; padding: 26px; }
+.platform .h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.platform .file { color: var(--ink-3); font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.platform .btn { margin-top: 18px; width: 100%; }
+.platform.is-mine { box-shadow: var(--pane-shade), var(--pane-drop), 0 0 0 1.5px rgba(var(--glow-rgb), 0.45); }
+.platform .yours { color: rgb(var(--glow-rgb)); font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+
+.news { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 30px; align-items: start; margin-top: 14px; padding: 30px; }
+.news ul { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.news li { position: relative; padding-left: 20px; color: var(--ink-2); font-size: 15px; line-height: 1.5; }
+.news li::before { content: ""; position: absolute; left: 2px; top: 0.62em; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4); }
+.news .links { display: grid; gap: 8px; justify-items: stretch; min-width: 210px; }
+
+/* ———————————————————— Footer ———————————————————— */
+
+.footer { padding-block: clamp(90px, 12vw, 150px) calc(env(safe-area-inset-bottom, 0px) + 40px); }
+
+.footer-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+
+.footer .brand { margin: 0; }
+.footer nav { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.footer nav a { color: var(--ink-2); font-size: 14px; text-decoration: none; }
+.footer nav a:hover { color: var(--ink-1); }
+
+/* ———————————————————— Motion ———————————————————— */
+
+.rise { opacity: 0; transform: translateY(18px); filter: blur(8px); }
+.rise.is-in { opacity: 1; transform: none; filter: none; transition: opacity 0.9s var(--ease), transform 1s var(--ease), filter 0.9s var(--ease); transition-delay: var(--delay, 0s); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .sky i { animation: none; }
+  .rise { opacity: 1; transform: none; filter: none; }
+  .glyph [data-draw] { stroke-dashoffset: 0; animation: none !important; }
+  .window { transform: none !important; }
+}
+
+/* ———————————————————— Narrow screens ———————————————————— */
+
+@media (max-width: 980px) {
+  .nav-links { display: none; }
+  .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .card.span-4, .card.span-3, .card.span-2 { grid-column: span 6; }
+  .card.split { grid-template-columns: 1fr; padding: 26px 26px 0; gap: 0; }
+  .card.split .copy { padding-block: 0; }
+  .card.split .shot { margin: 22px -26px 0; border-left: 0; border-top: 1px solid var(--line); border-radius: 0; }
+  .models { grid-template-columns: 1fr; }
+  .platforms { grid-template-columns: 1fr; }
+  .news { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .nav { padding: 0 6px 0 14px; height: 52px; }
+  .nav .nav-download { display: none; }
+  .hero { padding-top: calc(env(safe-area-inset-top, 0px) + 116px); gap: 22px; }
+  .welcome { width: 68px; height: 74px; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .tile { min-height: 0; padding: 14px; border-radius: 18px; }
+  .tile-name { font-size: 16px; }
+  .tile-hint { font-size: 13px; }
+  .card { padding: 22px; }
+  .card .shot { margin: 12px -22px -22px; }
+  .card.split { padding: 22px 22px 0; }
+  .card.split .shot { margin: 18px -22px 0; }
+  .window { padding: 5px; border-radius: 18px; }
+  .window-bar .title { display: none; }
+  .stage { border-radius: 13px; }
+  .hero-cta .btn { width: 100%; }
+  .hero-cta { width: 100%; max-width: 360px; }
+}
+</style>
+</head>
+<body>
+<div class="splash" aria-hidden="true">
+  <div class="splash-bg"><div class="splash-aura"></div><canvas class="splash-mist"></canvas></div>
+  <div class="splash-fly"><div class="splash-ghost"><div class="splash-ghost-body"><ghost-thinking></ghost-thinking></div></div></div>
+  <div class="splash-word">OpenGhost</div>
+</div>
+<script src="app/splash-mist.js"></script>
+
+<div class="sky" aria-hidden="true"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i></div>
+
+<header class="nav glass" id="nav">
+  <a class="brand" href="#top" aria-label="OpenGhost"><ghost-thinking></ghost-thinking><span>OpenGhost</span></a>
+  <nav class="nav-links" aria-label="Sections">
+    <a href="#demo" data-t="nav.demo">Demo</a>
+    <a href="#drawings" data-t="nav.drawings">Drawings</a>
+    <a href="#features" data-t="nav.features">Features</a>
+    <a href="#models" data-t="nav.models">Models</a>
+    <a href="#download" data-t="nav.download">Download</a>
+  </nav>
+  <div class="nav-tools">
+    <div class="seg" id="lang" role="group" aria-label="Language">
+      <span class="knob" aria-hidden="true"></span>
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="ru" aria-pressed="false">RU</button>
+    </div>
+    <button type="button" class="icon-btn glass" id="theme" data-t-aria="theme" aria-label="Switch theme">
+      <svg class="sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="3.6"/><path d="M10 1.8v1.9M10 16.3v1.9M1.8 10h1.9M16.3 10h1.9M4.2 4.2l1.35 1.35M14.45 14.45l1.35 1.35M4.2 15.8l1.35-1.35M14.45 5.55l1.35-1.35"/></svg>
+      <svg class="moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M16.6 12.4A7 7 0 0 1 7.6 3.4a7 7 0 1 0 9 9z"/></svg>
+    </button>
+    <a class="btn btn-solid btn-small nav-download" href="#download" data-t="nav.get">Download</a>
+  </div>
+</header>
+
+<div class="app" id="top">
+<main class="main is-empty">
+
+  <section class="hero wrap" aria-labelledby="hero-title">
+    <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
+    <a class="badge glass" href="#download" data-hero>
+      <span class="dot" aria-hidden="true"></span>
+      <span class="ver" data-version>v1.4.7</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span data-t="hero.badge">Free and open source</span>
+    </a>
+    <h1 class="display" id="hero-title" data-hero-title>
+      <span data-t="hero.title1">The AI agent</span><br><span class="soft" data-t="hero.title2">that shows you.</span>
+    </h1>
+    <p class="lead" data-hero data-t="hero.lead">OpenGhost runs commands, edits files and works on the web in a browser of its own. And it answers with charts, schemes, routes and photos, right in the chat.</p>
+    <div class="hero-cta" data-hero>
+      <a class="btn btn-solid" id="hero-download" href="#download">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.8 10 13.2l4.5-4.4M4 16.5h12"/></svg>
+        <span id="hero-download-text">Download</span>
+      </a>
+      <a class="btn btn-glass glass" href="#demo" data-t="hero.try">Try it right here</a>
+    </div>
+    <p class="small hero-meta" data-hero data-t="hero.meta">Windows · macOS · Linux · MIT license</p>
+  </section>
+
+  <section class="section wrap" id="demo" aria-labelledby="demo-title">
+    <div class="section-head center">
+      <p class="eyebrow rise" data-t="demo.eyebrow">Live demo</p>
+      <h2 class="h2 rise" id="demo-title"><span data-t="demo.title1">This is the real app.</span><br><span class="soft" data-t="demo.title2">Pick a model and ask.</span></h2>
+    </div>
+    <div class="chips rise" id="chips" role="group" data-t-aria="demo.try" aria-label="Questions to try"></div>
+    <div class="stage-wrap rise">
+      <div class="window pane" id="window">
+        <div class="window-bar" aria-hidden="true">
+          <span class="dots"><i></i><i></i><i></i></span>
+          <span class="title"><svg viewBox="-3 -5 64 70"><path fill="currentColor" d="M0 29A29 29 0 0 1 58 29L58 57A2.5 2.5 0 0 1 53 57A6 6 0 0 0 41 57A3 3 0 0 1 35 57A6 6 0 0 0 23 57A3 3 0 0 1 17 57A6 6 0 0 0 5 57A2.5 2.5 0 0 1 0 57Z"/></svg>OpenGhost</span>
+          <span class="live" data-t="demo.live">Live</span>
+        </div>
+        <div class="stage" id="stage">
+          <div class="stage-wait" data-t="demo.loading">Opening the app…</div>
+          <iframe id="app-frame" title="OpenGhost demo" allow="clipboard-write" inert></iframe>
+        </div>
+      </div>
+    </div>
+    <p class="small demo-note rise" data-t="demo.note">The interface is the app's own code. Replies are written in advance, so nothing leaves this page.</p>
+  </section>
+
+  <section class="section wrap" id="drawings" aria-labelledby="drawings-title">
+    <div class="section-head">
+      <p class="eyebrow rise" data-t="drawings.eyebrow">Drawing engine</p>
+      <h2 class="h2 rise" id="drawings-title"><span data-t="drawings.title1">43 kinds of drawings.</span><br><span class="soft" data-t="drawings.title2">Each made for its subject.</span></h2>
+      <p class="lead rise" data-t="drawings.lead">No Mermaid, no chart library. OpenGhost reads what the model writes and draws it while the reply is still coming in: live, answering the pointer, editable where it stands.</p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="section wrap" id="features" aria-labelledby="features-title">
+    <div class="section-head">
+      <p class="eyebrow rise" data-t="features.eyebrow">Desktop agent</p>
+      <h2 class="h2 rise" id="features-title"><span data-t="features.title1">It does the work.</span><br><span class="soft" data-t="features.title2">On your computer, in your accounts.</span></h2>
+    </div>
+    <div class="bento">
+      <article class="card pane span-6 split rise">
+        <div class="copy">
+          <span class="num">01</span>
+          <h3 class="h3" data-t="f.visual.t">It shows what it explains</h3>
+          <p class="body" data-t="f.visual.d">A scheme with the detail in it, a chart for every curve, the key numbers as metrics. Photos and videos when a thing is better seen than described.</p>
+        </div>
+        <div class="shot"><img src="media/visual.jpg" alt="OpenGhost answering with a mind map and a donut chart" loading="lazy" width="2254" height="1503"></div>
+      </article>
+      <article class="card pane span-4 rise">
+        <span class="num">02</span>
+        <h3 class="h3" data-t="f.browser.t">A browser with its own cursor</h3>
+        <p class="body" data-t="f.browser.d">The agent opens pages, clicks, types and reads in a panel beside the chat, signed in where you are. Mini chat runs a second agent next to the first.</p>
+        <div class="shot"><img src="media/mini.jpg" alt="Mini chat over a conversation, the browser beside it" loading="lazy" width="1917" height="1260"></div>
+      </article>
+      <article class="card pane span-2 rise" style="--delay: 0.08s">
+        <span class="num">03</span>
+        <h3 class="h3" data-t="f.quick.t">Quick chat, from anywhere</h3>
+        <p class="body" data-t="f.quick.d">Alt+Space brings up a full agent over whatever is on screen. Esc, and it is gone.</p>
+        <div class="shot"><img src="media/quick.jpg" alt="Quick chat over the desktop" loading="lazy" width="760" height="910"></div>
+      </article>
+      <article class="card pane span-3 rise">
+        <span class="num">04</span>
+        <h3 class="h3" data-t="f.notes.t">Notes it keeps an eye on</h3>
+        <p class="body" data-t="f.notes.d">Ask it to write something down. When a conversation comes to it, the agent brings it up by itself, and never acts on a note alone.</p>
+        <div class="shot"><img src="media/notes.jpg" alt="A request about three Reddit posts and the note the agent wrote" loading="lazy" width="1914" height="1255"></div>
+      </article>
+      <article class="card pane span-3 rise" style="--delay: 0.08s">
+        <span class="num">05</span>
+        <h3 class="h3" data-t="f.memory.t">It remembers you</h3>
+        <p class="body" data-t="f.memory.d">Tell it once, in any chat. Instructions and files for every chat, and a memory you can read, change or switch off.</p>
+        <div class="shot"><img src="media/general.jpg" alt="The General page of the settings" loading="lazy" width="1918" height="1258"></div>
+      </article>
+      <article class="card pane span-2 rise">
+        <span class="num">06</span>
+        <h3 class="h3" data-t="f.modes.t">Three ways to let it act</h3>
+        <p class="body" data-t="f.modes.d">You decide how far it goes before it asks.</p>
+        <div class="modes"><span data-t="f.modes.ask">Ask</span><span data-t="f.modes.auto">Auto</span><span data-t="f.modes.full">Full access</span></div>
+      </article>
+      <article class="card pane span-2 rise" style="--delay: 0.06s">
+        <span class="num">07</span>
+        <h3 class="h3" data-t="f.keys.t">Keys stay on this computer</h3>
+        <p class="body" data-t="f.keys.d">Encrypted by the operating system. Any chat can be locked with a password, with real encryption.</p>
+      </article>
+      <article class="card pane span-2 rise" style="--delay: 0.12s">
+        <span class="num">08</span>
+        <h3 class="h3" data-t="f.scratch.t">Written from scratch</h3>
+        <p class="body" data-t="f.scratch.d">No UI framework, no Markdown library, no Mermaid, no agent framework. Every part is its own code.</p>
+      </article>
+      <article class="card pane span-6 split rise">
+        <div class="copy">
+          <span class="num">09</span>
+          <h3 class="h3" data-t="f.look.t">Make it yours</h3>
+          <p class="body" data-t="f.look.d">Light, dark or the system's theme, the size of the interface, and the colour of your messages and of the chat. In English, Italian, French and Russian.</p>
+        </div>
+        <div class="shot"><img src="media/appearance.jpg" alt="The Appearance page of the settings" loading="lazy" width="1915" height="1257"></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section wrap" id="models" aria-labelledby="models-title">
+    <div class="section-head">
+      <p class="eyebrow rise" data-t="models.eyebrow">Models</p>
+      <h2 class="h2 rise" id="models-title"><span data-t="models.title1">Every model you use.</span><br><span class="soft" data-t="models.title2">Or none in the cloud at all.</span></h2>
+    </div>
+    <div class="models">
+      <article class="card pane rise">
+        <h3 class="h3" data-t="models.cloud.t">In the cloud</h3>
+        <p class="body" data-t="models.cloud.d">Sign in with ChatGPT, or add a key for OpenAI, Claude, DeepSeek or OpenRouter. The models come from each provider's own list, so a new one shows up by itself.</p>
+        <div class="chipset"><span>Claude</span><span>ChatGPT</span><span>OpenAI API</span><span>DeepSeek</span><span>OpenRouter</span><span data-t="models.custom">Any OpenAI-compatible API</span></div>
+        <div class="chipset mono"><span>claude-opus-5-5</span><span>claude-sonnet-5-5</span><span>gpt-5.2</span><span>deepseek-reasoner</span><span>gemini-3-pro</span><span>grok-4</span><span>kimi-k2</span></div>
+      </article>
+      <article class="card pane rise" style="--delay: 0.08s">
+        <span class="tag" data-t="models.local.tag">Fully local</span>
+        <h3 class="h3" data-t="models.local.t">On your computer</h3>
+        <p class="body" data-t="models.local.d">Give it the address of Ollama, LM Studio or llama.cpp, and the models you have pulled show up in the picker, with the context size set for you. No account, and nothing leaves the machine.</p>
+        <ol class="steps">
+          <li><span><span data-t="models.local.s1">Pull a model:</span> <code>ollama pull qwen3:30b</code></span></li>
+          <li><span><span data-t="models.local.s2">Open</span> <code data-t="models.local.path">Settings → Providers → Local</code></span></li>
+          <li><span data-t="models.local.s3">Pick it in the chat, next to Claude and GPT.</span></li>
+        </ol>
+        <div class="chipset mono"><span>gpt-oss:20b</span><span>qwen3:30b</span><span>gemma3:27b</span><span>deepseek-r1:14b</span><span>llama3.1:8b</span><span>mistral-small3.2</span></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section wrap" id="download" aria-labelledby="download-title">
+    <div class="section-head">
+      <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.4.7.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+    </div>
+    <div class="platforms" id="platforms"></div>
+    <article class="news pane rise">
+      <div>
+        <h3 class="h3" data-news-title>What's new in 1.4.7</h3>
+        <ul id="news"></ul>
+      </div>
+      <div class="links">
+        <a class="btn btn-glass glass btn-small" id="all-releases" href="https://github.com/ANDRETRIPOL/OpenGhost/releases" target="_blank" rel="noopener" data-t="download.all">All releases</a>
+        <a class="btn btn-glass glass btn-small" href="https://github.com/ANDRETRIPOL/OpenGhost#build-it-yourself" target="_blank" rel="noopener" data-t="download.source">Build from source</a>
+        <a class="btn btn-glass glass btn-small" href="https://github.com/sponsors/ANDRETRIPOL" target="_blank" rel="noopener" data-t="download.sponsor">Sponsor the project</a>
+      </div>
+    </article>
+  </section>
+
+</main>
+
+<footer class="footer wrap">
+  <div class="footer-in">
+    <a class="brand" href="#top"><ghost-thinking></ghost-thinking><span>OpenGhost</span></a>
+    <p class="small" data-t="footer.line">Free and open source, under the MIT license.</p>
+    <nav aria-label="Links">
+      <a href="https://github.com/ANDRETRIPOL/OpenGhost" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/ANDRETRIPOL/OpenGhost/releases" target="_blank" rel="noopener" data-t="footer.releases">Releases</a>
+      <a href="https://discord.gg/6cKd2UND5" target="_blank" rel="noopener">Discord</a>
+      <a href="https://github.com/sponsors/ANDRETRIPOL" target="_blank" rel="noopener" data-t="footer.sponsor">Sponsor</a>
+    </nav>
+  </div>
+</footer>
+</div>
+
+<script src="app/ghost-thinking.js"></script>
+<script src="app/liquid-glass.js"></script>
+<script>
+(() => {
+'use strict';
+
+const root = document.documentElement;
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const REPO = 'ANDRETRIPOL/OpenGhost';
+const store = {
+  get: key => { try { return localStorage.getItem(key); } catch { return null; } },
+  set: (key, value) => { try { localStorage.setItem(key, value); } catch {} },
+};
+// A theme picked by hand holds for this visit; the next one follows the computer again.
+const visit = {
+  get: key => { try { return sessionStorage.getItem(key); } catch { return null; } },
+  set: (key, value) => { try { sessionStorage.setItem(key, value); } catch {} },
+};
+
+/* ———————————————— Words ———————————————— */
+
+const T = {
+  en: {
+    'nav.demo': 'Demo', 'nav.drawings': 'Drawings', 'nav.features': 'Features', 'nav.models': 'Models', 'nav.download': 'Download', 'nav.get': 'Download',
+    theme: 'Switch theme',
+    'hero.badge': 'Free and open source',
+    'hero.title1': 'The AI agent', 'hero.title2': 'that shows you.',
+    'hero.lead': 'OpenGhost runs commands, edits files and works on the web in a browser of its own. And it answers with charts, schemes, routes and photos, right in the chat.',
+    'hero.download': 'Download for {os}', 'hero.desktop': 'Get it for your desktop',
+    'hero.try': 'Try it right here',
+    'hero.meta': 'Windows · macOS · Linux · MIT license',
+    'demo.eyebrow': 'Live demo', 'demo.title1': 'This is the real app.', 'demo.title2': 'Pick a model and ask.',
+    'demo.try': 'Questions to try', 'demo.live': 'Live', 'demo.loading': 'Opening the app…',
+    'demo.note': 'The interface is the app\'s own code. Replies are written in advance, so nothing leaves this page.',
+    'drawings.eyebrow': 'Drawing engine', 'drawings.title1': '43 kinds of drawings.', 'drawings.title2': 'Each made for its subject.',
+    'drawings.lead': 'No Mermaid, no chart library. OpenGhost reads what the model writes and draws it while the reply is still coming in: live, answering the pointer, editable where it stands.',
+    'drawings.ask': 'Ask in the demo',
+    'features.eyebrow': 'Desktop agent', 'features.title1': 'It does the work.', 'features.title2': 'On your computer, in your accounts.',
+    'f.visual.t': 'It shows what it explains', 'f.visual.d': 'A scheme with the detail in it, a chart for every curve, the key numbers as metrics. Photos and videos when a thing is better seen than described.',
+    'f.browser.t': 'A browser with its own cursor', 'f.browser.d': 'The agent opens pages, clicks, types and reads in a panel beside the chat, signed in where you are. Mini chat runs a second agent next to the first.',
+    'f.quick.t': 'Quick chat, from anywhere', 'f.quick.d': 'Alt+Space brings up a full agent over whatever is on screen. Esc, and it is gone.',
+    'f.notes.t': 'Notes it keeps an eye on', 'f.notes.d': 'Ask it to write something down. When a conversation comes to it, the agent brings it up by itself, and never acts on a note alone.',
+    'f.memory.t': 'It remembers you', 'f.memory.d': 'Tell it once, in any chat. Instructions and files for every chat, and a memory you can read, change or switch off.',
+    'f.modes.t': 'Three ways to let it act', 'f.modes.d': 'You decide how far it goes before it asks.', 'f.modes.ask': 'Ask', 'f.modes.auto': 'Auto', 'f.modes.full': 'Full access',
+    'f.keys.t': 'Keys stay on this computer', 'f.keys.d': 'Encrypted by the operating system. Any chat can be locked with a password, with real encryption.',
+    'f.scratch.t': 'Written from scratch', 'f.scratch.d': 'No UI framework, no Markdown library, no Mermaid, no agent framework. Every part is its own code.',
+    'f.look.t': 'Make it yours', 'f.look.d': 'Light, dark or the system\'s theme, the size of the interface, and the colour of your messages and of the chat. In English, Italian, French and Russian.',
+    'models.eyebrow': 'Models', 'models.title1': 'Every model you use.', 'models.title2': 'Or none in the cloud at all.',
+    'models.cloud.t': 'In the cloud', 'models.cloud.d': 'Sign in with ChatGPT, or add a key for OpenAI, Claude, DeepSeek or OpenRouter. The models come from each provider\'s own list, so a new one shows up by itself.',
+    'models.custom': 'Any OpenAI-compatible API',
+    'models.local.tag': 'Fully local', 'models.local.t': 'On your computer',
+    'models.local.d': 'Give it the address of Ollama, LM Studio or llama.cpp, and the models you have pulled show up in the picker, with the context size set for you. No account, and nothing leaves the machine.',
+    'models.local.s1': 'Pull a model:', 'models.local.s2': 'Open', 'models.local.path': 'Settings → Providers → Local', 'models.local.s3': 'Pick it in the chat, next to Claude and GPT.',
+    'download.eyebrow': 'Download', 'download.title1': 'OpenGhost {v}.', 'download.title2': 'Free, for every desktop.',
+    'download.win': 'Installer · Windows 10 and 11', 'download.mac': 'Disk image · Apple silicon and Intel', 'download.linux': 'Archive · x64',
+    'download.get': 'Download', 'download.yours': 'Your system', 'download.new': 'What\'s new in {v}',
+    'download.all': 'All releases', 'download.source': 'Build from source', 'download.sponsor': 'Sponsor the project',
+    'footer.line': 'Free and open source, under the MIT license.', 'footer.releases': 'Releases', 'footer.sponsor': 'Sponsor',
+  },
+  ru: {
+    'nav.demo': 'Демо', 'nav.drawings': 'Графика', 'nav.features': 'Возможности', 'nav.models': 'Модели', 'nav.download': 'Скачать', 'nav.get': 'Скачать',
+    theme: 'Сменить тему',
+    'hero.badge': 'Бесплатно и с открытым кодом',
+    'hero.title1': 'ИИ-агент,', 'hero.title2': 'который показывает.',
+    'hero.lead': 'OpenGhost выполняет команды, правит файлы и работает в интернете в собственном браузере. А отвечает графиками, схемами, маршрутами и фото прямо в чате.',
+    'hero.download': 'Скачать для {os}', 'hero.desktop': 'Скачать на компьютер',
+    'hero.try': 'Попробовать прямо здесь',
+    'hero.meta': 'Windows · macOS · Linux · лицензия MIT',
+    'demo.eyebrow': 'Живое демо', 'demo.title1': 'Это настоящее приложение.', 'demo.title2': 'Выберите модель и спросите.',
+    'demo.try': 'Вопросы для проверки', 'demo.live': 'Вживую', 'demo.loading': 'Открываем приложение…',
+    'demo.note': 'Интерфейс — собственный код приложения. Ответы написаны заранее, поэтому ничего не уходит с этой страницы.',
+    'drawings.eyebrow': 'Движок графики', 'drawings.title1': '43 вида рисунков.', 'drawings.title2': 'Каждый — под свою тему.',
+    'drawings.lead': 'Без Mermaid и без библиотек графиков. OpenGhost читает, что пишет модель, и рисует прямо во время ответа: графики живые, отзываются на курсор и правятся на месте.',
+    'drawings.ask': 'Спросить в демо',
+    'features.eyebrow': 'Агент на компьютере', 'features.title1': 'Он делает работу.', 'features.title2': 'На вашем компьютере, в ваших аккаунтах.',
+    'f.visual.t': 'Показывает, о чём говорит', 'f.visual.d': 'Схема со всеми деталями, график на каждую кривую, главные числа — метриками. Фото и видео, когда вещь лучше увидеть, чем описать.',
+    'f.browser.t': 'Браузер со своим курсором', 'f.browser.d': 'Агент открывает страницы, кликает, печатает и читает в панели рядом с чатом — там, где вы уже вошли. Мини-чат запускает второго агента рядом с первым.',
+    'f.quick.t': 'Быстрый чат откуда угодно', 'f.quick.d': 'Alt+Space вызывает полноценного агента поверх любого окна. Esc — и его нет.',
+    'f.notes.t': 'Заметки, о которых он помнит', 'f.notes.d': 'Попросите что-то записать. Когда разговор дойдёт до этого, агент сам напомнит — и никогда не действует по заметке без вас.',
+    'f.memory.t': 'Он вас помнит', 'f.memory.d': 'Расскажите один раз, в любом чате. Инструкции и файлы для всех чатов и память, которую можно прочитать, изменить или выключить.',
+    'f.modes.t': 'Три режима доступа', 'f.modes.d': 'Вы решаете, как далеко он заходит, прежде чем спросить.', 'f.modes.ask': 'Спрашивать', 'f.modes.auto': 'Авто', 'f.modes.full': 'Полный доступ',
+    'f.keys.t': 'Ключи остаются у вас', 'f.keys.d': 'Зашифрованы операционной системой. Любой чат можно закрыть паролем — с настоящим шифрованием.',
+    'f.scratch.t': 'Написан с нуля', 'f.scratch.d': 'Ни UI-фреймворка, ни библиотеки Markdown, ни Mermaid, ни фреймворка агентов. Каждая часть — свой код.',
+    'f.look.t': 'Настройте под себя', 'f.look.d': 'Светлая, тёмная или системная тема, размер интерфейса, цвет ваших сообщений и фона чата. На английском, итальянском, французском и русском.',
+    'models.eyebrow': 'Модели', 'models.title1': 'Любая ваша модель.', 'models.title2': 'Или вообще без облака.',
+    'models.cloud.t': 'В облаке', 'models.cloud.d': 'Войдите через ChatGPT или добавьте ключ OpenAI, Claude, DeepSeek или OpenRouter. Модели берутся из списка самого провайдера — новая появится сама.',
+    'models.custom': 'Любой API, совместимый с OpenAI',
+    'models.local.tag': 'Полностью локально', 'models.local.t': 'На вашем компьютере',
+    'models.local.d': 'Укажите адрес Ollama, LM Studio или llama.cpp — и скачанные модели появятся в меню, а размер контекста приложение подберёт само. Без аккаунта, ничего не покидает компьютер.',
+    'models.local.s1': 'Скачайте модель:', 'models.local.s2': 'Откройте', 'models.local.path': 'Настройки → Провайдеры → Локальные', 'models.local.s3': 'Выберите её в чате, рядом с Claude и GPT.',
+    'download.eyebrow': 'Скачать', 'download.title1': 'OpenGhost {v}.', 'download.title2': 'Бесплатно, для любого компьютера.',
+    'download.win': 'Установщик · Windows 10 и 11', 'download.mac': 'Образ диска · Apple silicon и Intel', 'download.linux': 'Архив · x64',
+    'download.get': 'Скачать', 'download.yours': 'Ваша система', 'download.new': 'Что нового в {v}',
+    'download.all': 'Все релизы', 'download.source': 'Собрать из исходников', 'download.sponsor': 'Поддержать проект',
+    'footer.line': 'Бесплатно и с открытым кодом, лицензия MIT.', 'footer.releases': 'Релизы', 'footer.sponsor': 'Поддержать',
+  },
+};
+
+// What the visitor can ask the demo, in both languages: a short label for the chip and the question itself.
+const ASK = {
+  en: {
+    neural: ['Neural networks', 'How does a neural network learn?'],
+    bitcoin: ['Bitcoin chart', 'Show a Bitcoin chart'],
+    startup: ['Startup money', 'Where does a startup\'s money go?'],
+    landing: ['Coffee shop site', 'Design a landing page for a coffee shop'],
+    spanish: ['Spanish verbs', 'Teach me Spanish verbs'],
+    rome: ['3 days in Rome', 'Plan three days in Rome'],
+    pc: ['Gaming PC', 'Build a gaming PC for $1,500'],
+    internet: ['How a site opens', 'What happens when I open a website?'],
+    food: ['Meals for today', 'What should I eat today?'],
+    workout: ['Training plan', 'Make me a training plan'],
+    tournament: ['FIFA bracket', 'Make a bracket for our office FIFA tournament'],
+    folder: ['Project folder', 'Show my project folder'],
+  },
+  ru: {
+    neural: ['Нейросети', 'Как учится нейросеть?'],
+    bitcoin: ['График биткоина', 'Покажи график биткоина'],
+    startup: ['Деньги стартапа', 'Куда уходят деньги стартапа?'],
+    landing: ['Сайт кофейни', 'Сделай лендинг для кофейни'],
+    spanish: ['Испанские глаголы', 'Научи испанским глаголам'],
+    rome: ['3 дня в Риме', 'Спланируй 3 дня в Риме'],
+    pc: ['Игровой ПК', 'Собери игровой ПК за $1500'],
+    internet: ['Как открывается сайт', 'Что происходит, когда я открываю сайт?'],
+    food: ['Меню на день', 'Что мне съесть сегодня?'],
+    workout: ['План тренировок', 'Составь план тренировок'],
+    tournament: ['Сетка FIFA', 'Сетка турнира по FIFA в офисе'],
+    folder: ['Папка проекта', 'Покажи папку проекта'],
+  },
+};
+const CHIPS = ['neural', 'bitcoin', 'startup', 'landing', 'spanish', 'rome', 'pc', 'internet'];
+
+// The drawing kinds on show, each with the question that makes the demo draw it, and a small drawing of its own.
+const KINDS = [
+  { key: 'bitcoin', en: ['Candles', 'Price history with a moving average'], ru: ['Свечи', 'История цены со скользящей средней'] },
+  { key: 'startup', en: ['Sankey', 'Where money or traffic flows'], ru: ['Санки', 'Куда текут деньги или трафик'] },
+  { key: 'pc', en: ['Radar', 'Options set against criteria'], ru: ['Радар', 'Варианты по нескольким критериям'] },
+  { key: 'landing', en: ['Wireframe', 'A page, drawn before it is built'], ru: ['Вайрфрейм', 'Страница до того, как её сверстали'] },
+  { key: 'rome', en: ['Route', 'A trip by days, with the way between'], ru: ['Маршрут', 'Поездка по дням, с дорогой между точками'] },
+  { key: 'food', en: ['Nutrition', 'A day of meals against the goal'], ru: ['Питание', 'Меню на день против цели'] },
+  { key: 'internet', en: ['Sequence', 'Who says what to whom'], ru: ['Последовательность', 'Кто, что и кому отвечает'] },
+  { key: 'tournament', en: ['Bracket', 'A knockout, round by round'], ru: ['Сетка', 'Плей-офф по раундам'] },
+  { key: 'spanish', en: ['Gloss', 'A sentence taken apart'], ru: ['Разбор', 'Предложение по словам'] },
+  { key: 'workout', en: ['Heatmap', 'A value for every day'], ru: ['Тепловая карта', 'Значение на каждый день'] },
+  { key: 'neural', en: ['Curves', 'Runs set against each other'], ru: ['Кривые', 'Несколько запусков на одном графике'] },
+  { key: 'folder', en: ['Files', 'A folder and what takes the space'], ru: ['Файлы', 'Папка и что занимает место'] },
+];
+
+const tone = (n, a = 1) => `rgba(var(--t${n}), ${a})`;
+const GLYPHS = {
+  bitcoin: () => {
+    const c = [[50, 42, 38, 54], [42, 46, 40, 50], [46, 36, 33, 48], [36, 40, 32, 44], [40, 30, 26, 42], [30, 34, 28, 38], [34, 24, 20, 36], [24, 18, 14, 28], [18, 22, 15, 26]];
+    return c.map(([o, cl, h, l], i) => {
+      const x = 14 + i * 11.5, up = cl < o, color = up ? 'rgb(var(--up))' : 'rgb(var(--down))';
+      return `<line x1="${x}" y1="${h}" x2="${x}" y2="${l}" stroke="${color}" stroke-width="1.2"/><rect x="${x - 3.2}" y="${Math.min(o, cl)}" width="6.4" height="${Math.max(1.5, Math.abs(o - cl))}" rx="1" fill="${color}"/>`;
+    }).join('') + `<path d="M14 48 C 32 46, 46 40, 62 34 S 92 22, 106 20" fill="none" stroke="${tone(4)}" stroke-width="1.4" pathLength="1" data-draw/><line x1="6" y1="64" x2="114" y2="64" class="faint" stroke-width="1"/>`;
+  },
+  startup: () => `<g fill="${tone(3, 0.2)}"><path d="M12 8 C35 8,35 12,58 12 L58 40 C35 40,35 38,12 38Z"/><path d="M12 44 C35 44,35 40,58 40 L58 54 C35 54,35 58,12 58Z"/><path d="M62 12 C85 12,85 4,108 4 L108 26 C85 26,85 34,62 34Z"/><path d="M62 34 C85 34,85 31,108 31 L108 42 C85 42,85 45,62 45Z"/><path d="M62 45 C85 45,85 47,108 47 L108 54 C85 54,85 50,62 50Z"/><path d="M62 50 C85 50,85 59,108 59 L108 64 C85 64,85 54,62 54Z"/></g><g fill="${tone(3)}"><rect x="8" y="8" width="4" height="30" rx="1"/><rect x="8" y="44" width="4" height="14" rx="1"/><rect x="58" y="12" width="4" height="42" rx="1"/><rect x="108" y="4" width="4" height="22" rx="1"/><rect x="108" y="31" width="4" height="11" rx="1"/><rect x="108" y="47" width="4" height="7" rx="1"/><rect x="108" y="59" width="4" height="5" rx="1"/></g>`,
+  pc: () => {
+    const hex = r => [[0, -1], [0.866, -0.5], [0.866, 0.5], [0, 1], [-0.866, 0.5], [-0.866, -0.5]].map(([x, y]) => `${60 + x * r},${36 + y * r}`).join(' ');
+    const curve = vs => [[0, -1], [0.866, -0.5], [0.866, 0.5], [0, 1], [-0.866, 0.5], [-0.866, -0.5]].map(([x, y], i) => `${60 + x * 30 * vs[i]},${36 + y * 30 * vs[i]}`).join(' ');
+    return `<polygon points="${hex(30)}" fill="none" class="faint" stroke-width="1"/><polygon points="${hex(20)}" fill="none" class="faint" stroke-width="1"/><polygon points="${hex(10)}" fill="none" class="faint" stroke-width="1"/>`
+      + `<polygon points="${curve([0.85, 0.8, 1, 0.6, 0.9, 0.7])}" fill="${tone(1, 0.14)}" stroke="${tone(1)}" stroke-width="1.4" stroke-linejoin="round"/>`
+      + `<polygon points="${curve([0.95, 0.65, 0.75, 0.85, 0.65, 0.8])}" fill="${tone(2, 0.1)}" stroke="${tone(2)}" stroke-width="1.4" stroke-linejoin="round"/>`
+      + `<polygon points="${curve([0.5, 0.5, 0.55, 0.6, 0.7, 1])}" fill="${tone(3, 0.1)}" stroke="${tone(3)}" stroke-width="1.4" stroke-linejoin="round"/>`;
+  },
+  landing: () => `<rect x="8" y="5" width="104" height="62" rx="5" fill="none" class="ink" stroke-width="1.1"/><line x1="8" y1="14" x2="112" y2="14" class="faint" stroke-width="1"/><circle cx="14" cy="9.5" r="1.4" class="fill-faint"/><circle cx="19" cy="9.5" r="1.4" class="fill-faint"/><circle cx="24" cy="9.5" r="1.4" class="fill-faint"/>`
+    + `<rect x="16" y="22" width="38" height="5" rx="2" class="fill-ink"/><rect x="16" y="30" width="30" height="5" rx="2" class="fill-ink"/><rect x="16" y="38" width="34" height="2.5" rx="1" class="fill-soft"/><rect x="16" y="45" width="16" height="7" rx="3.5" class="fill-ink"/>`
+    + `<rect x="64" y="21" width="40" height="31" rx="3" class="fill-faint"/><path d="M70 46 l8 -9 6 6 4 -4 10 7" fill="none" class="ink" stroke-width="1.1" stroke-linejoin="round"/><rect x="16" y="57" width="26" height="5" rx="2" class="fill-faint"/><rect x="47" y="57" width="26" height="5" rx="2" class="fill-faint"/><rect x="78" y="57" width="26" height="5" rx="2" class="fill-faint"/>`,
+  rome: () => `<path d="M14 56 C 28 22, 50 66, 62 36 S 94 12, 106 20" fill="none" stroke="${tone(1)}" stroke-width="1.6" stroke-dasharray="3 4" stroke-linecap="round"/>`
+    + [[14, 56], [62, 36], [106, 20]].map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="6" fill="${tone(1, 0.16)}"/><circle cx="${x}" cy="${y}" r="3.4" fill="${tone(1)}"/><text x="${x}" y="${y + 17}" text-anchor="middle" font-family="var(--mono)" font-size="7" fill="var(--ink-3)">${i + 1}</text>`).join(''),
+  food: () => {
+    const ring = (r, part, n, w) => `<circle cx="34" cy="36" r="${r}" fill="none" class="faint" stroke-width="${w}"/><circle cx="34" cy="36" r="${r}" fill="none" stroke="${tone(n)}" stroke-width="${w}" stroke-linecap="round" pathLength="100" stroke-dasharray="${part} 100" transform="rotate(-90 34 36)"/>`;
+    const bar = (y, part, n) => `<rect x="72" y="${y}" width="40" height="4" rx="2" class="fill-faint"/><rect x="72" y="${y}" width="${40 * part}" height="4" rx="2" fill="${tone(n)}"/>`;
+    return ring(27, 92, 1, 5.5) + ring(19, 78, 2, 5.5) + ring(11, 88, 3, 5.5) + bar(20, 0.96, 1) + bar(34, 0.82, 2) + bar(48, 0.9, 3);
+  },
+  internet: () => `<rect x="10" y="4" width="28" height="10" rx="3" class="fill-faint"/><rect x="82" y="4" width="28" height="10" rx="3" class="fill-faint"/><line x1="24" y1="14" x2="24" y2="68" class="faint" stroke-width="1" stroke-dasharray="2 3"/><line x1="96" y1="14" x2="96" y2="68" class="faint" stroke-width="1" stroke-dasharray="2 3"/>`
+    + [[24, 96, 24, false], [96, 24, 36, true], [24, 96, 48, false], [96, 24, 60, true]].map(([a, b, y, back], i) => `<line x1="${a}" y1="${y}" x2="${b + (back ? 4 : -4)}" y2="${y}" stroke="${tone(back ? 3 : 1)}" stroke-width="1.4" ${back ? 'stroke-dasharray="3 3"' : ''}/><path d="M${b} ${y} l${back ? 6 : -6} -3.5 v7z" fill="${tone(back ? 3 : 1)}"/>`).join(''),
+  tournament: () => {
+    const box = (x, y, w, on) => `<rect x="${x}" y="${y}" width="${w}" height="9" rx="2.5" ${on ? `fill="${tone(4, 0.18)}" stroke="${tone(4)}" stroke-width="1"` : 'class="fill-faint"'}/>`;
+    return box(6, 6, 30, 0) + box(6, 20, 30, 0) + box(6, 40, 30, 0) + box(6, 54, 30, 0) + box(46, 13, 30, 0) + box(46, 47, 30, 0) + box(86, 30, 28, 1)
+      + `<path d="M36 10.5 H41 V24.5 H36 M41 17.5 H46 M36 44.5 H41 V58.5 H36 M41 51.5 H46 M76 17.5 H81 V51.5 H76 M81 34.5 H86" fill="none" class="ink" stroke-width="1"/>`;
+  },
+  spanish: () => {
+    const cols = [[8, 20], [32, 12], [48, 26], [78, 16], [98, 14]];
+    return cols.map(([x, w], i) => `<rect x="${x}" y="12" width="${w}" height="5" rx="2" class="fill-ink"/><line x1="${x}" y1="23" x2="${x + w}" y2="23" stroke="${i === 1 ? tone(6 - 4) : 'var(--ink-4)'}" stroke-width="${i === 1 ? 2 : 1}"/><rect x="${x}" y="29" width="${w * 0.8}" height="3.5" rx="1.5" class="fill-soft"/><rect x="${x}" y="37" width="${w * 0.65}" height="3" rx="1.5" class="fill-faint"/>`).join('')
+      + `<rect x="8" y="52" width="86" height="3.5" rx="1.5" class="fill-soft"/><rect x="8" y="60" width="54" height="3.5" rx="1.5" class="fill-faint"/>`;
+  },
+  workout: () => '',
+  neural: () => `<rect x="12" y="6" width="16" height="56" fill="var(--ink-4)" opacity="0.6"/><line x1="12" y1="62" x2="112" y2="62" class="faint" stroke-width="1"/><line x1="12" y1="6" x2="12" y2="62" class="faint" stroke-width="1"/>`
+    + `<path d="M12 12 C 30 40, 50 52, 110 56" fill="none" stroke="${tone(1)}" stroke-width="1.6" pathLength="1" data-draw style="--d: .2s"/><path d="M12 12 C 22 24, 32 8, 46 20 S 68 6, 82 16 S 100 4, 110 8" fill="none" stroke="${tone(2)}" stroke-width="1.6" pathLength="1" data-draw style="--d: .35s"/><path d="M12 12 C 24 28, 40 32, 110 33" fill="none" stroke="${tone(3)}" stroke-width="1.6" pathLength="1" data-draw style="--d: .5s"/><line x1="92" y1="6" x2="92" y2="62" class="ink" stroke-width="1" stroke-dasharray="2 2.5"/>`,
+  folder: () => `<path d="M10 16 h11 l4 4 h17 a2 2 0 0 1 2 2 v24 a2 2 0 0 1 -2 2 h-30 a2 2 0 0 1 -2 -2 v-28 a2 2 0 0 1 2 -2z" fill="${tone(1, 0.16)}" stroke="${tone(1)}" stroke-width="1.2" stroke-linejoin="round"/>`
+    + [[12, 0.9, 2], [26, 0.62, 3], [40, 0.4, 4], [54, 0.22, 1]].map(([y, part, n]) => `<rect x="54" y="${y}" width="7" height="9" rx="1.5" fill="none" class="ink" stroke-width="1"/><rect x="66" y="${y + 1}" width="26" height="3" rx="1.5" class="fill-soft"/><rect x="66" y="${y + 6}" width="44" height="2.5" rx="1.25" class="fill-faint"/><rect x="66" y="${y + 6}" width="${44 * part}" height="2.5" rx="1.25" fill="${tone(n)}"/>`).join(''),
+};
+
+// The heatmap is ten weeks of small squares, made here rather than written out.
+GLYPHS.workout = () => {
+  let out = '', seed = 11;
+  const random = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  for (let w = 0; w < 12; w++) for (let d = 0; d < 7; d++) {
+    const rest = d === 6 || (w === 5 && d < 5), level = rest ? 0 : 0.2 + random() * 0.8;
+    out += `<rect x="${8 + w * 8.8}" y="${4 + d * 9}" width="7" height="7" rx="1.6" fill="${level ? tone(2, level.toFixed(2)) : 'var(--ink-4)'}"/>`;
+  }
+  return out;
+};
+
+let lang = root.lang === 'ru' ? 'ru' : 'en';
+const t = (key, vars) => {
+  const text = T[lang][key] ?? T.en[key] ?? key;
+  return vars ? text.replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? '') : text;
+};
+
+/* ———————————————— Theme ———————————————— */
+
+// What the theme is: picked here or in the app, else the viewer's, else the computer's.
+const system = matchMedia('(prefers-color-scheme: dark)');
+let picked = ['light', 'dark'].includes(visit.get('og.site.theme')) ? visit.get('og.site.theme') : '';
+let host = window.__hostTheme || '';
+let written = root.dataset.theme;
+const resolve = () => picked || host || (system.matches ? 'dark' : 'light');
+
+function paint() {
+  const theme = resolve();
+  if (root.dataset.theme !== theme) { written = theme; root.dataset.theme = theme; }
+  tellApp({ theme });
+}
+
+new MutationObserver(() => {
+  const now = root.getAttribute('data-theme');
+  if (now === written) return;
+  host = now === 'light' || now === 'dark' ? now : '';
+  paint();
+}).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+system.addEventListener('change', paint);
+
+document.getElementById('theme').addEventListener('click', () => {
+  picked = resolve() === 'dark' ? 'light' : 'dark';
+  visit.set('og.site.theme', picked);
+  const change = () => paint();
+  if (!still && document.startViewTransition) document.startViewTransition(change);
+  else change();
+});
+
+/* ———————————————— Release ———————————————— */
+
+const FALLBACK = '1.4.7';
+const assetsFor = version => ({
+  win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
+  mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
+  linux: { name: `OpenGhost-${version}-linux.tar.gz`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-linux.tar.gz` },
+});
+const NOTES = {
+  en: [
+    'Local models: give the address of Ollama, LM Studio or llama.cpp, and its models show up in the model picker.',
+    'Any OpenAI-compatible API, in a section of its own: the address of a service and its key.',
+    'Every model your key can use, for Anthropic and OpenAI, and any model by its ID.',
+    'The agent sees a task through: the exact items, prices, links and its own pick.',
+  ],
+  ru: [
+    'Локальные модели: укажите адрес Ollama, LM Studio или llama.cpp — и их модели появятся в меню.',
+    'Любой API, совместимый с OpenAI, в отдельном разделе: адрес сервиса и ключ.',
+    'Все модели, доступные вашему ключу Anthropic и OpenAI, и любая модель по её ID.',
+    'Агент доводит задачу до конца: точные товары, цены, ссылки и свой выбор.',
+  ],
+};
+let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };
+
+// A release as GitHub gives it: from its API, or from release.json, which the site's workflow writes on every release.
+function readRelease(data) {
+  const version = String(data?.tag_name || '').replace(/^v/i, '');
+  if (!/^\d+\.\d+/.test(version)) return null;
+  const list = Array.isArray(data.assets) ? data.assets : [];
+  const find = (test, prefer) => list.filter(a => test.test(a.name)).sort((a, b) => prefer.test(b.name) - prefer.test(a.name))[0];
+  const asset = a => a && { name: a.name, url: a.browser_download_url, size: a.size };
+  const guess = assetsFor(version);
+  const notes = String(data.body || '').split('\n').map(line => line.match(/^\s*[-*]\s+(.+)/)?.[1]).filter(Boolean).map(line => line.replace(/\*\*|`|\[([^\]]+)\]\([^)]+\)/g, '$1')).slice(0, 5);
+  return {
+    version,
+    page: data.html_url || `https://github.com/${REPO}/releases/tag/v${version}`,
+    assets: {
+      win: asset(find(/\.exe$/i, /setup/i)) || guess.win,
+      mac: asset(find(/\.dmg$/i, /mac|universal/i)) || guess.mac,
+      linux: asset(find(/\.(AppImage|tar\.gz|deb)$/i, /linux/i)) || guess.linux,
+    },
+    notes: notes.length ? notes : null,
+  };
+}
+
+async function loadRelease() {
+  for (const source of [`https://api.github.com/repos/${REPO}/releases/latest`, 'release.json']) {
+    try {
+      const response = await fetch(source, { cache: 'no-store', headers: source.startsWith('http') ? { Accept: 'application/vnd.github+json' } : {} });
+      if (!response.ok) continue;
+      const found = readRelease(await response.json());
+      if (found) { release = found; break; }
+    } catch {}
+  }
+  paintRelease();
+}
+
+const ua = navigator.userAgent, platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
+const mobile = /android|iphone|ipad|ipod/i.test(ua) || (navigator.maxTouchPoints > 1 && /mac/.test(platform) && !/macintosh.*chrome/i.test(ua) && 'ontouchend' in document);
+const OS = mobile ? null : /win/.test(platform) || /windows/i.test(ua) ? 'win' : /mac/.test(platform) || /mac os/i.test(ua) ? 'mac' : /linux|x11|cros/.test(platform + ua.toLowerCase()) ? 'linux' : null;
+const OS_NAME = { win: 'Windows', mac: 'macOS', linux: 'Linux' };
+const mb = bytes => bytes ? `${Math.round(bytes / 1048576)} MB` : '';
+
+function paintRelease() {
+  const v = release.version;
+  for (const el of document.querySelectorAll('[data-version]')) el.textContent = `v${v}`;
+  document.querySelector('[data-download-title]').textContent = t('download.title1', { v });
+  document.querySelector('[data-news-title]').textContent = t('download.new', { v });
+  document.getElementById('all-releases').href = `https://github.com/${REPO}/releases`;
+  const hero = document.getElementById('hero-download'), text = document.getElementById('hero-download-text');
+  if (OS) {
+    const a = release.assets[OS];
+    hero.href = a.url;
+    hero.target = '_blank';
+    hero.rel = 'noopener';
+    text.innerHTML = `${t('hero.download', { os: OS_NAME[OS] })}<span class="sub"> ${mb(a.size) || `v${v}`}</span>`;
+  } else {
+    hero.href = '#download';
+    hero.removeAttribute('target');
+    text.textContent = t('hero.desktop');
+  }
+  const order = OS ? [OS, ...['win', 'mac', 'linux'].filter(k => k !== OS)] : ['win', 'mac', 'linux'];
+  document.getElementById('platforms').innerHTML = order.map((k, i) => {
+    const a = release.assets[k], mine = k === OS;
+    return `<article class="platform pane rise is-in${mine ? ' is-mine' : ''}" style="--delay:${i * 0.06}s">
+      <h3 class="h3"><span>${OS_NAME[k]}</span>${mine ? `<span class="yours">${t('download.yours')}</span>` : ''}</h3>
+      <p class="small">${t(`download.${k}`)}</p>
+      <p class="file">${a.name}${a.size ? ` · ${mb(a.size)}` : ''}</p>
+      <a class="btn ${mine ? 'btn-solid' : 'btn-glass glass'}" href="${a.url}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.8 10 13.2l4.5-4.4M4 16.5h12"/></svg>${t('download.get')}</a>
+    </article>`;
+  }).join('');
+  const notes = release.notes && lang === 'en' ? release.notes : NOTES[lang];
+  document.getElementById('news').innerHTML = notes.map(line => `<li>${line.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}</li>`).join('');
+  lens(document.querySelectorAll('#platforms .glass'));
+}
+
+/* ———————————————— Language ———————————————— */
+
+function paintWords() {
+  root.lang = lang;
+  for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t);
+  for (const el of document.querySelectorAll('[data-t-aria]')) el.setAttribute('aria-label', t(el.dataset.tAria));
+  for (const button of document.querySelectorAll('#lang button')) button.setAttribute('aria-pressed', String(button.dataset.lang === lang));
+  placeKnob();
+  splitTitle();
+  document.getElementById('chips').innerHTML = CHIPS.map(key => `<button type="button" class="chip glass" data-ask="${key}">${ASK[lang][key][0]}</button>`).join('');
+  document.getElementById('tiles').innerHTML = KINDS.map((kind, i) => `<button type="button" class="tile pane rise" data-ask="${kind.key}" style="--delay:${(i % 4) * 0.06}s">
+      <svg class="glyph" viewBox="0 0 120 72" aria-hidden="true">${GLYPHS[kind.key]()}</svg>
+      <span class="tile-name">${kind[lang][0]}</span>
+      <span class="tile-hint">${kind[lang][1]}</span>
+      <span class="tile-go">${t('drawings.ask')} <span aria-hidden="true">→</span></span>
+    </button>`).join('');
+  lens(document.querySelectorAll('#chips .glass'));
+  watch(document.querySelectorAll('#tiles .rise'));
+  paintRelease();
+  setBusy(busy);
+}
+
+function placeKnob(instant) {
+  const seg = document.getElementById('lang'), knob = seg.querySelector('.knob'), on = seg.querySelector('[aria-pressed="true"]');
+  if (!on) return;
+  if (instant) knob.style.transition = 'none';
+  knob.style.width = `${on.offsetWidth}px`;
+  knob.style.transform = `translateX(${on.offsetLeft - 3}px)`;
+  if (instant) { void knob.offsetWidth; knob.style.transition = ''; }
+}
+
+for (const button of document.querySelectorAll('#lang button')) {
+  button.addEventListener('click', () => {
+    if (button.dataset.lang === lang) return;
+    lang = button.dataset.lang;
+    store.set('og.site.lang', lang);
+    paintWords();
+    tellApp({ lang });
+  });
+}
+
+// The headline comes in word by word, like the name in the app's opening.
+function splitTitle() {
+  for (const part of document.querySelectorAll('[data-hero-title] [data-t]')) {
+    part.innerHTML = part.textContent.split(/(\s+)/).map(word => word.trim() ? `<span class="word">${word}</span>` : word).join('');
+  }
+}
+
+/* ———————————————— Glass ———————————————— */
+
+// The app's lens bends what is behind a glass button, where the browser can draw it.
+const canBend = window.LiquidGlass && CSS.supports('backdrop-filter', 'url(#a) blur(1px)') && !/firefox/i.test(ua) && !/^((?!chrome|android).)*safari/i.test(ua);
+function lens(elements) {
+  if (!canBend) return;
+  for (const el of elements) {
+    if (el.dataset.lens) continue;
+    el.dataset.lens = '1';
+    new LiquidGlass(el, { zoom: 1.08, edge: 5, band: 6 });
+  }
+}
+
+/* ———————————————— The demo ———————————————— */
+
+const frame = document.getElementById('app-frame');
+const stage = document.getElementById('stage');
+const windowEl = document.getElementById('window');
+const BASE = { width: 1200, height: 760 };
+let ready = false, queued = null, busy = false, busyTimer = 0;
+
+function fit() {
+  const width = stage.clientWidth;
+  if (width < 720) {
+    const height = Math.min(700, Math.max(560, Math.round(innerHeight * 0.78)));
+    Object.assign(frame.style, { width: `${width}px`, height: `${height}px`, transform: 'none' });
+    stage.style.height = `${height}px`;
+    return;
+  }
+  const scale = Math.min(1, width / BASE.width), inner = scale < 1 ? BASE.width : width;
+  Object.assign(frame.style, { width: `${inner}px`, height: `${BASE.height}px`, transform: scale < 1 ? `scale(${scale})` : 'none' });
+  stage.style.height = `${Math.round(BASE.height * scale)}px`;
+}
+new ResizeObserver(fit).observe(stage);
+fit();
+
+function tellApp(message) {
+  try { frame.contentWindow?.postMessage({ type: 'openghost-demo', ...message }, '*'); } catch {}
+}
+
+function setBusy(on) {
+  busy = on;
+  clearTimeout(busyTimer);
+  if (on) busyTimer = setTimeout(() => setBusy(false), 20000);
+  for (const chip of document.querySelectorAll('.chip')) chip.disabled = on;
+}
+
+function ask(key) {
+  const prompt = ASK[lang][key]?.[1];
+  if (!prompt) return;
+  if (!ready) { queued = key; setBusy(true); return; }
+  setBusy(true);
+  tellApp({ prompt });
+}
+
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-ask]');
+  if (!button) return;
+  if (button.classList.contains('tile')) document.getElementById('demo').scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+  ask(button.dataset.ask);
+});
+
+addEventListener('message', event => {
+  if (event.source !== frame.contentWindow || event.data?.type !== 'openghost-app') return;
+  const data = event.data;
+  if (data.ready) {
+    stage.classList.add('is-loaded');
+    setTimeout(() => {
+      // The app was inert while it opened, so its message field could not take the focus and pull the page down to it.
+      frame.inert = false;
+      ready = true;
+      if (queued) { const key = queued; queued = null; ask(key); } else setBusy(false);
+    }, 500);
+    // A language picked in the app's own settings becomes the website's too.
+    if ((data.lang === 'en' || data.lang === 'ru') && data.lang !== lang) {
+      lang = data.lang;
+      store.set('og.site.lang', lang);
+      paintWords();
+    }
+  }
+  // A theme picked in the app's own settings becomes the website's too.
+  if ((data.theme === 'light' || data.theme === 'dark') && data.theme !== resolve()) {
+    picked = data.theme;
+    visit.set('og.site.theme', picked);
+    paint();
+  }
+  if (data.event === 'done') setBusy(false);
+});
+
+function openApp() {
+  if (frame.src) return;
+  // Should the app never say it is ready, it is let free a moment after it has loaded.
+  frame.addEventListener('load', () => setTimeout(() => { frame.inert = false; stage.classList.add('is-loaded'); }, 2500), { once: true });
+  frame.src = `app/index.html?lang=${lang}&theme=${resolve()}`;
+}
+
+// The window lies back a little as it comes up the page and settles flat once it is in view.
+function tilt() {
+  if (still) return;
+  const box = windowEl.getBoundingClientRect(), h = innerHeight;
+  const p = Math.min(1, Math.max(0, (h - box.top) / (h * 0.75)));
+  const ease = 1 - (1 - p) ** 3;
+  windowEl.style.transform = p >= 1 ? 'none' : `rotateX(${(1 - ease) * 16}deg) scale(${0.94 + ease * 0.06}) translateY(${(1 - ease) * 40}px)`;
+}
+
+/* ———————————————— Motion ———————————————— */
+
+const seen = new IntersectionObserver(entries => {
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    entry.target.classList.add('is-in');
+    seen.unobserve(entry.target);
+  }
+}, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+function watch(elements) { for (const el of elements) still ? el.classList.add('is-in') : seen.observe(el); }
+
+const nav = document.getElementById('nav');
+let ticking = false;
+addEventListener('scroll', () => {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(() => {
+    ticking = false;
+    nav.classList.toggle('is-tight', scrollY > 30);
+    tilt();
+  });
+}, { passive: true });
+
+function heroIn() {
+  if (still) return;
+  const words = document.querySelectorAll('[data-hero-title] .word');
+  words.forEach((word, i) => word.animate(
+    [{ opacity: 0, transform: 'translateY(0.32em)', filter: 'blur(12px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
+    { duration: 900, delay: 60 + i * 70, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards' }));
+  document.querySelectorAll('[data-hero]').forEach((el, i) => el.animate(
+    [{ opacity: 0, transform: 'translateY(14px)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
+    { duration: 850, delay: 260 + i * 90, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'backwards' }));
+  nav.animate([{ opacity: 0, transform: 'translate(-50%, -14px)' }, { opacity: 1, transform: 'translate(-50%, 0)' }], { duration: 800, delay: 200, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'backwards' });
+}
+
+/* ———————————————— Start ———————————————— */
+
+paintWords();
+placeKnob(true);
+document.fonts?.ready.then(() => placeKnob(true));
+watch(document.querySelectorAll('.rise:not(.tile)'));
+lens(document.querySelectorAll('.nav .glass, .hero .glass, .news .glass'));
+tilt();
+loadRelease();
+
+// The opening: the app's own (splash.js), with the website as the app. Its ghost lands where the hero's ghost stands.
+const splash = document.querySelector('.splash');
+if (root.classList.contains('is-splash') && splash) {
+  new MutationObserver((_, observer) => {
+    if (!splash.classList.contains('is-opening')) return;
+    observer.disconnect();
+    heroIn();
+  }).observe(splash, { attributes: true, attributeFilter: ['class'] });
+  addEventListener('splashend', openApp, { once: true });
+  // Should the opening never end (a script that failed), the page opens anyway.
+  setTimeout(() => { if (root.classList.contains('is-splash')) { root.classList.remove('is-splash'); splash.remove(); heroIn(); openApp(); } }, 9000);
+} else {
+  heroIn();
+  openApp();
+}
+})();
+</script>
+<script src="app/splash.js"></script>
+</body>
+</html>
