@@ -1,0 +1,75 @@
+name: Website
+
+# Publishes the website (site/) to GitHub Pages, with the real app from this repository inside it as the demo.
+# It runs when main changes and when a release is published, so the page always shows the latest version
+# (release.json) and links straight to its files. A pull request gets the same build as a check, without publishing.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site/app/desktop
+          cp site/index.html _site/
+          cp -r site/media _site/
+          # The app itself, as it is in this commit.
+          cp index.html styles.css ./*.js _site/app/
+          cp desktop/icon.png desktop/cursor.png _site/app/desktop/
+          # The demo layer: loaded before every other script of the app, it answers with replies written in advance.
+          cp site/demo/demo.js site/demo/demo-scenarios.js _site/app/
+          sed -i 's#<script src="desktop.js"></script>#<script src="demo-scenarios.js"></script>\n  <script src="demo.js"></script>\n  <script src="desktop.js"></script>#' _site/app/index.html
+          grep -q 'src="demo.js"' _site/app/index.html
+          # Inside the page the message field must not take the focus by itself: it would scroll the website to the demo.
+          sed -i 's/ autofocus>/>/' _site/app/index.html
+          # The latest release: version, files and notes. The page also asks GitHub itself and falls back to this.
+          gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > _site/release.json || echo '{}' > _site/release.json
+          touch _site/.nojekyll
+
+      - name: Check the site
+        run: |
+          set -euo pipefail
+          for script in _site/app/*.js; do node --check "$script"; done
+          # Every file the page and the app ask for is there.
+          for name in splash-mist.js ghost-thinking.js liquid-glass.js splash.js desktop/icon.png; do test -f "_site/app/$name"; done
+          for name in $(grep -o 'src="[^"]*\.js"' _site/app/index.html | sed 's/src="//;s/"$//'); do test -f "_site/app/$name" || { echo "missing app/$name"; exit 1; }; done
+          for name in $(grep -o 'src="media/[^"]*"' _site/index.html | sed 's/src="//;s/"$//'); do test -f "_site/$name" || { echo "missing $name"; exit 1; }; done
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: deployment
+        uses: actions/deploy-pages@v4
