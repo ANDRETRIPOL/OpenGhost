@@ -20,8 +20,6 @@ What's new:
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
-The code is under the MIT license. The name OpenGhost, the ghost logo, the animations, and the visual design are not: they stay with the author. A modified version may not be published or distributed with any of them, paid or free, and they may not be used for any commercial purpose. See LICENSE.
-
 OpenGhost is an open desktop agent for Windows, macOS and Linux. It runs commands, edits files, keeps git and works on the web in a browser of its own. And it shows what it explains: charts, schemes, photos and videos stand next to the text.
 
 ## An agent built for visualization
@@ -160,3 +158,7 @@ OpenGhost is free. Testing it on real models costs money for every release, and 
 ## Thanks
 
 [@kodachromez](https://github.com/kodachromez) found eight real bugs in a single report, and [@Bruno8R](https://github.com/Bruno8R) noticed that API keys were kept in plain text. All of it is fixed in v1.2.0. @kodachromez then went through 1.3.0 and found where the browser could not be stopped and where a tab hung: fixed in v1.4.0. Thank you both.
+
+## License
+
+The code is under the MIT license. Everything visual is not: the name OpenGhost, the ghost logo, the animations, the visual design of the application and its images stay with the author, all rights reserved. No one may use them, in whole or in part, in anything published, distributed or hosted, and a modified version may not be published at all, under any name, paid or free. See [LICENSE](LICENSE).
