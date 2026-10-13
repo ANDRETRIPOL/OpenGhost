@@ -58,7 +58,9 @@ function paintMap(width, height, radius, { zoom, edge, band }) {
  const canvas = document.createElement('canvas');
  canvas.width = pw;
  canvas.height = ph;
- const ctx = canvas.getContext('2d'), image = ctx.createImageData(pw, ph);
+ // These pixels are written once and read straight back as an image. Keep the canvas in software, so its export
+ // does not wait for the GPU's drawing to finish while a window is opening.
+ const ctx = canvas.getContext('2d', { willReadFrequently: true }), image = ctx.createImageData(pw, ph);
  for (let p = 0; p < pw * ph; p++) {
   image.data[p * 4] = 128 + vectors[p * 2] / max * 127;
   image.data[p * 4 + 1] = 128 + vectors[p * 2 + 1] / max * 127;
