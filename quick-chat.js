@@ -449,11 +449,12 @@ class QuickChat {
    { ...edge(0, 0, 0, 0, '22px'), transform: 'none', offset: g2, easing: 'cubic-bezier(0.2, 0.6, 0.3, 1)' },
    { ...edge(0, 0, 0, 0, '22px'), transform: `scale(${LIGHT.spread})` },
   ], { duration: time, fill: 'forwards' });
+  // One fade from the field opening to the light going out. A separate ease at the fully opened card made the fade
+  // stop there and start again, which looked like a missed frame even when every frame was drawn.
   const light = glow.animate([
    { opacity: 0, filter: 'saturate(1)', '--quick-turn': `${LIGHT.from}deg`, easing: 'cubic-bezier(0.3, 0, 0.3, 1)' },
    { opacity: 1, filter: 'saturate(1)', offset: g1 * 0.8 },
-   { opacity: 1, filter: 'saturate(1)', offset: g1, easing: 'ease-out' },
-   { opacity: 0.7, filter: 'saturate(0.9)', offset: g2, easing: 'cubic-bezier(0.4, 0, 0.6, 1)' },
+   { opacity: 1, filter: 'saturate(1)', offset: g1, easing: 'cubic-bezier(0.2, 0, 0.8, 1)' },
    { opacity: 0, filter: 'saturate(0.25)', '--quick-turn': `${LIGHT.from + LIGHT.turn}deg` },
   ], { duration: time });
   // What is in the field comes a little after the field itself.
