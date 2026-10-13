@@ -3213,6 +3213,8 @@ ghost-thinking {
 }
 
 .mini {
+  --mini-lift: 0 30px 80px rgba(0, 0, 0, calc(0.55 * var(--shadow)));
+  --mini-held-lift: 0 44px 110px rgba(0, 0, 0, calc(0.62 * var(--shadow)));
   --composer-max-width: 100%;
   --composer-side-gap: 12px;
   --composer-bottom-gap: 12px;
@@ -3230,7 +3232,7 @@ ghost-thinking {
   border: 0;
   border-radius: 22px;
   background: var(--chat-bg);
-  box-shadow: var(--contour), 0 30px 80px rgba(0, 0, 0, calc(0.55 * var(--shadow)));
+  box-shadow: var(--contour), var(--mini-lift);
   color: var(--fg-primary);
   opacity: 0;
   translate: var(--mini-x, 0) var(--mini-y, 0);
@@ -3269,7 +3271,7 @@ ghost-thinking {
 /* Picked up, it lifts a little off the page. */
 .mini.is-moving {
   transform: scale(1.012);
-  box-shadow: var(--contour), 0 44px 110px rgba(0, 0, 0, calc(0.62 * var(--shadow)));
+  box-shadow: var(--contour), var(--mini-held-lift);
 }
 
 .mini.is-moving,
@@ -14485,8 +14487,11 @@ html.is-quick .splash {
   visibility: hidden;
 }
 
-/* The quick chat is the mini chat's card and wears its look whole. Here the card fills its own window. */
+/* The quick chat fills its own window. Its shadow stays close to the card, even when picked up, so it fades before
+   the edges of the clear room round it (desktop/quick.js). */
 .mini.quick {
+  --mini-lift: 0 12px 28px -6px rgba(0, 0, 0, calc(0.28 * var(--shadow)));
+  --mini-held-lift: 0 16px 36px -8px rgba(0, 0, 0, calc(0.34 * var(--shadow)));
   --mini-x: var(--quick-side, 0px);
   --mini-y: var(--quick-top, 0px);
   --mini-width: calc(100vw - 2 * var(--quick-side, 0px));
@@ -15876,11 +15881,11 @@ html:root[data-theme="light"] :is(.select-menu, .lock-card) {
 /* On the light theme the mini chat and the quick chat have no white line round them: a faint cool hairline draws the
    edge instead. */
 [data-theme="light"] .mini {
-  box-shadow: 0 0 0 0.5px rgba(30, 48, 88, 0.14), 0 30px 80px rgba(0, 0, 0, calc(0.55 * var(--shadow)));
+  box-shadow: 0 0 0 0.5px rgba(30, 48, 88, 0.14), var(--mini-lift);
 }
 
 [data-theme="light"] .mini.is-moving {
-  box-shadow: 0 0 0 0.5px rgba(30, 48, 88, 0.14), 0 44px 110px rgba(0, 0, 0, calc(0.62 * var(--shadow)));
+  box-shadow: 0 0 0 0.5px rgba(30, 48, 88, 0.14), var(--mini-held-lift);
 }
 
 /* The mini chat comes and goes as the settings do: in from a little wider and flatter out of a slight blur, out a
