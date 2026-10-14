@@ -136,6 +136,8 @@ Ask waits for approval before commands, file changes, and the web. Auto works in
 
 OpenGhost works with ChatGPT, OpenAI, Claude, DeepSeek and OpenRouter: sign in with your ChatGPT account, or connect OpenAI, Claude, DeepSeek and OpenRouter with an API key. Keys and sign-ins are stored only on your machine, encrypted by the operating system, and the list of models comes from each provider itself. Any chat can also be locked with a password: it is real encryption on your computer, not a lock screen.
 
+For an OpenAI-compatible service, choose Instant in the effort control to ask the model to answer without thinking, or Auto to leave it to the model. If the service rejects the effort setting, OpenGhost retries without it.
+
 ## It opens with the ghost
 
 The app starts on its own screen. The ghost flies in through the mist, then the name OpenGhost appears.

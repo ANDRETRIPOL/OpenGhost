@@ -240,9 +240,9 @@ const described = (provider, at, { id, name = id, context = 0, limit = 0, vision
  // see them once it has turned one down.
  vision: (provider === 'custom' ? vision !== false : vision === true) && !refusedPictures.has(`${at} ${id}`),
  tools: tools !== false && !refusedTools.has(`${at} ${id}`),
- // A service does not say how its model thinks: the effort the OpenAI API takes is offered, and a model that turns it
- // down is left to itself from then on. A local server that says nothing leaves the model to itself too.
- ...(refusedThinking.has(`${at} ${id}`) ? UNTOLD : think || (provider === 'custom' ? { efforts: ['auto', 'low', 'medium', 'high'], defaultEffort: 'auto', thinking: 'levels' } : UNTOLD)),
+ // A service does not say how its model thinks: no thinking, its own default and the named effort levels are offered.
+ // A model that turns the setting down is left to itself from then on, as is a local server that says nothing.
+ ...(refusedThinking.has(`${at} ${id}`) ? UNTOLD : think || (provider === 'custom' ? { efforts: ['none', 'auto', 'low', 'medium', 'high'], defaultEffort: 'auto', thinking: 'levels' } : UNTOLD)),
 });
 
 // The models the server has. Reading the list is also the check that the address is right, the server is running and
