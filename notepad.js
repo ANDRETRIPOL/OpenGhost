@@ -143,7 +143,7 @@ class Notepad {
   // A pill of the notes in the chat opens them at its note.
   thread.addEventListener('click', event => {
    const pill = event.target.closest('.thread-note-pill')?.closest('.thread-note');
-   if (pill && !pill.classList.contains('is-memory')) this.open({ show: pill.dataset.note });
+   if (pill && !pill.classList.contains('is-memory') && !pill.classList.contains('is-routine')) this.open({ show: pill.dataset.note });
   });
  }
 
@@ -155,6 +155,7 @@ class Notepad {
   button.hidden = !there;
   const n = this.waiting = there ? conv.pad.items.filter(note => !note.done).length : 0;
   for (const el of [this.count, this.badge]) { el.textContent = n; el.hidden = !n; }
+  if (n) Figures.center(this.count);
   button.classList.toggle('has-count', n > 0);
   button.setAttribute('aria-label', I18n.t(n ? 'notes.open.count' : 'notes.open', { n }));
   if (this.state !== 'closed' && (this.conv !== conv || !there)) this.close({ instant: true });

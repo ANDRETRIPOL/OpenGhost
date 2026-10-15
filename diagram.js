@@ -3482,12 +3482,32 @@ function fvLines(text, max, size, weight) {
  return [text.slice(0, cut).trimEnd(), fvTail(rest, max, size, weight)];
 }
 
+// A list that names its folder by a whole path can be opened by its rows: each entry's place is that path and the
+// names of the folders above it. A path that starts nowhere (`src/app`) opens nothing.
+const FV_WHOLE = /^(?:[a-z]:[\\/]|\\\\|\/)/i;
+function fvPlaces(page, rows) {
+ const places = new Map(), base = page.path.trim();
+ if (!FV_WHOLE.test(base) || !window.openghost?.openPath) return places;
+ const sep = base.includes('\\') ? '\\' : '/', root = base.length > 1 ? base.replace(/[\\/]+$/, '') : '', trail = [];
+ // Which of them are folders: the menu of a row says what it opens.
+ places.folders = new Set(['fv:head']);
+ places.set('fv:head', base);
+ rows.forEach(({ entry, depth }, i) => {
+  trail.length = depth;
+  trail.push(entry.name);
+  places.set(`fv:row:${i}:${entry.name}`, [root, ...trail].join(sep));
+  if (entry.folder) places.folders.add(`fv:row:${i}:${entry.name}`);
+ });
+ return places;
+}
+
 function filesScene(page, tones, { width }) {
  if (!page) return null;
  // The card fills the column like a code block: the scene keeps the usual margin, the card reaches into it.
  const W = clamp(width - PAD * 2, 280, FV.max), left = -PAD + FV.pad, right = W + PAD - FV.pad, items = [], tips = new Map();
  const flat = fvFlatten(page.entries), shown = flat.slice(0, FV.cap), hidden = flat.length - shown.length + page.more;
  const tree = page.view === 'tree' || (page.view !== 'list' && flat.some(row => row.depth));
+ const places = fvPlaces(page, shown);
  const files = flat.filter(row => !row.entry.folder).length, folders = flat.length - files;
  const total = page.entries.reduce((sum, entry) => sum + (fvTotal(entry) || 0), 0);
 
@@ -3503,7 +3523,7 @@ function filesScene(page, tones, { width }) {
  const pathRoom = nameRoom - textWidth(name, 14, 650) - 10;
  items.push({
   key: 'fv:head', type: 'fhead', order: 0, props: { x: 0, y: 0 },
-  fixed: { name, path: page.path && pathRoom > 60 ? fvTail(page.path, pathRoom, 12, 500) : '', size, counts, left, right, nameW: textWidth(name, 14, 650) },
+  fixed: { name, path: page.path && pathRoom > 60 ? fvTail(page.path, pathRoom, 12, 500) : '', size, counts, left, right, nameW: textWidth(name, 14, 650), opens: places.has('fv:head') },
  });
  let y = FV.head;
 
@@ -3542,7 +3562,7 @@ function filesScene(page, tones, { width }) {
    fixed: {
     name: entry.name, folder: entry.folder, label, note, labelW: textWidth(label, 13.5, 500), iconX: left + indent, textX: x,
     amount: metas[i].amount, when: dateW ? metas[i].when : '', sizeX, dateX, h: FV.row, plateX: -PAD + 6, plateW: W + PAD * 2 - 12,
-    rule: i < shown.length - 1 || hidden > 0 ? x : 0, right,
+    rule: i < shown.length - 1 || hidden > 0 ? x : 0, right, opens: places.has(key),
    },
   });
   // The row already says what a tip would, so it only lights up.
@@ -3566,7 +3586,7 @@ function filesScene(page, tones, { width }) {
  y += 6;
  // The card goes under everything and grows with the list as the reply comes in.
  items.push({ key: 'fv:card', type: 'fcard', order: 0, props: { x: -PAD, y: -6, w: W + PAD * 2, h: y + 6 }, fixed: {} });
- return { kind: 'files', width: W, height: y, items, tips };
+ return { kind: 'files', width: W, height: y, items, tips, places };
 }
 
 /* Figures: numbers that are read rather than plotted */
@@ -6523,6 +6543,7 @@ const TYPES = {
   },
   refresh(item) {
    const fx = item.spec.fixed, body = item.body, cy = FV.head / 2 - 3;
+   item.g.classList.toggle('is-opening', !!fx.opens);
    body.replaceChildren();
    fvIcon(body, { folder: true }, fx.left, cy - 9, 18);
    const text = (value, cls, x, anchor = 'start') => svg('text', { class: cls, x: f(x), y: f(cy), 'text-anchor': anchor, 'dominant-baseline': 'central' }, body).textContent = value;
@@ -6563,6 +6584,7 @@ const TYPES = {
   },
   refresh(item) {
    const fx = item.spec.fixed, body = item.body, cy = fx.h / 2;
+   item.g.classList.toggle('is-opening', !!fx.opens);
    body.replaceChildren();
    svg('rect', { class: 'dg-fv-hit', x: f(fx.plateX), y: 0, width: f(fx.plateW), height: fx.h }, body);
    if (fx.folder) fvIcon(body, fx, fx.iconX, cy - 8, 16);
@@ -7322,10 +7344,25 @@ class DiagramView {
   this.measured = null;
   new ResizeObserver(entries => this.resize(entries[entries.length - 1].contentRect.width)).observe(this.stage);
   this.stage.addEventListener('dblclick', event => this.rename(event));
+  this.stage.addEventListener('click', event => this.openPlace(event));
   this.stage.addEventListener('pointerover', event => this.focusPie(event));
   this.stage.addEventListener('pointerleave', () => this.focusPie(null));
   this.frame.addEventListener('pointermove', event => this.pointer(event));
   this.frame.addEventListener('pointerleave', () => this.pointer(null));
+ }
+
+ // A press on a file or a folder of a list calls a small menu by the pointer (place-menu.js): open it, copy its path,
+ // open a terminal there. One that is no longer there shakes its head.
+ openPlace(event) {
+  const el = event.target.closest?.('[data-key]'), place = el && this.result?.places?.get(el.dataset.key);
+  if (!place || String(getSelection()) || el.classList.contains('is-gone')) return;
+  const gone = done => {
+   if (done !== 'missing' || !el.isConnected) return;
+   el.classList.add('is-gone');
+   setTimeout(() => el.classList.remove('is-gone'), 450);
+  };
+  if (!window.PlaceMenu) { window.openghost.openPath(place).then(gone).catch(() => {}); return; }
+  PlaceMenu.show({ place, row: el, x: event.clientX, y: event.clientY, folder: !!this.result.places.folders?.has(el.dataset.key), gone });
  }
 
  // A stage that is not on the page yet has no width to tell: it is asked again until it has one.

@@ -73,7 +73,7 @@ function plain(messages) {
  return count ? [{ role: 'system', content: messages.slice(0, count).map(message => message.content).join('\n\n') }, ...rest] : rest;
 }
 
-async function streamChat({ key, model, effort, vision = true, messages, tools, signal, onReasoning, onContent }) {
+async function streamChat({ key, model, effort, vision = true, messages, tools, signal, onReasoning, onContent, maxTokens = 0 }) {
  const response = await request('/chat/completions', key, {
   method: 'POST',
   signal,
@@ -84,6 +84,7 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
    ...(tools?.length ? { tools } : {}),
    stream: true,
    stream_options: { include_usage: true },
+   ...(maxTokens ? { max_tokens: maxTokens } : {}),
    thinking: { type: effort === 'none' ? 'disabled' : 'enabled' },
    reasoning_effort: effort,
   }),

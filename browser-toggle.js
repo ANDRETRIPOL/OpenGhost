@@ -1,7 +1,8 @@
 (() => {
 'use strict';
 
-const RX = [10, 3.5];
+// The meridian at rest, and how far the globe turns under the pointer: half a turn, so that it stands as it stood.
+const RX = 10, TURN = Math.PI;
 
 class BrowserToggle extends IconButton {
  static get observedAttributes(){return [...super.observedAttributes,'open','live']}
@@ -30,9 +31,8 @@ class BrowserToggle extends IconButton {
  sync(){this.button.setAttribute('aria-expanded',String(this.open))}
  targets(hover,reduced){return {spin:reduced?0:hover,open:this.open?1:0}}
  render(v){
-  const rx=RX[0]+(RX[1]-RX[0])*v.spin;
-  this.meridian.setAttribute('rx',Math.max(0.5,rx));
-  this.meridian.setAttribute('cx',60+v.spin*2.5);
+  // Seen from the side a meridian is an ellipse, as wide as the turn leaves it; edge-on it is one straight line.
+  this.meridian.setAttribute('rx',Math.max(0.1,RX*Math.abs(Math.cos(TURN*v.spin))).toFixed(3));
   this.fill.setAttribute('opacity',(v.open*.3).toFixed(3));
  }
 }

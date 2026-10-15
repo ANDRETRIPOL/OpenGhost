@@ -4,7 +4,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { net } = require('electron');
+const { app, net } = require('electron');
 const Media = require('./media');
 const Pdf = require('./pdf');
 const Browser = require('./browser');
@@ -435,6 +435,8 @@ async function environment() {
   git: gitVersion,
   home: os.homedir(),
   user: os.userInfo().username,
+  // Where the user's own folders really are: Windows may keep them in OneDrive, under names in its language.
+  places: Object.fromEntries(['desktop', 'documents', 'downloads'].map(key => { try { return [key, app.getPath(key)]; } catch { return [key, '']; } }).filter(([, where]) => where)),
  };
 }
 

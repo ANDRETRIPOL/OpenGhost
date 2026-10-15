@@ -225,13 +225,11 @@ class QuickChat {
   this.height = new SmoothHeight(this.field, this.input);
   new Scrollbar(this.input, $('.composer-scrollbar'));
   const scrollbar = new Scrollbar(thread, $('.thread-scrollbar'));
+  ThreadWindow.watch(thread);
   this.text = new ComposerText(this.input, $('.composer-mirror'));
   LinkChip.watch($('.composer-mirror'));
   LinkChip.watch(thread);
-  new ResizeObserver(() => {
-   const gap = parseFloat(getComputedStyle(this.main).getPropertyValue('--composer-bottom-gap')) || 0;
-   this.main.style.setProperty('--composer-space', `${Math.ceil(this.composer.offsetHeight + gap)}px`);
-  }).observe(this.composer);
+  ComposerSpace.watch(this.main, this.composer);
 
   // Out of sight; whether a reply was being written at the last look; a reply that came while out of sight and has
   // not been seen; on its way out.
@@ -355,6 +353,7 @@ class QuickChat {
  onShown({ away = 0 } = {}) {
   const chat = this.chat;
   this.away = false;
+  queueMicrotask(() => window.Notify?.look());
   settings.reread?.();
   Theme.sync?.();
   this.effort.follow?.();
@@ -725,4 +724,6 @@ class QuickChat {
 }
 
 window.quickChat = new QuickChat();
+// Notifications (notify.js): while the quick chat's window is up, its chat is what the user sees.
+window.Notify?.watch(() => quickChat.away ? [] : [quickChat.chat.activeId && `chat:${quickChat.chat.activeId}`]);
 })();

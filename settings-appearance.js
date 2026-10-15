@@ -100,6 +100,8 @@ class AppearanceSettings {
 // rows show what the theme on screen has and change that theme alone; the other theme keeps its own.
 const LOOK_PARTS = ['bubble', 'ground'];
 
+const GLIDE = { duration: 560, step: 28, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
+
 class LookSettings {
  constructor(root) {
   root.insertAdjacentHTML('beforeend', LOOK_PARTS.map(part => `
@@ -128,15 +130,17 @@ class LookSettings {
   const theme = Look.theme;
   for (const row of this.rows) {
    const part = row.dataset.part, box = row.querySelector('.look-swatches'), options = Look.options(part), now = Look.get(part);
-   if (box.dataset.theme !== theme) {
+   const fresh = box.dataset.theme !== theme;
+   if (fresh) {
     box.dataset.theme = theme;
     box.innerHTML = options.map(item => {
      const name = escapeHtml(I18n.t(`look.${item.id}`));
      const paint = item.bg ? ` style="background: rgb(${item.bg.join(', ')})${item.fg ? `; color: rgb(${item.fg.join(', ')})` : ''}"` : '';
      return `<button type="button" class="look-swatch${item.bg ? '' : ' is-stock'}" role="radio" data-id="${item.id}" aria-label="${name}" title="${name}"${paint}>${part === 'bubble' ? 'Aa' : ''}</button>`;
-    }).join('');
+    }).join('') + '<i class="look-gap" aria-hidden="true" hidden></i>';
    }
-   for (const swatch of box.children) {
+   this.arrange(box, part, !fresh);
+   for (const swatch of box.querySelectorAll('.look-swatch')) {
     const on = swatch.dataset.id === now;
     swatch.setAttribute('aria-checked', String(on));
     swatch.tabIndex = on ? 0 : -1;
@@ -146,11 +150,42 @@ class LookSettings {
   }
  }
 
+ // The colours that go with what is picked in the other row stand first, right after Default, and a fine line parts
+ // them from the rest: pick a ground and the messages that suit it come forward, pick a message and its grounds do.
+ // They glide to their places. The row a colour was just picked in keeps its order, so nothing moves under the pointer.
+ arrange(box, part, glide) {
+  const all = [...box.querySelectorAll('.look-swatch')], gap = box.querySelector('.look-gap');
+  const by = id => all.find(swatch => swatch.dataset.id === id);
+  const usual = Look.options(part).map(item => by(item.id)), first = Look.suited(part).map(by).filter(Boolean);
+  const order = [usual[0], ...first, ...usual.slice(1).filter(swatch => !first.includes(swatch))];
+  if (first.length) order.splice(1 + first.length, 0, gap);
+  const now = [...box.children].filter(el => el !== gap || !gap.hidden);
+  if (order.length === now.length && order.every((el, k) => el === now[k])) return;
+  const was = glide && !matchMedia('(prefers-reduced-motion: reduce)').matches ? new Map(all.map(swatch => [swatch, swatch.getBoundingClientRect()])) : null;
+  const shown = !gap.hidden;
+  gap.hidden = !first.length;
+  box.append(...order, ...(first.length ? [] : [gap]));
+  if (!was) return;
+  for (const swatch of all) swatch.getAnimations().forEach(animation => animation.id === 'look-glide' && animation.cancel());
+  all.forEach(swatch => {
+   const a = was.get(swatch), b = swatch.getBoundingClientRect(), dx = a.left - b.left, dy = a.top - b.top;
+   if (!dx && !dy) return;
+   // Those that come forward set out first, one after another; the rest make room.
+   const k = first.indexOf(swatch), delay = k >= 0 ? k * GLIDE.step : first.length * GLIDE.step;
+   const flight = swatch.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: GLIDE.duration, delay, easing: GLIDE.easing, fill: 'backwards', id: 'look-glide' });
+   // Those that come forward pass over the ones making room.
+   swatch.classList.toggle('is-forward', k >= 0);
+   const land = () => swatch.classList.remove('is-forward');
+   flight.finished.then(land, land);
+  });
+  if (!gap.hidden && !shown) gap.animate([{ opacity: 0 }, { opacity: 1 }], { duration: GLIDE.duration, delay: GLIDE.duration / 2, easing: 'ease', fill: 'backwards' });
+ }
+
  onKey(event, part, box) {
   const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
   if (!step) return;
   event.preventDefault();
-  const all = [...box.children], at = all.findIndex(swatch => swatch.dataset.id === Look.get(part));
+  const all = [...box.querySelectorAll('.look-swatch')], at = all.findIndex(swatch => swatch.dataset.id === Look.get(part));
   const next = all[(at + step + all.length) % all.length];
   Look.set(part, next.dataset.id);
   next.focus();

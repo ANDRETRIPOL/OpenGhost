@@ -532,6 +532,9 @@ async function act(found, name, args, signal) {
   signal.removeEventListener('abort', wake);
   check();
  };
+ // The step's clicks or keys are in the page: from here on it only waits for the page, and the window's keyboard may go
+ // back to the user (the app's window hears of it; nothing changes here).
+ const done = () => { if (!found.host.isDestroyed()) found.host.send('browser:event', { type: 'input', id: guest.id }); };
  await attach(found);
  check();
  switch (name) {
@@ -555,6 +558,7 @@ async function act(found, name, args, signal) {
    await pointer(found, x, y);
    check();
    await mouse(guest, x, y, args.double ? 2 : 1);
+   done();
    await settle(guest);
    return state(guest, { note });
   }
@@ -576,17 +580,20 @@ async function act(found, name, args, signal) {
    check();
    if (text) await guest.debugger.sendCommand('Input.insertText', { text });
    if (args.submit) { await sleep(60); check(); await press(guest, 'Enter'); }
+   done();
    await settle(guest);
    return state(guest);
   }
   case 'browser_select': {
    const chosen = await world(guest, `__og.choose(${Number(args.ref)}, ${JSON.stringify(String(args.option ?? ''))})`);
+   done();
    await settle(guest);
    return state(guest, { note: `Chose "${chosen}".` });
   }
   case 'browser_press': {
    const count = Math.min(20, Math.max(1, Math.round(Number(args.times) || 1)));
    for (let k = 0; k < count; k++) { check(); await press(guest, args.key); }
+   done();
    await settle(guest);
    return state(guest);
   }

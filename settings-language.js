@@ -85,7 +85,6 @@ class LanguageSettings {
   const top = Math.min(room.bottom - EDGE - menu.offsetHeight, Math.max(room.top + EDGE, at.top + at.height / 2 - row.offsetTop - row.offsetHeight / 2));
   menu.style.left = `${left}px`;
   menu.style.top = `${top}px`;
-  menu.style.transformOrigin = `${at.left + at.width / 2 - left}px ${at.top + at.height / 2 - top}px`;
   this.point(row, true);
   row.focus({ preventScroll: true });
  }

@@ -126,13 +126,10 @@ class MiniChat {
   new SmoothHeight(this.field, this.input);
   new Scrollbar(this.input, $('.composer-scrollbar'));
   const scrollbar = new Scrollbar(thread, $('.thread-scrollbar'));
+  ThreadWindow.watch(thread);
   this.text = new ComposerText(this.input, $('.composer-mirror'));
   this.unwatch = [LinkChip.watch($('.composer-mirror')), LinkChip.watch(thread)];
-  this.space = new ResizeObserver(() => {
-   const gap = parseFloat(getComputedStyle(this.main).getPropertyValue('--composer-bottom-gap')) || 0;
-   this.main.style.setProperty('--composer-space', `${Math.ceil(this.composer.offsetHeight + gap)}px`);
-  });
-  this.space.observe(this.composer);
+  this.space = ComposerSpace.watch(this.main, this.composer);
   const origin = this.origin = source.active;
   this.source = source;
   this.clearButton = $('.mini-clear');
@@ -209,6 +206,7 @@ class MiniChat {
   if (quote) this.quote(quote);
   else this.input.focus();
   this.sync();
+  window.Notify?.look();
  }
 
  get open() {
@@ -275,8 +273,17 @@ class MiniChat {
   if (on === !!this.bones) return;
   const view = this.dialog.querySelector('.thread-view');
   if (!on) {
-   const bones = this.bones;
-   this.bones = null;
+   const bones = this.bones, held = this.frozen;
+   this.bones = this.frozen = null;
+   if (held) {
+    // The words take the window's new size once, and stand where they were being read: at the end, or with the same
+    // block at the same height.
+    const { list, thread, anchor, bottom } = held;
+    list.style.width = '';
+    if (bottom) thread.scrollTop = thread.scrollHeight;
+    else if (anchor?.el.isConnected) thread.scrollTop += anchor.el.getBoundingClientRect().top - thread.getBoundingClientRect().top - anchor.top;
+    ThreadWindow.rest(thread);
+   }
    this.dialog.classList.remove('is-veiled');
    setTimeout(() => bones.remove(), BONES.fade);
    return;
@@ -286,7 +293,9 @@ class MiniChat {
   const frame = view.getBoundingClientRect(), bones = document.createElement('div');
   bones.className = 'mini-bones';
   const inView = r => r.height > 0 && r.bottom > frame.top && r.top < frame.bottom;
-  const group = (r, className) => {
+  let anchor = null;
+  const group = (r, className, of) => {
+   if (!anchor) anchor = { el: of, top: r.top - frame.top };
    const el = bones.appendChild(document.createElement('div'));
    el.className = className;
    el.style.top = `${(r.top - frame.top).toFixed(1)}px`;
@@ -297,7 +306,7 @@ class MiniChat {
    const r = bubble.getBoundingClientRect();
    if (!inView(r)) continue;
    // The user's words keep the shape of their bubble, by the right edge.
-   const el = group(r, 'mini-bone is-bubble');
+   const el = group(r, 'mini-bone is-bubble', bubble);
    el.style.right = `${(frame.right - r.right).toFixed(1)}px`;
    el.style.width = `min(${r.width.toFixed(1)}px, 100% - ${(frame.right - r.right + 12).toFixed(1)}px)`;
    el.style.borderRadius = getComputedStyle(bubble).borderRadius;
@@ -309,7 +318,7 @@ class MiniChat {
     const r = block.getBoundingClientRect();
     if (!inView(r)) continue;
     const pitch = parseFloat(getComputedStyle(block).lineHeight) || 24, lines = clamp(Math.round(r.height / pitch), 1, BONES.lines);
-    const el = group(r, 'mini-lines');
+    const el = group(r, 'mini-lines', block);
     el.style.left = `${(r.left - frame.left).toFixed(1)}px`;
     el.style.right = `${(frame.right - r.right).toFixed(1)}px`;
     for (let k = 0; k < lines; k++) {
@@ -325,6 +334,11 @@ class MiniChat {
   // One frame with the bars in place and unseen, so that they fade in.
   bones.getBoundingClientRect();
   this.dialog.classList.add('is-veiled');
+  // Out of sight, the words are not set anew for every size on the way: the list keeps the width it had until the
+  // window is let go.
+  const thread = list.parentElement;
+  this.frozen = { list, thread, anchor, bottom: thread.scrollHeight - thread.scrollTop - thread.clientHeight < 2 };
+  list.style.width = `${list.getBoundingClientRect().width}px`;
  }
 
  // The head drags the window, the arc in the corner resizes it; both hold the pointer until it is let go.
@@ -478,6 +492,7 @@ class MiniChat {
   if (quote) this.quote(quote);
   else this.input.focus();
   this.sync();
+  window.Notify?.look();
   return this;
  }
 

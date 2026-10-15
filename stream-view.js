@@ -4,6 +4,10 @@
 const PACE = { lag: 0.28, drain: 0.14, min: 40, max: 2400, smooth: 0.1 };
 const WAVE = { duration: 220, max: 90, spread: 50 };
 const GROW_SETTLE = 300;
+// A window put away (minimized, or hidden behind others) draws no frames, and a reply written out frame by frame would
+// stand still until it came back, the agent's turn with it. When no frame has come this long after one was asked for,
+// the reply is laid down whole at once: the writing out is for one who watches.
+const NO_FRAME = 300;
 const SWAP = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
 const XHTML = 'http://www.w3.org/1999/xhtml';
 const SPACE = /^\s+$/;
@@ -63,6 +67,7 @@ class StreamView {
   this.heading = null;
   this.settling = [];
   this.raf = 0;
+  this.wait = 0;
   this.last = 0;
   this.tick = this.tick.bind(this);
   this.finished = new Promise(resolve => { this.resolve = resolve; });
@@ -80,13 +85,34 @@ class StreamView {
  }
 
  wake() {
+  // Each new piece of the reply, and its end, look again whether a frame comes.
+  if (!this.wait) this.wait = setTimeout(() => this.unseen(), NO_FRAME);
   if (this.raf) return;
   this.last = performance.now();
   this.raf = requestAnimationFrame(this.tick);
  }
 
+ // No frame came: the page is out of sight. What has come so far is laid down whole, and a finished reply is finished.
+ // Asked for, the frame still comes once the window is back, and writing out goes on from there.
+ unseen() {
+  this.wait = 0;
+  if (!this.raf || !this.root.isConnected) return;
+  const end = this.source.length, now = performance.now();
+  this.shown = end;
+  if (end !== this.painted || (this.done && !this.final)) this.paint(end, this.done, now, 0);
+  this.sweep(Infinity);
+  this.settle(Infinity);
+  if (this.done) {
+   cancelAnimationFrame(this.raf);
+   this.raf = 0;
+   this.resolve();
+  }
+ }
+
  tick(now) {
   this.raf = 0;
+  clearTimeout(this.wait);
+  this.wait = 0;
   if (!this.root.isConnected) { this.resolve(); return; }
   const dt = Math.min(Math.max((now - this.last) / 1000, 0), 0.05);
   this.last = now;

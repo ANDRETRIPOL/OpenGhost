@@ -12,18 +12,25 @@ const composer = document.querySelector('.composer');
 const composerField = document.querySelector('.composer-field');
 const composerInput = document.querySelector('.composer-input');
 const composerSend = document.querySelector('.composer-send');
+const composerActions = composerSend.parentElement;
+const composerPlaceholder = document.querySelector('.composer-placeholder');
 
 let chatList = null;
 let folderPill = null;
 let modelStage = null;
 let effortSlider = null;
 let notepad = null;
+// Routines (routines.js): the panel of the chat's own, opened from its button, and the one that sets a routine up with a
+// chat of its own, opened from the sidebar. The app's window runs them; the quick chat's only reads and sets them.
+let routinePanel = null;
+let routineMaker = null;
+const MAIN_WINDOW = !window.openghost?.quick;
+Routines.load();
 
 new SmoothHeight(composerField, composerInput);
-new ResizeObserver(() => {
-  const gap = parseFloat(getComputedStyle(main).getPropertyValue('--composer-bottom-gap')) || 0;
-  main.style.setProperty('--composer-space', `${Math.ceil(composer.offsetHeight + gap)}px`);
-}).observe(composer);
+ComposerSpace.watch(main, composer);
+new ThreadBones({ app, main, thread });
+ThreadWindow.watch(thread);
 const composerScrollbar = new Scrollbar(composerInput, document.querySelector('.composer-scrollbar'));
 const threadScrollbar = new Scrollbar(thread, document.querySelector('.thread-scrollbar'));
 new Scrollbar(document.querySelector('.chats-scroll'), document.querySelector('.chats-scrollbar'));
@@ -33,6 +40,8 @@ LinkChip.watch(thread);
 const settings = new Settings(document.querySelector('.settings'));
 new GeneralSettings({ root: document.querySelector('#settings-general'), context: UserContext });
 new MemorySettings({ root: document.querySelector('#settings-memory'), memory: Memory });
+new ComposerSettings({ root: document.querySelector('#settings-composer'), predictions: Predictions });
+new NotifySettings({ root: document.querySelector('#settings-notifications') });
 // A pill in the chat that says what the agent remembered opens the memory itself.
 MemoryPill.onOpen = () => {
   settings.open();
@@ -45,26 +54,17 @@ new UsageSettings({ root: document.querySelector('#settings-usage'), settings, d
 new UsagePeek({ button: document.querySelector('.sidebar-usage'), settings });
 const settingsScrollbar = new Scrollbar(document.querySelector('.settings-page'), document.querySelector('.settings-scrollbar'));
 for (const panel of document.querySelectorAll('.settings-panel')) settingsScrollbar.observe(panel);
+// The chat's own buttons (the capsule at the top, the notes, the browser, down to the end, the folder) are clear glass
+// without a lens (styles.css turns it off for them), so no lens maps are made for them: drawing those maps cost work
+// at every start of the page, the quick chat's window included, for nothing that shows.
 const threadBottom = document.querySelector('.thread-bottom');
-new LiquidGlass(threadBottom, { width: 44, height: 30, edge: 7.5, band: 9 });
-// The capsule at the top of the chat holds the sidebar's button and, once the chat exists, the notes' button: it is as
-// wide as what it holds. Growing, its lens takes the new size at once, so the far end is glass as it comes out.
-// The third is the ghost of a mini chat that was closed while its agent was at work: it brings the mini chat back.
-const TOP_TOOLS = { one: 44, step: 28, height: 30 };
+// The capsule at the top of the chat holds the sidebar's button and, when a mini chat was closed while its agent was
+// at work, its ghost, which brings the mini chat back: it is as wide as what it holds.
 const topTools = document.querySelector('.top-tools');
 const notesToggle = document.querySelector('.notes-toggle');
 const miniToggle = document.querySelector('.mini-toggle');
-// The lens bends as the Effort thumb's does, in the measure of this pill's own height.
-const topGlass = new LiquidGlass(topTools, { edge: 7.5, band: 9 });
-let topCount = 1;
-const fitTopTools = () => {
-  const count = 1 + (miniToggle.hidden ? 0 : 1);
-  topTools.parentElement.style.setProperty('--top-count', count);
-  if (count > topCount) topGlass.resize(TOP_TOOLS.one + TOP_TOOLS.step * (count - 1), TOP_TOOLS.height);
-  topCount = count;
-};
+const fitTopTools = () => topTools.parentElement.style.setProperty('--top-count', 1 + (miniToggle.hidden ? 0 : 1));
 new MutationObserver(fitTopTools).observe(miniToggle, { attributes: true, attributeFilter: ['hidden'] });
-new LiquidGlass(notesToggle, { edge: 7.5, band: 9 });
 miniToggle.innerHTML = `${Glyphs.ghost}<span class="mini-toggle-dot"></span>`;
 const library = new Library(ChatStore, syncAll);
 window.addEventListener('pagehide', () => {
@@ -80,12 +80,12 @@ const chat = new Chat({
   main, thread, bottom: threadBottom, settings, library, onChange: syncAll, onList: list => threadScrollbar.observe(list), onRecall: recall,
   onNotes: (conv, change) => notepad?.onNotes(conv, change),
   onLeave: conv => putAway(conv),
+  onPredict: conv => { if (conv === chat.active) syncComposer(); },
 });
 const lockScreen = new LockScreen({ main, chat, composer, onOpen: () => composerInput.focus({ preventScroll: true }) });
 const lockCard = new LockCard({ chat, library, scroller: document.querySelector('.chats-scroll'), screen: lockScreen });
 new WelcomeGhost({ main, root: document.querySelector('.welcome'), input: composerInput });
 folderPill = new FolderPill({ button: document.querySelector('.composer-folder'), library, chat });
-new LiquidGlass(document.querySelector('.composer-folder'), { edge: 7.5, band: 9 });
 chatList = new ChatList({
   root: document.querySelector('.chats'),
   library,
@@ -101,11 +101,11 @@ chatList = new ChatList({
     composerInput.focus();
   },
   onLock: (id, row) => lockCard.open(id, row),
+  onNewRoutine: MAIN_WINDOW && Routines.available ? head => routineMaker?.open({ anchor: head }) : null,
 });
 document.querySelector('.titlebar-name').innerHTML = `${Glyphs.ghost}<span>OpenGhost</span>`;
 const modeButton = document.querySelector('.composer-mode');
 const browserToggle = document.querySelector('.browser-toggle');
-new LiquidGlass(browserToggle.parentElement, { width: 44, height: 30, edge: 7.5, band: 9 });
 let browserPanel = null;
 if (AgentTools.available) {
   modeButton.hidden = false;
@@ -154,6 +154,36 @@ effortSlider = new EffortSlider({
 });
 effortSlider.lock(chat.busy);
 notepad = new Notepad({ chat, thread, button: notesToggle });
+if (MAIN_WINDOW && Routines.available) {
+  routinePanel = new RoutinePanel({ chat, settings, button: document.querySelector('.routines-pill') });
+  routineMaker = new RoutinePanel({ chat, settings, mode: 'new', onCreate: createRoutine });
+  // A pill of a routine in the chat opens the chat's routines at that routine.
+  thread.addEventListener('click', event => {
+    const pill = event.target.closest('.thread-note-pill')?.closest('.thread-note.is-routine');
+    if (pill && Routines.find(pill.dataset.routine)) routinePanel.open({ show: pill.dataset.routine });
+    else if (pill) routinePanel.open();
+  });
+  Routines.watch(syncAll);
+  // A routine that is due runs in its chat; the app is told once the chats are read, so none is lost while the page loads.
+  window.openghost.routines.onRun(run => chat.runRoutine(run).catch(() => {}));
+  Promise.all([library.ready, Routines.ready]).then(() => window.openghost.routines.ready());
+}
+
+// A routine set up from the sidebar gets a chat of its own, with the model and effort picked for it: the chat stands in
+// the routines' group with the routine's pill as its first line, and opens.
+async function createRoutine({ text, rule, model, effort }) {
+  const record = library.create({ folder: null, text, attachments: [] });
+  library.update(record.id, { model, routine: true });
+  const { item } = await Routines.add({ text, rule, chat: record.id, own: true, effort, by: 'user' });
+  if (!item) {
+    library.remove(record.id);
+    return false;
+  }
+  await library.saveMessages(record.id, [{ role: 'routine', kind: 'set', routine: item.id, text: item.text, say: Routines.say(item.rule) }], 0);
+  await chat.open(record.id);
+  chat.nameRoutine(record.id, text);
+  return true;
+}
 
 document.querySelector('.sidebar-settings').addEventListener('settings-open', () => settings.open());
 
@@ -191,7 +221,26 @@ composer.addEventListener('mousedown', (event) => {
 });
 
 function syncComposer() {
-  composerSend.toggleAttribute('disabled', !composerText.text().trim() && !attachments.count);
+  const empty = !composerText.text().trim() && !attachments.count;
+  composerSend.toggleAttribute('disabled', empty);
+  // Written while OpenGhost works, a message is a suggestion for the work under way: the send button says so, and the
+  // model and effort, locked till the work is over, make way for it.
+  const suggesting = chat.busy && !empty;
+  if (suggesting) composerSend.setAttribute('caption', I18n.t('composer.suggest'));
+  else composerSend.removeAttribute('caption');
+  composerActions.classList.toggle('is-suggesting', suggesting);
+  // The likely next message waits in the empty field as grey words (predictions.js); anything written sends it away.
+  if (!empty && chat.prediction) chat.forget(chat.active, true);
+  const predicted = empty ? chat.prediction : '';
+  if (predicted !== composerField.dataset.predicted) {
+    composerField.dataset.predicted = predicted;
+    composerField.classList.toggle('is-predicted', !!predicted);
+    if (predicted) {
+      composerPlaceholder.innerHTML = '<span class="composer-guess"></span><kbd class="composer-key">Tab</kbd>';
+      composerPlaceholder.firstChild.textContent = predicted;
+    } else composerPlaceholder.textContent = I18n.t('composer.placeholder');
+    composerInput.setAttribute('aria-placeholder', predicted || I18n.t('composer.placeholder'));
+  }
   composerField.classList.toggle('has-value', composerInput.value !== '');
 }
 
@@ -263,6 +312,7 @@ function syncAll() {
   modelStage?.sync();
   effortSlider?.lock(chat.busy);
   notepad?.sync();
+  routinePanel?.sync();
   MiniChat.check();
 }
 
@@ -304,6 +354,15 @@ composerInput.addEventListener('input', () => {
 });
 window.addEventListener('pagehide', keepUnsent);
 
+// Tab or the right arrow in the empty field takes the predicted message into it, to be changed or sent.
+composerInput.addEventListener('keydown', (event) => {
+  if ((event.key !== 'Tab' && event.key !== 'ArrowRight') || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+  if (composerInput.value !== '' || !chat.prediction) return;
+  event.preventDefault();
+  composerText.place(chat.takePrediction());
+  syncComposer();
+});
+
 composerInput.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
   event.preventDefault();
@@ -323,9 +382,31 @@ composerSend.addEventListener('composer-send', () => send());
 
 syncComposer();
 
+// Notifications (notify.js): in the app's window the chat on screen and the mini chat open over it are what the user
+// sees; a notification pressed opens its chat, and for a reply of a mini chat, the mini chat too.
+if (!window.openghost?.quick) {
+  Notify.watch(() => [chat.activeId && `chat:${chat.activeId}`, MiniChat.current?.open && MiniChat.current.origin && `mini:${MiniChat.current.origin.id}`]);
+  window.openghost?.notify?.onOpen(async key => {
+    const kind = key.slice(0, key.indexOf(':')), id = key.slice(key.indexOf(':') + 1);
+    if (!library.chat(id)) return;
+    if (settings.dialog.open) settings.dialog.close();
+    await chat.open(id);
+    if (kind === 'mini' && chat.activeId === id) MiniChat.open({ settings, source: chat, library });
+    Notify.look();
+  });
+}
+
 // The language can't change while an agent is at work in this window: the page is read anew for it.
 LanguageSettings.busy = () => [chat, MiniChat.current?.chat, ...[...MiniChat.away.values()].map(mini => mini.chat)]
   .some(one => one && [...one.conversations.values()].some(conv => conv.turn));
+// While an agent works here, the window is not slowed down out of sight (desktop/main.js).
+if (!window.openghost?.quick && window.openghost?.working) {
+  let working = false;
+  setInterval(() => {
+    const now = LanguageSettings.busy();
+    if (now !== working) window.openghost.working(working = now);
+  }, 1000);
+}
 // Read anew for a new language, the page comes back where it was left: in the settings.
 try {
   const page = sessionStorage.getItem('openghost.reopen');

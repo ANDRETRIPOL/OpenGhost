@@ -258,6 +258,8 @@ class Library {
   this.store.remove(`chats/${id}`).catch(() => {});
   this.store.remove(`mini/${id}`).catch(() => {});
   this.store.remove(`notes/${id}`).catch(() => {});
+  // Its routines go with it: they would have nowhere to run.
+  window.Routines?.forget(id);
   // After any save of them still on its way.
   this.queue(id, () => this.store.remove(`drafts/${id}`));
   if (this.isHome(chat)) window.openghost?.releaseFolder?.(this.cwdOf(chat)).catch(() => {});
@@ -276,6 +278,7 @@ class Library {
    this.store.remove(`chats/${chat.id}`).catch(() => {});
    this.store.remove(`mini/${chat.id}`).catch(() => {});
    this.store.remove(`notes/${chat.id}`).catch(() => {});
+   window.Routines?.forget(chat.id);
    this.queue(chat.id, () => this.store.remove(`drafts/${chat.id}`));
   }
   return gone.map(chat => chat.id);

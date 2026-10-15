@@ -11,6 +11,12 @@ const WIDTH = { share: 0.44, min: 360, chat: 400 };
 const CURSOR = { hide: 2600 };
 const TOAST_TIME = 4200;
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+// The agent's steps that use the window's one keyboard: they type or press keys in a page, or click in one (a click puts
+// the keyboard into the page, as any click would); and keys go wherever the keyboard is.
+const KEYBOARD = new Set(['browser_click', 'browser_type', 'browser_press', 'browser_select']);
+// Such a step waits for a pause of `quiet` ms in the user's typing in the app, but no longer than `most` ms.
+const PAUSE = { quiet: 700, most: 12000 };
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const bridge = window.openghost?.browser || null;
 const tools = window.openghost?.tools || null;
 
@@ -65,16 +71,29 @@ class BrowserPanel {
   this.open = false;
   // The agents at work in the browser now: each chat's conversation, with whether it works apart, in a tab of its own.
   this.drivers = new Map();
-  // An agent that works apart (a mini chat's) and the tab it works in; and the tab the chat's agent keeps to while a tab
-  // like that is the one on screen.
+  // An agent that works apart (a mini chat's, or a chat's while another chat's agent works in the tab on screen) and the
+  // tab it works in; which of them are chats'; and the tab the agent of the tab on screen keeps to while a tab like that
+  // is the one on screen.
   this.seats = new Map();
+  this.chats = new WeakSet();
   this.home = null;
-  this.control = 'agent';
-  this.lent = null;
+  // The agents the user took the browser from (Take control), by where they work: null for the tab on screen.
+  this.taken = new Set();
+  // For each agent, the page that had the keyboard when it was taken back from the agent's step (see `run`).
+  this.lent = new Map();
   this.waiters = [];
-  // The agent's steps running in the browser now, and those of them the user cut by taking control.
+  // The agent's steps running in the browser now, and those of them the user cut by taking control or stopped. `running`:
+  // each step with where it works; `line`: the steps waiting for the keyboard; `holding`: the one whose clicks or keys
+  // are going into its page now. `typed`: when the user last pressed a key in the app.
   this.steps = new Set();
   this.cut = new Set();
+  this.cancelled = new Set();
+  this.running = new Map();
+  this.line = [];
+  this.holding = null;
+  this.typed = -Infinity;
+  this.mine = null;
+  this.mineAt = -Infinity;
   this.cursorAt = null;
   this.accounts = read(ACCOUNTS) || [];
   const saved = read(STORE) || {};
@@ -94,6 +113,14 @@ class BrowserPanel {
   };
   document.addEventListener('pointerdown', yieldKeys, true);
   document.addEventListener('focusin', yieldKeys, true);
+  document.addEventListener('keydown', () => { this.typed = performance.now(); }, true);
+  // Where in the app the user's keyboard went last, and when: a step's keyboard goes back there if the user moved on
+  // while the step was running.
+  document.addEventListener('focusin', event => {
+   if (!(event.target instanceof HTMLElement) || event.target.tagName === 'WEBVIEW') return;
+   this.mine = event.target;
+   this.mineAt = performance.now();
+  }, true);
   this.render();
  }
 
@@ -282,6 +309,7 @@ class BrowserPanel {
    update();
   });
   view.addEventListener('ipc-message', event => { if (event.channel === 'signin') this.signedIn(String(event.args[0] || '')); });
+  view.addEventListener('focus', () => this.grabbed(tab));
   view.classList.toggle('is-active', tab === this.active);
   this.stage.insertBefore(view, this.error);
   return view;
@@ -408,9 +436,27 @@ class BrowserPanel {
  onEvent(data) {
   const from = this.tabs.find(tab => tab.id === data.id);
   if (data.type === 'open') {
-   // A page the chat's agent is at work in opened it, in the middle of a step of the agent's.
-   const agent = !!from && !from.owner && this.steps.size > 0 && this.control === 'agent' && from === this.current(null);
+   // A page an agent at work apart opened it: the tab is that agent's too, behind the one on screen, and unless it opened
+   // in the background the agent goes on in it, as the agent of the tab on screen goes on in a tab opened on screen.
+   if (from?.owner && this.drivers.has(from.owner)) {
+    const tab = this.addTab(data.url, { after: from });
+    tab.owner = from.owner;
+    if (!data.background) this.seats.set(from.owner, tab);
+    this.createView(tab, data.url);
+    this.settle(tab);
+    this.save();
+    return;
+   }
+   // A page the agent of the tab on screen is at work in opened it, in the middle of a step of the agent's.
+   const agent = !!from && !from.owner && this.steps.size > 0 && !this.taken.has(null) && from === this.current(null);
    this.newTab(data.url, { after: from, background: data.background }).agent = agent;
+  } else if (data.type === 'input') {
+   // The clicks or keys of the step that holds the keyboard are in its page: it only waits for the page now.
+   const step = this.holding;
+   if (step && step.tab === from) {
+    this.holding = null;
+    this.giveBack(step);
+   }
   } else if (data.type === 'key') {
    if (data.action === 'address') this.url.focus();
    else if (data.action === 'new') this.newTab();
@@ -474,15 +520,44 @@ class BrowserPanel {
   write(ACCOUNTS, this.accounts);
  }
 
- // `apart`: the agent works in a tab of its own (a mini chat's), not in the one on screen.
+ // `apart`: the agent works in a tab of its own (see `seatOf`), not in the one on screen.
  drive(key, on, apart = false) {
-  const had = this.drivers.size > 0;
+  const was = this.drivers.has(key), seat = (on ? apart : this.drivers.get(key)) ? key : null;
+  // A turn that never used the browser ends with nothing to change here.
+  if (!on && !was) return;
   if (on) this.drivers.set(key, apart);
   else this.drivers.delete(key);
-  if (!this.drivers.size) { this.control = 'agent'; this.release(); }
+  if (!on) {
+   // An agent the user took the browser from and that is done no longer waits for it.
+   this.taken.delete(seat);
+   if (!this.drivers.size) this.taken.clear();
+   this.release();
+   this.loosen();
+  }
   // The keyboard leaves the page on screen only for an agent that works in it.
-  if (on && !had && this.control === 'agent' && this.current(apart ? key : null) === this.active) this.active?.view?.blur();
+  if (on && !was && !this.taken.has(seat) && this.current(seat) === this.active) this.active?.view?.blur();
   this.sync();
+ }
+
+ // Where the agent of a chat works: in the tab on screen, as ever, unless the agent of another chat is at work there;
+ // then in a tab of its own, opened behind on its first step, so both can use the browser at once. An agent keeps to
+ // where it began for as long as it is at work, and to a tab of its own for as long as it has one.
+ seatOf(key) {
+  if (this.drivers.has(key)) return this.drivers.get(key) ? key : null;
+  if (this.current(key)) return key;
+  for (const [other, apart] of this.drivers) {
+   if (other !== key && !apart) {
+    this.chats.add(key);
+    return key;
+   }
+  }
+  return null;
+ }
+
+ // A chat's tab of its own is the user's again once neither it nor any agent of the tab on screen is at work.
+ loosen() {
+  if ([...this.drivers.values()].some(apart => !apart)) return;
+  for (const seat of [...this.seats.keys()]) if (this.chats.has(seat) && !this.drivers.has(seat)) this.vacate(seat);
  }
 
  // Where an agent works. The chat's agent works in the tab on screen, as ever. An agent that works apart has a tab of its
@@ -526,22 +601,29 @@ class BrowserPanel {
  }
 
  get userHas() {
-  return this.control === 'user' && this.drivers.size > 0;
+  return this.taken.size > 0 && this.drivers.size > 0;
  }
 
- // The step the agent is in the middle of stops here: what it had not yet done to the page is not done.
+ // Whether the user took the browser from the agent that works at `seat` (null: in the tab on screen).
+ userHolds(seat) {
+  return this.taken.has(seat || null) && this.drivers.size > 0;
+ }
+
+ // The agents at work in the tab on screen stop where they are and wait for it: what the step each is in the middle of
+ // had not yet done to the page is not done. Agents at work in tabs of their own go on.
  take() {
-  this.control = 'user';
-  if (this.active) this.active.agent = false;
-  for (const id of this.steps) { this.cut.add(id); tools?.cancel(id); }
+  const tab = this.active;
+  if (tab) tab.agent = false;
+  for (const [key, apart] of this.drivers) if (this.current(apart ? key : null) === tab) this.taken.add(apart ? key : null);
+  for (const step of this.running.values()) if (this.taken.has(step.seat)) { this.cut.add(step.id); tools?.cancel(step.id); }
   this.sync();
-  this.active?.view?.focus();
+  tab?.view?.focus();
  }
 
  handBack() {
-  this.control = 'agent';
   // The keyboard leaves the page with the user, and comes back to it for the agent's next step that types.
-  this.lent = this.active?.view || null;
+  for (const seat of this.taken) this.lent.set(seat, this.current(seat)?.view || null);
+  this.taken.clear();
   this.active?.view?.blur();
   this.sync();
   this.release();
@@ -552,24 +634,40 @@ class BrowserPanel {
   return this.cut.delete(id);
  }
 
- waitForAgent() {
-  return new Promise(resolve => this.waiters.push(resolve));
+ waitForAgent(seat = null) {
+  return new Promise(resolve => this.waiters.push({ seat, resolve }));
  }
 
+ // The agents the user no longer holds the browser from go on.
  release() {
-  for (const resolve of this.waiters.splice(0)) resolve();
+  this.waiters = this.waiters.filter(waiter => {
+   if (this.taken.has(waiter.seat)) return true;
+   waiter.resolve();
+   return false;
+  });
+ }
+
+ // A step stopped by the user; one still waiting for the keyboard goes no further.
+ cancel(id) {
+  if (this.running.has(id)) this.cancelled.add(id);
  }
 
  sync() {
   const driving = this.drivers.size > 0;
-  // The tabs agents work in; one of them not on screen is kept alive behind the one that is.
-  const worked = new Set([...this.drivers].map(([key, apart]) => this.current(apart ? key : null)));
+  // The tabs agents work in, with who works in each; one of them not on screen is kept alive behind the one that is.
+  const worked = new Map();
+  for (const [key, apart] of this.drivers) {
+   const seat = apart ? key : null, tab = this.current(seat);
+   if (tab) worked.set(tab, [...(worked.get(tab) || []), seat]);
+  }
   for (const tab of this.tabs) tab.view?.classList.toggle('is-worked', tab !== this.active && worked.has(tab));
-  // The bar with Take control shows over the page an agent works in, not over the user's own while an agent works apart.
-  const shown = worked.has(this.active) && !!this.active;
+  // The bar with Take control shows over the page an agent works in, not over the user's own while an agent works apart;
+  // the one with Hand back while the user holds the browser, unless the page on screen is another agent's at work.
+  const here = this.active ? worked.get(this.active) || [] : [];
+  const busy = here.some(seat => !this.taken.has(seat));
   this.root.classList.toggle('is-agent', driving);
-  this.root.classList.toggle('is-driving', shown && this.control === 'agent');
-  this.root.classList.toggle('is-user', driving && this.control === 'user');
+  this.root.classList.toggle('is-driving', busy);
+  this.root.classList.toggle('is-user', driving && this.taken.size > 0 && !busy);
   this.toggle.toggleAttribute('live', driving);
  }
 
@@ -597,42 +695,106 @@ class BrowserPanel {
   const mark = tab => {
    if (!apart) return tab === this.active ? ' active' : '';
    if (seat) return tab.owner === seat ? (tab === mine ? ' — your own tab, the one you work in' : ' — your own tab') : ' — not yours, leave it alone';
-   return tab.owner ? ' — the mini chat\'s own tab, leave it to it' : tab === mine ? ' active' : '';
+   if (tab.owner) return this.chats.has(tab.owner) ? ' — the own tab of the agent of another chat, leave it to it' : ' — the mini chat\'s own tab, leave it to it';
+   return tab === mine ? ' active' : '';
   };
   const opened = tab => !seat && tab.agent && !tab.owner ? ' — opened by you' : '';
   return this.tabs.map((tab, k) => `${k + 1}. ${tab.title || (blank(tab.url) ? 'New tab' : hostOf(tab.url))}${blank(tab.url) ? '' : ` (${tab.url})`}${mark(tab)}${opened(tab)}`).join('\n');
  }
 
  // A click of the agent's moves the keyboard into the page, as any click would, and the user's typing in the chat would
- // then land in the page. So between the agent's steps the keyboard is back where the user was, and a step that types or
- // presses keys where the page's focus is gets the keyboard back first, exactly as it would have had it without the user:
- // what the agent does and sees stays the same, and Escape reaches the app during every other step.
+ // then land in the page. So the keyboard is back where the user was as soon as the step's clicks and keys are in, and a
+ // step that types or presses keys where the page's focus is gets the keyboard back first, exactly as it would have had
+ // it without the user: what the agent does and sees stays the same, and Escape reaches the app during every other step.
+ // The window has one keyboard, and keys go wherever it is: so only one step at a time clicks or types, of whichever
+ // agent, and it waits for a pause in the user's typing in the app (`keyboard`).
  // `apart`: the agent that works in a tab of its own (see `current`).
  async run(name, args, { id, cwd, apart = null }) {
   if (!tools) return { error: 'The browser is only available in the desktop app' };
-  const back = document.activeElement;
+  const step = { id, seat: apart || null, tab: null, back: document.activeElement, at: performance.now() };
   this.steps.add(id);
+  this.running.set(id, step);
   try {
    if (name === 'browser_tabs') return await this.tabsTool(args, { id, cwd, apart });
-   const tab = await this.ensure(apart);
+   const tab = step.tab = await this.ensure(apart);
+   if (KEYBOARD.has(name)) {
+    if (!await this.keyboard(step)) return { error: 'Stopped by the user' };
+    step.back = document.activeElement;
+    step.at = performance.now();
+   }
    const keys = name === 'browser_press' || (name === 'browser_type' && (args.ref === undefined || args.ref === null || args.ref === ''));
-   if (keys && this.lent === tab.view) tab.view.focus();
+   if (keys && this.lent.get(step.seat) === tab.view) tab.view.focus();
    return await tools.run(id, name, { ...args, tab: tab.id }, cwd);
   } catch (error) {
    return { error: error.message };
   } finally {
+   if (this.holding === step) this.holding = null;
    this.steps.delete(id);
-   this.giveBack(back);
+   this.running.delete(id);
+   this.cancelled.delete(id);
+   step.tab ||= this.current(step.seat);
+   this.giveBack(step);
   }
  }
 
- giveBack(back) {
+ // The step's turn at the keyboard: after the steps of other agents that wait for it, and after a pause in the user's
+ // typing. False if the step was stopped meanwhile.
+ async keyboard(step) {
+  const since = performance.now();
+  this.line.push(step);
+  try {
+   while (this.line[0] !== step || this.holding || (performance.now() - this.typed < PAUSE.quiet && performance.now() - since < PAUSE.most)) {
+    if (this.cut.has(step.id) || this.cancelled.has(step.id)) return false;
+    await sleep(40);
+   }
+  } finally {
+   this.line.splice(this.line.indexOf(step), 1);
+  }
+  if (this.cut.has(step.id) || this.cancelled.has(step.id)) return false;
+  this.holding = step;
+  return true;
+ }
+
+ // The keyboard goes back from the step's page to where the user was, unless the user holds the browser or put it there.
+ // Only from the step's own page: another page may hold it for the keys of another agent's step. Where the user was: in
+ // the app, or in a page of the user's own, when the step began; or wherever in the app the user went since. With
+ // nowhere to go back to, it still leaves the page, so that nothing the user types lands in it.
+ giveBack(step) {
   const view = document.activeElement;
-  if (this.control === 'user' || !this.tabs.some(tab => tab.view === view)) return;
-  if (!(back instanceof HTMLElement) || !back.isConnected || back === view || this.tabs.some(tab => tab.view === back)) return;
-  this.lent = view;
+  if (this.taken.has(step.seat) || !view || view !== step.tab?.view) return;
+  let back = this.mineAt > step.at && this.mine?.isConnected ? this.mine : step.back;
+  if (back === view) return;
+  const page = this.tabs.find(tab => tab.view === back);
+  if (!(back instanceof HTMLElement) || !back.isConnected || (page && !this.userIn(page))) back = null;
+  this.lent.set(step.seat, view);
   view.blur();
-  back.focus({ preventScroll: true });
+  back?.focus({ preventScroll: true });
+ }
+
+ // Whether the user works in this tab: one the user holds, or one no agent at work works in.
+ userIn(tab) {
+  for (const [key, apart] of this.drivers) {
+   const seat = apart ? key : null;
+   if (this.current(seat) === tab) return this.taken.has(seat);
+  }
+  return true;
+ }
+
+ // The keyboard came into a page while agents are at work in the browser: it stays there for the step whose clicks or
+ // keys are going in now, goes back to that step's page if another page took it, and otherwise goes back to the user
+ // from a page whose step needs it no more (a click that has landed, a page that put its own focus in a field).
+ grabbed(tab) {
+  const holder = this.holding;
+  if (holder) {
+   if (holder.tab !== tab && holder.tab?.view) holder.tab.view.focus();
+   return;
+  }
+  for (const step of this.running.values()) {
+   if (step.tab === tab) {
+    this.giveBack(step);
+    return;
+   }
+  }
  }
 
  // An agent apart opens, switches between and closes only tabs of its own, behind the one on screen; the chat's agent
@@ -643,7 +805,7 @@ class BrowserPanel {
    const tab = this.tabs[Math.round(Number(args.tab)) - 1];
    if (!tab) throw new Error(`There is no tab ${args.tab}. Tabs:\n${this.tabsText(apart)}`);
    if (apart && tab.owner !== apart) throw new Error(`Tab ${args.tab} is not yours: you work in your own tabs only. Tabs:\n${this.tabsText(apart)}`);
-   if (!apart && tab.owner) throw new Error(`Tab ${args.tab} is the mini chat's own tab: leave it to it. Tabs:\n${this.tabsText(apart)}`);
+   if (!apart && tab.owner) throw new Error(`Tab ${args.tab} is ${this.chats.has(tab.owner) ? 'the own tab of the agent of another chat' : 'the mini chat\'s own tab'}: leave it to it. Tabs:\n${this.tabsText(apart)}`);
    return tab;
   };
   try {
@@ -687,7 +849,8 @@ class BrowserPanel {
   // The tabs the chat's agent opened and left behind the one it works in: one may be there to compare with, more are
   // forgotten ones.
   const left = seat ? [] : this.tabs.filter(tab => tab.agent && !tab.owner && tab !== mine);
-  const line = `Tabs: ${this.tabs.map((tab, k) => `${k + 1}. ${tab.title || hostOf(tab.url) || 'New tab'}${tab === mine ? ' (this one)' : !seat && tab.owner ? ' (the mini chat\'s)' : left.includes(tab) ? ' (opened by you)' : ''}`).join(' · ')}`;
+  const theirs = tab => this.chats.has(tab.owner) ? ' (another chat\'s)' : ' (the mini chat\'s)';
+  const line = `Tabs: ${this.tabs.map((tab, k) => `${k + 1}. ${tab.title || hostOf(tab.url) || 'New tab'}${tab === mine ? ' (this one)' : !seat && tab.owner ? theirs(tab) : left.includes(tab) ? ' (opened by you)' : ''}`).join(' · ')}`;
   return left.length > 1 ? `${line}\nYou have ${left.length} tabs open behind this one that you opened yourself. Close the ones you are done with (browser_tabs, action close) before you go on.` : line;
  }
 
@@ -698,7 +861,7 @@ class BrowserPanel {
   const lines = [`- The browser panel is ${this.open ? 'open, the user sees the page' : 'closed; the browser still works, the user can open it with the globe button'}.`];
   if (tabs.length) lines.push(`- Open tabs:\n${this.tabsText(seat).split('\n').map(line => `  ${line}`).join('\n')}`);
   else lines.push('- No pages are open in it yet.');
-  if (seat) lines.push('- You work in a tab of your own, behind the one on the user\'s screen, so you and the agent of the main conversation can use the browser at the same time. Your first browser step opens it.');
+  if (seat) lines.push(`- You work in a tab of your own, behind the one on the user's screen, so you and ${this.chats.has(seat) ? 'the agents of the user\'s other chats' : 'the agent of the main conversation'} can use the browser at the same time. Your first browser step opens it.`);
   if (this.accounts.length) lines.push(`- The user signed in with this browser to: ${this.accounts.map(item => `${item.host} (${shortDate(item.at)})`).join(', ')}. Logins stay between chats but can expire; check before relying on one.`);
   return lines.join('\n');
  }

@@ -38,6 +38,7 @@
         <button type="button" class="mini-toggle" hidden></button>
       </div>
       <button type="button" class="notes-pill notes-toggle glass-lens" hidden></button>
+      <button type="button" class="routines-pill glass-lens" hidden></button>
       <div class="browser-tools glass-lens"><browser-toggle class="browser-toggle" hidden></browser-toggle></div>
       <div class="thread-view">
         <div class="thread">
@@ -108,6 +109,14 @@
           <svg class="settings-tab-icon is-sliders" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="slide-a1" d="M38 47H46"/><path class="slide-a2" d="M58 47H82"/><path class="slide-b1" d="M38 73H62"/><path class="slide-b2" d="M74 73H82"/><circle class="knob-a" cx="52" cy="47" r="6"/><circle class="knob-b" cx="68" cy="73" r="6"/></svg>
           <span data-i18n="settings.general">General</span>
         </button>
+        <button type="button" class="settings-tab" role="tab" data-page="composer" aria-controls="settings-composer" aria-selected="false" tabindex="-1">
+          <svg class="settings-tab-icon is-field" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="37" y="43" width="46" height="34" rx="11"/><path class="field-caret" d="M49 54v12"/><path class="field-words" d="M57 60h6"/></svg>
+          <span data-i18n="settings.composer">Composer</span>
+        </button>
+        <button type="button" class="settings-tab" role="tab" data-page="notifications" aria-controls="settings-notifications" aria-selected="false" tabindex="-1">
+          <svg class="settings-tab-icon is-bell" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="bell"><path d="M44 72V57a16 16 0 0 1 32 0v15l4 5H40z"/><path class="bell-clapper" d="M55 82.5a5 5 0 0 0 10 0"/></g></svg>
+          <span data-i18n="settings.notifications">Notifications</span>
+        </button>
         <button type="button" class="settings-tab" role="tab" data-page="memory" aria-controls="settings-memory" aria-selected="false" tabindex="-1">
           <svg class="settings-tab-icon is-memory" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="memo-leaf" d="M42 37h36v46l-18-13.5L42 83z"/><path class="memo-line" d="M52 51h16"/></svg>
           <span data-i18n="settings.memory">Memory</span>
@@ -136,6 +145,8 @@
         <close-button class="settings-close"></close-button>
       </header>
       <div class="settings-panel" id="settings-general" role="tabpanel" data-page="general" aria-labelledby="settings-page-title"></div>
+      <div class="settings-panel" id="settings-composer" role="tabpanel" data-page="composer" aria-labelledby="settings-page-title" hidden></div>
+      <div class="settings-panel" id="settings-notifications" role="tabpanel" data-page="notifications" aria-labelledby="settings-page-title" hidden></div>
       <div class="settings-panel" id="settings-memory" role="tabpanel" data-page="memory" aria-labelledby="settings-page-title" hidden></div>
       <div class="settings-panel" id="settings-providers" role="tabpanel" data-page="providers" aria-labelledby="settings-page-title" hidden>
         <p class="settings-lead" data-i18n="settings.lead">Connect the services whose models OpenGhost can use. Keys and sign-ins stay on this computer.</p>
@@ -174,6 +185,9 @@
   <script src="welcome-ghost.js"></script>
   <script src="scrollbar.js"></script>
   <script src="smooth-height.js"></script>
+  <script src="composer-space.js"></script>
+  <script src="thread-bones.js"></script>
+  <script src="thread-window.js"></script>
   <script src="link-chip.js"></script>
   <script src="dust.js"></script>
   <script src="queued-ring.js"></script>
@@ -213,6 +227,9 @@
   <script src="user-context.js"></script>
   <script src="memory.js"></script>
   <script src="settings-memory.js"></script>
+  <script src="predictions.js"></script>
+  <script src="settings-composer.js"></script>
+  <script src="settings-notify.js"></script>
   <script src="chat-lock.js"></script>
   <script src="library.js"></script>
   <script src="agent-tools.js"></script>
@@ -220,13 +237,18 @@
   <script src="approval-card.js"></script>
   <script src="ask-card.js"></script>
   <script src="stats-card.js"></script>
+  <script src="notify.js"></script>
+  <script src="routine-rule.js"></script>
+  <script src="routines.js"></script>
   <script src="chat.js"></script>
   <script src="row-menu.js"></script>
+  <script src="place-menu.js"></script>
   <script src="chat-list.js"></script>
   <script src="spotlight.js"></script>
   <script src="folder-pill.js"></script>
   <script src="dock.js"></script>
   <script src="notepad.js"></script>
+  <script src="routine-panel.js"></script>
   <script src="mode-picker.js"></script>
   <script src="add-menu.js"></script>
   <script src="model-stage.js"></script>

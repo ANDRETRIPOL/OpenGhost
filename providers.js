@@ -37,12 +37,12 @@ function explain(provider, { status = 0, code = '', message = '' }) {
 const aborted = partial => Object.assign(new DOMException('Aborted', 'AbortError'), { partial });
 
 // `once`: a request nothing will follow, so there is no point in paying a provider to keep its start in a cache.
-function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxTokens, session, once = false }) {
+function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxTokens, session, once = false, aside = false }) {
  if (!bridge) return Promise.reject(new ProviderError(I18n.t('error.desktop', { provider: NAMES[config.provider] })));
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
   provider: config.provider, key: config.key, address: config.address, window: config.window, model: config.model, effort: config.effort, vision: config.vision,
-  thinking: config.thinking, output: config.output, messages, tools, maxTokens, session, once,
+  thinking: config.thinking, output: config.output, messages, tools, maxTokens, session, once, aside,
  };
  return new Promise((resolve, reject) => {
   const partial = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
@@ -105,6 +105,43 @@ async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
  return result.content.trim();
 }
 
+// A prediction of the user's next message (predictions.js): the chat's own request with a word from the app at its end,
+// so that a provider reads the chat from its cache and is paid for little more than the answer.
+// - It thinks as the chat does, not less. Asking for less thinking was tried and costs more: Claude's documentation says
+//   a change of thinking or effort always invalidates the cache of the messages, and DeepSeek, measured, keeps a cache
+//   apart for every setting of them, so the whole new part of the chat was paid for a second time, where the thinking
+//   a one-line answer takes is some tens of tokens. With GPT the cache reads either way, but told to think less it
+//   predicted nothing where it otherwise did. Only its two highest levels are brought down to `high`.
+// - A model on the user's own computer has no price and no cache to lose, only time: it thinks as little as it can.
+// - The answer is a few words: the room for it is small, larger where the model thinks first, and an answer that runs
+//   on is cut off.
+const PREDICT = { plain: 80, thinking: 2048, most: 400, steep: ['xhigh', 'max'], openai: ['openai', 'chatgpt'] };
+async function predict(config, { messages, tools, signal, session }) {
+ const efforts = config.efforts || [];
+ let effort = config.effort;
+ if (config.provider === 'local') effort = efforts.includes('none') ? 'none' : efforts[0] || effort;
+ else if (PREDICT.openai.includes(config.provider) && PREDICT.steep.includes(effort) && efforts.includes('high')) effort = 'high';
+ const maxTokens = effort === 'none' ? PREDICT.plain : PREDICT.thinking;
+ const stop = new AbortController(), cut = () => stop.abort();
+ signal?.addEventListener('abort', cut, { once: true });
+ let long = false;
+ const onContent = (delta, partial) => { if (partial.content.length > PREDICT.most) { long = true; cut(); } };
+ const options = { messages, tools, signal: stop.signal, onContent, maxTokens, session, aside: true };
+ try {
+  if (signal?.aborted) return '';
+  const result = counted(config, config.provider === 'deepseek'
+   ? await DeepSeek.streamChat({ key: config.key, model: config.model, effort, vision: config.vision, ...options })
+   : await viaMain({ ...config, effort }, options));
+  // Told not to call tools, a model that calls one all the same has predicted nothing.
+  return result.toolCalls?.length ? '' : result.content;
+ } catch (error) {
+  if (long || error.name === 'AbortError') return '';
+  throw error;
+ } finally {
+  signal?.removeEventListener('abort', cut);
+ }
+}
+
 // `extra`: what a provider needs besides its key (see the main process's side).
 async function models(provider, key, extra) {
  if (provider === 'deepseek') return (await DeepSeek.listModels(key)).map(model => ({ ...model, provider: 'deepseek', api: model.id }));
@@ -121,5 +158,5 @@ async function account(provider, key) {
  return reply?.account || null;
 }
 
-window.Providers = { stream, complete, models, account, NAMES, NEED, available: !!bridge };
+window.Providers = { stream, complete, predict, models, account, NAMES, NEED, available: !!bridge };
 })();

@@ -147,9 +147,11 @@ function problem(cause) {
 }
 
 // What goes to the Messages API. A request nothing follows (`once`: a summary, a chat's name) asks for no cache at all:
-// writing one costs more than plain input, and nobody would read it.
+// writing one costs more than plain input, and nobody would read it. A request beside the chat (`aside`: a prediction
+// of the user's next message) is the chat's own with a word added: it reads the chat's cache at the marks the chat set
+// and writes none at its own end, which no request will ever start with.
 function build(request, quiet = true) {
- const { model, vision = true, messages, tools, maxTokens, output, once = false } = request;
+ const { model, vision = true, messages, tools, maxTokens, output, once = false, aside = false } = request;
  const { system, messages: history } = convert(once ? messages.map(({ cache, ...message }) => message) : messages, vision);
  const params = {
   model,
@@ -159,7 +161,7 @@ function build(request, quiet = true) {
  };
  if (system.length) params.system = system.map((part, k) => ({ type: 'text', text: part, ...(!once && (k === 0 || k === system.length - 1) ? { cache_control: CACHE } : {}) }));
  // The mark at the end of the request: the API puts it on the last block and moves it on as the chat grows.
- if (!once) params.cache_control = CACHE;
+ if (!once && !aside) params.cache_control = CACHE;
  if (tools?.length) params.tools = tools.map(tool => ({ name: tool.function.name, description: tool.function.description, input_schema: tool.function.parameters, eager_input_streaming: true }));
  return params;
 }

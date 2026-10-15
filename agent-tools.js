@@ -154,6 +154,26 @@ const SCHEMAS = [
   id: { type: 'string', description: 'For remind and done: the id of the note, like n3' },
   text: { type: 'string', description: 'For add: the note, one short line in the user\'s own words and language' },
  }, ['action']),
+ fn('routine', 'Routines: tasks the app gives you by itself, on time, in this chat, for as long as the user wants: every hour, every morning, on Mondays, once at 19:00. The routines of this chat come in a note from the app, each with its id. add: set one up when the user asks for something to be done regularly, at a set time or later. edit: change what one does or when. pause and resume: stop one for a while and start it again. remove: take one away. The answer tells the time on the computer now and when the routine runs next.', {
+  action: { type: 'string', enum: ['add', 'edit', 'pause', 'resume', 'remove'] },
+  id: { type: 'string', description: 'For edit, pause, resume and remove: the id of the routine, like r1x2y' },
+  text: { type: 'string', description: 'For add, and for edit when what it does changes: the task as an instruction to yourself that is whole on its own, in the user\'s language: what to do or check and where, what counts as worth telling, and what to tell the user' },
+  when: {
+   type: 'object', description: 'For add, and for edit when the time changes: when it runs, in the computer\'s own time',
+   properties: {
+    kind: { type: 'string', enum: ['once', 'every', 'daily', 'weekly', 'monthly'], description: 'once: one time. every: every so many minutes. daily: every day at a time. weekly: on some days of the week at a time. monthly: on a day of every month at a time' },
+    at: { type: 'string', description: 'For once: the local date and time, YYYY-MM-DDTHH:MM' },
+    in_minutes: { type: 'integer', description: 'For once, instead of at: how many minutes from now' },
+    minutes: { type: 'integer', description: 'For every: how often in minutes, 5 at the least; 60 is every hour, 1440 every day. Runs on the hour and at even steps from it' },
+    time: { type: 'string', description: 'For daily, weekly and monthly: the time of day, HH:MM in 24 hours' },
+    days: { type: 'array', items: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] }, description: 'For weekly: the days it runs on. For every: only on these days (all days if left out)' },
+    from: { type: 'string', description: 'For every: the hours it runs between, from HH:MM' },
+    to: { type: 'string', description: 'For every: until HH:MM, the last run' },
+    day: { type: 'integer', description: 'For monthly: the day of the month, 1 to 31 (the last day of a shorter month)' },
+   },
+   required: ['kind'],
+  },
+ }, ['action']),
  fn('ask_user', 'Ask the user one to four questions, each with ready choices, when their answer decides what you do next and you cannot find it out yourself. The app turns the message field into a card: the user picks a choice with one press or writes an answer in their own words, and you get the answers back as the result of this call. The app adds the line for their own words itself, so never add a choice like "Other". When you have a reason to prefer one choice, put it first and end its label with "(Recommended)", in English exactly so: the app shows it as a mark in the user\'s language. Write everything else in the user\'s language.', {
   questions: {
    type: 'array', minItems: 1, maxItems: 4, description: 'The questions, the one that matters most first. Each is one decision.',
@@ -1062,6 +1082,8 @@ window.AgentTools = {
  },
  cancel(id) {
   bridge?.cancel(id);
+  // A browser step still waiting for its turn at the keyboard does not start.
+  window.browserPanel?.cancel(id);
  },
  // One way to write a file's place, so that two agents naming the same file are seen to.
  place(cwd, path) {

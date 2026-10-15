@@ -94,6 +94,41 @@ class QuickSettings {
  }
 }
 
+// Whether the computer is kept awake while routines are on (desktop/awake.js), and whether a laptop's closed lid counts
+// too. On a Mac the lid takes the administrator's password, so there it is the user's own choice and starts off.
+class AwakeSettings {
+ constructor(root) {
+  this.root = root;
+  this.bridge = window.openghost?.routines?.awake;
+  if (!this.bridge) return;
+  this.toggle = root.querySelector('.awake-switch');
+  this.lid = root.querySelector('.awake-lid-switch');
+  this.lidRow = root.querySelector('.awake-lid');
+  this.toggle.addEventListener('click', () => this.set({ on: !this.state.on }));
+  this.lid.addEventListener('click', () => this.set({ lid: !this.state.lid }));
+  this.bridge.get().then(state => {
+   if (!state) return;
+   root.hidden = false;
+   root.querySelector('.awake-lid-hint').textContent = I18n.t(`settings.awake.lid.${state.platform === 'darwin' ? 'mac' : state.platform === 'win32' ? 'windows' : 'linux'}`);
+   this.paint(state);
+  }).catch(() => {});
+ }
+
+ async set(changes) {
+  const state = await this.bridge.set({ ...this.state, ...changes });
+  if (state) this.paint(state);
+ }
+
+ paint(state) {
+  this.state = state;
+  this.root.classList.toggle('is-off', !state.on);
+  this.toggle.setAttribute('aria-checked', String(state.on));
+  this.lid.setAttribute('aria-checked', String(state.on && state.lid));
+  this.lid.disabled = !state.on;
+  this.lidRow.classList.toggle('is-off', !state.on);
+ }
+}
+
 class GeneralSettings {
  constructor({ root, context }) {
   this.root = root;
@@ -131,6 +166,15 @@ class GeneralSettings {
     <div class="quick-row quick-startup" hidden><span class="quick-row-label" id="settings-quick-startup">${t('settings.quick.startup')}</span><button type="button" class="memory-switch quick-startup-switch" role="switch" aria-labelledby="settings-quick-startup"><span class="memory-switch-knob"></span></button></div>
     <p class="settings-status quick-status" role="status"></p>
    </section>
+   <section class="general-block general-awake" hidden>
+    <div class="general-head quick-head">
+     <span class="settings-label" id="settings-awake-label">${t('settings.awake')}</span>
+     <button type="button" class="memory-switch awake-switch" role="switch" aria-labelledby="settings-awake-label"><span class="memory-switch-knob"></span></button>
+    </div>
+    <p class="settings-hint">${t('settings.awake.hint')}</p>
+    <div class="quick-row awake-lid"><span class="quick-row-label" id="settings-awake-lid">${t('settings.awake.lid')}</span><button type="button" class="memory-switch awake-lid-switch" role="switch" aria-labelledby="settings-awake-lid"><span class="memory-switch-knob"></span></button></div>
+    <p class="settings-hint awake-lid-hint"></p>
+   </section>
    <section class="general-block general-access" hidden>
     <div class="general-head">
      <span class="settings-label">${t('settings.access')}</span>
@@ -145,6 +189,7 @@ class GeneralSettings {
    </section>`;
   new LanguageSettings(root.querySelector('.general-language'));
   this.quick = new QuickSettings(root.querySelector('.general-quick'));
+  this.awake = new AwakeSettings(root.querySelector('.general-awake'));
   // A Mac asks the user itself before the app first opens some folders. The block is there only on a Mac.
   this.access = root.querySelector('.general-access');
   root.querySelector('.general-access-open').addEventListener('click', () => window.openghost?.access?.open());

@@ -65,6 +65,27 @@ function label(el, text) {
  el.title = text;
 }
 
+// When a routine runs next, as short as the time beside a chat: «15:00» within a day, «Fri» within the week, a date
+// after that; nothing for one that is paused or has run its only time.
+function nextRun(chat) {
+ const item = (window.Routines?.of(chat.id) || []).filter(one => Routines.live(one)).sort((a, b) => a.next - b.next)[0];
+ if (!item) return '';
+ const d = item.next - Date.now();
+ if (d < DAY) return new Intl.DateTimeFormat(I18n.lang, { hour: 'numeric', minute: '2-digit' }).format(new Date(item.next));
+ if (d < WEEK) return new Intl.DateTimeFormat(I18n.lang, { weekday: 'short' }).format(new Date(item.next));
+ return new Date(item.next).toLocaleDateString(I18n.lang, { month: 'short', day: 'numeric' });
+}
+
+// A chat's routines as its row shows them: none, on, or all of them paused or done.
+function routineState(chat) {
+ const items = window.Routines?.of(chat.id) || [];
+ if (!items.length) return '';
+ return items.some(item => Routines.live(item)) ? 'on' : 'off';
+}
+
+const FOLD = 'openghost.routines.collapsed';
+const folded = () => { try { return localStorage.getItem(FOLD) === '1'; } catch { return false; } };
+
 function ago(time, now = Date.now()) {
  const d = Math.max(0, now - time);
  if (d < MINUTE) return I18n.t('time.now');
@@ -93,7 +114,7 @@ function place(parent, children) {
 }
 
 class ChatList {
- constructor({ root, library, chat, onNewFolder, onNewChat, onLock }) {
+ constructor({ root, library, chat, onNewFolder, onNewChat, onLock, onNewRoutine = null }) {
   this.root = root;
   this.list = root.querySelector('.chats-list');
   this.library = library;
@@ -101,6 +122,9 @@ class ChatList {
   this.onNewFolder = onNewFolder;
   this.onNewChat = onNewChat;
   this.onLock = onLock;
+  // The routines' group (routines.js): the chats made for a routine of their own, and its plus sets a new one up.
+  this.onNewRoutine = onNewRoutine;
+  this.routinesFolded = folded();
   // The dots' menu of a row: what the row's own hidden buttons say and allow, as lines.
   this.menu = new RowMenu({
    scroller: root.querySelector('.chats-scroll') || root,
@@ -160,17 +184,18 @@ class ChatList {
   return head;
  }
 
- // A folder of the list, or with `home` the chats without a folder: a speech bubble instead of the folder, and nothing to delete.
- group(folder, collapsed, home = false) {
-  const section = element('section', `chats-folder${home ? ' is-home' : ''}${collapsed ? ' is-collapsed' : ''}`);
+ // A folder of the list, or with `home` the chats without a folder: a speech bubble instead of the folder, and nothing to
+ // delete; or with `routines` the routines' own chats: the routine's clock, and its plus sets a routine up.
+ group(folder, collapsed, home = false, routines = false) {
+  const section = element('section', `chats-folder${home ? ' is-home' : ''}${routines ? ' is-routines' : ''}${collapsed ? ' is-collapsed' : ''}`);
   const head = element('div', 'chats-folder-head');
   head.setAttribute('role', 'button');
   head.tabIndex = 0;
   head.setAttribute('aria-expanded', String(!collapsed));
   const icon = element('span', 'chats-folder-icon');
-  icon.innerHTML = home ? Glyphs.bubble : Glyphs.folder;
+  icon.innerHTML = routines ? Glyphs.routine : home ? Glyphs.bubble : Glyphs.folder;
   const name = element('span', 'chats-folder-name', folder.name);
-  const add = action('chats-folder-action', 'new-chat', Glyphs.plus);
+  const add = action('chats-folder-action', routines ? 'new-routine' : 'new-chat', Glyphs.plus);
   const remove = home ? null : action('chats-folder-action is-delete', 'delete-folder', Glyphs.trash);
   head.append(icon, name, add, ...(remove ? [remove] : []));
   const body = element('div', 'chats-folder-body');
@@ -193,7 +218,10 @@ class ChatList {
   guard.innerHTML = Glyphs.padlock;
   const bolt = element('span', 'chat-bolt');
   bolt.innerHTML = Glyphs.bolt;
-  mark.append(element('span', 'chat-dot'), bolt, guard);
+  // A chat with routines wears the routine's clock in the dot's place.
+  const clock = element('span', 'chat-routine');
+  clock.innerHTML = Glyphs.routine;
+  mark.append(element('span', 'chat-dot'), bolt, guard, clock);
   const title = element('span', 'chat-title');
   const meta = element('span', 'chat-meta');
   const time = element('span', 'chat-time');
@@ -214,11 +242,13 @@ class ChatList {
  }
 
  paint(item, chat) {
-  const active = chat.id === this.chat.activeId;
+  const active = chat.id === this.chat.activeId, routine = routineState(chat);
   this.guard(item, chat);
-  item.time.textContent = ago(chat.updated);
+  item.time.textContent = this.timeOf(chat);
   item.row.classList.toggle('is-active', active);
   item.row.classList.toggle('is-quick', !!chat.quick);
+  item.row.classList.toggle('is-routine', !!routine);
+  item.row.classList.toggle('is-routine-off', routine === 'off');
   item.row.classList.toggle('is-unread', !active && this.chat.isUnread(chat.id));
   if (active) item.row.setAttribute('aria-current', 'page');
   else item.row.removeAttribute('aria-current');
@@ -336,7 +366,10 @@ class ChatList {
   const recent = (a, b) => b.updated - a.updated;
   const live = lib.chats.filter(match);
   const pinned = live.filter(chat => chat.pinned).sort(recent);
-  const loose = live.filter(chat => !chat.pinned && lib.isHome(chat)).sort(recent);
+  // A routine's own chats stand in the routines' group, the one that runs soonest first.
+  const soon = chat => Math.min(...(window.Routines?.of(chat.id) || []).filter(item => Routines.live(item)).map(item => item.next), Infinity);
+  const routines = this.onNewRoutine ? live.filter(chat => !chat.pinned && chat.routine).sort((a, b) => soon(a) - soon(b) || recent(a, b)) : [];
+  const loose = live.filter(chat => !chat.pinned && lib.isHome(chat) && !routines.includes(chat)).sort(recent);
   const folders = lib.folders
    .map(folder => ({ folder, chats: live.filter(chat => !chat.pinned && lib.within(chat, folder.path)).sort(recent) }))
    .filter(entry => !query || entry.chats.length || entry.folder.name.toLowerCase().includes(query))
@@ -346,6 +379,7 @@ class ChatList {
   const draft = !query && this.chat.isDraft ? this.chat.folder || HOME : null;
   const order = [this.glide];
   if (pinned.length) order.push(this.pinnedHead, ...pinned.map(chat => this.item(chat, seen)));
+  if (this.onNewRoutine && (!query || routines.length)) order.push(this.routinesGroup(routines, !!query, seen));
   if (!query || loose.length || I18n.t('chats.home').toLowerCase().includes(query)) order.push(this.home(loose, !!query, seen, draft === HOME));
   order.push(this.foldersHead);
   for (const { folder, chats } of folders) order.push(this.folder(folder, chats, !!query, seen, !!draft?.path && key(draft.path) === key(folder.path)));
@@ -392,6 +426,20 @@ class ChatList {
   }
   this.homeGroup.head.title = home.path;
   return this.fill(this.homeGroup, home.collapsed, chats, searching, seen, draft);
+ }
+
+ // The routines' group stays even when empty: its plus sets the first one up, and a line says what routines are.
+ routinesGroup(chats, searching, seen) {
+  if (!this.routinesGroupEl) {
+   this.routinesGroupEl = this.group({ path: null, name: I18n.t('routine.title') }, this.routinesFolded, true, true);
+   label(this.routinesGroupEl.add, I18n.t('routine.new'));
+   this.routinesGroupEl.routines = true;
+  }
+  const group = this.routinesGroupEl;
+  this.collapse(group, !searching && this.routinesFolded);
+  const kids = chats.map(chat => this.item(chat, seen));
+  place(group.inner, kids.length ? kids : [group.empty ||= element('div', 'chats-empty is-routines-hint', I18n.t('routine.empty'))]);
+  return group.section;
  }
 
  fill(group, collapsed, chats, searching, seen, draft) {
@@ -441,9 +489,14 @@ class ChatList {
   for (const [id, item] of this.rows) {
    const chat = chats.get(id);
    if (!chat) continue;
-   const text = ago(chat.updated);
+   const text = this.timeOf(chat);
    if (item.time.textContent !== text) item.time.textContent = text;
   }
+ }
+
+ // Beside a chat, how long ago it was written in; beside a routine's own chat, when its routine runs next.
+ timeOf(chat) {
+  return chat.routine ? nextRun(chat) : ago(chat.updated);
  }
 
  onClick(event) {
@@ -452,6 +505,7 @@ class ChatList {
   if (button) {
    const id = button.closest('.chat-row')?.dataset.id, group = button.closest('.chats-folder')?.__group;
    if (button.dataset.action === 'new-folder') this.onNewFolder();
+   else if (button.dataset.action === 'new-routine') this.onNewRoutine?.(group.head);
    else if (button.dataset.action === 'new-chat') this.newChat(group);
    else if (button.dataset.action === 'delete-folder') this.askDeleteFolder(group);
    else if (button.dataset.action === 'rename') this.rename(id);
@@ -463,7 +517,7 @@ class ChatList {
   }
   const head = event.target.closest('.chats-folder-head');
   if (head) {
-   this.library.toggleFolder(head.parentElement.__group.path);
+   this.toggleGroup(head.parentElement.__group);
    return;
   }
   const row = event.target.closest('.chat-row');
@@ -482,8 +536,16 @@ class ChatList {
    this.chat.open(event.target.dataset.id);
   } else if (event.target.classList.contains('chats-folder-head')) {
    event.preventDefault();
-   this.library.toggleFolder(event.target.parentElement.__group.path);
+   this.toggleGroup(event.target.parentElement.__group);
   }
+ }
+
+ // A folder folds with the index; the routines' group keeps its fold in this window's own storage.
+ toggleGroup(group) {
+  if (!group.routines) { this.library.toggleFolder(group.path); return; }
+  this.routinesFolded = !this.routinesFolded;
+  try { localStorage.setItem(FOLD, this.routinesFolded ? '1' : '0'); } catch {}
+  this.render();
  }
 
  newChat(group) {

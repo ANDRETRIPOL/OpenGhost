@@ -372,16 +372,21 @@ function photoClosed(index) {
 function trayMenu() {
  return Menu.buildFromTemplate([
   { label: Lang.t('tray.open'), click: () => host.showMain() },
-  { label: Lang.t('tray.quick'), accelerator: failed ? undefined : config.shortcut, click: show },
+  { label: Lang.t('tray.quick'), accelerator: failed ? undefined : config.shortcut, click: show, visible: config.on },
   { type: 'separator' },
   { label: Lang.t('tray.quit'), click: () => app.quit() },
  ]);
 }
 
+// The tray holds the app while the quick chat is on, and also while a routine is on (`host.stay`), so that the app
+// that goes on with its window closed can be opened and quit.
 function dress() {
+ const stay = !!host.stay?.();
  if (!config.on) {
-  tray?.destroy();
-  tray = null;
+  if (!stay) {
+   tray?.destroy();
+   tray = null;
+  }
   if (win) {
    const old = win;
    quitting = true;
@@ -390,7 +395,7 @@ function dress() {
    quitting = false;
    win = null;
   }
-  return;
+  if (!stay) return;
  }
  if (!host.trayIcon) return;
  if (!tray) {
@@ -531,6 +536,8 @@ function relabel() {
 module.exports = {
  setup,
  relabel,
+ // Routines went on or off: the tray stays or goes with them when the quick chat is off.
+ retray() { if (host) dress(); },
  show,
  hide,
  toggle,

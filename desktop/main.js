@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, nativeTheme, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const Tools = require('./tools');
@@ -11,6 +11,9 @@ const Pdf = require('./pdf');
 const Size = require('./size');
 const Quick = require('./quick');
 const Lang = require('./lang');
+const Reveal = require('./reveal');
+const Notify = require('./notify');
+const Routines = require('./routines');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
@@ -35,6 +38,14 @@ const STORE_KEY = /^[a-z0-9-]+(\/[a-z0-9-]+)?$/;
 
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 app.setAppUserModelId(APP_ID);
+// Started from source on Windows (electron.exe, not the installed OpenGhost.exe). Windows shows an app's notifications
+// only with a shortcut of the app's own in the Start menu, and Electron, before the first one, writes it there, named
+// after the program that runs (Electron), with that program's icon: the taskbar and the Task Manager then show this
+// window as Electron. So from source the app puts that shortcut there itself, with the ghost on it, and Electron, finding
+// it right (the same program, folder, app id and activator), leaves it. The installed app is not concerned.
+const SOURCE = process.platform === 'win32' && !app.isPackaged && path.basename(process.execPath).toLowerCase() === 'electron.exe'
+ ? { name: 'Electron', clsid: '{A1AD4563-AF7F-46B0-A864-E1A5A84AA546}' } : null;
+if (SOURCE) app.setToastActivatorCLSID(SOURCE.clsid);
 // Windows and Linux show no menu bar: copying, pasting and undo work in the page by themselves. macOS delivers Cmd+C, Cmd+V,
 // Cmd+A, Cmd+Z, Cmd+Q, Cmd+H and Cmd+M only through the menu at the top of the screen, so there the app keeps the standard
 // app, edit and window menus.
@@ -108,7 +119,8 @@ function external(url) {
  if (/^(https?|mailto):/i.test(url)) shell.openExternal(url);
 }
 
-function createWindow() {
+// `unseen`: made for a routine that is due while the app waits in the tray; it shows only when the user opens the app.
+function createWindow(unseen = false) {
  const size = Size.initial(1280, 840);
  const win = new BrowserWindow({
   width: size.width,
@@ -135,7 +147,11 @@ function createWindow() {
    webviewTag: true,
   },
  });
- win.once('ready-to-show', () => win.show());
+ win.unseen = unseen;
+ win.once('ready-to-show', () => {
+  win.drawn = true;
+  if (!win.unseen) win.show();
+ });
  Size.attach(win);
  win.webContents.on('will-attach-webview', (event, prefs, params) => {
   if (!Browser.guard(win.webContents, prefs, params)) event.preventDefault();
@@ -203,6 +219,16 @@ ipcMain.on('window:titlebar', (event, color, symbols) => {
 });
 
 const fromApp = event => event.sender.getType() === 'window' && event.senderFrame?.url.startsWith('file:');
+// A press on a file or a folder in a list the agent has drawn (reveal.js says what is opened and what is only shown).
+// The user's own folders where the system really keeps them, for paths the agent wrote by their usual names.
+const knownFolders = () => Object.fromEntries([['Desktop', 'desktop'], ['Documents', 'documents'], ['Downloads', 'downloads'], ['Pictures', 'pictures'], ['Music', 'music'], ['Videos', 'videos']].map(([name, key]) => { try { return [name, app.getPath(key)]; } catch { return [name, '']; } }));
+ipcMain.handle('path:open', (event, target) => fromApp(event) ? Reveal.open(target, shell, process.platform, knownFolders()) : 'missing');
+ipcMain.handle('path:terminal', (event, target) => fromApp(event) ? Reveal.terminal(target, process.platform, knownFolders()) : 'missing');
+ipcMain.handle('path:copy', async (event, target) => {
+ if (!fromApp(event) || typeof target !== 'string') return false;
+ clipboard.writeText((await Reveal.locate(target, knownFolders()))?.full || target);
+ return true;
+});
 // macOS asks the user before an app first opens Desktop, Documents, Downloads or another disk, whatever the agent's own
 // permission mode says; no app can answer for the user. With Full Disk Access given to OpenGhost once it no longer asks.
 // Whether it is given can only be told by trying: the system's own record of permissions is readable with it alone.
@@ -265,42 +291,86 @@ if (process.argv.includes('--create-shortcut')) {
  app.quit();
 } else {
  let win = null;
+ // Out of sight (minimized, or behind other windows) a page is slowed down: its clocks wake rarely, after a while once
+ // a minute. While an agent is at work in the window it is not: the agent goes on as fast as on screen. Once no agent
+ // works it is slowed down again, at once if the window is on screen; a window out of sight is let be until it is back,
+ // as changing the setting wakes a hidden page (as desktop/quick.js says) and it would then not sleep.
+ let working = false;
+ const keepAwake = () => {
+  if (!win || win.isDestroyed()) return;
+  const slowed = win.webContents.getBackgroundThrottling();
+  if (working) { if (slowed) win.webContents.setBackgroundThrottling(false); return; }
+  if (!slowed && win.isVisible() && !win.isMinimized()) win.webContents.setBackgroundThrottling(true);
+ };
+ ipcMain.on('app:working', (event, on) => {
+  if (!win || event.sender !== win.webContents) return;
+  working = !!on;
+  keepAwake();
+ });
  // The main window, made if the app has been waiting in the tray without it; `then` gets it once its page is there.
- const showMain = then => {
+ // `unseen`: made for a routine, it is not shown, and one that is there already is left where it is.
+ const showMain = (then, unseen = false) => {
   const fresh = !win;
   if (!win) {
-   win = createWindow();
+   win = createWindow(unseen);
    const contents = win.webContents;
    win.on('closed', () => {
     win = null;
-    // With the quick chat on, the app goes on in the tray, and an agent at work in the quick chat is not stopped: only
-    // what this window asked for is. Without it, closing the window ends everything and the app.
-    if (Quick.on) { LLM.cancelFrom(contents); return; }
+    Routines.unready();
+    // With the quick chat on, or a routine on, the app goes on in the tray, and an agent at work in the quick chat is
+    // not stopped: only what this window asked for is. Otherwise closing the window ends everything and the app.
+    if (Quick.on || Routines.alive) { LLM.cancelFrom(contents); return; }
     Tools.cancelAll();
     LLM.cancelAll();
     Pdf.cancelAll();
     app.quit();
    });
   }
-  if (win.isMinimized()) win.restore();
-  if (!fresh) { win.show(); win.focus(); }
+  if (fresh) {
+   win.webContents.on('did-finish-load', () => Notify.paint());
+   // Read anew, the page takes no routine until it says it is ready again.
+   win.webContents.on('did-start-loading', () => Routines.unready());
+   win.on('restore', keepAwake);
+   win.on('show', keepAwake);
+  }
+  if (!unseen) {
+   if (win.isMinimized()) win.restore();
+   // A window made unseen and not drawn yet is shown once it is (createWindow); one already drawn, at once.
+   const was = win.unseen;
+   win.unseen = false;
+   if (!fresh && (!was || win.drawn)) { win.show(); win.focus(); }
+  }
   if (!then) return;
   if (win.webContents.isLoading()) win.webContents.once('did-finish-load', () => then(win));
   else then(win);
  };
  app.on('second-instance', () => showMain());
  app.on('activate', () => showMain());
+ // The button on the page shown after a sign-in in the browser (chatgpt.js).
+ app.on('openghost:show', () => showMain());
  app.whenReady().then(() => {
+  if (SOURCE) {
+   shell.writeShortcutLink(path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', `${SOURCE.name}.lnk`), 'create', {
+    target: process.execPath, cwd: path.dirname(process.execPath), args: `"${ROOT}"`, icon: ICON, iconIndex: 0,
+    appUserModelId: APP_ID, toastActivatorClsid: SOURCE.clsid, description: SOURCE.name,
+   });
+  }
+  // A notification pressed opens the app on its chat; one of the quick chat's opens there too, as the chat is in the
+  // list with the others.
+  Notify.setup({ fromApp, icon: ICON, window: () => win, open: key => showMain(main => main.webContents.send('notify:open', key)) });
+  // A routine due with no window: the window is made unseen and its page runs it. While a routine is on the app keeps
+  // its place in the tray, the quick chat on or not.
+  Routines.setup({ store: { read: readStore, write: writeStore }, fromApp, window: () => win, wake: () => showMain(null, true), changed: () => Quick.retray() });
   Lang.load();
   Browser.setup();
   Keys.load();
   Quick.setup({
-   fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
+   fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'), stay: () => Routines.alive,
    preload: path.join(__dirname, 'preload.js'), page: path.join(ROOT, 'index.html'),
   });
   if (!Quick.startHidden) showMain();
  });
- app.on('window-all-closed', () => { if (!Quick.on) app.quit(); });
+ app.on('window-all-closed', () => { if (!Quick.on && !Routines.alive) app.quit(); });
  app.on('before-quit', event => {
   Tools.cancelAll();
   if (!writes.size) return;

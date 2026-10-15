@@ -183,7 +183,8 @@ function build(request, extras = { marks: true, thinking: true }) {
   ...(extras.thinking ? thinking(request) : {}),
  };
  // The mark at the end of the request: OpenRouter puts it on the last block and moves it on as the chat grows.
- if (marks) body.cache_control = CACHE;
+ // A request beside the chat (`aside`) reads the chat's cache and leaves no mark at its own end.
+ if (marks && !request.aside) body.cache_control = CACHE;
  // A model that could not be told not to think spends its room on thinking first, so a side request gets room for both.
  const room = maxTokens && once && !extras.thinking ? Math.max(maxTokens, THINKING_ROOM) : maxTokens;
  if (room) body.max_tokens = output ? Math.min(room, output) : room;
