@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.4.7</span>
+      <span class="ver" data-version>v1.4.8</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.4.7.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.4.8.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.4.7</h3>
+        <h3 class="h3" data-news-title>What's new in 1.4.8</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.4.7';
+const FALLBACK = '1.4.8';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,16 +1470,16 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'Local models: give the address of Ollama, LM Studio or llama.cpp, and its models show up in the model picker.',
-    'Any OpenAI-compatible API, in a section of its own: the address of a service and its key.',
-    'Every model your key can use, for Anthropic and OpenAI, and any model by its ID.',
-    'The agent sees a task through: the exact items, prices, links and its own pick.',
+    'Much faster: long chats open and scroll without lag, most noticeably on slower computers.',
+    'Routines: tasks the agent does by itself on time, even with the laptop lid closed.',
+    'Predictions: the composer suggests your next message.',
+    'A safer, steadier agent in the browser: agents of different chats each work in a tab of their own.',
   ],
   ru: [
-    'Локальные модели: укажите адрес Ollama, LM Studio или llama.cpp — и их модели появятся в меню.',
-    'Любой API, совместимый с OpenAI, в отдельном разделе: адрес сервиса и ключ.',
-    'Все модели, доступные вашему ключу Anthropic и OpenAI, и любая модель по её ID.',
-    'Агент доводит задачу до конца: точные товары, цены, ссылки и свой выбор.',
+    'Намного быстрее: длинные чаты открываются и листаются без задержек, особенно на слабых компьютерах.',
+    'Рутины: задачи, которые агент делает сам и вовремя, даже с закрытой крышкой ноутбука.',
+    'Предсказания: поле ввода подсказывает ваше следующее сообщение.',
+    'Агент в браузере надёжнее и безопаснее: агенты разных чатов работают каждый в своей вкладке.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };

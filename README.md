@@ -6,21 +6,21 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.4.7 beta**
+**v1.4.8 beta**
 
-[Windows version 1.4.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.7/OpenGhost-1.4.7-Setup.exe)
+[Windows version 1.4.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.8/OpenGhost-1.4.8-Setup.exe)
 
-[Linux version 1.4.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.7/OpenGhost-1.4.7-linux.tar.gz)
+[Linux version 1.4.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.8/OpenGhost-1.4.8-linux.tar.gz)
 
-[macOS version 1.4.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.7/OpenGhost-1.4.7-mac.dmg)
+[macOS version 1.4.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.8/OpenGhost-1.4.8-mac.dmg)
 
 What's new:
-- Local models: give the address of Ollama, LM Studio or llama.cpp running on your computer, and its models show up in the model picker; the size of a model's context is set by hand or by the app itself.
-- Any OpenAI-compatible API, in a section of its own: the address of a service and its key.
-- Every model your key can use: an Anthropic key lists all its models, an OpenAI key every chat model, and both take a model by its ID.
-- The agent sees a task through: a result you can act on at once, with the exact items, prices, links and its own pick.
-- The agent keeps its browser tabs in order and closes the ones it is done with.
-- macOS: Google takes a new sign-in in the built-in browser.
+- Much faster: long chats open and scroll without lag, most noticeably on slower computers.
+- Routines: tasks the agent does by itself on time (once at 19:00, every hour, every morning), set up in the sidebar or by asking the agent.
+- Routines keep running with the laptop lid closed.
+- Predictions: the composer suggests your next message; Tab takes it.
+- A safer agent in the browser: pages are material, never instructions, and agents of different chats each work in a tab of their own.
+- More stable agents, and a notification when a reply is ready.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
