@@ -26,6 +26,7 @@ let routinePanel = null;
 let routineMaker = null;
 const MAIN_WINDOW = !window.openghost?.quick;
 Routines.load();
+Skills.load();
 
 new SmoothHeight(composerField, composerInput);
 ComposerSpace.watch(main, composer);
@@ -102,6 +103,10 @@ chatList = new ChatList({
   },
   onLock: (id, row) => lockCard.open(id, row),
   onNewRoutine: MAIN_WINDOW && Routines.available ? head => routineMaker?.open({ anchor: head }) : null,
+  // The Skills row above the routines opens the search for skills alone.
+  onSkills: MAIN_WINDOW && Skills.available ? () => spotlight.showSkills() : null,
+  // A fork of the whole chat, from its row's menu (chat.js).
+  onFork: MAIN_WINDOW ? id => chat.forkChat(id) : null,
 });
 document.querySelector('.titlebar-name').innerHTML = `${Glyphs.ghost}<span>OpenGhost</span>`;
 const modeButton = document.querySelector('.composer-mode');
@@ -129,6 +134,23 @@ const attachments = new Attachments({
   // And files dropped on the open mini chat are the mini chat's.
   isActive: event => !event?.target?.closest?.('.mini') && !chat.active?.locked && !settings.dialog.open,
 });
+// A fork made from a message of the user's has that message waiting in its field: its words come with the fork's
+// draft (chat.js), and its pictures, kept in the message, are put back here.
+chat.onForked = (made, prompt) => {
+  const pictures = (prompt?.attachments || []).filter(item => item.image && item.url?.startsWith('data:'));
+  // The page may fetch nothing but its own provider, so the picture is read out of its data: address by hand.
+  const file = ({ url, name }) => {
+    try {
+      const [head, body] = url.split(',', 2), type = head.slice(5).split(';')[0] || 'image/png';
+      const bytes = head.includes(';base64') ? Uint8Array.from(atob(body), char => char.charCodeAt(0)) : new TextEncoder().encode(decodeURIComponent(body));
+      return new File([bytes], name || 'image.png', { type });
+    } catch {
+      return null;
+    }
+  };
+  const files = pictures.map(file).filter(Boolean);
+  if (chat.activeId === made.id && files.length) attachments.add(files);
+};
 new SelectionMenu({
   onAsk: (text, box) => {
     const mini = box.closest('.mini')?.__mini;
@@ -204,7 +226,9 @@ sidebarToggle.addEventListener('sidebar-toggle', () => {
 });
 
 // Search opens over the middle of the chat; the sidebar's list stays as it is.
-const spotlight = new Spotlight({ button: searchButton, anchor: main, library, chat });
+const spotlight = new Spotlight({ button: searchButton, anchor: main, library, chat, onSkill: name => { composerText.insertSkill(name); syncComposer(); } });
+// Typing / in the message field lists the skills over it.
+new SkillPicker({ input: composerInput, text: composerText, anchor: composer, onPick: syncComposer });
 
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'KeyK' || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
@@ -302,6 +326,11 @@ function bringOut() {
 
 function syncAll() {
   if (!chatList) return;
+  // The marks where forks begin follow their chats' names, and their going.
+  chat.syncForks();
+  // The skills of the chat on screen: its project may have skills of its own.
+  const folder = chat.active?.record ? chat.cwd(chat.active) : '';
+  if (folder !== Skills.folder) { Skills.folder = folder; if (folder) Skills.refresh(folder); }
   folderPill.sync();
   chatList.render();
   lockScreen.sync();

@@ -355,6 +355,39 @@ class Library {
   }).then(text => text || '');
  }
 
+ // A fork of a chat: a chat of its own that goes on from a point of another, apart from it from then on. It takes the
+ // chat's messages up to there (`messages`, `tokens`), its notes and its mini chat, its folder, its model and its
+ // password: sealed with the same key, the same password opens it. It remembers whose fork it is (`fork`), and asks the
+ // models with the key its chat has asked with all along (`session`), so that their caches still serve what they share.
+ async fork(id, { messages, tokens }) {
+  const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
+  if (!chat || (chat.lock && !key)) return null;
+  const now = Date.now(), title = this.titleOf(chat) || I18n.t('chat.new');
+  const copy = { id: uid(), title, folder: chat.folder, created: now, updated: now, pinned: false, named: false, fork: id, session: chat.session || id };
+  // A chat without a project folder: the fork works in the same folder of its own, with what the agent made there.
+  if (chat.space) copy.space = chat.space;
+  if (chat.model) copy.model = chat.model;
+  const [notes, side] = await Promise.all([this.notes(id), this.side(id)]);
+  const seal = async body => key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body };
+  // What the mini chat spent is its chat's: the fork's count starts with its own.
+  const mini = side.messages.map(entry => ({ ...entry, forked: true }));
+  await this.queue(copy.id, async () => {
+   await this.store.write(`chats/${copy.id}`, await seal({ messages, tokens }));
+   if (notes.items.length) await this.store.write(`notes/${copy.id}`, await seal({ items: notes.items, next: notes.next }));
+   if (mini.length) await this.store.write(`mini/${copy.id}`, await seal({ messages: mini, tokens: side.tokens, seen: side.seen }));
+  });
+  if (key) {
+   copy.lock = { ...chat.lock, title: await ChatLock.seal(key, { title }) };
+   copy.title = '';
+   this.keys.set(copy.id, key);
+   this.titles.set(copy.id, title);
+  }
+  this.fresh.add(copy.id);
+  this.chats.push(copy);
+  this.changed();
+  return copy;
+ }
+
  // Sealed with the key the chat has when the save is asked for, so locking right after it loses nothing.
  saveDraft(id, text) {
   const chat = id === 'new' ? null : this.chat(id), key = chat?.lock ? this.keys.get(id) : null;

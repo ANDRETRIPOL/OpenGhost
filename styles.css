@@ -537,76 +537,52 @@ body {
   margin: 14px calc(-1 * var(--toggle-inset)) 8px;
 }
 
-/* Chats slip under the header and the footer through the same soft fade as the messages in the chat.
-   Each fade follows the scroll: it comes in once there is something past that edge, so the first and last rows stay clear at the ends.
-   A fade is a piece of the window's backdrop, pinned to the window so it lines up with the light around it. */
-.chats::before,
-.chats::after {
-  content: "";
-  position: absolute;
-  z-index: 2;
-  right: 0;
-  left: 0;
-  height: 28px;
-  background: var(--frame), var(--app-bg);
-  background-attachment: fixed;
-  opacity: 0;
-  pointer-events: none;
+/* Chats slip under the header and the footer by fading out: the rows themselves grow clear towards the edge, through a
+   mask on the list, so the fade lies right on whatever is behind the sidebar, its glass and the desktop seen through it
+   included. (A piece of the window's backdrop laid over the rows did not: on the clear sidebar it stood out as a band of
+   light.) Each fade follows the scroll: it comes in once there is something past that edge, so the first and last rows
+   stay clear at the ends. */
+@property --chats-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 
-.chats::before {
-  top: 0;
-  -webkit-mask-image: linear-gradient(#000, transparent 70%);
-  mask-image: linear-gradient(#000, transparent 70%);
+@property --chats-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 
-.chats::after {
-  bottom: 0;
-  -webkit-mask-image: linear-gradient(transparent, #000 70%);
-  mask-image: linear-gradient(transparent, #000 70%);
+.chats-scroll {
+  -webkit-mask-image: linear-gradient(transparent, #000 var(--chats-fade-top), #000 calc(100% - var(--chats-fade-bottom)), transparent);
+  mask-image: linear-gradient(transparent, #000 var(--chats-fade-top), #000 calc(100% - var(--chats-fade-bottom)), transparent);
 }
 
 /* The fades run on the scroll only while there is one. In a list that fits, the timeline would be inactive and the fade
    animations would sit waiting on it for good, and a list in that state trembled after a hover. */
-.chats:has(> .chats-scrollbar.is-scrollable) {
-  timeline-scope: --chats;
-}
-
 .chats:has(> .chats-scrollbar.is-scrollable) > .chats-scroll {
-  scroll-timeline: --chats block;
-}
-
-.chats:has(> .chats-scrollbar.is-scrollable)::before,
-.chats:has(> .chats-scrollbar.is-scrollable)::after {
-  animation-duration: auto;
-  animation-timing-function: linear;
-  animation-fill-mode: both;
-  animation-timeline: --chats;
-}
-
-.chats:has(> .chats-scrollbar.is-scrollable)::before {
-  animation-name: chats-edge-in;
-  animation-range: 0 28px;
-}
-
-.chats:has(> .chats-scrollbar.is-scrollable)::after {
-  animation-name: chats-edge-out;
-  animation-range: calc(100% - 28px) 100%;
+  animation-name: chats-edge-in, chats-edge-out;
+  animation-duration: auto, auto;
+  animation-timing-function: linear, linear;
+  animation-fill-mode: both, both;
+  animation-timeline: scroll(self block), scroll(self block);
+  animation-range: 0 28px, calc(100% - 28px) 100%;
 }
 
 @keyframes chats-edge-in {
   to {
-    opacity: 1;
+    --chats-fade-top: 28px;
   }
 }
 
 @keyframes chats-edge-out {
   from {
-    opacity: 1;
+    --chats-fade-bottom: 28px;
   }
 
   to {
-    opacity: 0;
+    --chats-fade-bottom: 0px;
   }
 }
 
@@ -2215,6 +2191,11 @@ ghost-thinking {
   opacity: 1;
 }
 
+/* A message still waiting for its turn is not in the chat yet: nothing can be forked from it. */
+.message.is-queued .message-fork {
+  display: none;
+}
+
 @keyframes message-tools-in {
   from {
     opacity: 0;
@@ -2624,6 +2605,64 @@ ghost-thinking {
 .thread-compact-text b {
   color: rgba(var(--fg-rgb), 0.62);
   font-weight: 560;
+}
+
+/* Where a fork begins: a quiet line with a branch, the name of the chat it came from a little louder; pressed, that
+   chat opens (chat.js). */
+.thread-fork {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 2px 0;
+  color: rgba(var(--fg-rgb), 0.4);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: center;
+  user-select: none;
+  animation: message-in 0.35s var(--motion-easing) both;
+}
+
+.thread-fork > .glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.thread-fork-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-fork-name {
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  outline: none;
+  background: none;
+  color: rgba(var(--fg-rgb), 0.62);
+  font: inherit;
+  font-weight: 560;
+}
+
+button.thread-fork-name {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(var(--fg-rgb), 0.22);
+  text-underline-offset: 3px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+button.thread-fork-name:hover {
+  color: var(--fg-primary);
+  text-decoration-color: rgba(var(--fg-rgb), 0.5);
+}
+
+button.thread-fork-name:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .thread-compact-stack {
@@ -18709,6 +18748,63 @@ html:root[data-theme="light"] .routine-model-menu {
   color: rgb(var(--selection-rgb));
 }
 
+/* A fork wears a branch in the dot's place, and stands a step in under the chat it came from, a fork of a fork another
+   step (chat-list.js). Its row keeps its whole width, so the light under the pointer and the open chat's stay as wide as
+   any other; only what is in it moves in. */
+.chat-fork {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(var(--fg-rgb), 0.5);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.2s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s ease;
+}
+
+.chat-fork .glyph {
+  width: 14px;
+  height: 14px;
+  overflow: visible;
+}
+
+.chat-row.is-forked:not(.is-protected):not(.is-busy):not(.is-routine):not(.is-quick) .chat-dot {
+  opacity: 0;
+  transform: scale(0.2);
+}
+
+.chat-row.is-forked:not(.is-protected):not(.is-busy):not(.is-routine):not(.is-quick) .chat-fork {
+  opacity: 1;
+  transform: none;
+}
+
+.chat-row.is-forked.is-active .chat-fork {
+  color: rgba(var(--fg-rgb), 0.85);
+}
+
+.chat-row.is-forked.is-unread .chat-fork {
+  color: rgb(var(--selection-rgb));
+}
+
+.chat-row {
+  transition: padding-left 0.4s var(--motion-easing);
+}
+
+.chat-row.is-fork-1 {
+  padding-left: 26px;
+}
+
+.chat-row.is-fork-2 {
+  padding-left: 42px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-fork,
+  .chat-row {
+    transition: none;
+  }
+}
+
 .chats-empty.is-routines-hint {
   height: auto;
   min-height: 30px;
@@ -18741,4 +18837,836 @@ html:root[data-theme="light"] .routine-model-menu {
   .chats-folder.is-routines .glyph-routine .routine-minute {
     transition: none;
   }
+}
+
+/* Skills (skills.js). The book: its pages turn about the spine. */
+.glyph-skill :is(.skill-left, .skill-right) {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  transition: transform 0.4s var(--motion-easing);
+}
+
+.chats-folder.is-skills .chats-folder-head:hover .skill-left {
+  transform: translateX(-1.5px) rotate(-3deg);
+}
+
+.chats-folder.is-skills .chats-folder-head:hover .skill-right {
+  transform: translateX(1.5px) rotate(3deg);
+}
+
+/* The Skills row of the sidebar is a group's head with nothing under it. */
+.chats-folder.is-skills .chats-folder-body {
+  display: none;
+}
+
+/* In the search: grey plates under the field, as in the search of Apple's apps. */
+.spotlight-chips {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+  overflow: hidden;
+}
+
+.spotlight-chips[hidden] {
+  display: none;
+}
+
+.spotlight-chips-gone {
+  flex: none;
+}
+
+.spotlight-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px 0 9px;
+  border: 0;
+  border-radius: 9px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.08);
+  color: rgba(var(--fg-rgb), 0.72);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.spotlight-chip:hover {
+  background: rgba(var(--fg-rgb), 0.13);
+  color: var(--fg-primary);
+}
+
+.spotlight-chip:active {
+  scale: 0.97;
+}
+
+:is(.spotlight-chip-sign, .spotlight-token-sign) {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+}
+
+:is(.spotlight-chip-sign, .spotlight-token-sign) .glyph {
+  width: 15px;
+  height: 15px;
+  overflow: visible;
+}
+
+/* The plate set in the field: a blue capsule before what is typed, like the tokens of Apple's search fields. */
+.spotlight-token {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  margin-left: 50px;
+  padding: 0 11px 0 8px;
+  border-radius: 9px;
+  background: rgba(var(--link-rgb), 0.16);
+  color: rgb(var(--link-rgb));
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.spotlight-token[hidden] {
+  display: none;
+}
+
+.spotlight.is-skills .spotlight-input {
+  padding-left: 10px;
+}
+
+/* A skill: its name, then what it is for, quieter, on the same line. */
+.spotlight-row.is-skill .spotlight-row-title {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.spotlight-skill-name {
+  flex: none;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+.spotlight-skill-about {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(var(--fg-rgb), 0.46);
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+
+/* The skills that do not fit what is typed wait below a fine line, dimmed. */
+.spotlight-row.is-skill {
+  transition: opacity 0.3s ease;
+}
+
+.spotlight-row.is-dim {
+  opacity: 0.42;
+}
+
+.spotlight-row.is-forward {
+  z-index: 1;
+}
+
+.spotlight-gap {
+  height: 1px;
+  margin: 6px 14px;
+  background: var(--spot-rule);
+  list-style: none;
+}
+
+/* In the message field and in a sent message: a skill's chip, as a link's, with the book for its sign. */
+.composer-skill-icon {
+  color: rgba(var(--fg-rgb), 0.8);
+}
+
+.skill-chip-inline {
+  cursor: default;
+}
+
+.skill-chip-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+
+.skill-chip-icon .glyph {
+  width: 14px;
+  height: 14px;
+  overflow: visible;
+}
+
+/* In the chat: the notes' capsule with the book, and the skill's name in a chip before what it is for. */
+.skill-chip {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: rgba(var(--pill-rgb), 0.14);
+  color: rgb(var(--pill-rgb));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.thread-note.is-skill .thread-note-pill {
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glyph-skill :is(.skill-left, .skill-right) {
+    transition: none;
+  }
+}
+
+/* The skills over the message field (skill-picker.js): a small panel of the search's glass. */
+.skill-picker {
+  --spot-fill: linear-gradient(180deg, rgba(54, 54, 60, 0.72), rgba(38, 38, 42, 0.72));
+  --spot-frost: blur(34px) saturate(1.9) brightness(1.08);
+  --spot-plate: rgba(255, 255, 255, 0.09);
+  --glass-rim: rgba(255, 255, 255, 0.14);
+  --glass-shade: 0 0 0 0 transparent;
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--fg-primary);
+  pointer-events: none;
+}
+
+[data-theme="light"] .skill-picker {
+  --spot-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(250, 251, 253, 0.78));
+  --spot-frost: blur(34px) saturate(1.9) brightness(1.04);
+  --spot-plate: rgba(60, 70, 90, 0.1);
+  --glass-rim: rgba(20, 30, 60, 0.1);
+}
+
+.skill-picker-panel {
+  position: absolute;
+  bottom: var(--picker-bottom);
+  left: var(--picker-x);
+  width: var(--picker-width);
+  max-height: 320px;
+  overflow: hidden auto;
+  scrollbar-width: none;
+  transform-origin: 50% 100%;
+  pointer-events: auto;
+}
+
+.skill-picker-panel.glass-lens {
+  border-radius: 18px;
+  background: var(--spot-fill);
+  box-shadow: var(--glass-shade), 0 18px 50px rgba(0, 0, 0, calc(0.36 * var(--shadow))), 0 4px 14px rgba(0, 0, 0, calc(0.18 * var(--shadow)));
+  -webkit-backdrop-filter: var(--spot-frost);
+  backdrop-filter: var(--spot-frost);
+}
+
+/* The contour is a hair, as the search's. */
+.skill-picker-panel.glass-lens::after {
+  padding: 0.6px;
+}
+
+.skill-picker-list {
+  position: relative;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.skill-picker-glide {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  left: 6px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--spot-plate);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.3, 1.2, 0.4, 1), opacity 0.2s ease;
+}
+
+.skill-picker-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px 0 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.skill-picker-sign {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  color: rgba(var(--fg-rgb), 0.55);
+}
+
+.skill-picker-sign .glyph {
+  width: 17px;
+  height: 17px;
+  overflow: visible;
+}
+
+.skill-picker-name {
+  flex: none;
+  max-width: 50%;
+  overflow: hidden;
+  color: rgba(var(--fg-rgb), 0.8);
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-picker-row[aria-selected="true"] :is(.skill-picker-name, .skill-picker-sign) {
+  color: var(--fg-primary);
+}
+
+.skill-picker-name mark {
+  background: none;
+  color: var(--fg-primary);
+  font-weight: 700;
+}
+
+.skill-picker-about {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(var(--fg-rgb), 0.46);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The card that asks before a skill goes in (SkillCard in skills.js): a sheet in the chat, as a phone's sheet. The
+   skill's own pages lie fanned out at its top and fade into it; under them the book, where the skill comes from, "Add
+   the skill" with its name in blue, what it is for, its files and programs, and one large button. */
+.skill-sheet {
+  --sheet-bg: var(--composer-bg);
+  --sheet-page: #2c2c2f;
+  --sheet-ink: 255, 255, 255;
+  --sheet-button: #f4f4f4;
+  --sheet-button-fg: #111;
+  position: relative;
+  isolation: isolate;
+  width: min(470px, 100%);
+  margin: 18px auto 6px;
+  overflow: hidden;
+  border-radius: 32px;
+  background: var(--sheet-bg);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, calc(0.45 * var(--shadow))), 0 0 0 1px rgba(255, 255, 255, 0.09);
+  text-align: center;
+}
+
+[data-theme="light"] .skill-sheet {
+  --sheet-page: #fbfbfa;
+  --sheet-ink: 0, 0, 0;
+  --sheet-button: #111;
+  --sheet-button-fg: #fff;
+  box-shadow: 0 18px 50px rgba(20, 30, 60, 0.12), 0 2px 8px rgba(20, 30, 60, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.07);
+}
+
+.skill-fan {
+  position: relative;
+  height: 150px;
+  overflow: hidden;
+}
+
+.skill-fan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 10%, var(--sheet-bg) 92%);
+}
+
+.skill-page {
+  position: absolute;
+  top: calc(16px + var(--drop));
+  width: 27%;
+  height: 160px;
+  padding: 12px 11px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--sheet-page);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(var(--sheet-ink), 0.06);
+  color: rgba(var(--sheet-ink), 0.5);
+  font: 7.5px/11px var(--mono-font);
+  text-align: left;
+  transform: rotate(var(--turn));
+}
+
+.skill-page-title {
+  margin: 0 0 6px;
+  overflow: hidden;
+  color: rgba(var(--sheet-ink), 0.82);
+  font: 700 10.5px/13px var(--font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-page-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.skill-page-key {
+  color: rgba(150, 90, 200, 0.85);
+}
+
+html:not([data-theme="light"]) .skill-page-key {
+  color: rgba(200, 160, 240, 0.8);
+}
+
+.skill-page-name {
+  position: absolute;
+  bottom: 9px;
+  left: 11px;
+  right: 11px;
+  overflow: hidden;
+  color: rgba(var(--sheet-ink), 0.42);
+  font: 600 8.5px/11px var(--font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The book, on a tile of the ink's tone: black on the light theme, near white on the dark. */
+.skill-sheet-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin: -58px auto 0;
+  border-radius: 22px;
+  background: var(--sheet-button);
+  color: var(--sheet-button-fg);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.skill-sheet-icon .glyph {
+  width: 40px;
+  height: 40px;
+  overflow: visible;
+}
+
+.skill-sheet-body {
+  padding: 18px 34px 22px;
+}
+
+.skill-sheet-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 12px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(var(--link-rgb), 0.12);
+  color: rgb(var(--link-rgb));
+  font-size: 13.5px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.skill-sheet-tag .glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  overflow: visible;
+}
+
+.skill-sheet-title {
+  margin: 12px 0 0;
+  color: var(--fg-primary);
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 36px;
+  overflow-wrap: anywhere;
+}
+
+.skill-sheet-line,
+.skill-sheet-name {
+  display: block;
+}
+
+.skill-sheet-word {
+  display: inline-block;
+}
+
+.skill-sheet-name {
+  color: rgb(var(--link-rgb));
+}
+
+.skill-sheet-about {
+  display: -webkit-box;
+  max-width: 380px;
+  margin: 12px auto 0;
+  overflow: hidden;
+  color: var(--fg-secondary);
+  font-size: 14.5px;
+  line-height: 21px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.skill-sheet-needs {
+  margin: 8px auto 0;
+  max-width: 380px;
+  color: var(--fg-tertiary);
+  font-size: 12.5px;
+  line-height: 17px;
+}
+
+.skill-sheet-facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.skill-sheet-fact {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 13px;
+  background: rgba(var(--fg-rgb), 0.06);
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 26px;
+  white-space: nowrap;
+}
+
+/* Programs come with it: amber, as what changes the computer is on the approval cards. */
+.skill-sheet-fact.is-programs {
+  background: rgba(var(--warn-rgb), 0.13);
+  color: rgb(var(--warn-rgb));
+}
+
+.skill-sheet-fact.is-programs::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 1px;
+}
+
+.skill-sheet-inside {
+  height: 26px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+  background: none;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-color: rgba(var(--fg-rgb), 0.25);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+.skill-sheet-inside:hover {
+  color: var(--fg-primary);
+  text-decoration-color: rgba(var(--fg-rgb), 0.5);
+}
+
+.skill-sheet-inside:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* What SKILL.md says, as it will be read, and every file it brings; a program among them stands amber. */
+.skill-sheet-details {
+  overflow: hidden;
+}
+
+.skill-sheet-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  text-align: left;
+}
+
+.skill-sheet-text,
+.skill-sheet-files {
+  margin: 0;
+  border-radius: 12px;
+  background: var(--well-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.05);
+  color: rgba(var(--fg-rgb), 0.85);
+  font: 500 12px/18px var(--mono-font);
+  scrollbar-width: thin;
+}
+
+.skill-sheet-text {
+  max-height: 200px;
+  padding: 10px 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.skill-sheet-files {
+  max-height: 180px;
+  padding: 7px 12px;
+  overflow: auto;
+}
+
+.skill-sheet-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-sheet-file.is-program {
+  color: rgb(var(--warn-rgb));
+}
+
+.skill-sheet-file.is-more {
+  color: var(--fg-tertiary);
+  font-family: var(--font);
+}
+
+.skill-sheet-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 56px;
+  margin-top: 22px;
+  border: 0;
+  border-radius: 28px;
+  outline: none;
+  background: var(--sheet-button);
+  color: var(--sheet-button-fg);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.25s var(--motion-easing), filter 0.2s ease, opacity 0.2s ease;
+}
+
+.skill-sheet-add svg {
+  width: 20px;
+  height: 20px;
+}
+
+.skill-sheet-add:hover {
+  filter: brightness(1.12);
+}
+
+[data-theme="light"] .skill-sheet-add:hover {
+  filter: brightness(1.6);
+}
+
+.skill-sheet-add:active {
+  transform: scale(0.985);
+}
+
+.skill-sheet-add:focus-visible {
+  box-shadow: 0 0 0 3px var(--sheet-bg), 0 0 0 5px var(--focus-ring);
+}
+
+.skill-sheet-later {
+  height: 36px;
+  margin-top: 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 18px;
+  outline: none;
+  background: none;
+  color: var(--fg-secondary);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.skill-sheet-later:hover {
+  color: var(--fg-primary);
+}
+
+.skill-sheet-later:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+.skill-sheet.is-answered :is(.skill-sheet-add, .skill-sheet-later, .skill-sheet-inside) {
+  cursor: default;
+  pointer-events: none;
+}
+
+.skill-sheet.is-answered:not(.is-allowed) .skill-sheet-add,
+.skill-sheet.is-allowed .skill-sheet-later {
+  opacity: 0.4;
+}
+
+/* Coming in (the sheet itself comes as the search's panel, skills.js): its pages fan out from the middle one after another, the book comes up out of a blur,
+   the words of the headline follow it, then what it is for, the facts and the button. */
+.skill-sheet.is-coming .skill-page {
+  animation: skill-page-fan 0.75s cubic-bezier(0.34, 1.3, 0.64, 1) calc(90ms + var(--k) * 50ms) backwards;
+}
+
+.skill-sheet.is-coming .skill-sheet-icon {
+  animation: skill-sheet-pop 0.6s cubic-bezier(0.34, 1.45, 0.64, 1) 220ms backwards;
+}
+
+.skill-sheet.is-coming .skill-sheet-tag {
+  animation: skill-sheet-pop 0.45s cubic-bezier(0.34, 1.45, 0.64, 1) 330ms backwards;
+}
+
+.skill-sheet.is-coming :is(.skill-sheet-word, .skill-sheet-name) {
+  animation: skill-sheet-word 0.5s cubic-bezier(0.22, 1, 0.36, 1) calc(380ms + var(--w) * 55ms) backwards;
+}
+
+.skill-sheet.is-coming .skill-sheet-about {
+  animation: skill-sheet-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 540ms backwards;
+}
+
+.skill-sheet.is-coming .skill-sheet-facts {
+  animation: skill-sheet-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 610ms backwards;
+}
+
+.skill-sheet.is-coming .skill-sheet-add {
+  animation: skill-sheet-rise 0.55s cubic-bezier(0.34, 1.3, 0.64, 1) 680ms backwards;
+}
+
+.skill-sheet.is-coming .skill-sheet-later {
+  animation: skill-sheet-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 740ms backwards;
+}
+
+@keyframes skill-page-fan {
+  from {
+    opacity: 0;
+    transform: translate(var(--from), 34px) rotate(0deg) scale(0.9);
+  }
+}
+
+@keyframes skill-sheet-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+    filter: blur(8px);
+  }
+}
+
+@keyframes skill-sheet-word {
+  from {
+    opacity: 0;
+    transform: translateY(0.3em);
+    filter: blur(6px);
+  }
+}
+
+@keyframes skill-sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* While the skills' list is out over the field of a new chat, the folder's pill above the field makes way for it, as it
+   does once the chat has begun, and comes back when the list goes. */
+.main.is-picking .composer-folder {
+  opacity: 0;
+  transform: translateY(10px) scale(0.94);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.35s var(--motion-easing), visibility 0s linear 0.35s;
+}
+
+/* Under the first chats of a group of many: a quiet row that shows the rest, with how many there are. */
+.chats-more {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 30px;
+  margin-bottom: 2px;
+  padding: 0 8px 0 10px;
+  border-radius: 9px;
+  outline: none;
+  color: var(--fg-secondary);
+  font-size: calc(var(--sidebar-font-size) - 0.5px);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s ease;
+}
+
+.chats-more:hover {
+  color: var(--fg-primary);
+}
+
+.chats-more:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+.chats-more-sign {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
+.chats-more-sign .glyph {
+  width: 15px;
+  height: 15px;
+  transition: transform 0.45s var(--motion-easing);
+}
+
+.chats-more[data-open="true"] .chats-more-sign .glyph {
+  transform: rotate(180deg);
+}
+
+.chats-more-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.chats-more-count {
+  flex: none;
+  color: var(--fg-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }

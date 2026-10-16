@@ -80,6 +80,16 @@ contextBridge.exposeInMainWorld('openghost', {
    set: next => ipcRenderer.invoke('awake:set', next),
   },
  },
+ // Skills (desktop/skills.js): those a chat in a folder can use, the instructions of one; one fetched from a link to be
+ // shown to the user, then put in or let go; and that they changed.
+ skills: {
+  list: folder => ipcRenderer.invoke('skills:list', folder),
+  read: (name, folder) => ipcRenderer.invoke('skills:read', name, folder),
+  prepare: (url, name) => ipcRenderer.invoke('skills:prepare', url, name),
+  commit: token => ipcRenderer.invoke('skills:commit', token),
+  discard: token => ipcRenderer.invoke('skills:discard', token),
+  onChange: callback => ipcRenderer.on('skills:changed', () => callback()),
+ },
  // The same place's path into the clipboard, and a terminal opened there ('opened' or 'missing').
  copyPath: target => ipcRenderer.invoke('path:copy', target),
  terminalAt: target => ipcRenderer.invoke('path:terminal', target),

@@ -149,12 +149,17 @@ const SCHEMAS = [
   id: { type: 'string', description: 'For update and forget: the id of the record, like m3' },
   text: { type: 'string', description: 'For save and update: the whole record, one or two plain sentences about the user in their language, clear on their own a year from now' },
  }, ['action']),
- fn('notepad', 'The user\'s notepad beside this chat; what is in it comes in a note from the app. remind: bring a note up when its moment has come. The app shows it to the user as a card in the chat; then ask whether to do it now and wait for their yes. done: tick a note off once the user has agreed and it is done, or once they say it no longer matters. add: write a note down when the user asks you to remember something or to remind them of it later.', {
+ fn('notepad', 'The user\'s notepad beside this chat; what is in it comes in a note from the app. remind: bring a note up when its moment has come. The app shows it to the user as a card in the chat; then ask whether to do it now and wait for their yes. done: tick a note off once the user has agreed and it is done, or once they say it no longer matters. add: write a note down when the user asks you to keep something in mind or to bring it up at a moment of your work together. Not for anything tied to a time or a date, repeated, or to be watched while the user is away, even when the user says "remind me": a note never comes up by itself, so that is the routine tool.', {
   action: { type: 'string', enum: ['remind', 'done', 'add'] },
   id: { type: 'string', description: 'For remind and done: the id of the note, like n3' },
   text: { type: 'string', description: 'For add: the note, one short line in the user\'s own words and language' },
  }, ['action']),
- fn('routine', 'Routines: tasks the app gives you by itself, on time, in this chat, for as long as the user wants: every hour, every morning, on Mondays, once at 19:00. The routines of this chat come in a note from the app, each with its id. add: set one up when the user asks for something to be done regularly, at a set time or later. edit: change what one does or when. pause and resume: stop one for a while and start it again. remove: take one away. The answer tells the time on the computer now and when the routine runs next.', {
+ fn('skill', 'Skills: folders of instructions for kinds of tasks, in the Agent Skills format other agents use too. The ones you can use come in a note from the app. use: load the instructions of a skill by its name, before you start a task that fits it; you get them with the folder of the skill and its other files. add: put in a new skill from a link the user gave or asked for: a GitHub folder or repository, a .zip or .skill file, or a SKILL.md. It is ready in every chat at once.', {
+  action: { type: 'string', enum: ['use', 'add'] },
+  name: { type: 'string', description: 'For use: the name of the skill, as in the note. For add: which skill, when the link holds several' },
+  url: { type: 'string', description: 'For add: the link to the skill' },
+ }, ['action']),
+ fn('routine', 'Routines: tasks the app gives you by itself, on time, in this chat, for as long as the user wants: every hour, every morning, on Mondays, once at 19:00. The routines of this chat come in a note from the app, each with its id. add: set one up when something is to be done, checked or said at a time or a date, again and again, or while the user is away: also when the user only says "remind me" or "tell me when", or only describes such a need. edit: change what one does or when. pause and resume: stop one for a while and start it again. remove: take one away. The answer tells the time on the computer now and when the routine runs next.', {
   action: { type: 'string', enum: ['add', 'edit', 'pause', 'resume', 'remove'] },
   id: { type: 'string', description: 'For edit, pause, resume and remove: the id of the routine, like r1x2y' },
   text: { type: 'string', description: 'For add, and for edit when what it does changes: the task as an instruction to yourself that is whole on its own, in the user\'s language: what to do or check and where, what counts as worth telling, and what to tell the user' },
@@ -733,6 +738,8 @@ function needsApproval(name, args, { mode, cwd, attached = [], apart = null }) {
   case 'web_search':
   case 'find_media':
   case 'fetch_url': return ask;
+  // Loading a skill only reads its instructions. Adding one asks the user with a card of its own, in every mode (chat.js).
+  case 'skill': return false;
   default: return true;
  }
 }

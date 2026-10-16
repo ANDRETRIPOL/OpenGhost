@@ -12,9 +12,12 @@
 // folding. What is being read must not move for any of it, so this holds the place itself (the page's own holding of
 // it is off for the chat, styles.css): it knows the first block on screen and how far down the chat that block lies,
 // and whenever that distance has changed without the block having moved by its own doing, the chat is scrolled by as
-// much. A chat that stood at its end stays at its end.
+// much. A chat that stood at its end stays at its end, unless the chat itself is following a reply being written out:
+// it then glides after the words on its own (chat.js), and being put at the end at once with every new line would
+// jerk the whole chat up a line at a time.
 const NEAR = '100% 0px';
 const watched = new WeakMap();
+const followers = new WeakMap();
 
 function watch(thread) {
  if (watched.has(thread)) return;
@@ -48,7 +51,7 @@ function watch(thread) {
  const hold = () => {
   const was = held;
   if (was?.el.isConnected && was.list === now() && !was.list.classList.contains('is-settling')) {
-   if (was.end) { if (thread.scrollHeight - thread.scrollTop - thread.clientHeight >= 1) thread.scrollTop = thread.scrollHeight; }
+   if (was.end) { if (!followers.get(thread)?.() && thread.scrollHeight - thread.scrollTop - thread.clientHeight >= 1) thread.scrollTop = thread.scrollHeight; }
    else { const shift = depth(was.el) - was.depth; if (Math.abs(shift) > 0.5) thread.scrollTop += shift; }
   }
   note();
@@ -110,5 +113,10 @@ function rest(thread) {
  watched.get(thread)?.note();
 }
 
-window.ThreadWindow = { watch, rest, has: thread => watched.has(thread) };
+// The chat that keeps itself at its end while a reply is written out says when it does.
+function follow(thread, following) {
+ followers.set(thread, following);
+}
+
+window.ThreadWindow = { watch, rest, follow, has: thread => watched.has(thread) };
 })();

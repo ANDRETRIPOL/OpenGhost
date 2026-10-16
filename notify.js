@@ -1,7 +1,8 @@
 (() => {
 'use strict';
 
-// A finished reply that came while the user was not looking at it is told to the main process (desktop/notify.js),
+// A finished reply that came while the user was not looking at it, or a question or a step the agent waits for them to
+// answer or allow, is told to the main process (desktop/notify.js),
 // which shows the system's notification and counts it on the app's icon; the sound is played here. What the user
 // looks at is told by whoever shows chats (Notify.watch): the chat on screen, the mini chat open over it, the quick
 // chat's window. A reply counts as looked at only while the window is shown and has the focus.

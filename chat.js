@@ -32,6 +32,7 @@ const COMPACT = {
  prompt: 'You compress a long conversation between a user and OpenGhost, an AI agent working on the user\'s computer, so the work can go on without the original messages. Write a dense summary in the language of the user\'s own messages in it (English when they write in English, never a language they did not use), with these parts: the user\'s goals and preferences; key facts, decisions and constraints; what has been done, with file paths, commands and their results, commits; the current state and open problems; the exact next steps. Keep names, paths, numbers, versions and code identifiers exact. Leave out small talk and whatever no longer matters.',
  head: 'The earlier part of this conversation was compacted to save context. Your tools, formatting rules and browser instructions still apply; this summary does not replace them. Summary of it:',
  resume: 'Go on with the task from where you stopped, using the summary above.',
+ skills: 'This message comes from the app, not from the user. These skills were in use before the summary; their instructions still hold, word for word:',
  kept: 'This message comes from the app, not from the user. The summary above covers the whole conversation so far. Its last steps follow here once more, word for word, with their full tool results, so nothing of them has to be looked up again.',
  // The last steps stay as they were while they take no more than this share of the model's window, nor this many tokens.
  share: 0.2,
@@ -64,6 +65,10 @@ const TOOL_NOTES = {
  peers: 'This note comes from the app, not from the user: who else is at work in this folder right now.',
  peersRule: 'Leave their files and their tasks to them: do not do the same work twice. A change to a file one of them is changing is refused while it works. Commands and git are not checked, so keep those clear of their files too, and do not commit, move or revert their work.',
  peersNone: '- Nobody else is at work here now.',
+ skills: 'This note comes from the app, not from the user: the skills you can use, as they stand now. Load one with the skill tool when a task fits it.',
+ skillsNone: '- No skills are set up now.',
+ picked: 'This comes from the app, not from the user: the user picked these skills for this message with /name, and their instructions follow. They are the user\'s choice for this task: work by them alone and load no other skill for it.',
+ pickedAgain: 'The user picked a skill whose instructions are already above in this conversation; use it for this message:',
 };
 // The agents at work right now, each with the files it has changed in this turn. Two agents can work in one folder at the
 // same time (a chat's and its mini chat's, or two chats of one folder): each is told of the others in a note, and a file
@@ -144,6 +149,15 @@ const MEMORY = {
  off: 'Error: the user has switched the memory off, so nothing can be saved or changed. Go on without it.',
  locked: 'Error: this chat is protected by a password, and nothing said in it goes into the memory that every chat reads. Go on without saving.',
  full: 'Error: the memory is full. Put what is new into the record it belongs to with update, or forget a record that no longer matters.',
+};
+// What the agent's skill tool answers (skills.js and desktop/skills.js find, read and put in the skills).
+const SKILL = {
+ added: (skill, updated) => `${updated ? 'Updated' : 'Added'} the skill ${skill.name}: ${skill.description}\nIt is in ${skill.dir} and is ready in every chat from now on.${skill.scripts ? ' It comes with scripts: they run with your usual tools and ask the user as any command does.' : ''}${skill.compatibility ? ` It says it needs: ${skill.compatibility}` : ''} The app shows the user a mark of it in the chat. Load it with action use when a task fits it.`,
+ already: name => `The instructions of the skill ${name} are already above in this conversation: follow them.`,
+ none: name => `Error: there is no skill ${name ? `called ${name}` : 'with that name'}. The skills there are:`,
+ noLink: 'Error: add needs url, the link to the skill.',
+ action: 'Error: action must be use or add.',
+ declined: name => `The user did not add the skill ${name}: it was not put in. Don't add it again unless they ask.`,
 };
 const FORMAT_GUIDE = [
  'Format replies in Markdown; the app renders it richly and draws live, editable charts and diagrams.',
@@ -575,6 +589,8 @@ class Chat {
    this.syncBottom();
   };
   this.resize = new ResizeObserver(resized);
+  // While a reply of the chat on screen is being written out, the chat glides after it to its end by itself.
+  window.ThreadWindow?.follow(thread, () => this.follow && !!this.active?.list?.querySelector(':scope > .is-streaming'));
   // The room under the list is the composer's (composer-space.js): it grows and shrinks without the list changing size.
   main.addEventListener('composer-space', resized);
   thread.addEventListener('scroll', () => this.onScroll());
@@ -910,6 +926,7 @@ class Chat {
    if (prev.record && !prev.locked && this.library.isProtected(prev.id)) this.seal(prev);
   }
   this.attach(conv);
+  this.syncForks(conv);
   this.active = conv;
   conv.unread = false;
   queueMicrotask(() => window.Notify?.look());
@@ -998,6 +1015,7 @@ class Chat {
   turn.release?.('abort');
   if (turn.tool) AgentTools.cancel(turn.tool);
   for (const pending of turn.approvals) pending.card.settle('deny');
+  turn.skillCard?.settle('deny');
   conv.ask?.settle(TOOL_NOTES.cancelled);
  }
 
@@ -1103,6 +1121,9 @@ class Chat {
  }
 
  async onClick(event) {
+  const fork = event.target.closest('.message-fork'), back = event.target.closest('.thread-fork-name');
+  if (fork) { this.forkAt(fork.closest('.message')); return; }
+  if (back) { this.open(back.dataset.chat); return; }
   const button = event.target.closest('.md-copy');
   if (!button) return;
   const own = button.classList.contains('message-copy');
@@ -1156,8 +1177,25 @@ class Chat {
 
  // The message as the model gets it, once every attachment is read; a video's place and frame are known only then.
  async compose(conv, entry, prompt) {
-  entry.content = await userContent(prompt, this.agent(conv));
+  entry.content = await this.withSkills(conv, await userContent(prompt, this.agent(conv)), prompt.text);
   entry.attachments = prompt.attachments.map(slim);
+ }
+
+ // The skills the user picked with /name go to the model at the head of their message, with their instructions; one
+ // already in the conversation is only named again.
+ async withSkills(conv, content, text) {
+  const folder = this.cwd(conv), names = Skills.mentions(text, folder);
+  if (!names.length) return content;
+  const had = Skills.loaded(this.history(conv)), fresh = [], again = [];
+  for (const name of names) {
+   if (had.has(name)) { again.push(name); continue; }
+   const block = await Skills.content(name, folder).catch(() => null);
+   if (block) fresh.push(block);
+  }
+  const head = [...(fresh.length ? [TOOL_NOTES.picked, ...fresh] : []), ...(again.length ? [`${TOOL_NOTES.pickedAgain} ${again.join(', ')}.`] : [])].join('\n\n');
+  if (!head) return content;
+  if (typeof content === 'string') return `${head}\n\n${content}`;
+  return [{ type: 'text', text: head }, ...content];
  }
 
  // Where the videos and the PDFs the user attached to the chat lie on the disk, each kind apart: the agent may watch
@@ -1311,6 +1349,9 @@ class Chat {
   const kept = Memory.on ? Memory.lines() : '', known = told(TOOL_NOTES.memory);
   const memory = kept || known ? `${TOOL_NOTES.memory}\n${kept || (Memory.on ? TOOL_NOTES.memoryEmpty : TOOL_NOTES.memoryOff)}` : '';
   if (memory && memory !== known) out.push({ role: 'user', content: memory });
+  // The skills the agent can use, the same way: none gets no note, unless an earlier note named some.
+  const skills = Skills.lines(this.cwd(conv)), listed = told(TOOL_NOTES.skills), shelf = skills || listed ? `${TOOL_NOTES.skills}\n${skills || TOOL_NOTES.skillsNone}` : '';
+  if (shelf && shelf !== listed) out.push({ role: 'user', content: shelf });
   // Other agents at work in the same folder, the same way: nobody gets no note, unless an earlier note named somebody.
   const lines = this.peerLines(conv), named = told(TOOL_NOTES.peers), peers = lines || named ? `${TOOL_NOTES.peers}\n${lines || TOOL_NOTES.peersNone}` : '';
   if (peers && peers !== named) out.push({ role: 'user', content: peers });
@@ -1360,6 +1401,7 @@ class Chat {
   const messages = conv.messages, start = messages.findLastIndex(entry => entry.role === 'compact'), entry = messages[start];
   if (!entry) return flat(messages);
   const out = [{ role: 'system', content: `${COMPACT.head}\n\n${entry.summary}` }];
+  if (entry.skills) out.push({ role: 'user', content: `${COMPACT.skills}\n\n${entry.skills}` });
   if (entry.keep) out.push({ role: 'user', content: COMPACT.kept }, ...flat(messages.slice(0, start)).slice(-entry.keep));
   if (entry.resume) out.push({ role: 'user', content: COMPACT.resume });
   return [...out, ...flat(messages.slice(start + 1))];
@@ -1367,6 +1409,7 @@ class Chat {
 
  async request(conv, turn) {
   const part = turn.part, view = part.view, base = part.entry.content;
+  if (this.agent(conv)) await Skills.refresh(this.cwd(conv)).catch(() => {});
   const messages = [...(await this.system(conv)).map(content => ({ role: 'system', content })), ...withPictures(this.history(conv), UserContext.pictures())];
   const notes = this.notes(conv, messages), at = this.seam(conv, messages);
   if (messages[at]) messages[at] = { ...messages[at], cache: true };
@@ -1382,7 +1425,7 @@ class Chat {
     messages,
     tools: this.agent(conv) ? AgentTools.schemas : null,
     signal: turn.controller.signal,
-    session: conv.id,
+    session: this.session(conv),
     onContent: (delta, stream) => {
      if (!stream.content.trim()) return;
      turn.text = true;
@@ -1439,6 +1482,7 @@ class Chat {
    if (answer !== 'allow') return answer === 'deny' ? TOOL_NOTES.declined : answer;
   }
   if (turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
+  if (name === 'skill') return this.useSkill(conv, turn, view, args);
   this.showGhost(turn.next || view);
   const panel = name.startsWith('browser_') ? window.browserPanel : null;
   // While the user has the browser the agent waits for it: the note to answer with if the wait ended some other way
@@ -1500,6 +1544,8 @@ class Chat {
    this.syncAsk();
    // Asked in a chat that is not on screen: its row is marked, as for a reply that came in.
    if (conv !== this.active && conv.record && this.library.chat(conv.id)) this.library.update(conv.id, { unread: true });
+   // The agent now waits for the user: one who is not looking is told so, as of a finished reply.
+   this.replied(conv, I18n.t('notify.asks', { text: questions[0].question }));
   });
   conv.ask = null;
   this.syncAsk();
@@ -1523,9 +1569,11 @@ class Chat {
  async approve(conv, turn, view, request) {
   this.dismissGhost(view);
   if (turn.next) this.dismissGhost(turn.next);
-  const card = new ApprovalCard(AgentTools.describe(request.name, request.args, request.cwd, request.apart));
+  const about = AgentTools.describe(request.name, request.args, request.cwd, request.apart), card = new ApprovalCard(about);
   const pending = { ...request, card };
   view.el.append(card.el);
+  // The agent now waits for the user's OK: one who is not looking is told so, once while its steps wait together.
+  if (!turn.approvals.size) this.replied(conv, I18n.t('notify.approve', { text: about.title }));
   turn.approvals.add(pending);
   if (conv === this.active) this.followBottom();
   const answer = await card.answer;
@@ -1649,7 +1697,7 @@ class Chat {
    if (messages[at]) messages[at] = { ...messages[at], cache: true };
    messages.push({ role: 'user', content: Predictions.PROMPT });
    if (conv.guess !== guess || conv.turn) return;
-   const said = await Providers.predict(turn.config, { messages, tools: this.agent(conv) ? AgentTools.schemas : null, signal: guess.controller.signal, session: conv.id });
+   const said = await Providers.predict(turn.config, { messages, tools: this.agent(conv) ? AgentTools.schemas : null, signal: guess.controller.signal, session: this.session(conv) });
    if (conv.guess !== guess || conv.turn) return;
    guess.text = Predictions.clean(said);
    if (guess.text) this.onPredict(conv);
@@ -1738,7 +1786,10 @@ class Chat {
   }
   const entry = { role: 'compact', summary, resume: middle, model: turn.config.id };
   // Another model takes the chat over from the summary alone: the steps were sized and signed for the one before it.
-  const before = messages.slice(messages.findLastIndex((item, k) => k < at && item.role === 'compact') + 1, at);
+  const from = messages.findLastIndex((item, k) => k < at && item.role === 'compact'), before = messages.slice(from + 1, at);
+  // The skills in use go on past the summary word for word: a summary of their instructions would lose them halfway.
+  const skills = Skills.blocks([...(from >= 0 && messages[from].skills ? [{ content: messages[from].skills }] : []), ...flat(before)]);
+  if (skills) entry.skills = skills;
   const keep = labels ? 0 : tail(flat(before), Math.min(COMPACT.keep, this.settings.windowOf(turn.config.id) * COMPACT.share));
   if (keep) entry.keep = keep;
   // How many messages of the conversation went into this summary: the mark in the chat says so.
@@ -1988,6 +2039,52 @@ class Chat {
   await this.drive(conv, turn);
  }
 
+ // A skill the agent loads, or puts in from a link. Either stands in the chat as a small pill: the user sees which
+ // instructions the agent took up, and what it added for every chat.
+ async useSkill(conv, turn, view, args) {
+  const action = String(args.action || ''), folder = this.cwd(conv), name = String(args.name || '').trim().replace(/^\//, '');
+  if (action === 'add') {
+   if (!String(args.url || '').trim()) return SKILL.noLink;
+   const ready = await Skills.prepare(args.url, name);
+   if (!ready.token) return `Error: ${ready.error}`;
+   // The user says yes to a skill before it goes in, whatever the permission mode: it is new instructions for every chat.
+   const answer = turn.queue.length ? 'message' : await this.askSkill(conv, turn, view, ready.skill);
+   if (answer !== 'allow') {
+    await Skills.discard(ready.token);
+    return answer === 'message' ? TOOL_NOTES.message : SKILL.declined(ready.skill.name);
+   }
+   const { skill, updated, error } = await Skills.commit(ready.token);
+   if (!skill) return `Error: ${error}`;
+   turn.pills.push({ role: 'skill', kind: updated ? 'updated' : 'added', name: skill.name, text: skill.description });
+   return SKILL.added(skill, updated);
+  }
+  if (action !== 'use') return SKILL.action;
+  await Skills.refresh(folder).catch(() => {});
+  const all = Skills.lines(folder) || TOOL_NOTES.skillsNone;
+  if (!Skills.find(name, folder)) return `${SKILL.none(name)}\n${all}`;
+  if (Skills.loaded(this.history(conv)).has(name)) return SKILL.already(name);
+  const block = await Skills.content(name, folder).catch(() => null);
+  if (!block) return `${SKILL.none(name)}\n${all}`;
+  turn.pills.push({ role: 'skill', kind: 'used', name, text: Skills.find(name, folder)?.description || '' });
+  return block;
+ }
+
+ // The card that asks before a skill goes in (SkillCard in skills.js), where the approval cards stand. Stop, or a new
+ // message, answers it no.
+ async askSkill(conv, turn, view, skill) {
+  this.dismissGhost(view);
+  if (turn.next) this.dismissGhost(turn.next);
+  const card = new SkillCard(skill);
+  view.el.append(card.el);
+  turn.skillCard = card;
+  if (conv === this.active) this.followBottom();
+  const answer = await card.answer;
+  turn.skillCard = null;
+  card.dismiss();
+  if (answer === 'allow' && !turn.controller.signal.aborted) this.showGhost(turn.next || view);
+  return turn.controller.signal.aborted ? 'deny' : answer;
+ }
+
  // The agent's hand on the memory every chat shares: a new record, one written anew, one removed. Each stands in the
  // chat as a small pill, so the user always sees what was kept of them.
  useMemory(conv, turn, args) {
@@ -2051,7 +2148,7 @@ class Chat {
    if (after.isConnected) after.after(el);
    else conv.list.append(el);
    after = el;
-   (entry.role === 'memory' ? MemoryPill : entry.role === 'asked' ? AskRecord : entry.role === 'routine' ? RoutinePill : NotePill).enter(el);
+   (entry.role === 'memory' ? MemoryPill : entry.role === 'asked' ? AskRecord : entry.role === 'routine' ? RoutinePill : entry.role === 'skill' ? SkillPill : NotePill).enter(el);
    if (conv === this.active) this.followBottom();
   }
  }
@@ -2067,7 +2164,8 @@ class Chat {
  async stats(conv = this.active) {
   const models = new Map(), turns = new Map(), uncounted = new Set();
   for (const entry of conv.messages) {
-   if (entry.role !== 'assistant' && entry.role !== 'compact') continue;
+   // What a fork took over from its chat was spent there: the fork's count starts with its own.
+   if ((entry.role !== 'assistant' && entry.role !== 'compact') || entry.forked) continue;
    const turn = entry.role === 'assistant' ? entry.turn || entry : null;
    if (!entry.usage) {
     if (turn && entry.steps?.length) uncounted.add(turn);
@@ -2082,7 +2180,7 @@ class Chat {
   }
   const side = await this.library.side?.(conv.id);
   let mini = null;
-  for (const entry of side?.messages || []) if (entry.usage && (entry.role === 'assistant' || entry.role === 'compact')) addUp(mini ||= tokens(), entry.usage);
+  for (const entry of side?.messages || []) if (entry.usage && !entry.forked && (entry.role === 'assistant' || entry.role === 'compact')) addUp(mini ||= tokens(), entry.usage);
   const order = [...models.keys()];
   return {
    version: 1,
@@ -2127,7 +2225,9 @@ class Chat {
  }
 
  async name(conv, config) {
-  const id = conv.id, user = conv.messages.find(entry => entry.role === 'user'), reply = conv.messages.find(entry => entry.role === 'assistant' && entry.content?.trim());
+  // A fork is named by where it went from its mark on, not by what it shares with its chat.
+  const after = conv.messages.slice(conv.messages.findLastIndex(entry => entry.role === 'fork') + 1);
+  const id = conv.id, user = after.find(entry => entry.role === 'user'), reply = after.find(entry => entry.role === 'assistant' && entry.content?.trim());
   if (!user || !reply) return;
   this.library.update(id, { named: true });
   const asked = user.text || (user.attachments || []).map(item => item.name).join(', ');
@@ -2200,8 +2300,10 @@ class Chat {
   if (entry.role === 'user' && entry.routine) return RoutinePill.build({ kind: 'ran', routine: entry.routine.id, at: entry.routine.at, text: entry.text });
   if (entry.role === 'user') return this.userMessage(this.promptOf(entry));
   if (entry.role === 'compact') return this.compactNotice(false, null, entry.count);
+  if (entry.role === 'fork') return this.forkNotice(entry);
   if (entry.role === 'reminder' || entry.role === 'noted') return NotePill.build(entry);
   if (entry.role === 'routine') return RoutinePill.build(entry);
+  if (entry.role === 'skill') return SkillPill.build(entry);
   if (entry.role === 'memory') return MemoryPill.build(entry);
   if (entry.role === 'asked') return AskRecord.build(entry);
   if (entry.role === 'stats') {
@@ -2246,11 +2348,107 @@ class Chat {
   return el;
  }
 
- toolbar() {
+ // Under a message: Copy, and in a chat of the app's window, Fork from here. `copy`: whether there are words to copy.
+ toolbar(copy = true) {
   const tools = document.createElement('div');
   tools.className = 'message-tools';
-  tools.innerHTML = `<button class="md-copy message-copy" type="button" aria-label="${I18n.t('message.copy')}">${Markdown.COPY_ICON}</button>`;
+  tools.innerHTML = (copy ? `<button class="md-copy message-copy" type="button" aria-label="${I18n.t('message.copy')}">${Markdown.COPY_ICON}</button>` : '')
+   + (this.forkable ? `<button class="md-copy message-fork" type="button" aria-label="${I18n.t('message.fork')}" title="${I18n.t('message.fork')}">${Glyphs.fork}</button>` : '');
   return tools;
+ }
+
+ // Forks are made in the app's window: a mini chat goes along with the fork of its chat, and the quick window has no
+ // list to show them in.
+ get forkable() {
+  return !window.openghost?.quick;
+ }
+
+ // The key a chat asks the models with, which their caches go by: a fork keeps its chat's, as it shares its start.
+ session(conv) {
+  return conv.record?.session || conv.id;
+ }
+
+ // Where a fork begins: a quiet line naming the chat it came from, whose name opens that chat. A chat that is gone is
+ // named as it was called then.
+ forkNotice(entry) {
+  const el = document.createElement('div'), parent = this.library.chat(entry.from);
+  el.className = 'thread-fork';
+  const text = document.createElement('span');
+  text.className = 'thread-fork-text';
+  const [before, after = ''] = I18n.t('fork.from', { name: '\u0000' }).split('\u0000');
+  const name = document.createElement(parent ? 'button' : 'span');
+  name.className = 'thread-fork-name';
+  name.textContent = (parent && this.library.titleOf(parent)) || entry.title || I18n.t('chat.new');
+  if (parent) { name.type = 'button'; name.dataset.chat = parent.id; }
+  text.append(before, name, after);
+  el.innerHTML = Glyphs.fork;
+  el.append(text);
+  el.__entry = entry;
+  return el;
+ }
+
+ // The marks where forks begin say how their chats stand now: renamed, or gone. Asked when a chat comes on screen and
+ // whenever the list of chats changes.
+ syncForks(conv = this.active) {
+  for (const el of conv?.list.querySelectorAll('.thread-fork') || []) {
+   const now = el.querySelector('.thread-fork-name'), fresh = this.forkNotice(el.__entry).querySelector('.thread-fork-name');
+   if (now && now.outerHTML !== fresh.outerHTML) now.replaceWith(fresh);
+  }
+ }
+
+ // Fork from a message: from a reply, all of its turn and what came before; from a message of the user's, all before it,
+ // and that message waits in the fork's field, to be sent as it was or put another way.
+ forkAt(el) {
+  const conv = el?.closest('.thread-list')?.__conversation;
+  if (!conv?.record || el.classList.contains('is-queued')) return;
+  const messages = conv.messages, user = el.classList.contains('is-user');
+  const entry = user ? messages.find(item => this.nodes.get(item) === el) : el.__entry, at = messages.indexOf(entry);
+  if (at < 0) return;
+  if (user) { this.fork(conv, at, this.promptOf(entry)); return; }
+  const next = messages.findIndex((item, k) => k > at && item.role === 'user');
+  this.fork(conv, next < 0 ? messages.length : next);
+ }
+
+ // Fork a whole chat (the dots' menu of its row): all of it, but a turn still going on stays out, it is not done.
+ async forkChat(id) {
+  const record = this.library.chat(id);
+  if (!record || this.library.isLocked(id)) return;
+  let conv = this.conversations.get(id);
+  if (conv?.locked) return;
+  if (!conv) {
+   const body = await this.library.conversation(id).catch(() => null);
+   if (!body) return;
+   conv = { id, record, messages: body.messages, tokens: body.tokens, turn: null };
+  } else await conv.ready;
+  let cut = conv.messages.length;
+  if (conv.turn) {
+   const going = conv.messages.findIndex(item => item.turn === conv.turn.id);
+   cut = conv.messages.findLastIndex((item, k) => (going < 0 || k < going) && item.role === 'user');
+   if (cut < 0) return;
+  }
+  this.fork(conv, cut);
+ }
+
+ // The fork itself: the chat's messages up to `cut`, as a chat of its own, marked where it begins; it opens at once.
+ async fork(conv, cut, prompt = null) {
+  if (this.forking) return;
+  this.forking = true;
+  try {
+   const record = conv.record, taken = JSON.parse(JSON.stringify(conv.messages.slice(0, cut)));
+   // A fork forked again before anything was said in it: the new mark stands for both, not two marks in a row.
+   if (taken.at(-1)?.role === 'fork') taken.pop();
+   if (!taken.some(item => item.role === 'user') && !prompt) return;
+   const messages = taken.map(item => ({ ...item, forked: true }));
+   messages.push({ role: 'fork', from: record.id, title: this.library.titleOf(record) || '', at: Date.now() });
+   const tokens = cut >= conv.messages.length && conv.tokens ? conv.tokens : estimate(this.history({ messages }));
+   const made = await this.library.fork(record.id, { messages, tokens });
+   if (!made) return;
+   if (prompt?.text) await this.library.saveDraft(made.id, prompt.text);
+   await this.open(made.id);
+   this.onForked?.(made, prompt);
+  } finally {
+   this.forking = false;
+  }
  }
 
  showGhost(view) {
@@ -2344,14 +2542,14 @@ class Chat {
   if (rest) {
    const bubble = document.createElement('div');
    bubble.className = 'message-bubble';
-   LinkChip.fill(bubble, rest);
+   Skills.fill(bubble, rest);
    MessageFold.watch(bubble);
    el.append(bubble);
   }
   if (text) {
    el.append(this.toolbar());
    el.__entry = { content: text };
-  }
+  } else if (this.forkable) el.append(this.toolbar(false));
   return el;
  }
 
@@ -2444,6 +2642,7 @@ class SideChat extends Chat {
   const state = { seen: 0 };
   const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model };
   if (library.isHome(origin.record)) record.space = origin.record.space;
+  if (origin.record.session) record.session = origin.record.session;
   super({ ...options, library: {
    folders: [],
    chats: [record],
@@ -2468,6 +2667,11 @@ class SideChat extends Chat {
 
  get hasMessages() {
   return !!this.active?.record && this.active.messages.some(entry => entry.role === 'user');
+ }
+
+ // A mini chat is forked along with its chat, not on its own.
+ get forkable() {
+  return false;
  }
 
  replied(conv, text) {

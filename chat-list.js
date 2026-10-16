@@ -8,6 +8,16 @@ const ENTER = { duration: 420, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const REMOVE = { duration: 320, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
 const GHOST = { enter: 420, leave: 220, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' };
 const COLLAPSE_TIME = 480;
+// The chats without a folder and the routines' chats show this many at first; a row under them shows the rest. The
+// rows the rest are shown with come out one after another.
+const SHOWN = 5;
+const MORE = { step: 32, duration: 380, leave: 220, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
+// A fork stands a step in under the chat it came from, a fork of a fork another step, and no deeper ones further in:
+// they stand under theirs at the last step, and the mark at the start of a fork names its chat.
+const FORK_STEPS = 2;
+// A fork just made comes out from under its chat.
+const FORK_IN = { duration: 520, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
+const CHEVRON = '<svg class="glyph glyph-more" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>';
 const CONFIRM_TIME = 3000;
 const CLOCK = 30000;
 const MINUTE = 60000, HOUR = 60 * MINUTE, DAY = 24 * HOUR, WEEK = 7 * DAY;
@@ -114,7 +124,7 @@ function place(parent, children) {
 }
 
 class ChatList {
- constructor({ root, library, chat, onNewFolder, onNewChat, onLock, onNewRoutine = null }) {
+ constructor({ root, library, chat, onNewFolder, onNewChat, onLock, onNewRoutine = null, onSkills = null, onFork = null }) {
   this.root = root;
   this.list = root.querySelector('.chats-list');
   this.library = library;
@@ -125,6 +135,14 @@ class ChatList {
   // The routines' group (routines.js): the chats made for a routine of their own, and its plus sets a new one up.
   this.onNewRoutine = onNewRoutine;
   this.routinesFolded = folded();
+  // The Skills row above them: a head like a group's that opens the search for skills (spotlight.js).
+  this.onSkills = onSkills;
+  // Fork a whole chat (chat.js), from the dots' menu; how far in each chat's row stands, as `tree` put it.
+  this.onFork = onFork;
+  this.depths = new Map();
+  // The groups whose chats all show (see `trim`), and the one whose rest is coming out now.
+  this.opened = new Set();
+  this.revealing = null;
   // The dots' menu of a row: what the row's own hidden buttons say and allow, as lines.
   this.menu = new RowMenu({
    scroller: root.querySelector('.chats-scroll') || root,
@@ -132,12 +150,15 @@ class ChatList {
     const item = this.rows.get(id);
     return item && [
      { name: 'rename', label: I18n.t('chat.rename'), icon: Glyphs.pencil, disabled: item.rename.disabled },
+     // A locked chat can't be read, so it can't be forked until it is open.
+     ...(this.onFork ? [{ name: 'fork', label: I18n.t('chat.fork'), icon: Glyphs.fork, disabled: this.library.isLocked(id) }] : []),
      { name: 'lock', label: item.lock.getAttribute('aria-label') || I18n.t('chat.lock'), icon: Glyphs.padlock, disabled: item.lock.disabled },
      { name: 'delete', label: I18n.t('chat.delete'), icon: Glyphs.trash },
     ];
    },
    act: (name, id, row) => {
     if (name === 'rename') this.rename(id);
+    else if (name === 'fork') this.onFork?.(id);
     else if (name === 'lock') this.onLock?.(id, row);
     else if (name === 'delete') this.remove(id);
    },
@@ -162,7 +183,7 @@ class ChatList {
   this.draft.title.textContent = I18n.t('chat.new');
   this.list.addEventListener('click', event => this.onClick(event));
   this.list.addEventListener('keydown', event => this.onKey(event));
-  this.list.addEventListener('pointerover', event => this.hover(event.target.closest('.chat-row, .chats-folder-head')));
+  this.list.addEventListener('pointerover', event => this.hover(event.target.closest('.chat-row, .chats-folder-head, .chats-more')));
   this.list.addEventListener('pointerleave', () => this.hover(null));
   setInterval(() => this.clock(), CLOCK);
   this.render();
@@ -221,7 +242,10 @@ class ChatList {
   // A chat with routines wears the routine's clock in the dot's place.
   const clock = element('span', 'chat-routine');
   clock.innerHTML = Glyphs.routine;
-  mark.append(element('span', 'chat-dot'), bolt, guard, clock);
+  // A fork wears a branch.
+  const branch = element('span', 'chat-fork');
+  branch.innerHTML = Glyphs.fork;
+  mark.append(element('span', 'chat-dot'), bolt, guard, clock, branch);
   const title = element('span', 'chat-title');
   const meta = element('span', 'chat-meta');
   const time = element('span', 'chat-time');
@@ -249,6 +273,11 @@ class ChatList {
   item.row.classList.toggle('is-quick', !!chat.quick);
   item.row.classList.toggle('is-routine', !!routine);
   item.row.classList.toggle('is-routine-off', routine === 'off');
+  // A fork whose chat is still there wears the branch; under that chat it stands a step or two in.
+  const depth = this.depths.get(chat.id) || 0;
+  item.row.classList.toggle('is-forked', !!chat.fork && !!this.library.chat(chat.fork));
+  item.row.classList.toggle('is-fork-1', depth === 1);
+  item.row.classList.toggle('is-fork-2', depth >= 2);
   item.row.classList.toggle('is-unread', !active && this.chat.isUnread(chat.id));
   if (active) item.row.setAttribute('aria-current', 'page');
   else item.row.removeAttribute('aria-current');
@@ -361,17 +390,18 @@ class ChatList {
 
  render() {
   const lib = this.library, query = this.query.trim().toLowerCase(), seen = new Set();
+  this.depths = new Map();
   // A locked chat's title is sealed, so a search never finds it.
   const match = chat => !query || (this.library.titleOf(chat) || '').toLowerCase().includes(query);
   const recent = (a, b) => b.updated - a.updated;
   const live = lib.chats.filter(match);
-  const pinned = live.filter(chat => chat.pinned).sort(recent);
+  const pinned = this.tree(live.filter(chat => chat.pinned));
   // A routine's own chats stand in the routines' group, the one that runs soonest first.
   const soon = chat => Math.min(...(window.Routines?.of(chat.id) || []).filter(item => Routines.live(item)).map(item => item.next), Infinity);
   const routines = this.onNewRoutine ? live.filter(chat => !chat.pinned && chat.routine).sort((a, b) => soon(a) - soon(b) || recent(a, b)) : [];
-  const loose = live.filter(chat => !chat.pinned && lib.isHome(chat) && !routines.includes(chat)).sort(recent);
+  const loose = this.tree(live.filter(chat => !chat.pinned && lib.isHome(chat) && !routines.includes(chat)));
   const folders = lib.folders
-   .map(folder => ({ folder, chats: live.filter(chat => !chat.pinned && lib.within(chat, folder.path)).sort(recent) }))
+   .map(folder => ({ folder, chats: this.tree(live.filter(chat => !chat.pinned && lib.within(chat, folder.path))) }))
    .filter(entry => !query || entry.chats.length || entry.folder.name.toLowerCase().includes(query))
    .sort((a, b) => lib.activity(b.folder) - lib.activity(a.folder));
   const primed = this.rows.size > 0, before = this.measure();
@@ -379,6 +409,7 @@ class ChatList {
   const draft = !query && this.chat.isDraft ? this.chat.folder || HOME : null;
   const order = [this.glide];
   if (pinned.length) order.push(this.pinnedHead, ...pinned.map(chat => this.item(chat, seen)));
+  if (this.onSkills && !query) order.push(this.skillsRow());
   if (this.onNewRoutine && (!query || routines.length)) order.push(this.routinesGroup(routines, !!query, seen));
   if (!query || loose.length || I18n.t('chats.home').toLowerCase().includes(query)) order.push(this.home(loose, !!query, seen, draft === HOME));
   order.push(this.foldersHead);
@@ -399,7 +430,13 @@ class ChatList {
   for (const item of [...this.rows.values(), this.draft]) {
    if (!item.fresh) continue;
    item.fresh = false;
-   if (primed && item.row.isConnected && !reducedMotion()) item.row.animate([{ opacity: 0, transform: 'translateX(-8px)' }, { opacity: 1, transform: 'none' }], ENTER);
+   if (!primed || !item.row.isConnected || reducedMotion()) continue;
+   // A fork comes out from under its chat, behind it; any other new chat comes in from the left.
+   if (this.depths.get(item.row.dataset.id)) {
+    item.row.style.zIndex = '0';
+    const free = () => { item.row.style.zIndex = ''; };
+    item.row.animate([{ opacity: 0, transform: 'translateY(-70%)' }, { opacity: 1, transform: 'none' }], FORK_IN).finished.then(free, free);
+   } else item.row.animate([{ opacity: 0, transform: 'translateX(-8px)' }, { opacity: 1, transform: 'none' }], ENTER);
   }
   if (this.hovered) this.wake(FLIP.duration);
  }
@@ -428,6 +465,20 @@ class ChatList {
   return this.fill(this.homeGroup, home.collapsed, chats, searching, seen, draft);
  }
 
+ // The Skills row: the head of a group with nothing under it; a press opens the search for skills.
+ skillsRow() {
+  if (!this.skillsGroup) {
+   const group = this.skillsGroup = this.group({ path: null, name: I18n.t('skills.title') }, true, true);
+   group.section.classList.add('is-skills');
+   group.skills = true;
+   group.head.querySelector('.chats-folder-icon').innerHTML = Glyphs.skill;
+   group.head.removeAttribute('aria-expanded');
+   group.head.setAttribute('aria-haspopup', 'dialog');
+   group.add.remove();
+  }
+  return this.skillsGroup.section;
+ }
+
  // The routines' group stays even when empty: its plus sets the first one up, and a line says what routines are.
  routinesGroup(chats, searching, seen) {
   if (!this.routinesGroupEl) {
@@ -437,14 +488,122 @@ class ChatList {
   }
   const group = this.routinesGroupEl;
   this.collapse(group, !searching && this.routinesFolded);
-  const kids = chats.map(chat => this.item(chat, seen));
+  const kids = this.trim(group, chats, searching).map(chat => chat === group.moreRow ? chat : this.item(chat, seen));
   place(group.inner, kids.length ? kids : [group.empty ||= element('div', 'chats-empty is-routines-hint', I18n.t('routine.empty'))]);
   return group.section;
  }
 
+ // A group's chats, newest first, each fork right under the chat it came from, newest first too; a chat and its forks
+ // stand where the newest of them would. A fork whose chat is not among these (pinned, in another group, gone) stands
+ // on its own. Sets how far in each stands (`depths`).
+ tree(chats) {
+  const ids = new Set(chats.map(chat => chat.id)), kids = new Map(), newest = new Map();
+  const parent = chat => chat.fork && chat.fork !== chat.id && ids.has(chat.fork) ? chat.fork : null;
+  for (const chat of chats) {
+   const of = parent(chat);
+   if (of) kids.set(of, [...(kids.get(of) || []), chat]);
+  }
+  const latest = chat => {
+   if (newest.has(chat.id)) return newest.get(chat.id);
+   newest.set(chat.id, chat.updated);
+   const time = Math.max(chat.updated, ...(kids.get(chat.id) || []).map(latest));
+   newest.set(chat.id, time);
+   return time;
+  };
+  const order = (a, b) => latest(b) - latest(a) || b.updated - a.updated;
+  const out = [], placed = new Set();
+  const walk = (chat, depth) => {
+   if (placed.has(chat.id)) return;
+   placed.add(chat.id);
+   out.push(chat);
+   this.depths.set(chat.id, Math.min(depth, FORK_STEPS));
+   for (const kid of [...(kids.get(chat.id) || [])].sort(order)) walk(kid, depth + 1);
+  };
+  for (const chat of chats.filter(one => !parent(one)).sort(order)) walk(chat, 0);
+  // Forks that only lead back to each other (never made so, but a list read from disk may say anything) stand on their own.
+  for (const chat of [...chats].sort(order)) walk(chat, 0);
+  return out;
+ }
+
+ // The first `count` chats of a list with their forks, which never stand apart from their chat.
+ heads(chats, count, depth = chat => this.depths.get(chat.id) || 0) {
+  const out = [];
+  let roots = 0;
+  for (const chat of chats) {
+   if (!depth(chat) && ++roots > count) break;
+   out.push(chat);
+  }
+  return out;
+ }
+
+ // A chat with its forks, from a list laid out by `tree`.
+ family(chats, chat, depth = one => this.depths.get(one.id) || 0) {
+  let at = chats.indexOf(chat);
+  if (at < 0) return [];
+  while (at > 0 && depth(chats[at])) at--;
+  const out = [chats[at]];
+  for (let k = at + 1; k < chats.length && depth(chats[k]); k++) out.push(chats[k]);
+  return out;
+ }
+
+ // A group of more than SHOWN chats shows the first of them and, under them, a row that shows all (or, once all show,
+ // one that shows fewer again). A chat counts with its forks, and is never parted from them. The chat on screen always
+ // shows, with its own. A search shows all that were found.
+ trim(group, chats, searching) {
+  if (searching || this.heads(chats, SHOWN).length === chats.length) return chats;
+  const open = this.opened.has(group);
+  let shown = chats;
+  if (!open) {
+   shown = this.heads(chats, SHOWN);
+   const active = chats.find(chat => chat.id === this.chat.activeId);
+   if (active && !shown.includes(active)) shown.push(...this.family(chats, active).filter(chat => !shown.includes(chat)));
+  }
+  const row = group.moreRow ||= this.moreRow(group);
+  row.dataset.open = String(open);
+  row.setAttribute('aria-expanded', String(open));
+  row.querySelector('.chats-more-text').textContent = I18n.t(open ? 'chats.showLess' : 'chats.showAll');
+  row.querySelector('.chats-more-count').textContent = open ? '' : String(chats.length - shown.length);
+  return [...shown, row];
+ }
+
+ moreRow(group) {
+  const row = element('div', 'chats-more');
+  row.setAttribute('role', 'button');
+  row.tabIndex = 0;
+  row.__group = group;
+  row.innerHTML = `<span class="chats-more-sign">${CHEVRON}</span><span class="chats-more-text"></span><span class="chats-more-count"></span>`;
+  return row;
+ }
+
+ // Shows the rest of a group's chats, one after another, or folds them away again.
+ toggleMore(group) {
+  if (!this.opened.has(group)) {
+   this.opened.add(group);
+   const was = new Set(group.inner.querySelectorAll('.chat-row'));
+   this.render();
+   if (reducedMotion()) return;
+   [...group.inner.querySelectorAll('.chat-row')].filter(row => !was.has(row)).forEach((row, k) => {
+    for (const animation of row.getAnimations()) animation.cancel();
+    row.animate([{ opacity: 0, transform: 'translateY(-6px)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'blur(0px)' }], { duration: MORE.duration, delay: k * MORE.step, easing: MORE.easing, fill: 'backwards' });
+   });
+   return;
+  }
+  this.opened.delete(group);
+  const rows = [...group.inner.querySelectorAll('.chat-row:not(.is-draft)')], depth = row => this.depths.get(row.dataset.id) || 0;
+  const keep = new Set(this.heads(rows, SHOWN, depth));
+  const active = rows.find(row => row.dataset.id === this.chat.activeId);
+  if (active) for (const row of this.family(rows, active, depth)) keep.add(row);
+  const going = rows.filter(row => !keep.has(row));
+  if (reducedMotion() || !going.length) { this.render(); return; }
+  // The rows that go fold away, the last first; then the list closes up.
+  const done = () => { if (!this.opened.has(group)) this.render(); };
+  const flights = going.reverse().map((row, k) => row.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: MORE.leave, delay: Math.min(k, 6) * 18, easing: 'ease-in', fill: 'forwards' }).finished);
+  Promise.all(flights).then(done, done);
+ }
+
  fill(group, collapsed, chats, searching, seen, draft) {
   this.collapse(group, !searching && collapsed && !draft);
-  const kids = chats.map(chat => this.item(chat, seen));
+  const kids = (group === this.homeGroup ? this.trim(group, chats, searching) : chats).map(chat => chat === group.moreRow ? chat : this.item(chat, seen));
   if (draft) {
    if (!this.draft.row.isConnected || this.draft.row.parentElement !== group.inner) this.draft.fresh = true;
    kids.unshift(this.draft.row);
@@ -464,7 +623,7 @@ class ChatList {
  measure() {
   const tops = new Map();
   if (reducedMotion()) return tops;
-  for (const node of this.list.querySelectorAll('.chat-row, .chats-folder, .chats-heading')) tops.set(node, node.getBoundingClientRect().top);
+  for (const node of this.list.querySelectorAll('.chat-row, .chats-more, .chats-folder, .chats-heading')) tops.set(node, node.getBoundingClientRect().top);
   return tops;
  }
 
@@ -477,7 +636,7 @@ class ChatList {
   }
   for (const [node, top] of moved) moved.set(node, top - node.getBoundingClientRect().top);
   for (const [node, dy] of moved) {
-   const parent = node.classList.contains('chat-row') ? node.closest('.chats-folder') : null;
+   const parent = node.matches('.chat-row, .chats-more') ? node.closest('.chats-folder') : null;
    const own = dy - (moved.get(parent) || 0);
    if (Math.abs(own) > 0.5) node.animate([{ transform: `translateY(${own}px)` }, { transform: 'none' }], FLIP);
   }
@@ -520,6 +679,11 @@ class ChatList {
    this.toggleGroup(head.parentElement.__group);
    return;
   }
+  const more = event.target.closest('.chats-more');
+  if (more) {
+   this.toggleMore(more.__group);
+   return;
+  }
   const row = event.target.closest('.chat-row');
   if (row) this.chat.open(row.dataset.id);
  }
@@ -534,6 +698,9 @@ class ChatList {
   if (event.target.classList.contains('chat-row')) {
    event.preventDefault();
    this.chat.open(event.target.dataset.id);
+  } else if (event.target.classList.contains('chats-more')) {
+   event.preventDefault();
+   this.toggleMore(event.target.__group);
   } else if (event.target.classList.contains('chats-folder-head')) {
    event.preventDefault();
    this.toggleGroup(event.target.parentElement.__group);
@@ -542,6 +709,7 @@ class ChatList {
 
  // A folder folds with the index; the routines' group keeps its fold in this window's own storage.
  toggleGroup(group) {
+  if (group.skills) { this.onSkills?.(); return; }
   if (!group.routines) { this.library.toggleFolder(group.path); return; }
   this.routinesFolded = !this.routinesFolded;
   try { localStorage.setItem(FOLD, this.routinesFolded ? '1' : '0'); } catch {}

@@ -2,7 +2,8 @@
 
 // A reply that came while the user was not looking at it (the window put away or behind others, or another chat on
 // screen): the system's notification says so, and the app's icon counts how many such replies wait to be read, across
-// every chat and the mini and quick chats. Only an agent's finished reply counts, never its steps on the way. The
+// every chat and the mini and quick chats. Only an agent's finished reply counts, and what it waits for the user to
+// answer on the way (its question, a step to allow), never its other steps. The
 // pages tell which replies came and which were seen (notify.js); here they are counted. Whether there are
 // notifications at all and whether they make a sound are the user's choice, kept in notify.json.
 const fs = require('node:fs');

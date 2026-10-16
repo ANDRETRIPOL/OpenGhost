@@ -14,6 +14,7 @@ const Lang = require('./lang');
 const Reveal = require('./reveal');
 const Notify = require('./notify');
 const Routines = require('./routines');
+const Skills = require('./skills');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
@@ -277,6 +278,8 @@ ipcMain.on('browser:shown', (event, value) => { if (fromApp(event)) Browser.setS
 ipcMain.handle('tool:cancel', (event, id) => { if (fromApp(event)) Tools.cancel(id); });
 ipcMain.handle('tool:environment', event => fromApp(event) ? Tools.environment() : null);
 ipcMain.handle('tool:guide', (event, folder) => fromApp(event) ? Tools.guide(folder) : null);
+// Skills (desktop/skills.js): those a chat can use, one's instructions, and one put in from a link; every window is told.
+Skills.setup({ fromApp, chats: Tools.CHATS, changed: () => { for (const each of BrowserWindow.getAllWindows()) if (!each.isDestroyed()) each.webContents.send('skills:changed'); } });
 ipcMain.handle('pdf:read', (event, source) => fromApp(event) ? Pdf.read(source) : { text: '', reason: 'unreadable' });
 LLM.register(fromApp);
 Keys.register(fromApp);

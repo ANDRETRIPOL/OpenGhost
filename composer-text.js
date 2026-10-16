@@ -23,6 +23,8 @@ const PLAIN = { lines: 3000, chars: 200000, back: 0.8 };
 const LINK_OUT = { duration: 260, easing: 'cubic-bezier(0.3, 0.7, 0.4, 1)', fill: 'forwards' };
 const MANUAL_DELETE = /^delete(Content|Word|SoftLine|HardLine)(Backward|Forward)$/;
 const TYPED_URL = /(?:^|\s)((?:https?:\/\/|www\.)\S+)$/i;
+// A skill typed as /name, which becomes its chip at the space after it (skills.js).
+const TYPED_SKILL = /(?:^|[\s(])(\/[a-z0-9][a-z0-9-]{0,63})$/;
 
 const escapeHtml = text => text.replace(/[&<>]/g, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;');
 const escapeAttr = text => escapeHtml(text).replace(/"/g, '&quot;');
@@ -102,6 +104,13 @@ class ComposerText {
    return;
   }
   if (type !== 'insertText' || e.data !== ' ' || this.plain) return;
+  const skill = input.value.slice(0, start).match(TYPED_SKILL);
+  if (skill && window.Skills?.find(skill[1].slice(1), Skills.folder) && !this.links.some(link => link.to > start - skill[1].length && link.from < start)) {
+   e.preventDefault();
+   this.pending = null;
+   this.insertLinks(`${skill[1]} `, start - skill[1].length, start);
+   return;
+  }
   const m = input.value.slice(0, start).match(TYPED_URL);
   if (!m || !LinkChip.find(m[1]).length) return;
   e.preventDefault();
@@ -151,7 +160,7 @@ class ComposerText {
   const body = LINK_BOX.icon + LINK_BOX.gap + this.measure(label, LINK_BOX.weight, LINK_BOX.size), want = body + LINK_BOX.pad * 2;
   const wides = Math.max(LINK_BOX.min, Math.floor(want / wide)), thins = Math.max(0, Math.ceil((want - wides * wide) / thin));
   const tag = JOINER.repeat(++this.chips);
-  return { piece: FIGURE.repeat(wides) + THIN.repeat(thins) + tag, url: kind === 'quote' ? url : LinkChip.href(url), label, kind, pad: (wides * wide + thins * thin - body) / 2 };
+  return { piece: FIGURE.repeat(wides) + THIN.repeat(thins) + tag, url: kind === 'link' ? LinkChip.href(url) : url, label, kind, pad: (wides * wide + thins * thin - body) / 2 };
  }
 
  insertQuote(text) {
@@ -202,13 +211,30 @@ class ComposerText {
   input.setSelectionRange(end, end);
  }
 
- // The text with every link in it swapped for a chip's piece, and the chips with where they sit in it.
+ // A skill picked from the list over the field or from the search: its chip goes where `from`…`to` was (the /name
+ // typed so far), or where the caret is, with a space after it.
+ insertSkill(name, from = this.input.selectionStart, to = this.input.selectionEnd) {
+  const input = this.input;
+  input.focus({ preventScroll: true });
+  if (this.plain) {
+   input.setSelectionRange(from, to);
+   this.place(`/${name} `);
+   return;
+  }
+  const before = from > 0 && !/\s/.test(this.value[from - 1]) ? ' ' : '';
+  this.insertLinks(`${before}/${name} `, from, to);
+ }
+
+ // The text with every link and every skill named in it swapped for a chip's piece, and the chips with where they sit in it.
  chipped(text) {
   const tokens = [];
   let out = '', last = 0;
-  for (const { index, url } of LinkChip.find(text)) {
+  const skills = window.Skills ? Skills.spans(text, Skills.folder).map(span => ({ index: span.index, url: `/${span.name}`, skill: span.name })) : [];
+  const found = [...LinkChip.find(text), ...skills].sort((a, b) => a.index - b.index);
+  for (const { index, url, skill } of found) {
+   if (index < last) continue;
    out += text.slice(last, index);
-   const token = this.token(url);
+   const token = skill ? this.token(url, skill, 'skill') : this.token(url);
    tokens.push({ ...token, offset: out.length });
    this.known.set(token.piece, token);
    out += token.piece;
@@ -485,8 +511,8 @@ class ComposerText {
  linkHtml(link, w) {
   const age = performance.now() - link.born, fresh = link.born && age < LINK_IN && !reducedMotion();
   const style = `--pad:${link.pad.toFixed(2)}px${fresh ? `;animation-delay:${-Math.round(age)}ms` : ''}`;
-  const icon = link.kind === 'quote' ? `<span class="composer-quote-icon">${Glyphs.quote}</span>` : `<span class="link-chip-icon" data-host="${escapeAttr(LinkChip.host(link.url))}"></span>`;
-  return `<span class="composer-link${link.kind === 'quote' ? ' is-quote' : ''}${fresh ? ' is-new' : ''}" data-from="${link.from}" data-label="${escapeAttr(link.label)}" style="${style}">`
+  const icon = link.kind === 'quote' ? `<span class="composer-quote-icon">${Glyphs.quote}</span>` : link.kind === 'skill' ? `<span class="composer-quote-icon composer-skill-icon">${Glyphs.skill}</span>` : `<span class="link-chip-icon" data-host="${escapeAttr(LinkChip.host(link.url))}"></span>`;
+  return `<span class="composer-link${link.kind === 'quote' ? ' is-quote' : link.kind === 'skill' ? ' is-skill' : ''}${fresh ? ' is-new' : ''}" data-from="${link.from}" data-label="${escapeAttr(link.label)}" style="${style}">`
    + `${icon}${this.rangeHtml(link.from, link.to, w)}</span>`;
  }
 
