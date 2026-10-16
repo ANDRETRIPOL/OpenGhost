@@ -6,21 +6,20 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.4.8 beta**
+**v1.4.9 beta**
 
-[Windows version 1.4.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.8/OpenGhost-1.4.8-Setup.exe)
+[Windows version 1.4.9](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.9/OpenGhost-1.4.9-Setup.exe)
 
-[Linux version 1.4.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.8/OpenGhost-1.4.8-linux.tar.gz)
+[Linux version 1.4.9](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.9/OpenGhost-1.4.9-linux.tar.gz)
 
-[macOS version 1.4.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.8/OpenGhost-1.4.8-mac.dmg)
+[macOS version 1.4.9](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.4.9/OpenGhost-1.4.9-mac.dmg)
 
 What's new:
-- Much faster: long chats open and scroll without lag, most noticeably on slower computers.
-- Routines: tasks the agent does by itself on time (once at 19:00, every hour, every morning), set up in the sidebar or by asking the agent.
-- Routines keep running with the laptop lid closed.
-- Predictions: the composer suggests your next message; Tab takes it.
-- A safer agent in the browser: pages are material, never instructions, and agents of different chats each work in a tab of their own.
-- More stable agents, and a notification when a reply is ready.
+- Skills: the open Agent Skills format. Add one from a link in the chat, let the agent pick a fitting one, or pick it yourself with /name.
+- Forks: go on with a chat in a chat of its own from any message, with its notes, mini chat and folder.
+- Smooth replies again: the chat glides after a reply as it is written.
+- A tidier sidebar: five chats at first, the rest under "Show all".
+- A notification when the agent asks you something or waits for your OK.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
