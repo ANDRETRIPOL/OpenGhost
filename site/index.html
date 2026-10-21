@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.4.9</span>
+      <span class="ver" data-version>v1.5.0</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.4.9.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.0.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.4.9</h3>
+        <h3 class="h3" data-news-title>What's new in 1.5.0</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.4.9';
+const FALLBACK = '1.5.0';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,16 +1470,16 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'Skills: add one from a link in the chat, or pick one with /name; the agent takes up a fitting one by itself.',
-    'Forks: go on with a chat in a chat of its own, from any message.',
-    'Smooth replies again, and a tidier sidebar: five chats at first, the rest under Show all.',
-    'A notification when the agent asks you something or waits for your OK.',
+    'An agent for long work: a private memory for every chat, its own plan in a black island, and no stop on a short network failure.',
+    'One line beside the ghost says what the agent is doing; a code edit shows for a moment as its lines turn over.',
+    'The agent sends pictures as it works, encrypted on disk in a chat with a password.',
+    'An Update button, two-line chat rows with photos, narrow windows, copy and paste with the mouse.',
   ],
   ru: [
-    'Скиллы: добавьте по ссылке в чате или выберите через /имя; подходящий агент берёт и сам.',
-    'Форки: продолжайте чат в отдельном чате с любого сообщения.',
-    'Снова плавный вывод ответов и аккуратное боковое меню: сначала пять чатов, остальные под «Показать все».',
-    'Уведомление, когда агент задаёт вопрос или ждёт разрешения.',
+    'Агент для долгой работы: своя закрытая память у каждого чата, план в чёрном островке и никаких остановок из-за короткого сбоя сети.',
+    'Одна строка у призрака показывает, что делает агент; правка кода видна на мгновение, строки переворачиваются на новые.',
+    'Агент присылает картинки по ходу работы; в чате с паролем они зашифрованы на диске.',
+    'Кнопка «Обновить», чаты в две строки с фото, узкое окно, копирование и вставка мышкой.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };
