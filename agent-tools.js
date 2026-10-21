@@ -15,20 +15,20 @@ const SHELLS = {
   tool: 'run_powershell',
   about: 'Run PowerShell code on the user\'s Windows computer. It starts in the project folder, is non-interactive (it can never wait for input) and returns the exit code with the combined output. Both output streams are captured already, so never add 2>&1 or *>&1: in Windows PowerShell that wraps every stderr line of a program in an error record. Use it to run programs, scripts and tests, builds, package managers (npm, pip, winget), to inspect the system, and for file work other tools don\'t cover: moving, copying, deleting, searching with Select-String. Servers and watchers never exit: start them with Start-Process -WindowStyle Hidden and send their output to a log file.',
   command: 'PowerShell code, several lines are fine',
-  noGit: 'Error: Git is not installed on this computer. It can be installed with: winget install --id Git.Git -e --source winget',
+  noGit: 'Error: Git is not installed. Do not download or install it unless the user explicitly asks for installation. Continue without Git when the task does not require it.',
  },
  darwin: {
   tool: 'run_zsh',
   about: 'Run a zsh script on the user\'s Mac. It starts in the project folder, is non-interactive (it can never wait for input) and returns the exit code with the combined output. Use it to run programs, scripts and tests, builds, package managers (npm, pip, brew), to inspect the system, and for file work other tools don\'t cover: moving, copying, deleting, searching with grep. Servers and watchers never exit: start them with nohup, send their output to a log file, and put them in the background with &.',
   command: 'Zsh script, several lines are fine',
-  noGit: 'Error: Git is not installed. Install it with Homebrew: brew install git',
+  noGit: 'Error: Git is not installed. Do not download or install it unless the user explicitly asks for installation. Continue without Git when the task does not require it.',
   installs: /\bbrew\b[^\n;|]*\s(install|uninstall|upgrade|remove)\b/,
  },
  linux: {
   tool: 'run_bash',
   about: 'Run a bash script on the user\'s Linux computer. It starts in the project folder, is non-interactive (it can never wait for input) and returns the exit code with the combined output. Use it to run programs, scripts and tests, builds, package managers (npm, pip, apt, dnf), to inspect the system, and for file work other tools don\'t cover: moving, copying, deleting, searching with grep. Servers and watchers never exit: start them with nohup, send their output to a log file, and put them in the background with &.',
   command: 'Bash script, several lines are fine',
-  noGit: 'Error: Git is not installed. Install it with the system package manager, for example: sudo apt install git',
+  noGit: 'Error: Git is not installed. Do not download or install it unless the user explicitly asks for installation. Continue without Git when the task does not require it.',
   installs: /\b(apt|apt-get|dnf|yum|pacman|zypper)\b[^\n;|]*\s(install|remove|purge|upgrade|dist-upgrade)\b/,
  },
 };
@@ -82,7 +82,7 @@ const SCHEMAS = [
   path: { type: 'string', description: 'Folder to list, the project folder by default' },
   depth: { type: 'integer', description: 'How many levels deep, 2 by default, 6 at most' },
  }),
- fn('git', 'Run git in the project folder with the given arguments, for example ["status"], ["init"], ["add", "-A"], ["commit", "-m", "Add CSV parser"], ["log", "--oneline", "-10"], ["diff"]. The repository is local.', {
+ fn('git', 'Run git in the project folder when relevant to an existing repository or explicitly requested by the user, for example ["status"], ["log", "--oneline", "-10"], ["diff"]. Do not initialize or clone a repository, install Git, commit or push unless the user explicitly requests that action. A request to maintain Git history authorizes local commits for that task, not installation or publishing. Stage only this task\'s authorized changes, preserving pre-existing edits and other agents\' work.', {
   args: { type: 'array', items: { type: 'string' }, description: 'Arguments after the word git, one per item' },
   description: PURPOSE('git command'),
  }, ['args', 'description']),
@@ -98,6 +98,25 @@ const SCHEMAS = [
   kind: { type: 'string', enum: ['pictures', 'videos'], description: 'pictures by default' },
   count: { type: 'integer', description: 'How many to return, 6 by default, 12 at most' },
  }, ['query']),
+ fn('show_pictures', 'Show the user pictures in the chat right away and go on working: what you see in the built-in browser (the whole screen, a part of it, or the picture of an element), a picture on the internet by its address, or an image file on this computer. The user may watch the browser panel but cannot look closer there without taking it from you, and does not see it at all while it is closed; these pictures stay in the chat and open large. They go into your answer where you are in it, under the words you have written so far.', {
+  pictures: {
+   type: 'array', minItems: 1, maxItems: 8, description: 'The pictures, shown together in this order. Each comes from one place: ref, or a part of the screen (x, y, width, height), or url, or path; with none of them, the whole screen of the browser.',
+   items: {
+    type: 'object',
+    properties: {
+     caption: { type: 'string', description: 'What it shows and why it matters, short, in the user\'s language: "Front pads Brembo P 85 020, 2 940 ₽, fit your car"' },
+     ref: { type: 'integer', description: 'Browser: an element [number] from the latest snapshot. Its picture is shown at the largest size the site has: the photo in a product card or a link, an image, a background picture' },
+     x: { type: 'number', description: 'Browser: left of a part of the screen, in page pixels as read from a screenshot' },
+     y: { type: 'number', description: 'Browser: top of that part' },
+     width: { type: 'number', description: 'Browser: width of that part' },
+     height: { type: 'number', description: 'Browser: height of that part' },
+     url: { type: 'string', description: 'The full address of a picture on the internet' },
+     path: { type: 'string', description: 'An image file on this computer: png, jpg, webp, gif, bmp, avif, tiff' },
+    },
+    required: ['caption'],
+   },
+  },
+ }, ['pictures']),
  fn('browser_navigate', 'Open a page in the built-in browser, the panel on the right of the app where the user\'s own logins live. Returns a snapshot of the screen: text, and the elements you can use, each with a [number].', {
   url: { type: 'string', description: 'An address (https://example.com or example.com), a local file path, words to search on Google, or back, forward, reload' },
  }, ['url']),
@@ -143,6 +162,20 @@ const SCHEMAS = [
   action: { type: 'string', enum: ['list', 'new', 'switch', 'close'] },
   url: { type: 'string', description: 'For new: what to open in it' },
   tab: { type: 'integer', description: 'For switch and close: the tab number from the list' },
+ }, ['action']),
+ fn('record', 'This chat\'s private record, a short file only this chat can read or write. Other chats never see it, even in the same folder, and it is not a file in the folder: read_file and the shell cannot open it, and write_file must not be used instead of it. What it holds comes in a note from the app. add: put new lines at its end; the app puts this computer\'s date and time before them. edit: replace old_text, copied exactly from the record, with new_text; an empty new_text deletes it. write: replace the whole record with text, already shortened, with anything no longer true taken out; empty text clears it. At most 40000 characters. Use it for the facts of this chat. When the user says to write them down, save them or put them in a file without naming a path, this is the tool.', {
+  action: { type: 'string', enum: ['add', 'edit', 'write'] },
+  text: { type: 'string', description: 'For add: the new lines. For write: the whole record as it should stand after this call. In the user\'s language.' },
+  old_text: { type: 'string', description: 'For edit: the exact piece of the record to change, long enough to be found in one place only' },
+  new_text: { type: 'string', description: 'For edit: what stands instead of old_text, empty to delete it' },
+ }, ['action']),
+ fn('plan', 'Your plan for a task of several parts. The user sees it at the top of the chat, with the step under way. start: a new plan of 2 to 10 short steps, each a result that can be checked. done: close a step once you have seen it work, with the proof: what showed it, as you saw it. The app refuses a step closed when nothing was done since the last one, or when your last check (tests, a build, a linter) failed. drop: take a step out, with the reason. add: steps found along the way. wait: only the user can move the work on (a sign-in, a payment, a choice that is theirs alone): say what you need, then ask for it in your reply and end it there.', {
+  action: { type: 'string', enum: ['start', 'done', 'drop', 'add', 'wait'] },
+  steps: { type: 'array', items: { type: 'string' }, description: 'For start and add: the steps in order, each a few words in the user\'s language, like "Menu in two columns"' },
+  step: { type: 'integer', description: 'For done and drop: the number of the step, from 1' },
+  proof: { type: 'string', description: 'For done: what you saw that shows the step works (the command and what it printed, the page and what it shows, the file read back), one line in the user\'s language' },
+  reason: { type: 'string', description: 'For drop and wait: why, one sentence in the user\'s language. For start while the plan has open steps: why the new plan replaces it' },
+  after: { type: 'integer', description: 'For add: put the new steps after this step; at the end by default' },
  }, ['action']),
  fn('memory', 'What you remember about the user across all chats; what it holds comes in a note from the app. save: write a new record, when nothing there is about the same thing. update: write the record with this id anew, so that it says what it said and what is new together, or the new instead of what has changed. forget: remove the record with this id.', {
   action: { type: 'string', enum: ['save', 'update', 'forget'] },
@@ -721,6 +754,9 @@ function attachedFile(attached, cwd, path) {
 }
 
 // `attached`: what the user attached to the chat, as { videos, pdfs }; a plain list is a list of videos.
+// The pictures a show_pictures call asks for, as objects whatever came.
+const pictureList = args => (Array.isArray(args?.pictures) ? args.pictures : []).filter(item => item && typeof item === 'object');
+
 function needsApproval(name, args, { mode, cwd, attached = [], apart = null }) {
  if (mode === 'full') return false;
  const ask = mode !== 'auto';
@@ -738,6 +774,9 @@ function needsApproval(name, args, { mode, cwd, attached = [], apart = null }) {
   case 'web_search':
   case 'find_media':
   case 'fetch_url': return ask;
+  // What the agent sees in the browser is shown freely; a picture fetched from the internet or read from a file
+  // outside the project is asked about as fetch_url and read_file are.
+  case 'show_pictures': return ask && pictureList(args).some(item => item.url || (item.path && !inside(cwd, item.path)));
   // Loading a skill only reads its instructions. Adding one asks the user with a card of its own, in every mode (chat.js).
   case 'skill': return false;
   default: return true;
@@ -778,6 +817,11 @@ function describe(name, args, cwd, apart = null) {
   case 'web_search': return { kind: 'web', title: I18n.t('approve.search'), effect: 'online', places: [], quote: `“${String(args.query || '')}”` };
   case 'fetch_url': return { kind: 'web', title: I18n.t('approve.fetch'), effect: 'online', places: [site(String(args.url || ''))] };
   case 'find_media': return { kind: 'web', title: I18n.t(args.kind === 'videos' ? 'approve.videos' : 'approve.pictures'), effect: 'online', places: [], quote: `“${String(args.query || '')}”` };
+  case 'show_pictures': {
+   const items = pictureList(args), online = items.some(item => item.url);
+   const places = items.map(item => item.url ? site(String(item.url)) : item.path ? { kind: 'file', label: String(item.path).split(/[\\/]/).filter(Boolean).pop() || String(item.path), title: relative(cwd, item.path) } : null).filter(Boolean);
+   return { kind: online ? 'web' : 'file', title: I18n.t('approve.showPictures'), effect: online ? 'online' : 'read', places, quote: items.map(item => `“${String(item.caption || '')}”`).join(', ') };
+  }
   case 'browser_navigate': return { kind: 'web', title: I18n.t('approve.browse'), effect: 'online', places: [site(String(args.url || ''))] };
   case 'browser_tabs': return { kind: 'web', title: I18n.t('approve.tab'), effect: 'online', places: [site(String(args.url || ''))] };
   case 'browser_click': return { kind: 'web', title: I18n.t('approve.click'), effect: 'online', places: [], quote: refs[args.ref] || (args.ref ? `[${args.ref}]` : `x ${Math.round(args.x)}, y ${Math.round(args.y)}`) };
@@ -1078,6 +1122,13 @@ window.AgentTools = {
  guide(cwd) {
   return bridge?.guide && cwd ? bridge.guide(cwd).catch(() => null) : Promise.resolve(null);
  },
+ // The name of the tool that runs the shell on this computer.
+ shell: SHELL.tool,
+ // What a folder holds before a command (a token), the files the command changed after it, and the ports this computer
+ // listens on: for agents that share a folder.
+ mark: cwd => bridge?.mark && cwd ? bridge.mark(cwd).catch(() => '') : Promise.resolve(''),
+ changed: token => bridge?.changed && token ? bridge.changed(token).catch(() => []) : Promise.resolve([]),
+ ports: () => bridge?.ports ? bridge.ports().catch(() => []) : Promise.resolve([]),
  // `apart`: the agent works in a browser tab of its own (a mini chat's).
  async run(name, args, { id, cwd, apart = null }) {
   if (!bridge) return 'Error: tools are only available in the desktop app';

@@ -113,6 +113,9 @@ async function ask(url, init = {}) {
 
 const number = value => Number.isFinite(Number(value)) && Number(value) > 0 ? Math.round(Number(value)) : 0;
 const refusedTools = new Set(), refusedPictures = new Set(), refusedThinking = new Set();
+// Models that took named efforts and turned down only "none": they keep their levels and lose the answer without
+// thinking.
+const refusedQuiet = new Set();
 
 // How much a model thinks, as the effort control shows it. 'none' is no thinking at all, 'on' thinking with no levels
 // to choose from, 'auto' whatever the model does by itself where the server does not tell; the rest are the model's own
@@ -240,10 +243,19 @@ const described = (provider, at, { id, name = id, context = 0, limit = 0, vision
  // see them once it has turned one down.
  vision: (provider === 'custom' ? vision !== false : vision === true) && !refusedPictures.has(`${at} ${id}`),
  tools: tools !== false && !refusedTools.has(`${at} ${id}`),
- // A service does not say how its model thinks: the effort the OpenAI API takes is offered, and a model that turns it
- // down is left to itself from then on. A local server that says nothing leaves the model to itself too.
- ...(refusedThinking.has(`${at} ${id}`) ? UNTOLD : think || (provider === 'custom' ? { efforts: ['auto', 'low', 'medium', 'high'], defaultEffort: 'auto', thinking: 'levels' } : UNTOLD)),
+ // A service does not say how its model thinks: the effort the OpenAI API takes is offered, "none" (an answer with no
+ // thinking) among it, and a model that turns it down is left to itself from then on. A local server that says
+ // nothing leaves the model to itself too.
+ ...offered(`${at} ${id}`, think || (provider === 'custom' ? { efforts: ['none', 'auto', 'low', 'medium', 'high'], defaultEffort: 'auto', thinking: 'levels' } : UNTOLD)),
 });
+
+// A model's thinking as offered once it has turned some of it down: nothing to choose, or everything but "none".
+function offered(model, think) {
+ if (refusedThinking.has(model)) return UNTOLD;
+ if (!refusedQuiet.has(model) || !think.efforts.includes('none')) return think;
+ const efforts = think.efforts.filter(level => level !== 'none');
+ return efforts.length > 1 ? { ...think, efforts, defaultEffort: efforts.includes(think.defaultEffort) ? think.defaultEffort : efforts[0] } : UNTOLD;
+}
 
 // The models the server has. Reading the list is also the check that the address is right, the server is running and
 // the key, where there is one, is taken.
@@ -336,11 +348,13 @@ async function* lines(body) {
  if (buffer.trim()) yield buffer.trim();
 }
 
+const STREAM_DONE = Symbol('stream done');
 async function* events(body) {
  for await (const line of lines(body)) {
   if (!line.startsWith('data:')) continue;
   const data = line.slice(5).trim();
-  if (!data || data === '[DONE]') continue;
+  if (data === '[DONE]') { yield STREAM_DONE; return; }
+  if (!data) continue;
   try { yield JSON.parse(data); } catch {}
  }
 }
@@ -359,11 +373,12 @@ function finished(result, calls, stale) {
 
 // A model that calls no tools, or sees no pictures, says so only when it is sent some: it is then asked again without
 // them, and the list of models is read anew so the app knows it too. `send(asked)` makes one request.
-// `thinking`: whether this request carries a word about thinking at all.
+// `thinking`: whether this request carries a word about thinking at all, or the word itself. A "none" turned down is
+// remembered apart: the model may still take its named levels.
 async function asking(request, at, send, thinking = false) {
- const model = `${at} ${request.model}`;
+ const model = `${at} ${request.model}`, quiet = thinking === 'none';
  const pictured = request.vision === true && request.messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === 'image_url'));
- const asked = { tools: !refusedTools.has(model) && !!request.tools?.length, pictures: pictured && !refusedPictures.has(model), thinking: thinking && !refusedThinking.has(model) };
+ const asked = { tools: !refusedTools.has(model) && !!request.tools?.length, pictures: pictured && !refusedPictures.has(model), thinking: !!thinking && !refusedThinking.has(model) && !(quiet && refusedQuiet.has(model)) };
  let stale = false;
  for (;;) {
   const response = await send(asked);
@@ -371,7 +386,7 @@ async function asking(request, at, send, thinking = false) {
   const problem = await failure(response);
   const turned = problem.status !== 400 ? '' : asked.tools && /tool|function/i.test(problem.message) ? 'tools' : asked.pictures && /image|vision|multimodal|multi-modal/i.test(problem.message) ? 'pictures' : asked.thinking && /think|reason|effort/i.test(problem.message) ? 'thinking' : '';
   if (!turned) throw problem;
-  ({ tools: refusedTools, pictures: refusedPictures, thinking: refusedThinking })[turned].add(model);
+  ({ tools: refusedTools, pictures: refusedPictures, thinking: quiet ? refusedQuiet : refusedThinking })[turned].add(model);
   asked[turned] = false;
   stale = true;
  }
@@ -444,6 +459,7 @@ async function chatOllama(request, root, { signal, onEvent }) {
    }
    for (const call of message.tool_calls || []) {
     if (!call?.function?.name) continue;
+    onEvent({ type: 'activity' });
     const given = call.function.arguments;
     calls.push({ id: callId(calls.length), type: 'function', function: { name: call.function.name, arguments: typeof given === 'string' ? given : JSON.stringify(given || {}) } });
    }
@@ -451,13 +467,14 @@ async function chatOllama(request, root, { signal, onEvent }) {
     if (event.done_reason) result.finishReason = event.done_reason;
     const prompt = number(event.prompt_eval_count), completion = number(event.eval_count);
     if (prompt || completion) result.usage = { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion, cached_tokens: 0, written_tokens: 0 };
+    return finished(result, calls, stale);
    }
   }
+  throw error('Ollama disconnected before completing the answer', 0, 'network');
  } catch (cause) {
   if (cause.name === 'AbortError' || cause.status !== undefined) throw cause;
   throw error('network', 0, 'network');
  }
- return finished(result, calls, stale);
 }
 
 async function stream(request, { signal, onEvent = () => {} } = {}) {
@@ -474,10 +491,12 @@ async function stream(request, { signal, onEvent = () => {} } = {}) {
    if (cause.name === 'AbortError') throw cause;
    throw error('network', 0, 'network');
   }
- }, !!level);
+ }, level && (request.effort === 'none' ? 'none' : true));
  const calls = [], result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
+ let ended = false;
  try {
   for await (const event of events(response.body)) {
+   if (event === STREAM_DONE) { ended = true; break; }
    if (event.error) throw error(typeof event.error === 'string' ? event.error : event.error.message || 'The server stopped the answer', Number(event.error.code) || 500);
    if (event.usage) {
     const usage = event.usage;
@@ -503,6 +522,7 @@ async function stream(request, { signal, onEvent = () => {} } = {}) {
     onEvent({ type: 'content', delta: delta.content });
    }
    for (const part of delta.tool_calls || []) {
+    onEvent({ type: 'activity' });
     const last = calls.length - 1, fresh = part.id && last >= 0 && calls[last].id && calls[last].id !== part.id;
     const call = calls[part.index ?? (fresh ? last + 1 : Math.max(0, last))] ||= { id: '', type: 'function', function: { name: '', arguments: '' } };
     if (part.id) call.id = part.id;
@@ -514,9 +534,10 @@ async function stream(request, { signal, onEvent = () => {} } = {}) {
    }
    if (choice.finish_reason) result.finishReason = choice.finish_reason;
   }
+  if (!ended && !result.finishReason) throw error('The server disconnected before completing the answer', 0, 'network');
  } catch (cause) {
   if (cause.name === 'AbortError' || cause.status !== undefined) throw cause;
-  throw error('network', 0, 'network');
+  if (!result.finishReason) throw error('network', 0, 'network');
  }
  return finished(result, calls, stale);
 }

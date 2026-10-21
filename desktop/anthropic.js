@@ -19,7 +19,9 @@ const FINISH = { end_turn: 'stop', tool_use: 'tool_calls', max_tokens: 'length',
 // whether it can answer without thinking (`quiet`). A model that turns one of them down is remembered while the app runs.
 const refuses = { fallbacks: new Set(), quiet: new Set() };
 
-const client = ({ key, baseURL }) => new Anthropic({ apiKey: key, baseURL, maxRetries: 2 });
+// Retries of a dropped connection are the app's own, with one pause for every provider. What stays here is the second
+// ask without an extra the model turned down, further down.
+const client = ({ key, baseURL }) => new Anthropic({ apiKey: key, baseURL, maxRetries: 0 });
 
 // Everything the chat needs about a model comes from the Models API: name, window, vision and the effort levels it takes.
 function describe(model) {
@@ -179,6 +181,8 @@ async function stream(request, { signal, onEvent = () => {}, baseURL }) {
   const live = fallbacks ? api.beta.messages.stream({ ...params, ...FALLBACK }, { signal }) : api.messages.stream(params, { signal });
   live.on('streamEvent', event => {
    began = true;
+   if (event.type === 'content_block_start' && ['tool_use', 'thinking', 'redacted_thinking'].includes(event.content_block?.type)
+    || event.type === 'content_block_delta' && ['input_json_delta', 'thinking_delta', 'signature_delta'].includes(event.delta?.type)) onEvent({ type: 'activity' });
    // Text blocks after the first one start a new paragraph, the same as they are stored.
    if (event.type === 'content_block_start' && event.content_block?.type === 'text' && blocks++ && content) {
     content += '\n\n';

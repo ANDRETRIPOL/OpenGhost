@@ -88,6 +88,8 @@ const MEDIA_TOKEN = new RegExp(`^(?:\\[!\\[([^\\]]*)\\]\\(\\s*${MEDIA_ADDRESS}${
 // A picture still being written, from its very first sign: the pictures before it wait for it and are not shown
 // as a stack that would be built again a moment later.
 const MEDIA_OPEN = /^(?:\[!?|!|(?:\[!\[|!\[)[^\n]*)$/;
+// Where a picture may come from: the internet, or the pictures the agent showed, kept with the chat (desktop/pictures.js).
+const PICTURE_SRC = /^(?:https?:\/\/|ogpic:\/\/chat\/)/i;
 const MEDIA_VIDEO = /^https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?(?:[^#\s]*&)?v=|shorts\/|live\/|embed\/)|youtu\.be\/)[\w-]{11}(?![\w-])/i;
 const isSpace = c => c === undefined || /\s/.test(c);
 const isPunct = c => c !== undefined && PUNCT.test(c);
@@ -307,7 +309,7 @@ function mediaItems(text, live) {
   if (!m || (rest.startsWith('[![') && m[2] === undefined)) return live && MEDIA_OPEN.test(rest) ? { items, open: true } : null;
   if (m[2] !== undefined || m[5] !== undefined) {
    const src = m[2] ?? m[5], href = m[3] || '';
-   if (!/^https?:\/\//i.test(src)) return null;
+   if (!PICTURE_SRC.test(src)) return null;
    items.push({ k: 'i', src, alt: (m[1] ?? m[4]).trim(), href: SAFE_URL.test(href) ? href : '' });
   } else {
    let url = m[7] ?? m[8];
@@ -322,7 +324,11 @@ function mediaItems(text, live) {
 
 // The placeholder the app turns into the stack and the cards; until it does, and wherever it can't, the links.
 function mediaHtml({ items }, live) {
- const links = items.map(item => window.LinkChip ? LinkChip.html(item.k === 'i' ? item.href || item.src : item.url) : '').join(' ');
+ // Pictures the app put into the reply whole (the agent's show_pictures) are never half written: they show at once,
+ // though the reply goes on being written under them.
+ if (items.every(item => item.k === 'i' && item.src.startsWith('ogpic:'))) live = false;
+ const address = item => item.k === 'i' ? item.href || (/^https?:/i.test(item.src) ? item.src : '') : item.url;
+ const links = items.map(item => window.LinkChip && address(item) ? LinkChip.html(address(item)) : '').join(' ');
  return `<div class="md-media" data-static data-nowave data-media="${escapeHtml(JSON.stringify(items))}"${live ? ' data-live' : ''}>${links}</div>`;
 }
 

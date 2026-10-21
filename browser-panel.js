@@ -8,6 +8,9 @@ const TABS_MAX = 12;
 // How long a new tab may take to start its page; longer than the agent waits for any page to load.
 const READY_WAIT = 45000;
 const WIDTH = { share: 0.44, min: 360, chat: 400 };
+// A page made for a wider screen than the panel is shown whole, zoomed out until its width fits, as far as `min`. A page
+// wider by no more than `slack` (a scrollbar under an element of 100vw) is left as it is: zooming would not cure it.
+const FIT = { min: 0.3, slack: 32, settle: 150, late: 1200, again: 700, resize: 250, tries: 6 };
 const CURSOR = { hide: 2600 };
 const TOAST_TIME = 4200;
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
@@ -67,8 +70,17 @@ class BrowserPanel {
   this.main = main;
   this.toggle = toggle;
   this.tabs = [];
+  // How wide each site needs to be, in its own pixels, for a page of it to be seen whole (fitPage).
+  this.widths = new Map();
   this.active = null;
   this.open = false;
+  // Whether the window has room for the panel beside the chat (side-panels.js); without it an open panel is out of sight
+  // until its button brings it over the chat (`peek`). `onLayout`: the panel opened, closed or took another width.
+  this.docked = true;
+  this.peek = false;
+  this.onLayout = null;
+  // The chat's least room beside the panel (side-panels.js), WIDTH.chat when nothing tells it.
+  this.chatRoom = null;
   // The agents at work in the browser now: each chat's conversation, with whether it works apart, in a tab of its own.
   this.drivers = new Map();
   // An agent that works apart (a mini chat's, or a chat's while another chat's agent works in the tab on screen) and the
@@ -103,7 +115,7 @@ class BrowserPanel {
   this.select(this.tabs[saved.active] || this.tabs[0] || null, { lazy: true });
   this.fit();
   bridge?.onEvent(data => this.onEvent(data));
-  toggle.addEventListener('browser-toggle', () => this.setOpen(!this.open));
+  toggle.addEventListener('browser-toggle', () => this.press());
   window.addEventListener('resize', () => this.fit());
   if (saved.open) this.setOpen(true);
   const yieldKeys = event => {
@@ -200,6 +212,9 @@ class BrowserPanel {
    if (tab && event.button === 1) this.close(tab);
   });
   this.resizer($('.browser-resize'));
+  // A panel that changed its size (dragged, the window resized, the sidebar folded) fits its pages anew once it stops.
+  let resting = 0;
+  new ResizeObserver(() => { clearTimeout(resting); resting = setTimeout(() => this.fitPages(), FIT.resize); }).observe(this.stage);
  }
 
  resizer(handle) {
@@ -214,6 +229,7 @@ class BrowserPanel {
     handle.removeEventListener('pointermove', move);
     this.app.classList.remove('is-browser-resizing');
     this.save();
+    this.onLayout?.();
    };
    handle.addEventListener('pointermove', move);
    handle.addEventListener('pointerup', up, { once: true });
@@ -221,28 +237,120 @@ class BrowserPanel {
   });
  }
 
+ // A page wider than the panel is zoomed out until it fits, for the user and for the agent alike: the agent sees and
+ // reaches what the user sees. How wide each site needs to be is kept, so a panel made wider zooms the site back in.
+ async fitPage(tab) {
+  const view = tab?.view;
+  if (!view?.isConnected || !tab.id || (tab.fits = (tab.fits || 0) + 1) > FIT.tries) return;
+  const room = view.clientWidth;
+  if (!room) return;
+  let sizes = null;
+  try { sizes = await view.executeJavaScript('[document.documentElement.scrollWidth, innerWidth]'); } catch {}
+  if (!Array.isArray(sizes)) return;
+  const [needs, inner] = sizes, host = hostOf(view.getURL()), zoom = view.getZoomFactor();
+  let want = zoom;
+  if (needs > inner + FIT.slack) {
+   this.widths.set(host, needs);
+   want = room / needs;
+  } else if (zoom < 1) want = room / (this.widths.get(host) || room / zoom);
+  want = Math.min(1, Math.max(FIT.min, Math.floor(want * 100) / 100));
+  if (Math.abs(want - zoom) < 0.01) return;
+  view.setZoomFactor(want);
+  // A page that lays itself out anew at the width it now has is looked at once more.
+  clearTimeout(tab.refit);
+  tab.refit = setTimeout(() => this.fitPage(tab), FIT.again);
+ }
+
+ fitPages() {
+  for (const tab of this.tabs) {
+   if (!tab.view) continue;
+   tab.fits = 0;
+   this.fitPage(tab);
+  }
+ }
+
  fit(wanted = this.width) {
   const gap = parseFloat(getComputedStyle(this.app).getPropertyValue('--chat-gap')) || 8;
   const side = this.app.classList.contains('is-sidebar-collapsed') ? 0 : document.querySelector('.sidebar')?.offsetWidth || 0;
   const room = innerWidth - side - gap * 3;
-  const max = Math.max(WIDTH.min, room - WIDTH.chat);
+  const max = Math.max(WIDTH.min, room - (this.chatRoom?.() || WIDTH.chat));
   const width = Math.round(Math.min(max, Math.max(WIDTH.min, wanted || room * WIDTH.share)));
   if (wanted) this.width = width;
   this.app.style.setProperty('--browser-width', `${width}px`);
  }
 
+ // The width the panel takes beside the chat when there is room: the one it was dragged to, or its share of the room.
+ natural(room) {
+  return Math.max(WIDTH.min, this.width || room * WIDTH.share);
+ }
+
+ get least() { return WIDTH.min; }
+
+ // Whether the user sees the panel: open, beside the chat or over it.
+ get seen() { return this.open && (this.docked || this.peek); }
+
  setOpen(open) {
   if (this.open === open) return;
   this.open = open;
-  this.root.inert = !open;
-  this.app.classList.toggle('is-browser-open', open);
-  this.toggle.toggleAttribute('open', open);
+  if (!open) this.peek = false;
+  this.show();
   if (open) {
    this.fit();
    if (this.active && !this.active.view && !blank(this.active.url)) this.createView(this.active, this.active.url);
-   if (!this.tabs.length || blank(this.active?.url)) requestAnimationFrame(() => this.url.focus());
+   if (this.seen && (!this.tabs.length || blank(this.active?.url))) requestAnimationFrame(() => this.url.focus());
   }
   this.save();
+  this.onLayout?.();
+ }
+
+ // The globe. Beside the chat it opens and closes the panel; in a window too narrow for it, it brings the panel over
+ // the chat, and pressed again closes it.
+ press() {
+  if (this.docked) this.setOpen(!this.open);
+  else if (this.seen) this.setOpen(false);
+  else {
+   this.peek = true;
+   if (this.open) this.show();
+   else this.setOpen(true);
+   if (!this.tabs.length || blank(this.active?.url)) requestAnimationFrame(() => this.url.focus());
+  }
+ }
+
+ setDocked(docked) {
+  if (this.docked === docked) return;
+  this.docked = docked;
+  this.peek = false;
+  this.show();
+ }
+
+ // Over the chat, or out of sight again (a press beside it, or Escape): it stays open, and comes back beside the chat
+ // when the window has room.
+ setPeek(peek) {
+  if (this.docked || !this.open || this.peek === peek) return;
+  this.peek = peek;
+  this.show();
+ }
+
+ // What the user sees: the classes the layout reads, whether the panel can be reached, the globe. Over the chat it
+ // comes in from the right, and goes back there before it is out of sight.
+ show() {
+  const seen = this.seen, over = seen && !this.docked, root = this.root, was = this.app.classList.contains('is-browser-peek');
+  const apply = () => {
+   this.app.classList.toggle('is-browser-open', this.open && this.docked);
+   this.app.classList.toggle('is-browser-peek', this.seen && !this.docked);
+  };
+  root.inert = !seen;
+  this.toggle.toggleAttribute('open', seen);
+  root.getAnimations().forEach(animation => animation.cancel());
+  if (was && !over && !this.docked && !reducedMotion()) {
+   root.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(24px)' }], { duration: 200, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }).finished.then(() => {
+    root.getAnimations().forEach(animation => animation.cancel());
+    apply();
+   }, () => {});
+  } else {
+   apply();
+   if (over && !was && !reducedMotion()) root.animate([{ opacity: 0, transform: 'translateX(24px)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: EASE });
+  }
   this.report();
  }
 
@@ -262,7 +370,7 @@ class BrowserPanel {
   if (!background) this.select(tab);
   this.render();
   this.save();
-  if (!background && focus && blank(url) && this.open) requestAnimationFrame(() => this.url.focus());
+  if (!background && focus && blank(url) && this.seen) requestAnimationFrame(() => this.url.focus());
   return tab;
  }
 
@@ -289,7 +397,14 @@ class BrowserPanel {
   });
   tab.ready.catch(() => {});
   const update = () => { this.render(); if (tab === this.active) this.syncBar(); };
-  view.addEventListener('did-start-loading', () => { tab.loading = true; tab.error = ''; update(); });
+  // The tab spins while the page itself loads, as in Chrome. A frame inside it that loads (an ad, a widget, a counter)
+  // also counts as loading for Electron, and would keep the spinner turning while the page sits still.
+  view.addEventListener('did-start-navigation', event => {
+   if (!event.isMainFrame || event.isInPlace) return;
+   tab.loading = true;
+   tab.error = '';
+   update();
+  });
   view.addEventListener('did-stop-loading', () => {
    tab.loading = false;
    const now = view.getURL();
@@ -297,7 +412,11 @@ class BrowserPanel {
    tab.title = view.getTitle() || tab.title;
    update();
    this.save();
+   tab.fits = 0;
+   setTimeout(() => this.fitPage(tab), FIT.settle);
+   setTimeout(() => this.fitPage(tab), FIT.late);
   });
+  view.addEventListener('did-navigate-in-page', event => { if (event.isMainFrame) setTimeout(() => this.fitPage(tab), FIT.late); });
   view.addEventListener('page-title-updated', event => { tab.title = event.title; update(); });
   view.addEventListener('page-favicon-updated', event => { tab.icon = event.favicons?.[0] || ''; update(); });
   view.addEventListener('did-navigate', event => { if (hostOf(event.url) !== hostOf(tab.url)) tab.icon = ''; if (!blank(event.url)) tab.url = event.url; update(); });
@@ -430,7 +549,7 @@ class BrowserPanel {
  }
 
  report() {
-  bridge?.shown({ open: this.open, id: this.active?.id || 0 });
+  bridge?.shown({ open: this.seen, id: this.active?.id || 0 });
  }
 
  onEvent(data) {
@@ -462,7 +581,7 @@ class BrowserPanel {
    else if (data.action === 'new') this.newTab();
    else if (data.action === 'close' && from) this.close(from);
   } else if (data.type === 'pointer') {
-   if (from && from === this.active && this.open) this.point(data.x, data.y);
+   if (from && from === this.active && this.seen) this.point(data.x, data.y);
   } else if (data.type === 'download') {
    this.notify(I18n.t('browser.downloaded', { name: data.name }));
   }
@@ -857,8 +976,8 @@ class BrowserPanel {
  // What the browser holds, for the note at the end of each request; a closed browser with nothing in it says nothing.
  context(seat) {
   const tabs = this.tabs.filter(tab => !blank(tab.url));
-  if (!this.open && !tabs.length && !this.accounts.length) return '';
-  const lines = [`- The browser panel is ${this.open ? 'open, the user sees the page' : 'closed; the browser still works, the user can open it with the globe button'}.`];
+  if (!this.seen && !tabs.length && !this.accounts.length) return '';
+  const lines = [`- The browser panel is ${this.seen ? 'open, the user sees the page' : 'closed; the browser still works, the user can open it with the globe button'}.`];
   if (tabs.length) lines.push(`- Open tabs:\n${this.tabsText(seat).split('\n').map(line => `  ${line}`).join('\n')}`);
   else lines.push('- No pages are open in it yet.');
   if (seat) lines.push(`- You work in a tab of your own, behind the one on the user's screen, so you and ${this.chats.has(seat) ? 'the agents of the user\'s other chats' : 'the agent of the main conversation'} can use the browser at the same time. Your first browser step opens it.`);

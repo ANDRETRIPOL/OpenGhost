@@ -16,6 +16,8 @@ const TRUSTED = [
  /^https:\/\/i\d?\.ytimg\.com\/vi(?:_webp)?\//i,
  /^https:\/\/upload\.wikimedia\.org\/wikipedia\//i,
  /^https:\/\/encrypted-tbn\d\.gstatic\.com\/images\?/i,
+ // The pictures the agent showed, kept on this computer with the chat (desktop/pictures.js): nothing is asked of a site.
+ /^ogpic:\/\/chat\//i,
 ];
 const LOAD_TIMEOUT = 9000;
 const THUMBS = ['hq720', 'mqdefault'];
@@ -215,7 +217,7 @@ function mount(el, changed) {
  el.__live = live;
  let items = [];
  try { items = JSON.parse(data); } catch {}
- const images = items.filter(item => item.k === 'i' && /^https?:\/\//i.test(item.src)), videos = items.filter(item => item.k === 'v' && videoId(item.url));
+ const images = items.filter(item => item.k === 'i' && /^(?:https?:\/\/|ogpic:\/\/chat\/)/i.test(item.src)), videos = items.filter(item => item.k === 'v' && videoId(item.url));
  // The links Markdown left in the placeholder give way once; after that only what changed is built anew.
  if (!el.__kept) el.replaceChildren();
  const kept = el.__kept ||= { pictures: '', stack: null, row: null, cards: new Map() }, parts = [];

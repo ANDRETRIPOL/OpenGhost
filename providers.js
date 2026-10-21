@@ -12,10 +12,11 @@ const NEED = 16000;
 const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', openrouter: 'OpenRouter', local: 'Local', custom: 'Custom API' };
 
 class ProviderError extends Error {
- constructor(message, status = 0) {
+ constructor(message, status = 0, code = '') {
   super(message);
   this.name = 'ProviderError';
   this.status = status;
+  this.code = code;
  }
 }
 
@@ -36,8 +37,49 @@ function explain(provider, { status = 0, code = '', message = '' }) {
 
 const aborted = partial => Object.assign(new DOMException('Aborted', 'AbortError'), { partial });
 
+// A blink of the network, a moment of overload. A wrong key, an empty balance or a refusal of the content is not one of
+// these: asking again would get the same answer. A local server's own 500 usually means the request itself cannot be
+// done (the model does not fit, the name is unknown), so that is not waited out either.
+const TRANSIENT = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
+const PERMANENT = new Set(['insufficient_quota', 'billing_error', 'content_filter']);
+const WAITS = [1000, 2000, 4000, 8000, 16000, 32000];
+
+function transient(error, provider) {
+ if (!error || error.name === 'AbortError') return false;
+ if (PERMANENT.has(error.code)) return false;
+ if (error.code === 'network') return true;
+ const status = Number(error.status) || 0;
+ if (provider === 'local' && status === 500) return false;
+ return TRANSIENT.has(status);
+}
+
+function pause(ms, signal) {
+ if (signal?.aborted) return Promise.reject(aborted());
+ return new Promise((resolve, reject) => {
+  const stop = () => { clearTimeout(timer); reject(aborted()); };
+  const timer = setTimeout(() => { signal?.removeEventListener('abort', stop); resolve(); }, ms);
+  signal?.addEventListener('abort', stop, { once: true });
+ });
+}
+
+// The same request, again, while the failure is the kind that passes. Once a letter, a thought or a tool call has
+// reached the chat, it is not asked again: the person would see the start twice, and a tool might run twice.
+async function endure(config, run, { signal, onRetry } = {}) {
+ let begun = false;
+ const begin = () => { begun = true; };
+ for (let attempt = 0; ; attempt++) {
+  try {
+   return await run(begin);
+  } catch (error) {
+   if (signal?.aborted || error.name === 'AbortError' || begun || !transient(error, config.provider) || attempt >= WAITS.length) throw error;
+   onRetry?.();
+   await pause(WAITS[attempt], signal);
+  }
+ }
+}
+
 // `once`: a request nothing will follow, so there is no point in paying a provider to keep its start in a cache.
-function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxTokens, session, once = false, aside = false }) {
+function viaMain(config, { messages, tools, signal, onReasoning, onContent, onActivity, maxTokens, session, once = false, aside = false }) {
  if (!bridge) return Promise.reject(new ProviderError(I18n.t('error.desktop', { provider: NAMES[config.provider] })));
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
@@ -59,6 +101,8 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxT
    } else if (event.type === 'reasoning') {
     partial.reasoning += event.delta;
     onReasoning?.(event.delta, partial);
+   } else if (event.type === 'activity') {
+    onActivity?.();
    } else if (event.type === 'done') {
     finish();
     // The provider learned something about the model on the way: what the picker and the effort control show is out of date.
@@ -66,7 +110,7 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, maxT
     resolve({ ...partial, ...event.result });
    } else if (event.type === 'error') {
     finish();
-    reject(event.aborted ? aborted(partial) : new ProviderError(explain(config.provider, event), event.status));
+    reject(event.aborted ? aborted(partial) : Object.assign(new ProviderError(explain(config.provider, event), event.status, event.code || ''), { partial }));
    }
   });
   signal?.addEventListener('abort', stop, { once: true });
@@ -80,29 +124,44 @@ function counted(config, result) {
  return result;
 }
 
+function heard(begin, onContent, onReasoning) {
+ return {
+  onActivity: begin,
+  onContent: (delta, partial) => { if (delta) begin(); onContent?.(delta, partial); },
+  onReasoning: (delta, partial) => { if (delta) begin(); onReasoning?.(delta, partial); },
+ };
+}
+
 async function stream(config, options) {
  // A model whose window is smaller than the agent's instructions would lose them without a word: said before it is asked.
  if (config.window && config.window < NEED) throw new ProviderError(I18n.t('error.window', { window: config.window.toLocaleString('en-US'), need: NEED.toLocaleString('en-US') }));
- if (config.provider !== 'deepseek') return counted(config, await viaMain(config, options));
- const { messages, tools, signal, onReasoning, onContent } = options;
- return counted(config, await DeepSeek.streamChat({ key: config.key, model: config.model, effort: config.effort, vision: config.vision, messages, tools, signal, onReasoning, onContent }));
+ const { messages, tools, signal, onReasoning, onContent, onRetry } = options;
+ const result = await endure(config, begin => {
+  const live = heard(begin, onContent, onReasoning);
+  if (config.provider !== 'deepseek') return viaMain(config, { ...options, ...live });
+  return DeepSeek.streamChat({ key: config.key, model: config.model, effort: config.effort, vision: config.vision, messages, tools, signal, ...live });
+ }, { signal, onRetry });
+ return counted(config, result);
 }
 
 // Short side jobs, such as naming a chat or compacting it, think as little as the model allows. `onUsage` hears what the job
 // cost, for a chat that keeps count of its own tokens.
 async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
- if (config.provider === 'deepseek') {
-  const result = counted(config, await DeepSeek.complete({ key: config.key, model: config.model, messages, signal, maxTokens }));
-  onUsage?.(result.usage);
-  return result.content;
- }
+ const once = begin => config.provider === 'deepseek'
+  ? DeepSeek.complete({ key: config.key, model: config.model, messages, signal, maxTokens, ...heard(begin) })
+  : sideComplete(config, { messages, signal, maxTokens, ...heard(begin) });
+ const result = counted(config, await endure(config, once, { signal }));
+ onUsage?.(result.usage);
+ return config.provider === 'deepseek' ? result.content : result.content.trim();
+}
+
+function sideComplete(config, { messages, signal, maxTokens, ...live }) {
  const efforts = config.efforts || [];
  const effort = efforts.includes('none') ? 'none' : efforts[0] || 'low';
- // A model that always thinks spends its room on thinking first, so it gets room for both.
- const room = config.provider === 'anthropic' || !efforts.includes('none') ? Math.max(maxTokens, 2048) : maxTokens;
- const result = counted(config, await viaMain({ ...config, effort }, { messages, signal, maxTokens: room, once: true }));
- onUsage?.(result.usage);
- return result.content.trim();
+ // A model that always thinks spends its room on thinking first, so it gets room for both. So does a service's model:
+ // its "none" is only offered, and one that turns it down is asked again with nothing said and thinks as it likes.
+ const room = config.provider === 'anthropic' || config.provider === 'custom' || !efforts.includes('none') ? Math.max(maxTokens, 2048) : maxTokens;
+ return viaMain({ ...config, effort }, { messages, signal, maxTokens: room, once: true, ...live });
 }
 
 // A prediction of the user's next message (predictions.js): the chat's own request with a word from the app at its end,
@@ -129,9 +188,12 @@ async function predict(config, { messages, tools, signal, session }) {
  const options = { messages, tools, signal: stop.signal, onContent, maxTokens, session, aside: true };
  try {
   if (signal?.aborted) return '';
-  const result = counted(config, config.provider === 'deepseek'
-   ? await DeepSeek.streamChat({ key: config.key, model: config.model, effort, vision: config.vision, ...options })
-   : await viaMain({ ...config, effort }, options));
+  const result = counted(config, await endure(config, begin => {
+   const live = heard(begin, onContent);
+   return config.provider === 'deepseek'
+    ? DeepSeek.streamChat({ key: config.key, model: config.model, effort, vision: config.vision, ...options, ...live })
+    : viaMain({ ...config, effort }, { ...options, ...live });
+  }, { signal: stop.signal }));
   // Told not to call tools, a model that calls one all the same has predicted nothing.
   return result.toolCalls?.length ? '' : result.content;
  } catch (error) {

@@ -542,6 +542,8 @@ module.exports = {
  hide,
  toggle,
  get on() { return config.on; },
+ // Whether an agent is at work in the quick chat.
+ get working() { return working; },
  get window() { return win; },
  get photoWindow() { return photo; },
  // Started with the computer, the app waits in the tray without its window.

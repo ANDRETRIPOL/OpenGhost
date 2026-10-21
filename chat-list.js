@@ -246,7 +246,17 @@ class ChatList {
   const branch = element('span', 'chat-fork');
   branch.innerHTML = Glyphs.fork;
   mark.append(element('span', 'chat-dot'), bolt, guard, clock, branch);
+  // Two lines: the title, and under it the time and the start of the chat's last message; at the end its latest
+  // picture, small, which gives way to the buttons under the pointer (chat-preview.js works them out).
+  const body = element('span', 'chat-body');
   const title = element('span', 'chat-title');
+  const line = element('span', 'chat-line');
+  const said = element('span', 'chat-said');
+  const photo = element('img', 'chat-photo');
+  photo.alt = '';
+  photo.hidden = true;
+  photo.draggable = false;
+  photo.decoding = 'async';
   const meta = element('span', 'chat-meta');
   const time = element('span', 'chat-time');
   const actions = element('span', 'chat-actions');
@@ -260,15 +270,18 @@ class ChatList {
   label(more, I18n.t('chat.more'));
   more.setAttribute('aria-haspopup', 'menu');
   actions.append(pin, more);
-  meta.append(time, actions);
-  row.append(mark, title, meta);
-  return { row, mark, title, time, rename, lock, pin, remove, ghost: null, pinned: null, guarded: null, locked: null, veil: 0, confirm: false, timer: 0, editing: null };
+  line.append(time, said);
+  body.append(title, line);
+  meta.append(photo, actions);
+  row.append(mark, body, meta);
+  return { row, mark, title, time, said, photo, shown: null, rename, lock, pin, remove, ghost: null, pinned: null, guarded: null, locked: null, veil: 0, confirm: false, timer: 0, editing: null };
  }
 
  paint(item, chat) {
   const active = chat.id === this.chat.activeId, routine = routineState(chat);
   this.guard(item, chat);
   item.time.textContent = this.timeOf(chat);
+  this.preview(item, chat);
   item.row.classList.toggle('is-active', active);
   item.row.classList.toggle('is-quick', !!chat.quick);
   item.row.classList.toggle('is-routine', !!routine);
@@ -290,6 +303,20 @@ class ChatList {
   this.busy(item, busy);
   // Locking waits for the reply to finish, the same as changing the model.
   item.lock.disabled = busy;
+ }
+
+ // The start of the chat's last message, the user's marked as theirs, and its latest picture. A protected chat shows
+ // neither.
+ preview(item, chat) {
+  const seen = chat.lock ? null : chat.preview, words = seen?.text ? `${seen.mine ? `${I18n.t('chat.you')} ` : ''}${seen.text}` : '';
+  if (item.said.textContent !== words) item.said.textContent = words;
+  const src = seen?.photo || '';
+  if (item.shown === src) return;
+  item.shown = src;
+  item.row.classList.toggle('has-photo', !!src);
+  item.photo.hidden = !src;
+  if (src) item.photo.src = src;
+  else item.photo.removeAttribute('src');
  }
 
  // A protected chat wears a small padlock instead of the dot, shut while the chat is locked; its title then hides behind a blur.

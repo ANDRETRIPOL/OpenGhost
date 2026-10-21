@@ -4,6 +4,8 @@
 const GAP = 8;
 const EDGE = 8;
 const FADE = 32;
+// After a copy the sign turns into a tick, and the menu goes this long after.
+const COPIED = 650;
 const SOURCE = '.message.is-assistant .message-content';
 // The buttons under a message hold none of its words.
 const CHROME = '.message-tools, .message-actions';
@@ -22,11 +24,15 @@ class SelectionMenu {
   const el = this.el = document.createElement('div');
   el.className = 'select-menu';
   el.setAttribute('role', 'toolbar');
-  el.innerHTML = `<button type="button" class="select-menu-button" data-action="ask">${Glyphs.quote}<span>${I18n.t('select.ask')}</span></button>`
+  // Copy first, as in the system's own menu: not everyone copies with the keys.
+  el.innerHTML = `<button type="button" class="select-menu-button is-copy" data-action="copy"><span class="select-menu-signs">${Glyphs.copy}${Glyphs.check}</span><span>${I18n.t('select.copy')}</span></button>`
+   + `<span class="select-menu-divider" aria-hidden="true"></span>`
+   + `<button type="button" class="select-menu-button" data-action="ask">${Glyphs.quote}<span>${I18n.t('select.ask')}</span></button>`
    + `<span class="select-menu-divider" aria-hidden="true"></span>`
    + `<button type="button" class="select-menu-button" data-action="mini">${Glyphs.bubble}<span>${I18n.t('select.mini')}</span></button>`;
   this.mini = el.querySelector('[data-action="mini"]');
-  this.divider = el.querySelector('.select-menu-divider');
+  this.copy = el.querySelector('[data-action="copy"]');
+  this.divider = el.querySelectorAll('.select-menu-divider')[1];
   el.addEventListener('pointerdown', event => event.preventDefault());
   el.addEventListener('click', event => this.onClick(event));
   document.addEventListener('selectionchange', () => {
@@ -152,6 +158,8 @@ class SelectionMenu {
  }
 
  hide() {
+  clearTimeout(this.copying);
+  this.copy.classList.remove('is-copied');
   this.el.classList.remove('is-shown');
   this.range = null;
   this.box = null;
@@ -162,6 +170,16 @@ class SelectionMenu {
   const button = event.target.closest('[data-action]');
   if (!button || !this.box) return;
   const { text, box } = this;
+  // Copied: the words stay selected, the sign turns into a tick, and the menu goes a moment later.
+  if (button.dataset.action === 'copy') {
+   navigator.clipboard.writeText(text).then(() => {
+    if (this.box !== box) return;
+    this.copy.classList.add('is-copied');
+    clearTimeout(this.copying);
+    this.copying = setTimeout(() => this.hide(), COPIED);
+   }, () => {});
+   return;
+  }
   this.hide();
   document.getSelection().removeAllRanges();
   if (button.dataset.action === 'ask') this.onAsk(text, box);

@@ -145,7 +145,7 @@ const RoutinePill = {
   el.__entry = entry;
   const pill = element('button', 'thread-note-pill');
   pill.type = 'button';
-  pill.innerHTML = `<span class="thread-note-sign" aria-hidden="true">${Glyphs.routine}</span><span class="thread-note-label"></span><span class="routine-chip"></span><span class="thread-note-text"></span><span class="thread-note-go"></span>`;
+  pill.innerHTML = `<span class="thread-note-sign" aria-hidden="true">${Glyphs.routine}</span><span class="thread-note-label"></span><span class="routine-middle"><span class="routine-chip"></span><span class="thread-note-text"></span></span><span class="thread-note-go"></span>`;
   pill.querySelector('.thread-note-go').textContent = I18n.t('notes.pill.open');
   const chip = kind === 'ran' ? Routines.when(entry.at) : entry.say || '';
   pill.querySelector('.thread-note-label').textContent = I18n.t(LABELS[kind]);

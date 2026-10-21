@@ -1,11 +1,12 @@
 {
   "name": "openghost",
   "productName": "OpenGhost",
-  "version": "1.4.9",
+  "version": "1.5.0",
   "private": true,
   "description": "OpenGhost",
   "main": "desktop/main.js",
   "scripts": {
+    "test": "node tests/compact-record-retry.cjs && node tests/agents-queue.cjs && node tests/agent-plan.cjs && node tests/update.cjs",
     "start": "electron .",
     "shortcut": "electron . --create-shortcut",
     "dist": "electron-builder --win nsis --publish never",
@@ -28,6 +29,7 @@
       "!dist/**",
       "!images/**",
       "!site/**",
+      "!tests/**",
       "!.github/**",
       "!**/*.md"
     ],

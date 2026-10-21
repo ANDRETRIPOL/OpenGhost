@@ -37,7 +37,7 @@ class ThreadBones {
  }
 
  sync() {
-  const flags = this.read(), was = this.flags, dragged = this.app.classList.contains('is-browser-resizing');
+  const flags = this.read(), was = this.flags, dragged = this.app.classList.contains('is-browser-resizing') || this.app.classList.contains('is-sidebar-resizing');
   this.flags = flags;
   if (dragged) { this.veil(); clearTimeout(this.timer); this.held = true; return; }
   if (this.held) { this.held = false; this.unveil(); }

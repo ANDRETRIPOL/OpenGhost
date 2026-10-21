@@ -173,7 +173,7 @@ class Settings {
   this.pager();
   this.collect();
   dialog.addEventListener('dismiss', () => dialog.close());
-  dialog.addEventListener('close', () => this.conceal());
+  dialog.addEventListener('close', () => { this.conceal(); this.grounded?.(); this.grounded = null; });
   // Mid-transition of the theme a click lands on <html>, outside the dialog, and must not close it.
   dialog.addEventListener('cancel', event => {
    if (window.Theme?.moving) event.preventDefault();
@@ -288,8 +288,8 @@ class Settings {
  byHand(provider, models) {
   const hand = this.hand[provider], listed = new Set(models.map(model => model.api));
   // A model named by hand is one nobody told anything about: a service's is offered the effort the OpenAI API takes,
-  // a local server's is left to think as it does by itself.
-  const think = provider === 'custom' ? { efforts: ['auto', 'low', 'medium', 'high'], defaultEffort: 'auto', thinking: 'levels' } : { efforts: ['auto'], defaultEffort: 'auto', thinking: 'none' };
+  // "none" among it, as desktop/local.js offers it for a listed one; a local server's is left to think as it does.
+  const think = provider === 'custom' ? { efforts: ['none', 'auto', 'low', 'medium', 'high'], defaultEffort: 'auto', thinking: 'levels' } : { efforts: ['auto'], defaultEffort: 'auto', thinking: 'none' };
   const own = hand.names.filter(name => !listed.has(name)).map(name => ({ id: `${provider}:${name}`, provider, api: name, name, context: 0, output: 0, vision: provider === 'custom', tools: true, ...think }));
   // A window written by hand is held to the largest the model can take, where the server tells that.
   const sized = model => hand.context ? (model.limit ? Math.min(hand.context, model.limit) : hand.context) : model.context || (model.limit ? Math.min(model.limit, LOCAL.window) : LOCAL.window);
@@ -610,6 +610,8 @@ class Settings {
   const opening = !this.dialog.open;
   if (opening) {
    this.dialog.showModal();
+   // Over the sidebar of a window of glass it needs a ground under it to be frosted there too (glass-ground.js).
+   this.grounded = window.GlassGround?.hold(this.dialog);
    this.dialog.focus();
    this.syncAccount();
   }

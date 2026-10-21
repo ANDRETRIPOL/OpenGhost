@@ -255,13 +255,9 @@ class Library {
   this.gone.add(id);
   this.forget(id);
   this.changed();
-  this.store.remove(`chats/${id}`).catch(() => {});
-  this.store.remove(`mini/${id}`).catch(() => {});
-  this.store.remove(`notes/${id}`).catch(() => {});
+  this.removeFiles(id);
   // Its routines go with it: they would have nowhere to run.
   window.Routines?.forget(id);
-  // After any save of them still on its way.
-  this.queue(id, () => this.store.remove(`drafts/${id}`));
   if (this.isHome(chat)) window.openghost?.releaseFolder?.(this.cwdOf(chat)).catch(() => {});
  }
 
@@ -275,18 +271,31 @@ class Library {
   }
   this.changed();
   for (const chat of gone) {
-   this.store.remove(`chats/${chat.id}`).catch(() => {});
-   this.store.remove(`mini/${chat.id}`).catch(() => {});
-   this.store.remove(`notes/${chat.id}`).catch(() => {});
+   this.removeFiles(chat.id);
    window.Routines?.forget(chat.id);
-   this.queue(chat.id, () => this.store.remove(`drafts/${chat.id}`));
   }
   return gone.map(chat => chat.id);
+ }
+
+ // A password change or save already in flight finishes before the final deletion of every chat file.
+ removeFiles(id) {
+  return this.queue(id, () => Promise.all(['chats', 'mini', 'notes', 'record', 'drafts'].map(kind => this.store.remove(`${kind}/${id}`))));
  }
 
  forget(id) {
   this.keys.delete(id);
   this.titles.delete(id);
+  window.openghost?.pictures?.lock(id);
+ }
+
+ // The key for the pictures the agent showed in a chat with a password (desktop/pictures.js): 32 random bytes, sealed
+ // with the chat's own key in its lock. A chat protected before there was such a key gets one the first time it opens.
+ async pictureKey(chat, key) {
+  if (chat.lock.pictures) return (await ChatLock.open(key, chat.lock.pictures)).key;
+  const raw = Library.pictureKey();
+  chat.lock.pictures = await ChatLock.seal(key, { key: raw });
+  this.changed();
+  return raw;
  }
 
  // A sealed chat opens only with its key; without one this throws rather than hand back an empty chat that could overwrite it.
@@ -343,6 +352,30 @@ class Library {
   return this.queue(id, async () => this.store.write(`notes/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
  }
 
+ // This chat's private record: facts the agent keeps for itself, apart from the project folder so no other chat can
+ // read them, and sealed with the chat's key when it has a password. Empty text removes the file.
+ record(id) {
+  return this.queue(id, async () => {
+   const data = await this.store.read(`record/${id}`);
+   if (!data) return '';
+   if (data.sealed && !this.keys.has(id)) return '';
+   const body = data.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
+   return typeof body?.text === 'string' ? body.text : '';
+  }, true).then(text => text || '');
+ }
+
+ saveRecord(id, text) {
+  const body = { text: String(text || '') };
+  return this.queue(id, async () => {
+   // Recheck after earlier jobs: the chat may have been deleted or locked while this save waited.
+   const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
+   if (!chat || (chat.lock && !key)) return false;
+   if (!body.text.trim()) await this.store.remove(`record/${id}`);
+   else await this.store.write(`record/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body });
+   return true;
+  }, true);
+ }
+
  // The words written in a chat's field and not sent yet (script.js): kept beside the chat so they outlive a restart, and
  // sealed with the chat's key when it has a password. `new` holds those of a chat not started yet. A locked chat gives
  // none: they can't be read without its key.
@@ -367,20 +400,29 @@ class Library {
   // A chat without a project folder: the fork works in the same folder of its own, with what the agent made there.
   if (chat.space) copy.space = chat.space;
   if (chat.model) copy.model = chat.model;
-  const [notes, side] = await Promise.all([this.notes(id), this.side(id)]);
+  const [notes, side, brief] = await Promise.all([this.notes(id), this.side(id), this.record(id)]);
   const seal = async body => key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body };
+  // The fork keeps copies of the pictures the agent showed, under its own name, so deleting the chat it came from
+  // leaves the fork whole.
+  const from = `ogpic://chat/${id}/`, to = `ogpic://chat/${copy.id}/`;
+  if (messages.some(entry => typeof entry.content === 'string' && entry.content.includes(from))) {
+   await window.openghost?.pictures?.copy(id, copy.id);
+   messages = messages.map(entry => typeof entry.content === 'string' && entry.content.includes(from) ? { ...entry, content: entry.content.split(from).join(to) } : entry);
+  }
   // What the mini chat spent is its chat's: the fork's count starts with its own.
   const mini = side.messages.map(entry => ({ ...entry, forked: true }));
   await this.queue(copy.id, async () => {
    await this.store.write(`chats/${copy.id}`, await seal({ messages, tokens }));
    if (notes.items.length) await this.store.write(`notes/${copy.id}`, await seal({ items: notes.items, next: notes.next }));
    if (mini.length) await this.store.write(`mini/${copy.id}`, await seal({ messages: mini, tokens: side.tokens, seen: side.seen }));
+   if (brief) await this.store.write(`record/${copy.id}`, await seal({ text: brief }));
   });
   if (key) {
    copy.lock = { ...chat.lock, title: await ChatLock.seal(key, { title }) };
    copy.title = '';
    this.keys.set(copy.id, key);
    this.titles.set(copy.id, title);
+   if (chat.lock.pictures && window.openghost?.pictures) await window.openghost.pictures.unlock(copy.id, (await ChatLock.open(key, chat.lock.pictures)).key);
   }
   this.fresh.add(copy.id);
   this.chats.push(copy);
@@ -397,30 +439,31 @@ class Library {
   return this.queue(id, async () => this.store.write(`drafts/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
  }
 
- // Seals a chat's mini chat, its notes and its unsent words along with it, or opens them for good when the password comes
- // off. One that fails to change never holds the chat's own password back.
- async reseal(id, key) {
-  const kept = {
-   mini: data => ({ messages: data.messages, tokens: data.tokens, seen: data.seen }),
-   notes: data => ({ items: data.items, next: data.next }),
-   drafts: data => ({ text: data.text }),
-  };
-  for (const [kind, plain] of Object.entries(kept)) {
-   try {
-    const data = await this.store.read(`${kind}/${id}`);
-    if (!data || !!data.sealed === !!key) continue;
-    const body = data.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : plain(data);
-    await this.store.write(`${kind}/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body });
-   } catch {}
+ // Prepare every file before changing the password. Keep originals so a failed write can be rolled back.
+ async passwordFiles(id, key, loaded) {
+  const files = [];
+  for (const kind of ['chats', 'mini', 'notes', 'drafts', 'record']) {
+   const name = `${kind}/${id}`, before = await this.store.read(name);
+   if (kind !== 'chats' && (!before || !!before.sealed === !!key)) continue;
+   const body = kind === 'chats' && loaded ? loaded : before?.sealed ? await ChatLock.open(this.keys.get(id), before.sealed) : before || { messages: [], tokens: 0 };
+   const after = key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body };
+   files.push({ name, before, after });
   }
+  return files;
+ }
+
+ async restorePasswordFiles(files) {
+  const restored = await Promise.allSettled(files.map(({ name, before }) => before ? this.store.write(name, before) : this.store.remove(name)));
+  return restored.every(result => result.status === 'fulfilled');
  }
 
  // Writes of one chat's messages go out one after another, in the order they were asked for.
- queue(id, job) {
-  const next = (this.writes.get(id) || Promise.resolve()).then(job).catch(() => {});
+ // Record operations must report failures; older background saves keep their existing error handling.
+ queue(id, job, strict = false) {
+  const run = (this.writes.get(id) || Promise.resolve()).then(job), next = run.catch(() => {});
   this.writes.set(id, next);
   next.then(() => { if (this.writes.get(id) === next) this.writes.delete(id); });
-  return next;
+  return strict ? run : next;
  }
 
  // Puts a password on a chat. The index takes the lock first and the messages are sealed after it,
@@ -431,19 +474,36 @@ class Library {
   const salt = ChatLock.salt(), key = await ChatLock.derive(password, salt);
   let done = false;
   await this.queue(id, async () => {
-   const body = loaded || await this.conversation(id), title = chat.title;
-   chat.lock = { version: 1, iterations: ChatLock.ITERATIONS, salt, title: await ChatLock.seal(key, { title }) };
-   chat.title = '';
+   const title = chat.title, applied = [];
+   let lock = null, published = false;
    try {
+    const files = await this.passwordFiles(id, key, loaded);
+    if (!this.chat(id)) return;
+    const raw = Library.pictureKey();
+    lock = { version: 1, iterations: ChatLock.ITERATIONS, salt, title: await ChatLock.seal(key, { title }), pictures: await ChatLock.seal(key, { key: raw }) };
+    chat.lock = lock;
+    chat.title = '';
+    // What the row showed of the chat (its last words and picture) is not kept in the clear either.
+    chat.preview = null;
     await this.persist();
-   } catch (error) {
-    delete chat.lock;
-    chat.title = title;
-    throw error;
+    published = true;
+    for (const file of files) { await this.store.write(file.name, file.after); applied.push(file); }
+    // The pictures the agent showed in the chat are sealed too, with the chat's key for them.
+    await window.openghost?.pictures?.reseal(id, raw, true);
+    done = true;
+   } catch {
+    const restored = await this.restorePasswordFiles(applied);
+    if (lock && (!published || restored)) {
+     delete chat.lock;
+     chat.title = title;
+     if (published) {
+      try { await this.persist(); }
+      catch { chat.lock = lock; chat.title = ''; }
+     }
+    }
+    // If rollback itself failed, keep the password and key recoverable instead of orphaning sealed files.
+    if (chat.lock) { this.keys.set(id, key); this.titles.set(id, title); }
    }
-   done = true;
-   await this.store.write(`chats/${id}`, { version: 1, sealed: await ChatLock.seal(key, { messages: body.messages, tokens: body.tokens }) });
-   await this.reseal(id, key);
   });
   this.changed();
   return done;
@@ -458,6 +518,8 @@ class Library {
    const { title } = await ChatLock.open(key, chat.lock.title);
    if (!this.keys.has(id)) this.keys.set(id, key);
    this.titles.set(id, title);
+   // While the chat is open its pictures can be drawn and kept, sealed.
+   if (window.openghost?.pictures) await window.openghost.pictures.unlock(id, await this.pictureKey(chat, key));
    this.onChange();
    return true;
   } catch {
@@ -477,14 +539,22 @@ class Library {
   if (!chat?.lock || !this.keys.has(id)) return false;
   let done = false;
   await this.queue(id, async () => {
-   const body = loaded || await this.conversation(id);
-   await this.store.write(`chats/${id}`, { version: 1, messages: body.messages, tokens: body.tokens });
-   await this.reseal(id, null);
-   chat.title = this.titles.get(id) ?? '';
-   delete chat.lock;
-   this.forget(id);
-   await this.persist();
-   done = true;
+   const lock = chat.lock, title = chat.title, applied = [];
+   try {
+    const files = await this.passwordFiles(id, null, loaded);
+    for (const file of files) { await this.store.write(file.name, file.after); applied.push(file); }
+    // The pictures are opened back into the clear with the chat, before the lock and its key for them go.
+    if (lock.pictures && window.openghost?.pictures) await window.openghost.pictures.reseal(id, (await ChatLock.open(this.keys.get(id), lock.pictures)).key, false);
+    chat.title = this.titles.get(id) ?? '';
+    delete chat.lock;
+    await this.persist();
+    this.forget(id);
+    done = true;
+   } catch {
+    chat.lock = lock;
+    chat.title = title;
+    await this.restorePasswordFiles(applied);
+   }
   });
   this.changed();
   return done;
@@ -492,6 +562,8 @@ class Library {
 }
 
 Library.pathKey = pathKey;
+// A new key for a chat's pictures: 32 random bytes, in base64.
+Library.pictureKey = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
 Library.samePath = samePath;
 window.Library = Library;
 })();

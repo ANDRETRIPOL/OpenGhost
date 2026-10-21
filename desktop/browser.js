@@ -4,6 +4,7 @@ const { app, clipboard, Menu, nativeImage, session, webContents } = require('ele
 const fs = require('node:fs');
 const path = require('node:path');
 const Lang = require('./lang');
+const Pictures = require('./pictures');
 
 const PARTITION = 'persist:browser';
 const WORLD = 1077;
@@ -257,6 +258,62 @@ function install() {
   return true;
  }
 
+ // The picture an element shows, for the agent to show the user (show_pictures): the largest image seen in it, or its
+ // own background picture, with the address of the largest size the page offers for it, and where it is drawn on the
+ // screen, for a shot of it when there is no address to fetch. Nothing on the page moves.
+ const area = r => Math.max(0, r.width) * Math.max(0, r.height);
+ function widest(img) {
+  let best = img.currentSrc || img.src, most = 0;
+  const set = img.getAttribute('srcset') || img.closest('picture')?.querySelector('source[srcset]')?.getAttribute('srcset') || '';
+  for (const part of set.split(/,\s+/)) {
+   const [url, size] = part.trim().split(/\s+/), width = parseFloat(size) || 0;
+   if (url && /w$/.test(size || '') && width > most) { most = width; best = new URL(url, img.baseURI).href; }
+  }
+  return best;
+ }
+ function backgroundOf(el) {
+  const url = styleOf(el).backgroundImage.match(/url\(["']?([^"')]+)["']?\)/)?.[1];
+  return url ? new URL(url, el.baseURI).href : '';
+ }
+ // An element with no picture of its own (the name or the price of a product, the link under its photo) stands for
+ // the photo of the card it is in: up to `PICTURE_UP` levels up, the nearest of the pictures there worth a look.
+ const PICTURE_UP = 5, PICTURE_LEAST = 2500;
+ function picturesIn(el) {
+  return (el.tagName === 'IMG' ? [el] : [...el.querySelectorAll('img')]).filter(img => shown(img) && area(rectOf(img)) > 64);
+ }
+ function pictureOf(el) {
+  let images = picturesIn(el);
+  images.sort((a, b) => area(rectOf(b)) - area(rectOf(a)));
+  if (!images[0] && !backgroundOf(el)) {
+   const at = rectOf(el), middle = r => [r.left + r.width / 2, r.top + r.height / 2];
+   const [x, y] = middle(at);
+   for (let up = el.parentElement, k = 0; up && up !== document.body && k < PICTURE_UP; up = up.parentElement, k++) {
+    const near = picturesIn(up).filter(img => area(rectOf(img)) >= PICTURE_LEAST);
+    if (!near.length) continue;
+    const far = img => { const [u, v] = middle(rectOf(img)); return Math.hypot(u - x, v - y); };
+    images = near.sort((a, b) => far(a) - far(b));
+    break;
+   }
+  }
+  if (images[0]) return { src: widest(images[0]), rect: rectOf(images[0]), alt: clean(images[0].alt) };
+  return { src: backgroundOf(el), rect: rectOf(el), alt: clean(el.getAttribute('aria-label') || el.title || '') };
+ }
+ function image(ref) {
+  return pictureOf(element(ref));
+ }
+ // A part of the screen marked on a screenshot: the picture under its middle, when the part is mostly that picture.
+ function imageIn(x, y, width, height) {
+  const part = { left: x, top: y, right: x + width, bottom: y + height, width, height };
+  for (const hit of document.elementsFromPoint(x + width / 2, y + height / 2)) {
+   const src = hit.tagName === 'IMG' ? widest(hit) : backgroundOf(hit);
+   if (!src || !shown(hit)) continue;
+   const r = rectOf(hit), both = area({ width: Math.min(r.right, part.right) - Math.max(r.left, part.left), height: Math.min(r.bottom, part.bottom) - Math.max(r.top, part.top) });
+   if (both >= 0.6 * area(part) && both >= 0.4 * area(r)) return { src, rect: r, alt: clean(hit.alt || '') };
+   break;
+  }
+  return { src: '', rect: part, alt: '' };
+ }
+
  function quiet(idle, max) {
   return new Promise(resolve => {
    let timer = 0;
@@ -280,7 +337,7 @@ function install() {
   return false;
  }
 
- window.__og = { snapshot, point, choose, reveal, quiet, has };
+ window.__og = { snapshot, point, choose, reveal, quiet, has, image, imageIn };
 }
 
 const INSTALL = `(${install.toString()})();`;
@@ -522,6 +579,35 @@ async function screenshot(guest, full) {
  return { image: `data:image/jpeg;base64,${image.toJPEG(SHOT.quality).toString('base64')}`, width: size.width, height: size.height, scale: size.width / width };
 }
 
+// A picture for the agent to show the user (show_pictures), kept for its chat: the picture of element ref, the picture
+// in a part of the screen (x, y, width, height in page pixels, read from a screenshot), or the whole screen. A picture
+// with an address is fetched at the largest size the page offers; anything else is cut from a shot of the screen.
+async function picture(guest, args, signal) {
+ const chat = String(args.chat || ''), page = guest.getURL(), title = guest.getTitle();
+ const given = key => args[key] !== undefined && args[key] !== null && args[key] !== '';
+ const part = ['x', 'y', 'width', 'height'].every(key => given(key) && Number.isFinite(Number(args[key]))) && Number(args.width) > 0 && Number(args.height) > 0;
+ let seen = null;
+ if (given('ref')) seen = await world(guest, `__og.image(${Number(args.ref)})`);
+ else if (part) seen = await world(guest, `__og.imageIn(${['x', 'y', 'width', 'height'].map(key => Number(args[key])).join(', ')})`);
+ if (seen?.src && /^(https?|data):/i.test(seen.src)) {
+  const kept = await Pictures.fromWeb(chat, seen.src, page, signal, !!args.sealed).catch(() => null);
+  // A thumbnail the page drew larger than it is would look worse than the shot of it.
+  if (kept && kept.width >= seen.rect.width * 0.8) return { ...kept, page, title, alt: seen.alt, from: 'picture' };
+ }
+ const metrics = await guest.debugger.sendCommand('Page.getLayoutMetrics'), view = metrics.cssVisualViewport;
+ const shot = await timed(guest.debugger.sendCommand('Page.captureScreenshot', { format: 'png' }), WAIT.call, 'The page did not draw a screenshot');
+ let image = nativeImage.createFromBuffer(Buffer.from(shot.data, 'base64'));
+ const rect = seen?.rect || null;
+ if (rect) {
+  const k = image.getSize().width / view.clientWidth;
+  const left = Math.max(0, rect.left), top = Math.max(0, rect.top), right = Math.min(view.clientWidth, rect.left + rect.width), bottom = Math.min(view.clientHeight, rect.top + rect.height);
+  if (right - left < 4 || bottom - top < 4) throw plain('That is not on the screen now: scroll it into view first');
+  image = image.crop({ x: Math.round(left * k), y: Math.round(top * k), width: Math.round((right - left) * k), height: Math.round((bottom - top) * k) });
+ }
+ const kept = await Pictures.keep(chat, { image }, !!args.sealed);
+ return { ...kept, page, title, alt: seen?.alt || '', from: rect ? 'part' : 'screen' };
+}
+
 async function act(found, name, args, signal) {
  const { guest } = found;
  // A step the user stopped, or took the browser from, goes no further: it asks before each thing it does to the page.
@@ -610,6 +696,8 @@ async function act(found, name, args, signal) {
    await settle(guest);
    return state(guest);
   }
+  case 'browser_picture':
+   return picture(guest, args, signal);
   case 'browser_screenshot': {
    const shot = await screenshot(guest, !!args.full_page);
    const scale = Math.abs(shot.scale - 1) < 0.01 ? 'one screenshot pixel is one page pixel, so x and y for browser_click can be read from it' : `to click by coordinates divide screenshot pixels by ${shot.scale.toFixed(3)}`;

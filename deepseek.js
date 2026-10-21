@@ -6,10 +6,11 @@ const BASE_URL = 'https://api.deepseek.com';
 const statusMessage = status => I18n.has(`error.${status}`) ? I18n.t(`error.${status}`) : '';
 
 class DeepSeekError extends Error {
- constructor(message, status = 0) {
+ constructor(message, status = 0, code = '') {
   super(message);
   this.name = 'DeepSeekError';
   this.status = status;
+  this.code = code;
  }
 }
 
@@ -20,7 +21,7 @@ async function request(path, key, options = {}) {
   response = await fetch(BASE_URL + path, { ...options, headers: { Authorization: `Bearer ${key}`, ...options.headers } });
  } catch (error) {
   if (error.name === 'AbortError') throw error;
-  throw new DeepSeekError(I18n.t('error.network'));
+  throw new DeepSeekError(I18n.t('error.network'), 0, 'network');
  }
  if (response.ok) return response;
  let detail = '';
@@ -49,6 +50,7 @@ async function listModels(key, signal) {
   id: model.id,
   name: model.name || '',
   context: Number(model.context_window) || 0,
+  output: Number(model.max_output_tokens) || Number(model.max_completion_tokens) || 0,
   efforts: effortsOf(model),
   defaultEffort: model.effort?.default_level || '',
   vision: Array.isArray(model.input_modalities) ? model.input_modalities.includes('image') : true,
@@ -73,7 +75,7 @@ function plain(messages) {
  return count ? [{ role: 'system', content: messages.slice(0, count).map(message => message.content).join('\n\n') }, ...rest] : rest;
 }
 
-async function streamChat({ key, model, effort, vision = true, messages, tools, signal, onReasoning, onContent, maxTokens = 0 }) {
+async function streamChat({ key, model, effort, vision = true, messages, tools, signal, onReasoning, onContent, onActivity, maxTokens = 0 }) {
  const response = await request('/chat/completions', key, {
   method: 'POST',
   signal,
@@ -100,8 +102,8 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
  try {
   for (;;) {
    const { value, done: ended } = await reader.read();
-   if (ended) break;
-   buffer += value;
+   if (ended && !buffer.trim()) break;
+   buffer += ended ? '\n' : value;
    const lines = buffer.split('\n');
    buffer = lines.pop();
    for (const line of lines) {
@@ -109,7 +111,7 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
     const data = line.slice(5).trim();
     if (data === '[DONE]') return done();
     const chunk = JSON.parse(data);
-    if (chunk.error) throw new DeepSeekError(chunk.error.message || I18n.t('error.generic'));
+    if (chunk.error) throw new DeepSeekError(chunk.error.message || I18n.t('error.generic'), Number(chunk.error.status) || Number(chunk.error.code) || 0, String(chunk.error.code || ''));
     if (chunk.usage) result.usage = chunk.usage;
     const choice = chunk.choices && chunk.choices[0];
     if (!choice) continue;
@@ -123,6 +125,7 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
      onContent?.(delta.content, result);
     }
     for (const part of delta.tool_calls || []) {
+     onActivity?.();
      const call = calls[part.index ?? calls.length] ||= { id: '', type: 'function', function: { name: '', arguments: '' } };
      if (part.id) call.id = part.id;
      if (part.function?.name) call.function.name += part.function.name;
@@ -130,27 +133,27 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
     }
     if (choice.finish_reason) result.finishReason = choice.finish_reason;
    }
+   if (ended) break;
   }
+  if (!result.finishReason) throw new DeepSeekError(I18n.t('error.interrupted'), 0, 'network');
  } catch (error) {
   if (error.name === 'AbortError') throw Object.assign(error, { partial: done() });
-  if (error instanceof DeepSeekError) throw error;
-  throw new DeepSeekError(I18n.t('error.interrupted'));
+  if (error instanceof DeepSeekError) throw Object.assign(error, { partial: done() });
+  if (result.finishReason) return done();
+  // The connection died before a token arrived. The same request can be asked again; one that already spoke cannot.
+  const partial = done();
+  if (!partial.content && !partial.reasoning && !partial.toolCalls.length) throw new DeepSeekError(I18n.t('error.interrupted'), 0, 'network');
+  throw Object.assign(new DeepSeekError(I18n.t('error.interrupted')), { partial });
  } finally {
   reader.cancel().catch(() => {});
  }
  return done();
 }
 
-async function complete({ key, model, messages, signal, maxTokens = 40 }) {
+async function complete({ key, model, messages, signal, maxTokens = 40, ...live }) {
  signal?.throwIfAborted();
- const response = await request('/chat/completions', key, {
-  method: 'POST',
-  signal,
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ model, messages, stream: false, max_tokens: maxTokens, thinking: { type: 'disabled' }, reasoning_effort: 'none' }),
- });
- const body = await response.json();
- return { content: body.choices?.[0]?.message?.content?.trim() || '', usage: body.usage || null };
+ const result = await streamChat({ key, model, messages, signal, maxTokens, effort: 'none', ...live });
+ return { ...result, content: result.content.trim() };
 }
 
 // What is left on the DeepSeek account, in each currency it holds: DeepSeek's own figure, nothing worked out here.

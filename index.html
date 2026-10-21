@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- Only the app's own script files run: text from a model, a site or a file can never become code here.
        The page itself calls DeepSeek alone; the other providers are called from the main process. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; media-src 'self' data: blob:; font-src 'self' data:; connect-src https://api.deepseek.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http: ogpic:; media-src 'self' data: blob:; font-src 'self' data:; connect-src https://api.deepseek.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenGhost</title>
   <link rel="icon" href="desktop/icon.png">
@@ -210,6 +210,7 @@
   <script src="media-slider.js"></script>
   <script src="photo-viewer.js"></script>
   <script src="media-embed.js"></script>
+  <script src="glass-ground.js"></script>
   <script src="settings.js"></script>
   <script src="settings-language.js"></script>
   <script src="settings-general.js"></script>
@@ -234,6 +235,7 @@
   <script src="chat-lock.js"></script>
   <script src="library.js"></script>
   <script src="agent-tools.js"></script>
+  <script src="agent-line.js"></script>
   <script src="agent-prompt.js"></script>
   <script src="approval-card.js"></script>
   <script src="ask-card.js"></script>
@@ -241,6 +243,8 @@
   <script src="notify.js"></script>
   <script src="routine-rule.js"></script>
   <script src="routines.js"></script>
+  <script src="agent-plan.js"></script>
+  <script src="chat-preview.js"></script>
   <script src="chat.js"></script>
   <script src="row-menu.js"></script>
   <script src="place-menu.js"></script>
@@ -251,11 +255,15 @@
   <script src="dock.js"></script>
   <script src="notepad.js"></script>
   <script src="routine-panel.js"></script>
+  <script src="plan-island.js"></script>
+  <script src="update-pill.js"></script>
+  <script src="side-panels.js"></script>
   <script src="mode-picker.js"></script>
   <script src="add-menu.js"></script>
   <script src="model-stage.js"></script>
   <script src="selection-focus.js"></script>
   <script src="selection-menu.js"></script>
+  <script src="edit-menu.js"></script>
   <script src="mini-chat.js"></script>
   <script src="browser-panel.js"></script>
   <script src="lock-ui.js"></script>

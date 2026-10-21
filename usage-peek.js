@@ -34,11 +34,10 @@ const HOUR = 3600, DAY = 86400;
 // way, this many rows hold the limits' place.
 const LIMITS = 4;
 const WAITING = 2;
-// The panel is as wide as the row its button stands in, within these, and keeps this far from the window's edges and
-// above the row. Its corners reach in by this share of its width, as the folder's do, and what it holds keeps in
-// from its sides by a share of the width too.
-const WIDTH = [220, 340];
-const ROUND = 0.127;
+// The panel is always this wide: as wide as a row of a narrow sidebar. As wide as the row of a wide one, it stretched
+// out with the sidebar, its few words far apart. It keeps this far from the window's edges and above the row, and
+// what it holds keeps in from its sides by a share of its width.
+const WIDTH = 220;
 const PAD = { share: 0.065, least: 16, most: 20 };
 const EDGE = 8;
 const LIFT = 6;
@@ -199,13 +198,12 @@ class UsagePeek {
   if (list) list.style.setProperty('--peek-cut', `${Math.round(innerHeight - parseFloat(root.style.bottom) - root.offsetHeight - list.getBoundingClientRect().top)}px`);
  }
 
- // The panel stands in the sidebar over the row its button is in, as wide as that row, and never reaches above the
- // list of chats: what stands over the list has nothing to step back.
+ // The panel stands in the sidebar over the row its button is in, from its left end, and never reaches above the list
+ // of chats: what stands over the list has nothing to step back.
  place() {
   const row = this.button.parentElement.getBoundingClientRect(), style = this.root.style, above = document.querySelector('.chats')?.getBoundingClientRect().top || 0;
-  const width = Math.round(Math.max(WIDTH[0], Math.min(WIDTH[1], row.width, innerWidth - 2 * EDGE)));
+  const width = Math.round(Math.min(WIDTH, innerWidth - 2 * EDGE));
   style.width = `${width}px`;
-  style.setProperty('--peek-round', `${Math.round(width * ROUND)}px`);
   style.setProperty('--peek-pad', `${Math.round(Math.max(PAD.least, Math.min(PAD.most, width * PAD.share)))}px`);
   style.left = `${Math.round(Math.max(EDGE, Math.min(row.left, innerWidth - width - EDGE)))}px`;
   style.bottom = `${Math.round(innerHeight - row.top + LIFT)}px`;

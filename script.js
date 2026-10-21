@@ -24,6 +24,10 @@ let notepad = null;
 // chat of its own, opened from the sidebar. The app's window runs them; the quick chat's only reads and sets them.
 let routinePanel = null;
 let routineMaker = null;
+// The agent's plan at the top of the chat, in the app's window: the quick chat's has no room for it.
+let planIsland = null;
+let updatePill = null;
+let sidePanels = null;
 const MAIN_WINDOW = !window.openghost?.quick;
 Routines.load();
 Skills.load();
@@ -82,7 +86,13 @@ const chat = new Chat({
   onNotes: (conv, change) => notepad?.onNotes(conv, change),
   onLeave: conv => putAway(conv),
   onPredict: conv => { if (conv === chat.active) syncComposer(); },
+  onPlan: conv => { if (conv === chat.active) planIsland?.sync(); },
 });
+if (MAIN_WINDOW) planIsland = new PlanIsland({ main, chat });
+// The chats' rows show the last message of each: older chats have it worked out once, a while after the start.
+if (MAIN_WINDOW) library.ready.then(() => setTimeout(() => chat.fillPreviews().catch(() => {}), 4000));
+// A new version of the app, at the top right beside the globe (desktop/update.js); the plan's island keeps clear of it.
+if (MAIN_WINDOW && window.openghost?.update) updatePill = new UpdatePill({ main, bridge: window.openghost.update, onMove: () => planIsland?.fit() });
 const lockScreen = new LockScreen({ main, chat, composer, onOpen: () => composerInput.focus({ preventScroll: true }) });
 const lockCard = new LockCard({ chat, library, scroller: document.querySelector('.chats-scroll'), screen: lockScreen });
 new WelcomeGhost({ main, root: document.querySelector('.welcome'), input: composerInput });
@@ -151,6 +161,8 @@ chat.onForked = (made, prompt) => {
   const files = pictures.map(file).filter(Boolean);
   if (chat.activeId === made.id && files.length) attachments.add(files);
 };
+// A right click on a field or on selected words: cut, copy, paste, select all (edit-menu.js).
+new EditMenu();
 new SelectionMenu({
   onAsk: (text, box) => {
     const mini = box.closest('.mini')?.__mini;
@@ -221,7 +233,10 @@ function setSidebarCollapsed(collapsed) {
   browserPanel?.fit();
 }
 
-sidebarToggle.addEventListener('sidebar-toggle', () => {
+// In the app's window the sidebar and the browser make room for the chat as the window narrows, and the sidebar can be
+// dragged wider or narrower (side-panels.js); the quick chat's window has neither.
+if (MAIN_WINDOW) sidePanels = new SidePanels({ app, sidebar, toggle: sidebarToggle, browser: browserPanel });
+else sidebarToggle.addEventListener('sidebar-toggle', () => {
   setSidebarCollapsed(!app.classList.contains('is-sidebar-collapsed'));
 });
 
@@ -342,6 +357,8 @@ function syncAll() {
   effortSlider?.lock(chat.busy);
   notepad?.sync();
   routinePanel?.sync();
+  planIsland?.sync();
+  sidePanels?.sync(chat.activeId);
   MiniChat.check();
 }
 

@@ -98,6 +98,12 @@ contextBridge.exposeInMainWorld('openghost', {
  releaseFolder: folder => ipcRenderer.invoke('folder:release', folder),
  setTitleBar: (color, symbols) => ipcRenderer.send('window:titlebar', color, symbols),
  setTheme: choice => ipcRenderer.invoke('theme:set', choice),
+ // A new version of the app (desktop/update.js): how far it has come, putting it in when it has, and each change.
+ update: {
+  state: () => ipcRenderer.invoke('update:state'),
+  install: () => ipcRenderer.invoke('update:install'),
+  onState: callback => ipcRenderer.on('update:state', (event, view) => callback(view)),
+ },
  // The language the page speaks, for what the main process itself puts on screen; and what the About page shows.
  lang: { set: next => ipcRenderer.invoke('lang:set', next) },
  about: () => ipcRenderer.invoke('app:about'),
@@ -120,11 +126,28 @@ contextBridge.exposeInMainWorld('openghost', {
   // Another window of the app wrote this key.
   onChange: callback => ipcRenderer.on('store:changed', (event, key) => callback(key)),
  },
+ // The pictures the agent shows in a chat: one from the internet (with the page it is on) or an image file, kept for
+ // the chat; each comes back as { url, width, height } or { error }.
+ pictures: {
+  web: (chat, url, page, sealed = false) => ipcRenderer.invoke('pictures:web', chat, url, page, sealed),
+  file: (chat, file, sealed = false) => ipcRenderer.invoke('pictures:file', chat, file, sealed),
+  // A chat with a password: the key for its pictures while it is open (base64 of 32 bytes), forgotten when locked;
+  // all its pictures sealed with it or opened with it; and a fork's copies of the pictures of its chat.
+  unlock: (chat, raw) => ipcRenderer.invoke('pictures:unlock', chat, raw),
+  lock: chat => ipcRenderer.invoke('pictures:lock', chat),
+  reseal: (chat, raw, sealing) => ipcRenderer.invoke('pictures:reseal', chat, raw, sealing),
+  copy: (from, to) => ipcRenderer.invoke('pictures:copy', from, to),
+ },
+ // Cut, copy, paste or select all, done by the window where its keyboard is (the menu of a right click).
+ edit: action => ipcRenderer.invoke('edit:do', action),
  tools: {
   run: (id, name, args, cwd) => ipcRenderer.invoke('tool:run', id, name, args, cwd),
   cancel: id => ipcRenderer.invoke('tool:cancel', id),
   environment: () => ipcRenderer.invoke('tool:environment'),
   guide: folder => ipcRenderer.invoke('tool:guide', folder),
+  mark: folder => ipcRenderer.invoke('tool:mark', folder),
+  changed: token => ipcRenderer.invoke('tool:changed', token),
+  ports: () => ipcRenderer.invoke('tool:ports'),
  },
  browser: {
   onEvent: callback => ipcRenderer.on('browser:event', (event, data) => callback(data)),

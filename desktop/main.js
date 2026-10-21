@@ -15,6 +15,8 @@ const Reveal = require('./reveal');
 const Notify = require('./notify');
 const Routines = require('./routines');
 const Skills = require('./skills');
+const Update = require('./update');
+const Pictures = require('./pictures');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
@@ -114,6 +116,9 @@ async function removeStore(key) {
  const file = storeFile(key);
  await (writes.get(file) || Promise.resolve()).catch(() => {});
  await fs.promises.rm(file, { force: true });
+ // A chat deleted for good takes the pictures its agent showed with it.
+ const chat = /^chats\/([a-z0-9-]+)$/.exec(key)?.[1];
+ if (chat) await Pictures.forget(chat);
 }
 
 function external(url) {
@@ -278,12 +283,29 @@ ipcMain.on('browser:shown', (event, value) => { if (fromApp(event)) Browser.setS
 ipcMain.handle('tool:cancel', (event, id) => { if (fromApp(event)) Tools.cancel(id); });
 ipcMain.handle('tool:environment', event => fromApp(event) ? Tools.environment() : null);
 ipcMain.handle('tool:guide', (event, folder) => fromApp(event) ? Tools.guide(folder) : null);
+// Agents sharing a folder (Desk in chat.js): which files a command changed, and the ports this computer listens on.
+ipcMain.handle('tool:mark', (event, folder) => fromApp(event) ? Tools.mark(folder) : '');
+ipcMain.handle('tool:changed', (event, token) => fromApp(event) ? Tools.changed(token) : []);
+ipcMain.handle('tool:ports', event => fromApp(event) ? Tools.ports() : []);
 // Skills (desktop/skills.js): those a chat can use, one's instructions, and one put in from a link; every window is told.
 Skills.setup({ fromApp, chats: Tools.CHATS, changed: () => { for (const each of BrowserWindow.getAllWindows()) if (!each.isDestroyed()) each.webContents.send('skills:changed'); } });
 ipcMain.handle('pdf:read', (event, source) => fromApp(event) ? Pdf.read(source) : { text: '', reason: 'unreadable' });
 LLM.register(fromApp);
 Keys.register(fromApp);
 Size.setup(fromApp);
+// The pictures the agent shows (desktop/pictures.js): one from the internet or a file, kept for its chat.
+const picture = work => work.catch(error => ({ error: error.plain ? error.message : `The picture could not be kept: ${error.message}` }));
+ipcMain.handle('pictures:web', (event, chat, url, page, sealed) => fromApp(event) ? picture(Pictures.fromWeb(chat, url, page, undefined, !!sealed)) : { error: 'Not allowed' });
+ipcMain.handle('pictures:file', (event, chat, file, sealed) => fromApp(event) ? picture(Pictures.fromFile(chat, file, undefined, !!sealed)) : { error: 'Not allowed' });
+// A chat with a password: its key for pictures while it is open, sealing or opening them all, and a fork's copies.
+ipcMain.handle('pictures:unlock', (event, chat, raw) => { if (fromApp(event)) Pictures.unlock(chat, raw); });
+ipcMain.handle('pictures:lock', (event, chat) => { if (fromApp(event)) Pictures.lock(chat); });
+ipcMain.handle('pictures:reseal', (event, chat, raw, sealing) => fromApp(event) ? Pictures.reseal(chat, raw, !!sealing) : null);
+ipcMain.handle('pictures:copy', (event, from, to) => fromApp(event) ? Pictures.copy(from, to) : null);
+// The menu of a right click (edit-menu.js): what it chose is done by the window to where its keyboard is, as the keys would.
+const EDITS = new Set(['cut', 'copy', 'paste', 'selectAll']);
+ipcMain.handle('edit:do', (event, action) => { if (fromApp(event) && EDITS.has(action)) event.sender[action](); });
+Pictures.register();
 
 if (process.argv.includes('--create-shortcut')) {
  app.whenReady().then(() => {
@@ -358,6 +380,7 @@ if (process.argv.includes('--create-shortcut')) {
     appUserModelId: APP_ID, toastActivatorClsid: SOURCE.clsid, description: SOURCE.name,
    });
   }
+  Pictures.serve();
   // A notification pressed opens the app on its chat; one of the quick chat's opens there too, as the chat is in the
   // list with the others.
   Notify.setup({ fromApp, icon: ICON, window: () => win, open: key => showMain(main => main.webContents.send('notify:open', key)) });
@@ -371,6 +394,8 @@ if (process.argv.includes('--create-shortcut')) {
    fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'), stay: () => Routines.alive,
    preload: path.join(__dirname, 'preload.js'), page: path.join(ROOT, 'index.html'),
   });
+  // A new version of the app (desktop/update.js), put in only while no agent works, here or in the quick chat.
+  Update.setup({ fromApp, window: () => win, busy: () => working || Quick.working });
   if (!Quick.startHidden) showMain();
  });
  app.on('window-all-closed', () => { if (!Quick.on && !Routines.alive) app.quit(); });

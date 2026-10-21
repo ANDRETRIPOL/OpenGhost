@@ -77,8 +77,13 @@
 
   /* What steps back behind a selection or a picker: blurred and dimmed here, blurred and washed out in the light. */
   --veil: blur(5px) brightness(0.78) contrast(0.949);
-  --stage-veil: blur(24px) saturate(1.1) brightness(0.5);
-  --stage-veil-bg: rgba(10, 10, 10, 0.36);
+  /* The model menu steps the app back the way a selection steps the chat back, in the same tone and blurred further,
+     no milk over it. */
+  --stage-veil: blur(9px) brightness(0.78) contrast(0.949);
+  --stage-veil-bg: transparent;
+  /* Behind the model menu a window of glass is given an opaque ground of this tone, so the veil has something to
+     soften all the way to its edges (styles below). */
+  --stage-ground: rgb(20, 21, 26);
   --drop-veil-bg: rgba(25, 25, 25, 0.86);
 
   --composer-bg: rgb(30, 30, 30);
@@ -198,8 +203,9 @@
   --lens-bg: rgba(255, 255, 255, 0.6);
 
   --veil: blur(5px) contrast(0.6) brightness(1.25);
-  --stage-veil: blur(24px) saturate(1.1) brightness(1.08);
-  --stage-veil-bg: rgba(250, 250, 250, 0.5);
+  --stage-veil: blur(9px) contrast(0.6) brightness(1.25);
+  --stage-veil-bg: transparent;
+  --stage-ground: rgb(234, 238, 246);
   --drop-veil-bg: rgba(255, 255, 255, 0.84);
 
   --composer-bg: rgb(255, 255, 255);
@@ -365,6 +371,21 @@ body {
   font-size: var(--font-size);
   line-height: var(--line-height);
   overflow: hidden;
+  /* An app, not a page: a sweep of the pointer over its buttons, names and labels picks nothing up. */
+  user-select: none;
+}
+
+/* What is read and written stays selectable: the messages, and every field. The buttons by a message, and those in it,
+   are not part of what it says. */
+.message,
+input,
+textarea,
+[contenteditable]:not([contenteditable="false"]) {
+  user-select: text;
+}
+
+.message :is(.message-tools, .message-actions, .message-status, .message-retry, .message-fold, button) {
+  user-select: none;
 }
 
 .app {
@@ -2092,6 +2113,194 @@ body {
   opacity: 0;
 }
 
+/* What the agent waits for, beside the ghost: a reconnect, another agent. Set level with the ghost's middle (chat.js). */
+.message-status {
+  position: relative;
+}
+
+.message-retry {
+  position: absolute;
+  left: 44px;
+  transform: translateY(-50%);
+  color: var(--fg-secondary);
+  font-size: var(--small-font-size);
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* What the agent is doing, beside its ghost (agent-line.js): one line at a time in the light display type of the effort
+   stage's name, each step rolling in over the last like the drum of the model picker. Set level with the ghost's middle
+   (agent-line.js); a line of waiting there (above) takes its place while it stands. */
+.message-deed {
+  position: absolute;
+  left: 44px;
+  right: 0;
+  height: 1.4em;
+  font: 300 calc(var(--font-size) * 1.46) / 1.4 "OpenGhost Display", var(--font);
+  letter-spacing: -0.01em;
+  transform: translateY(50%);
+  perspective: 26em;
+  pointer-events: none;
+  transition: opacity 0.3s var(--motion-easing);
+}
+
+.message-status:has(.message-retry) .message-deed {
+  opacity: 0;
+}
+
+/* As wide as its words, up to the column, so that the wave runs along the words rather than across the column. */
+.message-deed-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg-primary);
+  transform-origin: 0 50% -0.6em;
+  backface-visibility: hidden;
+}
+
+.message-deed-what {
+  color: var(--fg-tertiary);
+}
+
+/* The wave: the same words over the line, the deed in full white and its object raised to the deed's own colour,
+   seen only through a soft band that runs along them again and again while the step lasts. */
+.message-deed-wave {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgb(var(--fg-rgb));
+  mask-image: linear-gradient(100deg, transparent 38%, #000 50%, transparent 62%);
+  mask-size: 250% 100%;
+  mask-repeat: no-repeat;
+  animation: deed-wave 2.8s infinite;
+  pointer-events: none;
+}
+
+.message-deed-wave .message-deed-what {
+  color: var(--fg-primary);
+}
+
+/* A sweep from just before the words to just past them, then a breath before the next. */
+@keyframes deed-wave {
+  0% {
+    mask-position: 100% 0;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.35, 1);
+  }
+
+  72%,
+  100% {
+    mask-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-deed-wave {
+    display: none;
+  }
+}
+
+/* A change the agent made to a file, a moment under its line (agent-line.js): the file, how many lines came and went,
+   and the changed lines turning over to the new ones, each lit by a dot on the rule; then it folds away. */
+.edit-glance {
+  --glance-ice-rgb: 150, 200, 255;
+  overflow: hidden;
+  padding-left: 44px;
+}
+
+[data-theme="light"] .edit-glance {
+  --glance-ice-rgb: 60, 125, 235;
+}
+
+.edit-glance-file {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 2px 0 8px;
+  color: var(--fg-secondary);
+  font-size: var(--small-font-size);
+  font-weight: 550;
+}
+
+.edit-glance-count {
+  display: flex;
+  gap: 8px;
+  font-family: var(--mono-font);
+  font-size: 0.92em;
+  font-weight: 500;
+}
+
+.edit-glance-count i {
+  font-style: normal;
+}
+
+.edit-glance-count .is-plus {
+  color: rgb(var(--success-rgb));
+}
+
+.edit-glance-count .is-minus {
+  color: rgb(var(--danger-rgb));
+}
+
+/* Its room below is the lines' own, inside the glance: as it folds, nothing is left over to vanish at once. */
+.edit-glance-lines {
+  position: relative;
+  margin-bottom: 10px;
+  padding-left: 16px;
+  perspective: 400px;
+}
+
+.edit-glance-lines::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: rgba(var(--fg-rgb), 0.1);
+}
+
+.edit-glance.is-cut .edit-glance-lines {
+  mask-image: linear-gradient(to bottom, #000 60%, transparent);
+}
+
+.edit-glance-row {
+  position: relative;
+  height: 1.65em;
+  color: var(--fg-primary);
+  font-family: var(--mono-font);
+  font-size: calc(var(--font-size) * 0.85);
+  line-height: 1.65;
+  white-space: pre;
+}
+
+/* A line too long for the column fades out at its edge rather than being cut. */
+.edit-glance-row > div {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  backface-visibility: hidden;
+  transform-origin: 50% 50% -0.6em;
+}
+
+.edit-glance-dot {
+  position: absolute;
+  left: -19px;
+  top: calc(50% - 2.5px);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(var(--glance-ice-rgb));
+  opacity: 0;
+}
+
 @keyframes ghost-in {
   from {
     opacity: 0;
@@ -3341,6 +3550,36 @@ button.thread-fork-name:focus-visible {
   width: 1px;
   height: 16px;
   background: rgba(var(--fg-rgb), 0.1);
+}
+
+/* Copy's sign and the tick it turns into, one over the other: the sign shrinks away and the tick is drawn in. */
+.select-menu-signs {
+  position: relative;
+  display: grid;
+  width: 14px;
+  height: 14px;
+}
+
+.select-menu-signs .glyph {
+  grid-area: 1 / 1;
+  transition: opacity 0.18s ease, scale 0.3s var(--motion-easing);
+}
+
+.select-menu-signs .glyph:last-child {
+  opacity: 0;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  transition: opacity 0.12s ease, stroke-dashoffset 0.34s var(--motion-easing) 0.06s;
+}
+
+.select-menu-button.is-copied .select-menu-signs .glyph:first-child {
+  opacity: 0;
+  scale: 0.6;
+}
+
+.select-menu-button.is-copied .select-menu-signs .glyph:last-child {
+  opacity: 1;
+  stroke-dashoffset: 0;
 }
 
 /* The mini chat's place and size change on every frame while it is dragged or resized. They are its own alone: passed
@@ -9586,6 +9825,12 @@ h6.md-h {
   display: none;
 }
 
+/* The words stand by their capitals, as the signs beside them do by their middle: centred whole, with room for what
+   hangs below the line, they stood a pixel lower than the shield and the plus. */
+.composer-mode-label {
+  text-box: trim-both cap alphabetic;
+}
+
 .composer-mode:hover {
   background: rgba(var(--fg-rgb), 0.06);
   color: rgb(var(--composer-accent-rgb));
@@ -10086,6 +10331,17 @@ h6.md-h {
   filter: blur(8px);
 }
 
+/* The other models going while a chosen one waits to be confirmed: they dissolve where they stand, and only once they
+   are gone does the list take its new shape, at once (model-stage.js draws the chosen row's way to its place). */
+.model-slot.is-going {
+  opacity: 0;
+  filter: blur(8px);
+}
+
+.model-list.is-instant .model-slot {
+  transition: none;
+}
+
 /* The models of a company that is shut: folded away under its name. Many fold at once, so they only fade. */
 .model-slot.is-shut {
   grid-template-rows: 0fr;
@@ -10117,6 +10373,9 @@ h6.md-h {
   transform: scale(0.95);
   transform-origin: 100% 50%;
   transition: opacity 0.35s ease, filter 0.45s var(--motion-easing), transform 0.6s var(--motion-easing);
+  /* Each row keeps a layer of its own all the time. Lifted onto one only while it moved, its words were drawn one way
+     during the move and another at rest, and on a screen of 125% or 150% the name twitched as the move ended. */
+  will-change: transform, opacity, filter;
 }
 
 /* At rest the focused row has no filter at all: a zero blur still leaves a faint line along the edge of its glow. */
@@ -10153,6 +10412,7 @@ h6.md-h {
 }
 
 .model-letter {
+  position: relative;
   display: inline-block;
 }
 
@@ -15916,21 +16176,11 @@ html.is-quick .viewer {
   justify-content: space-between;
 }
 
-/* The pane is the glass of a folder opened on an iPhone, as measured on a screenshot of one (iOS 26, 3 px to a
-   point):
-   - it lifts what is behind it by about 32 levels of 255 whatever the tone, which is a veil of white a fifth thick;
-     what is behind it is blurred smooth (here the system has blurred it already);
-   - its corners are the system's smooth ones, nearest to a circle of an eighth of the folder's width (--peek-round,
-     set with the width). They are drawn here as plain round corners: the smooth shape is followed by the fill but
-     not by the blur behind it nor by the rim, and a panel showed two corners, one inside the other;
-   - along the top and the bottom runs a hairline of nearly pure white (a point thick on the phone, a 300th of the
-     folder's width); it follows the corner all the way round, thinning, and is gone a few points down the side;
-     inside it lies a faint glow about two points deep;
-   - down the straight of each side, from a little below the corner to a little above the next, there is no light but
-     a dark hairline half a point wide, which leaves 40% of what is outside;
-   - it casts next to no shadow.
-   The window is clear under the sidebar, so the veil lies straight on what is behind the app, as it does there. It
-   has no blur of its own: over a clear window a blur lays the window's tint on twice, and the glass goes dull. */
+/* The pane is the settings' glass (html .settings): the same veil of white a fifth thick, the same blur, the same
+   hairline all round, the same shadow and the same round corners. Unlike the settings it has no ground of the page's
+   own under it in a window of glass (glass-ground.js): the list of chats steps away from under it, so over the
+   sidebar only the desktop is behind it, already frosted by the window, and a flat ground there made it plain white.
+   The settings look greyer than it only for the shade they cast over the whole app while they are open. */
 .usage-peek {
   --glass-fill: rgba(255, 255, 255, 0.2);
   --peek-rule: rgba(255, 255, 255, 0.12);
@@ -15941,52 +16191,26 @@ html.is-quick .viewer {
   max-height: var(--peek-room, 560px);
   margin: 0;
   padding: 0;
-  /* Nothing it holds reaches its edge, and the hairlines at its sides lie just outside it. */
   overflow: visible;
   border: 0;
-  border-radius: var(--peek-round, 48px);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  box-shadow:
-    inset 0 3px 3px -3px rgba(255, 255, 255, 0.24),
-    inset 0 -3px 3px -3px rgba(255, 255, 255, 0.2),
-    0 10px 30px rgba(0, 0, 0, calc(0.1 * var(--shadow)));
+  border-radius: calc(var(--chat-radius) + var(--chat-gap));
+  -webkit-backdrop-filter: blur(34px) saturate(1.9) brightness(1.08);
+  backdrop-filter: blur(34px) saturate(1.9) brightness(1.08);
+  box-shadow: inset 0 0 0 0.6px rgba(255, 255, 255, 0.16), 0 24px 64px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
   color: var(--fg-primary);
 }
 
-/* The lines of light: a stroke along the top and the bottom and none down the sides, so round each corner it thins
-   away to nothing. Half a pixel is asked for, which is drawn as one pixel of the screen whatever its scale: the
-   folder's line is a hair, and a whole pixel here read as a thick one. */
-.usage-peek::before {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  border: 0 solid rgba(255, 255, 255, 0.95);
-  border-top-width: 0.5px;
-  border-bottom-width: 0.5px;
-  border-radius: inherit;
-  pointer-events: none;
-}
-
-/* The dark hairlines: down the straight of each side only, coming in and going out softly well clear of the corners.
-   They lie just outside the pane, on what is behind it, and so are darker than both it and the glass. */
+/* No rim of its own: the hairline is the settings' one, in the shadow above. */
 .usage-peek::after {
-  z-index: 1;
-  inset: 0 -0.5px;
-  padding: 0;
-  border: 0 solid rgba(0, 0, 0, 0.55);
-  border-right-width: 0.5px;
-  border-left-width: 0.5px;
-  border-radius: inherit;
-  background: none;
-  -webkit-mask: linear-gradient(to bottom, transparent calc(var(--peek-round, 48px) + 4px), #000 calc(var(--peek-round, 48px) + 26px), #000 calc(100% - var(--peek-round, 48px) - 26px), transparent calc(100% - var(--peek-round, 48px) - 4px));
-  mask: linear-gradient(to bottom, transparent calc(var(--peek-round, 48px) + 4px), #000 calc(var(--peek-round, 48px) + 26px), #000 calc(100% - var(--peek-round, 48px) - 26px), transparent calc(100% - var(--peek-round, 48px) - 4px));
+  display: none;
 }
 
 [data-theme="light"] .usage-peek {
   --peek-rule: rgba(20, 30, 60, 0.1);
   --peek-over: rgba(20, 30, 60, 0.07);
+  -webkit-backdrop-filter: blur(34px) saturate(1.9) brightness(0.97);
+  backdrop-filter: blur(34px) saturate(1.9) brightness(0.97);
+  box-shadow: inset 0 0 0 0.6px rgba(20, 30, 60, 0.12), 0 24px 64px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
 }
 
 /* The list of chats steps back from the pane: it fades out as it nears the pane's top (--peek-cut, from the list's
@@ -16364,12 +16588,6 @@ html.is-quick .viewer {
   }
 }
 
-/* On the light theme the dark hairlines down the pane's sides stood out as black bars: there they are only a breath of
-   shade. */
-[data-theme="light"] .usage-peek::after {
-  border-color: rgba(20, 30, 60, 0.1);
-}
-
 /* The glass of the folder (see .usage-peek above) for the rest of the app's glass: the buttons of the chat, the notes
    opened and the search opened. The same veil of white a fifth thick in place of the old fill of 65%, and the same
    contour: a hair of white along the top and the bottom that thins away round the ends, and no light down the sides,
@@ -16448,18 +16666,6 @@ html:not([data-theme="light"]) :is(.top-tools, .notes-pill, .routines-pill, .bro
 html:not([data-theme="light"]) :is(.notepad, .routines).glass-lens {
   --glass-fill: rgba(255, 255, 255, 0.2);
   --glass-backdrop: blur(34px) saturate(1.9) brightness(1.08);
-}
-
-html:not([data-theme="light"]) .usage-peek {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, calc(0.1 * var(--shadow)));
-}
-
-html:not([data-theme="light"]) .usage-peek::before {
-  border: 0.6px solid rgba(255, 255, 255, 0.16);
-}
-
-html:not([data-theme="light"]) .usage-peek::after {
-  display: none;
 }
 
 /* A chat's row keeps two buttons, the pin and three dots; the rest is in the dots' menu (row-menu.js). */
@@ -16907,8 +17113,15 @@ html:root[data-theme="light"] .notes-pill.notes-pill {
   cursor: default;
 }
 
+/* Its own field and buttons are out of sight but keep their size: taken out of the layout altogether, the field went
+   to nothing, and when the composer came back its height grew back from there in a second move. */
 .composer.is-asking > :not(.ask) {
-  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .ask-deck {
@@ -17446,6 +17659,18 @@ html.is-glass .sidebar {
 
 html.is-glass.is-viewing .sidebar {
   filter: blur(6px);
+}
+
+/* Behind the model menu a window of glass takes an opaque ground while the menu is out. The veil softens only what the
+   page has drawn over an opaque ground: the sidebar and the title bar stood sharp on the window's glass, and the chat's
+   edges were cut sharp against it. With a ground of the window's own tone under them, all of it softens alike. */
+html.is-glass body {
+  transition: background-color 0.38s var(--motion-easing);
+}
+
+html.is-glass.is-staging body {
+  background-color: var(--stage-ground);
+  transition-duration: 0.46s;
 }
 
 /* Close is a pill of blue glass, as the notes' button is one of yellow: a veil of blue on the light theme, dense blue
@@ -18691,9 +18916,19 @@ html:root[data-theme="light"] .routine-model-menu {
   display: none;
 }
 
-/* The chip and the task make way for the button at the end. */
+/* The chip and the task make way for the button at the end. They stand together in a part of the pill of their own:
+   in a narrow chat the task gives way first, and only then the chip, cut by the part's edge; the button at the end
+   always stays inside the pill (it was pushed out of it). */
 .thread-note.is-routine .thread-note-text {
   margin-right: 2px;
+}
+
+.routine-middle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .thread-note.is-removed .thread-note-text,
@@ -19669,4 +19904,961 @@ html:not([data-theme="light"]) .skill-page-key {
   color: var(--fg-tertiary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+/* The agent's plan at the top of the chat (plan-island.js): black on either theme, as the island at the top of an
+   iPhone, in the middle of the row of the chat's own buttons and as wide as they leave room for. */
+.plan-island {
+  position: absolute;
+  z-index: 4;
+  top: calc(var(--toggle-inset) + 1px);
+  right: 0;
+  left: 0;
+  width: max-content;
+  max-width: var(--plan-room, 420px);
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 15px;
+  background: #000;
+  color: #fff;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 6px 18px rgba(0, 0, 0, 0.28);
+  transform-origin: 50% 15px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+[data-theme="light"] .plan-island {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.plan-island[hidden] {
+  display: none;
+}
+
+.plan-island.is-open {
+  width: min(440px, calc(100% - 32px));
+  max-width: none;
+  border-radius: 26px;
+}
+
+/* While the agent waits for the user, the browser's own light while the agent drives it: a hairline of light round the
+   inner edge and a soft glow in from it, breathing. */
+.plan-island::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.55), inset 0 0 10px rgba(255, 255, 255, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.plan-island.is-waiting::before {
+  opacity: 1;
+  animation: plan-breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes plan-breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-island.is-waiting::before {
+    animation: none;
+  }
+}
+
+.plan-cap {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 100%;
+  height: 30px;
+  padding: 0 15px 0 7px;
+  border: 0;
+  border-radius: inherit;
+  outline: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Reached with the keyboard, a ring outside it, as round the other buttons: the light inside its edge means waiting. */
+.plan-island:has(.plan-cap:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.plan-head:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.plan-island.is-open .plan-cap {
+  display: none;
+}
+
+/* With no room beside the buttons, the ring alone; with no room even for that (a window narrower than the chat's least),
+   none: a sliver of black squeezed between the buttons is worse than nothing. */
+.plan-island.is-crowded {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* A button coming or going beside it gives the capsule more room or less at once: it takes it with a glide. */
+.plan-island {
+  transition: opacity 0.25s ease, max-width 0.42s var(--motion-easing);
+}
+
+.plan-island.is-tight .plan-cap {
+  padding: 0 7px;
+}
+
+.plan-island.is-tight .plan-label {
+  display: none;
+}
+
+.plan-label {
+  position: relative;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.plan-word {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-island.is-moving .plan-word {
+  text-overflow: clip;
+}
+
+.plan-word.is-leaving {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+/* The ring: a faint track and, from the top round, the share of the steps done. All done, a green disc with a tick. */
+.plan-sign {
+  display: grid;
+  flex: none;
+  place-items: center;
+}
+
+.plan-sign > svg {
+  grid-area: 1 / 1;
+}
+
+.plan-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.2);
+}
+
+.plan-ring-arc {
+  fill: none;
+  stroke: #fff;
+  stroke-linecap: round;
+  stroke-dasharray: max(0, var(--plan-share, 0) - var(--plan-cap, 0)) 1;
+  transition: stroke-dasharray 0.6s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
+}
+
+.plan-island.is-empty .plan-ring-arc {
+  opacity: 0;
+}
+
+.plan-tick {
+  display: none;
+  width: 16px;
+  height: 16px;
+}
+
+.plan-tick circle {
+  fill: rgba(255, 255, 255, 0.82);
+}
+
+.plan-tick path {
+  fill: none;
+  stroke: #000;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.plan-head .plan-tick {
+  width: 22px;
+  height: 22px;
+}
+
+.plan-island.is-finished .plan-sign .plan-ring {
+  display: none;
+}
+
+.plan-island.is-finished .plan-sign .plan-tick {
+  display: block;
+}
+
+.plan-island.is-finished .plan-sign .plan-tick circle {
+  fill: rgb(48, 209, 88);
+}
+
+/* The panel: how far the plan has come, what the agent waits for, and every step with the proof it was closed with. */
+.plan-sheet {
+  display: none;
+  padding: 8px 16px 14px;
+}
+
+.plan-island.is-open .plan-sheet {
+  display: block;
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% + 8px);
+  height: 36px;
+  margin: 0 -4px 4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 12px;
+  outline: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.62);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-wait {
+  margin: 0 0 8px 32px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.plan-wait[hidden] {
+  display: none;
+}
+
+.plan-steps {
+  max-height: calc(100vh - 220px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.plan-step {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  column-gap: 11px;
+  margin: 0 -6px;
+  padding: 5px 6px;
+  border-radius: 10px;
+  outline: none;
+}
+
+.plan-step > svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
+.plan-step-name {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.plan-step-proof {
+  display: -webkit-box;
+  grid-column: 2;
+  margin-top: 2px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* A proof cut at two lines opens whole on a press of its step, and is a shade brighter under the pointer and open. */
+.plan-step.is-long {
+  cursor: pointer;
+}
+
+.plan-step.is-long .plan-step-proof {
+  transition: color 0.2s ease;
+}
+
+.plan-step.is-long:hover .plan-step-proof,
+.plan-step.is-unfolded .plan-step-proof {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.plan-step.is-unfolded .plan-step-proof {
+  display: block;
+}
+
+.plan-step.is-long:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.plan-step.is-done .plan-step-name {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.plan-step.is-now .plan-step-name {
+  color: #fff;
+  font-weight: 600;
+}
+
+.plan-step.is-dropped .plan-step-name {
+  color: rgba(255, 255, 255, 0.4);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.plan-mark {
+  fill: none;
+}
+
+.plan-mark-rim {
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 1.2;
+}
+
+.plan-step.is-now .plan-mark-rim {
+  stroke: #fff;
+  stroke-width: 1.4;
+}
+
+.plan-mark-dot {
+  fill: #fff;
+}
+
+.plan-step.is-dropped .plan-mark-rim {
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-dasharray: 2.2 2;
+}
+
+.plan-mark-dash {
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+/* The button for a new version of the app (update-pill.js), at the top right, left of the globe or of the routines'
+   button. While the version comes it is the glass of the routines' button, with a ring and the share in figures; once
+   it can be put in it is solid, the send button's colour, and under the pointer its arrow lifts as the send button's
+   does. Pressed, it gives a little. */
+.update-pill {
+  --glass-lens: initial !important;
+  --glass-shade: 0 0 0 0 transparent;
+  --glass-fill: rgba(255, 255, 255, 0.2);
+  --glass-backdrop: blur(34px) saturate(1.9) brightness(1.08);
+  --glass-rim: rgba(255, 255, 255, 0.16);
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--toggle-inset) + 1px);
+  right: calc(var(--toggle-inset) + 4px + 44px + 8px);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 30px;
+  padding: 0 13px 0 8px;
+  border: 0;
+  outline: none;
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: right 0.5s var(--motion-easing), color 0.3s ease, scale 0.32s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+
+[data-theme="light"] .update-pill {
+  --glass-backdrop: blur(34px) saturate(1.9) brightness(0.97);
+  --glass-rim: linear-gradient(180deg, rgb(255, 255, 255), rgba(20, 30, 60, 0.12) 42%, rgba(20, 30, 60, 0.12) 58%, rgb(255, 255, 255));
+}
+
+.update-pill[hidden] {
+  display: none;
+}
+
+.update-pill.glass-lens::after {
+  padding: 0.6px;
+  transition: opacity 0.3s ease;
+}
+
+/* The solid colour lies over the glass and comes up over it. */
+.update-pill::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: rgb(var(--composer-accent-rgb));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.update-pill.is-solid {
+  color: rgb(var(--composer-on-accent-rgb));
+}
+
+.update-pill.is-solid::before {
+  opacity: 1;
+}
+
+.update-pill.is-solid::after {
+  opacity: 0;
+}
+
+.update-pill:not(.is-still, .is-solid):hover {
+  background: linear-gradient(rgba(var(--fg-rgb), 0.06), rgba(var(--fg-rgb), 0.06)), var(--glass-fill);
+}
+
+.update-pill:not(.is-still):active {
+  scale: 0.96;
+}
+
+.update-pill.is-still {
+  cursor: default;
+}
+
+.update-pill:focus-visible {
+  box-shadow: var(--glass-drop), 0 0 0 2px var(--focus-ring);
+}
+
+/* While it grows or shrinks from one face to the next, what it holds is cut by its own edge. */
+.update-pill.is-moving {
+  overflow: clip;
+}
+
+.update-face {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.update-face[hidden] {
+  display: none;
+}
+
+.update-face.is-leaving {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.update-face.is-after {
+  color: rgba(var(--fg-rgb), 0.7);
+}
+
+.update-ring {
+  display: block;
+  flex: none;
+}
+
+.update-ring-track {
+  fill: none;
+  stroke: rgba(var(--fg-rgb), 0.2);
+}
+
+.update-ring-arc {
+  fill: none;
+  stroke: rgb(var(--fg-rgb));
+  stroke-linecap: round;
+  stroke-dasharray: 0 1;
+  transition: stroke-dasharray 0.6s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
+}
+
+/* The figures stand still in width, each its own: only the one that changes moves. */
+.update-figures,
+.update-digits {
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-digit {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.update-glyph {
+  display: inline-block;
+}
+
+.update-glyph.is-leaving {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  text-align: center;
+}
+
+.update-arrow {
+  display: block;
+  flex: none;
+  width: 17px;
+  height: 17px;
+  overflow: visible;
+}
+
+.update-arrow circle {
+  fill: rgb(var(--composer-on-accent-rgb));
+}
+
+.update-arrow path {
+  fill: none;
+  stroke: rgb(var(--composer-accent-rgb));
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.35s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+
+.update-pill.is-solid:not(.is-still):hover .update-arrow path {
+  transform: translateY(-1.2px);
+}
+
+.update-clock {
+  display: block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.update-clock :is(circle, path) {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+/* Waiting, the long hand goes round, slowly. */
+.update-clock-hand {
+  transform-box: view-box;
+  transform-origin: 8px 8px;
+  animation: update-round 2.4s linear infinite;
+}
+
+@keyframes update-round {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-pill,
+  .update-pill::before,
+  .update-pill.glass-lens::after,
+  .update-ring-arc,
+  .update-arrow path {
+    transition: none;
+  }
+
+  .update-clock-hand {
+    animation: none;
+  }
+}
+
+/* The sidebar's edge (side-panels.js): dragged, the sidebar takes another width; double-clicked, its own width again.
+   Under the pointer a bar shows on it, as on the browser's edge. */
+.sidebar-resize {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--chat-gap) + 12px);
+  bottom: 12px;
+  left: calc(var(--sidebar-size) - 9px);
+  width: 12px;
+  cursor: col-resize;
+}
+
+/* Folded away while its edge is still held (dragged far in), the edge stays under the pointer to bring it back. */
+.app.is-sidebar-collapsed:not(.is-sidebar-resizing) .sidebar-resize {
+  display: none;
+}
+
+.sidebar-resize::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3.5px;
+  width: 3px;
+  height: 36px;
+  margin-top: -18px;
+  border-radius: 2px;
+  background: rgba(var(--fg-rgb), 0.28);
+  opacity: 0;
+  transition: opacity 0.2s ease, height 0.3s var(--motion-easing), margin 0.3s var(--motion-easing);
+}
+
+.sidebar-resize:hover::after,
+.app.is-sidebar-resizing .sidebar-resize::after {
+  opacity: 1;
+  height: 56px;
+  margin-top: -28px;
+}
+
+/* Folding away or coming back under the pointer, the edge goes with the chat's edge rather than to the sidebar's
+   width, which the folded sidebar keeps for later; folded, its bar is swept off with the chat's edge. */
+.app.is-sidebar-resizing.is-sidebar-snapping .sidebar-resize {
+  transition: left var(--motion-duration) var(--motion-easing);
+}
+
+.app.is-sidebar-resizing.is-sidebar-collapsed .sidebar-resize {
+  left: calc(var(--chat-gap) - 9px);
+}
+
+.app.is-sidebar-collapsed .sidebar-resize::after {
+  opacity: 0;
+  transition-duration: 0.16s;
+}
+
+/* A chat's row in two lines, as a list of messages is (chat-list.js, chat-preview.js): its title, and under it the time
+   and the start of its last message, quiet; at its end the chat's latest picture, small and rounded, which gives way to
+   the buttons under the pointer. The mark (the dot, the routine's clock, the ghost at work) stands in the middle of the
+   row's height. A new chat's row, with nothing said yet, keeps one line. */
+.chats-list .chat-row:not(.is-draft) {
+  height: auto;
+  min-height: 50px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  border-radius: 12px;
+}
+
+.chat-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.chat-body .chat-title {
+  flex: none;
+  line-height: 20px;
+}
+
+.chat-body .chat-rename {
+  flex: none;
+  height: 20px;
+}
+
+.chat-line {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  color: rgba(var(--fg-rgb), 0.48);
+  font-size: 12.5px;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.chat-row.is-draft .chat-line {
+  display: none;
+}
+
+/* Under the title the time is part of the line, and stays as it is under the pointer: the buttons stand at the end. */
+.chats-list .chat-row .chat-line .chat-time {
+  position: static;
+  flex: none;
+  color: inherit;
+  font-size: inherit;
+  opacity: 1;
+  transform: none;
+}
+
+.chat-said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-photo {
+  display: block;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  object-fit: cover;
+  box-shadow: 0 0 0 0.5px rgba(var(--fg-rgb), 0.12);
+  transition: opacity 0.2s ease, scale 0.35s var(--motion-easing);
+}
+
+.chat-photo[hidden] {
+  display: none;
+}
+
+.chat-row.has-photo .chat-meta {
+  min-width: 38px;
+}
+
+.chat-row:hover .chat-photo,
+.chat-row:focus-within .chat-photo,
+.chat-row.is-confirming .chat-photo,
+.chat-row.is-carding .chat-photo,
+.chat-row.is-renaming .chat-photo {
+  opacity: 0;
+  scale: 0.85;
+}
+
+/* The ground under a pane of glass that stands over the clear sidebar of a window of glass (glass-ground.js), beneath
+   all the page draws: the pane is frosted over it as it is over the chat. */
+.glass-ground {
+  position: fixed;
+  pointer-events: none;
+  background: var(--stage-ground);
+}
+
+/* The sidebar's bars while its edge is dragged (side-panels.js), as still as the chat's while a panel moves. */
+.sidebar-bones {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sidebar-bone {
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(var(--fg-rgb), 0.11);
+}
+
+.sidebar-bone.is-sign {
+  border-radius: 6px;
+  background: rgba(var(--fg-rgb), 0.09);
+}
+
+.sidebar-bone.is-photo {
+  border-radius: 9px;
+  background: rgba(var(--fg-rgb), 0.08);
+}
+
+.app.is-sidebar-resizing,
+.app.is-sidebar-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+.app.is-sidebar-resizing .main,
+.app.is-sidebar-resizing .browser {
+  transition: none;
+}
+
+/* Folding away or coming back under the pointer, the chat takes its usual move. */
+.app.is-sidebar-resizing.is-sidebar-snapping .main {
+  transition: left var(--motion-duration) var(--motion-easing);
+}
+
+.app.is-sidebar-resizing .browser-view {
+  pointer-events: none;
+}
+
+/* With no room beside the chat, the sidebar comes over the chat when its button is pressed, below the chat's top bar
+   so that the button stays in sight, a strip of the chat left beside it. It is read, so its glass is dense: under a
+   thin veil lies a ground of the theme's own tone, and a white message behind it does not shine through. */
+.app.is-sidebar-peek .sidebar {
+  z-index: 5;
+  top: calc(var(--chat-gap) + 48px);
+  bottom: calc(var(--chat-gap) + 6px);
+  left: calc(var(--chat-gap) + 6px);
+  width: var(--sidebar-peek-width, var(--sidebar-size));
+  padding: var(--toggle-inset);
+  border-radius: 20px;
+  background: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)), rgba(24, 24, 28, 0.8);
+  -webkit-backdrop-filter: blur(34px) saturate(1.6);
+  backdrop-filter: blur(34px) saturate(1.6);
+  box-shadow: inset 0 0 0 0.6px rgba(255, 255, 255, 0.16), 0 30px 80px rgba(0, 0, 0, calc(0.42 * var(--shadow))), 0 6px 18px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
+}
+
+[data-theme="light"] .app.is-sidebar-peek .sidebar {
+  background: rgba(234, 235, 243, 0.9);
+  -webkit-backdrop-filter: blur(46px) saturate(1.6);
+  backdrop-filter: blur(46px) saturate(1.6);
+  box-shadow: inset 0 0 0 0.6px rgba(20, 30, 60, 0.1), 0 30px 80px rgba(0, 0, 0, calc(0.42 * var(--shadow))), 0 6px 18px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
+}
+
+.app.is-sidebar-peek .chats-scrollbar.is-scrollable {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The browser likewise, from the right, below the chat's top bar with the globe in sight. */
+.app.is-browser-peek .browser {
+  z-index: 4;
+  top: calc(var(--chat-gap) + 48px);
+  right: calc(var(--chat-gap) + 6px);
+  bottom: calc(var(--chat-gap) + 6px);
+  width: var(--browser-peek-width, var(--browser-width, 520px));
+  transform: none;
+  transition: none;
+}
+
+.app.is-browser-peek .browser-card {
+  box-shadow: var(--contour), 0 30px 80px rgba(0, 0, 0, calc(0.42 * var(--shadow))), 0 6px 18px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
+}
+
+.app.is-browser-peek .browser-resize {
+  display: none;
+}
+
+.app.is-browser-peek:not(.is-browser-open) .browser:not(.is-agent) .browser-view {
+  visibility: visible;
+}
+
+/* The cards that ask before the agent acts (ApprovalDeck in approval-card.js) stand in the composer's place, as the
+   agent's questions do: the composer's own field and buttons are away, the card wears the composer's look, and the
+   cards waiting after it show their edges behind it, as the questions still to come do. */
+.composer.is-approving {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  cursor: default;
+}
+
+.composer.is-approving > :not(.approvals) {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.approvals-deck {
+  position: relative;
+  display: grid;
+  isolation: isolate;
+}
+
+.approvals-deck > .approval {
+  grid-area: 1 / 1;
+  align-self: end;
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 16px 16px 12px;
+  overflow: hidden;
+  border-radius: var(--composer-radius);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 14px 40px rgba(0, 0, 0, calc(0.35 * var(--shadow)));
+  transform-origin: 50% 0;
+  animation: none;
+}
+
+/* The card that was answered goes off the deck over the one coming up, and takes no room as it goes. */
+.approvals-deck > .approval.is-leaving {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* A model's name on its way between the composer's button and its row in the model menu (model-stage.js): in the
+   list's own type, scaled about its left end, with the glow of a row in focus, so it lands as the row it becomes. */
+.model-carrier {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 50%;
+  white-space: pre;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Two copies, one over the other: set as the button's name and as the row's. Only the row's has the glow of a row in
+   focus; each is drawn wider or narrower about its left end to keep the name's width between the ends. */
+.model-carrier .model-name {
+  display: block;
+  transform-origin: 0 50%;
+  text-shadow: none;
+}
+
+.model-carrier .model-name + .model-name {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.model-carrier .model-name.is-row {
+  text-shadow: 0 0 34px rgba(var(--glow-rgb), 0.28);
+}
+
+[data-theme="light"] .model-carrier .model-name.is-row {
+  text-shadow: 0 0 30px rgba(var(--glow-rgb), 0.1);
+}
+
+/* Landed, the copy melts off the name it lands on, which has its own glow, or none in the button. */
+.model-carrier.is-landed .model-name {
+  text-shadow: none;
+  transition: none;
+}
+
+/* The model's name in the composer (model-button.js) takes what room the composer has: in a narrow one it is cut short
+   with dots rather than pushing the send button out. */
+.composer-actions {
+  min-width: 0;
+}
+
+/* The round buttons are never pressed out of shape: a long model's name gives way first, ending in dots (the quick
+   chat's card is narrow, and its send button was squeezed into an oval), and only after it the mode's words. */
+.composer-add,
+.composer-effort,
+.composer-send {
+  flex: none;
+}
+
+.composer-model {
+  flex: 0 6 auto;
+  min-width: 0;
+}
+
+.composer-mode {
+  min-width: 0;
+}
+
+/* The plus and the mode keep their room: the model's name gives it. Even a fraction of a pixel taken from the mode's
+   words ended them in dots. */
+.composer-tools {
+  flex-shrink: 0;
+}
+
+.composer-mode-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

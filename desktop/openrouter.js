@@ -196,6 +196,7 @@ function build(request, extras = { marks: true, thinking: true }) {
  return body;
 }
 
+const STREAM_DONE = Symbol('stream done');
 async function* events(body) {
  const decoder = new TextDecoder();
  let buffer = '';
@@ -208,10 +209,21 @@ async function* events(body) {
    const line = raw.trimEnd();
    if (!line.startsWith('data:')) continue;
    const data = line.slice(5).trim();
-   if (!data || data === '[DONE]') continue;
+   if (data === '[DONE]') { yield STREAM_DONE; return; }
+   if (!data) continue;
    let event;
    try { event = JSON.parse(data); } catch { continue; }
    yield event;
+  }
+ }
+ const line = buffer.trimEnd();
+ if (line.startsWith('data:')) {
+  const data = line.slice(5).trim();
+  if (data === '[DONE]') yield STREAM_DONE;
+  else if (data) {
+   let event;
+   try { event = JSON.parse(data); } catch {}
+   if (event) yield event;
   }
  }
 }
@@ -273,9 +285,10 @@ async function stream(request, { signal, onEvent = () => {}, apiUrl = API_URL } 
  if (dropped) refused[dropped].add(model);
  const calls = [], details = [];
  const result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
- let answered = '';
+ let answered = '', ended = false;
  try {
   for await (const event of events(response.body)) {
+   if (event === STREAM_DONE) { ended = true; break; }
    if (typeof event.model === 'string' && event.model) answered = event.model;
    // A model can fail mid-answer: the stream then carries the error instead of an HTTP status.
    if (event.error) throw error(event.error.message || 'OpenRouter stopped the answer', Number(event.error.code) || 0, String(event.error.code || ''));
@@ -296,12 +309,13 @@ async function stream(request, { signal, onEvent = () => {}, apiUrl = API_URL } 
     result.reasoning += delta.reasoning;
     onEvent({ type: 'reasoning', delta: delta.reasoning });
    }
-   for (const piece of delta.reasoning_details || []) gather(details, piece);
+   for (const piece of delta.reasoning_details || []) { onEvent({ type: 'activity' }); gather(details, piece); }
    if (typeof delta.content === 'string' && delta.content) {
     result.content += delta.content;
     onEvent({ type: 'content', delta: delta.content });
    }
    for (const part of delta.tool_calls || []) {
+    onEvent({ type: 'activity' });
     // A piece says which call it belongs to by its index; one that doesn't belongs to the last call, unless it brings
     // a new id.
     const last = calls.length - 1, fresh = part.id && last >= 0 && calls[last].id && calls[last].id !== part.id;
@@ -312,9 +326,10 @@ async function stream(request, { signal, onEvent = () => {}, apiUrl = API_URL } 
    }
    if (choice.finish_reason) result.finishReason = choice.finish_reason;
   }
+  if (!ended && !result.finishReason) throw error('OpenRouter disconnected before completing the answer', 0, 'network');
  } catch (cause) {
   if (cause.name === 'AbortError' || cause.status !== undefined) throw cause;
-  throw error('network', 0, 'network');
+  if (!result.finishReason) throw error('network', 0, 'network');
  }
  result.toolCalls = calls.filter(call => call?.function.name);
  // A tool call cut off at the length limit is never run.

@@ -8,6 +8,8 @@ const JUMP = { base: 420, perPixel: 0.05, max: 950 };
 const COPIED_TIME = 1600;
 const FINISH_NOTES = ['length', 'content_filter', 'insufficient_system_resource'];
 const LEAVE = { duration: 260, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
+// A line beside a reply's ghost comes and goes like the name of the mode when it changes (mode-picker.js).
+const LINE = { duration: 340, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const SWITCH = { duration: 280, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const PIN_TIME = 2000;
 // A chat opened for the first time is laid out out of sight and shown once it stands still: `calm` frames in a row
@@ -29,15 +31,21 @@ const CONTEXT = { reserve: 0.1, chars: 3.2, image: 1200 };
 // How many pages of PDFs go along with one message as pictures, at most.
 const PDF_PICTURES = 16;
 const COMPACT = {
- prompt: 'You compress a long conversation between a user and OpenGhost, an AI agent working on the user\'s computer, so the work can go on without the original messages. Write a dense summary in the language of the user\'s own messages in it (English when they write in English, never a language they did not use), with these parts: the user\'s goals and preferences; key facts, decisions and constraints; what has been done, with file paths, commands and their results, commits; the current state and open problems; the exact next steps. Keep names, paths, numbers, versions and code identifiers exact. Leave out small talk and whatever no longer matters.',
+ prompt: 'You compress a long conversation between a user and OpenGhost, an AI agent working on the user\'s computer, so the work can go on without the original messages. Write a dense summary in the language of the user\'s own messages in it (English when they write in English, never a language they did not use), with these parts: the user\'s goals and preferences; key facts, decisions and constraints; what has been done, with file paths, commands and their results, commits; the current state and open problems; the exact next steps. Keep names, paths, numbers, versions and code identifiers exact. Leave out small talk and whatever no longer matters. When the transcript opens with a summary of what came before, that summary is the earlier conversation already compressed: fold it in with the messages after it, and do not expect those older messages.',
  head: 'The earlier part of this conversation was compacted to save context. Your tools, formatting rules and browser instructions still apply; this summary does not replace them. Summary of it:',
  resume: 'Go on with the task from where you stopped, using the summary above.',
  skills: 'This message comes from the app, not from the user. These skills were in use before the summary; their instructions still hold, word for word:',
- kept: 'This message comes from the app, not from the user. The summary above covers the whole conversation so far. Its last steps follow here once more, word for word, with their full tool results, so nothing of them has to be looked up again.',
- // The last steps stay as they were while they take no more than this share of the model's window, nor this many tokens.
- share: 0.2,
- keep: 40000,
+ kept: 'This message comes from the app, not from the user. The summary above covers the whole conversation so far. Its last messages follow here once more, word for word, without the commands and their results: what those did is in the summary, and a file can be read again.',
+ // What a summary of an earlier version of the app kept: its last steps, tools included.
+ keptSteps: 'This message comes from the app, not from the user. The summary above covers the whole conversation so far. Its last steps follow here once more, word for word, with their full tool results, so nothing of them has to be looked up again.',
+ // A summary may take this share of the window of the model that writes it, and never more than that model can write.
+ part: 0.15,
+ // How much a model can write when it never said: a summary longer than this could be cut off or refused.
  output: 8000,
+ // The last turns stay word for word as text: this many of the user's messages and this many replies.
+ turns: { user: 2, assistant: 2 },
+ // ...within this share of the window, so a pasted log or a long report can't fill the chat again at once.
+ keptShare: 0.1,
  tool: 2000,
  text: 12000,
  total: 2400000,
@@ -63,31 +71,55 @@ const TOOL_NOTES = {
  routines: 'This note comes from the app, not from the user: the routines of this chat, as they stand now.',
  routinesNone: '- This chat has no routines now.',
  peers: 'This note comes from the app, not from the user: who else is at work in this folder right now.',
- peersRule: 'Leave their files and their tasks to them: do not do the same work twice. A change to a file one of them is changing is refused while it works. Commands and git are not checked, so keep those clear of their files too, and do not commit, move or revert their work.',
+ peersRule: 'Leave their files and their tasks to them: do not do the same work twice. While one of them works, a change to a file it is changing is refused, whether by the file tools or by a command that names the file, and so are git commands that would move or sweep up its work: switching branches, reset, stash, clean, restore, merge, rebase, pull, add -A and commit -a. Stage and commit only the files of your own task, by name. Installs and builds in this folder run one at a time: yours waits until theirs is done.',
  peersNone: '- Nobody else is at work here now.',
+ // Agents that finished a task here not long ago: their files are free, but their work is fresh.
+ peersRecent: name => `- ${name[0].toUpperCase()}${name.slice(1)} finished its task here not long ago.`,
+ servers: 'This note comes from the app, not from the user: servers that other agents started on this computer and that are still running. Their ports are taken: give yours another one.',
+ serversNone: '- No other agent runs a server now.',
+ record: 'This note comes from the app, not from the user: this chat\'s private record, as it stands now. No other chat can see it.',
+ recordEmpty: '- The record is empty.',
  skills: 'This note comes from the app, not from the user: the skills you can use, as they stand now. Load one with the skill tool when a task fits it.',
  skillsNone: '- No skills are set up now.',
  picked: 'This comes from the app, not from the user: the user picked these skills for this message with /name, and their instructions follow. They are the user\'s choice for this task: work by them alone and load no other skill for it.',
  pickedAgain: 'The user picked a skill whose instructions are already above in this conversation; use it for this message:',
+ plan: 'This note comes from the app, not from the user: your plan for the task under way, as it stands now. The user sees it at the top of the chat.',
+ planNudge: 'This note comes from the app, not from the user: this task has taken a good many steps, and there is no plan for it. If it has several parts, make the plan now with the plan tool, the parts already done included, check those again and close them with what you saw, then go on by it. If it is one small thing, go on without.',
+ planBack: list => `This note comes from the app, not from the user: you ended your turn, but your plan still has open steps: ${list}. Go on with them now. End only if the user's latest message put this work aside or the next step needs them: then call plan with action wait and say why, or drop the steps they no longer want, with the reason.`,
 };
+// Answers that mean a tool did nothing: the user said no, stopped the agent or wrote instead. They do no step's work.
+const UNDONE = new Set([TOOL_NOTES.declined, TOOL_NOTES.cancelled, TOOL_NOTES.message, TOOL_NOTES.browserMessage]);
 // The agents at work right now, each with the files it has changed in this turn. Two agents can work in one folder at the
 // same time (a chat's and its mini chat's, or two chats of one folder): each is told of the others in a note, and a file
 // one of them is changing is not the other's to change until that one is done.
 const Desk = {
  seats: new Map(),
+ // Agents that finished a task not long ago, by conversation: { conv, chat, cwd, files, at }.
+ recent: new Map(),
+ // Servers agents started, by port: { conv, chat, at }. A port no longer listened on is let go.
+ servers: new Map(),
+ live: new Set(),
  enter(conv, chat) {
-  this.seats.set(conv, { conv, chat, files: new Map() });
+  this.recent.delete(conv);
+  this.seats.set(conv, { conv, chat, files: new Map(), running: new Map() });
  },
  leave(conv) {
+  const seat = this.seats.get(conv);
+  if (seat?.files.size) this.recent.set(conv, { conv, chat: seat.chat, cwd: seat.chat.cwd(conv), files: [...seat.files.values()], at: Date.now() });
+  for (const job of seat?.running.values() || []) job.release();
   this.seats.delete(conv);
+ },
+ overlap(a, b) {
+  return !!a && !!b && (AgentTools.inside(a, b) || AgentTools.inside(b, a));
  },
  others(conv, cwd) {
   if (!cwd) return [];
-  return [...this.seats.values()].filter(seat => {
-   if (seat.conv === conv) return false;
-   const theirs = seat.chat.cwd(seat.conv);
-   return !!theirs && (AgentTools.inside(cwd, theirs) || AgentTools.inside(theirs, cwd));
-  });
+  return [...this.seats.values()].filter(seat => seat.conv !== conv && this.overlap(cwd, seat.chat.cwd(seat.conv)));
+ },
+ finished(conv, cwd) {
+  const old = Date.now() - DESK.recent;
+  for (const [key, item] of this.recent) if (item.at < old) this.recent.delete(key);
+  return [...this.recent.values()].filter(item => item.conv !== conv && !this.seats.has(item.conv) && this.overlap(cwd, item.cwd));
  },
  holder(conv, path) {
   for (const seat of this.seats.values()) if (seat.conv !== conv && seat.files.has(path)) return seat;
@@ -96,13 +128,95 @@ const Desk = {
  claim(conv, path, shown) {
   this.seats.get(conv)?.files.set(path, shown);
  },
+ // A file of another agent that a command names: by its path in the folder, or by its own name when that is distinct.
+ named(conv, cwd, text) {
+  for (const seat of this.others(conv, cwd)) {
+   for (const shown of seat.files.values()) {
+    const base = shown.split(/[\\/]/).pop();
+    if (text.includes(shown) || (base.length > 3 && base.includes('.') && text.includes(base))) return { seat, shown };
+   }
+  }
+  return null;
+ },
+ // One at a time in a shared folder: a job of this kind waits while another agent's job of the same kind runs there.
+ // `onWait` hears whom it waits for. Gives back what ends the job, or null when the turn was stopped meanwhile.
+ async take(conv, cwd, kind, signal, onWait) {
+  const seat = this.seats.get(conv);
+  if (!seat) return () => {};
+  for (;;) {
+   const other = this.others(conv, cwd).find(peer => peer.running.has(kind));
+   if (!other) break;
+   onWait?.(other);
+   await Promise.race([other.running.get(kind).done, new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }))]);
+   if (signal.aborted) return null;
+  }
+  let release;
+  const done = new Promise(resolve => { release = resolve; });
+  const job = { done, release: () => { if (seat.running.get(kind) === job) seat.running.delete(kind); release(); } };
+  seat.running.set(kind, job);
+  return job.release;
+ },
+ // The ports this computer listens on now; a server that stopped lets its port go. A port just claimed is kept a while,
+ // as a server may take a moment to start.
+ async refresh() {
+  if (!this.servers.size) return;
+  this.live = new Set(await AgentTools.ports());
+  for (const [port, server] of this.servers) if (!this.live.has(port) && Date.now() - server.at > DESK.starting) this.servers.delete(port);
+ },
 };
+const DESK = { recent: 30 * 60 * 1000, starting: 20000, settle: 2500 };
+
+// What a command does to a folder other agents share. Git that switches branches, rewrites or sweeps up the working
+// tree would move another agent's files from under it or take its unfinished work; installs and builds break when two
+// run in one folder at once; a server takes a port.
+const SHARED = {
+ sweeping: new Set(['checkout', 'switch', 'reset', 'stash', 'clean', 'restore', 'rebase', 'merge', 'pull', 'cherry-pick', 'revert', 'am', 'rm', 'mv']),
+ reading: new Set(['status', 'log', 'diff', 'show', 'blame', 'grep', 'ls-files', 'ls-tree', 'rev-parse', 'rev-list', 'describe', 'shortlog', 'reflog', 'config', 'remote', 'fetch', 'help', 'version', 'cat-file', 'whatchanged']),
+ build: /\b(npm|pnpm|bun)\s+(install|i|ci|add|remove|rm|uninstall|update|up|upgrade|run\s+build|build)\b|\byarn(\s+(install|add|remove|upgrade|build|run\s+build))?\s*($|[;&|\n])|\b(pip3?|python3?\s+-m\s+pip|py\s+-m\s+pip)\s+install\b|\b(poetry|uv)\s+(install|add|sync|lock)\b|\bcargo\s+(build|install|add|update)\b|\bgo\s+(build|get|install|mod\s+(tidy|download))\b|\bdotnet\s+(build|restore|publish)\b|\bgradlew?\b|\bmvn\b|\bmake\b|\bcomposer\s+(install|require|update)\b|\bbundle\s+install\b/im,
+ server: /Start-Process|\bnohup\b|&\s*$|\b(npm|pnpm|yarn|bun)\s+(run\s+)?(dev|start|serve|preview)\b|\bnpx\s+(vite|serve|http-server|next|live-server)\b|\b(vite|next\s+(dev|start)|http-server|live-server|webpack\s+serve|uvicorn|gunicorn|flask\s+run|php\s+-S|rails\s+s(erver)?)\b|http\.server|manage\.py\s+runserver/im,
+ writes: /\b(Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|Rename-Item|New-Item|Clear-Content|rm|mv|cp|del|erase|ren|rename|move|copy|truncate|tee|touch)\b|>|\bsed\s+-i|\bperl\s+-pi/i,
+};
+
+// The git commands in a step: the subcommand and the words after it, from the git tool or from a shell command.
+function gitCalls(name, args) {
+ if (name === 'git') {
+  let words = Array.isArray(args.args) ? args.args.map(String) : String(args.args || '').split(/\s+/).filter(Boolean);
+  if (words[0] === 'git') words = words.slice(1);
+  while (words.length && words[0].startsWith('-')) words = words.slice(/^-[Cc]$/.test(words[0]) ? 2 : 1);
+  return words.length ? [{ sub: words[0], rest: words.slice(1) }] : [];
+ }
+ return [...String(args.command || '').matchAll(/(?:^|[\s;&|(])git((?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*)\s+([\w-]+)([^\n;&|]*)/g)]
+  .map(match => ({ sub: match[2], rest: match[3].trim().split(/\s+/).filter(Boolean).map(word => word.replace(/^(["'])(.*)\1$/, '$2')) }));
+}
+
+function sharedKinds(name, args) {
+ const gits = gitCalls(name, args), text = name === 'git' ? '' : String(args.command || '');
+ const changes = call => !SHARED.reading.has(call.sub) && !(call.sub === 'branch' && !call.rest.some(word => /^(-[dDmMcC]|--delete|--move|--copy|--force)/.test(word)))
+  && !(call.sub === 'stash' && /^(list|show)$/.test(call.rest[0] || '')) && !(call.sub === 'tag' && !call.rest.length);
+ return { gits, git: gits.some(changes), build: SHARED.build.test(text), server: SHARED.server.test(text), writes: SHARED.writes.test(text), text };
+}
+
+// Why a git step would sweep up or move what another agent is working on, or ''.
+function sweeps(call) {
+ if (SHARED.sweeping.has(call.sub) && !(call.sub === 'stash' && /^(list|show)$/.test(call.rest[0] || ''))) return `git ${call.sub} ${call.rest.join(' ')}`.trim();
+ if (call.sub === 'add' && (!call.rest.some(word => !word.startsWith('-')) || call.rest.some(word => /^(-A|--all|-u|--update|\.|\*|:\/|\.\/)$/.test(word)))) return `git add ${call.rest.join(' ')}`.trim();
+ if (call.sub === 'commit' && call.rest.some(word => /^(--all|-[a-zA-Z]*a[a-zA-Z]*)$/.test(word))) return `git commit ${call.rest.join(' ')}`.trim();
+ return '';
+}
 const TASK_SHOWN = 220;
 // What the agent's question to the user answers when no answer came (ask-card.js shows the question).
 const ASK = {
  bad: 'Error: ask_user needs questions: one to four, each with a question, a short header and two to four options that have a label and a description. Call it again in that shape, or go on without asking.',
  message: 'The user did not answer the question and sent a new message instead, read it next.',
  side: 'Error: no question can be shown here right now. Go on without asking: choose what is most sensible and say what you chose.',
+};
+
+// What the agent's show_pictures tool answers. At most `most` pictures in one call.
+const PICTURES = {
+ most: 8,
+ none: 'Error: show_pictures needs pictures: one to eight, each with a caption, and a ref, a part of the screen (x, y, width, height), a url or a path; with none of them the whole screen of the browser is shown.',
+ noBrowser: 'there is no page open in the built-in browser',
+ done: 'They are in your answer now, under what you have written so far: go on with the work. Do not show them again and do not write their addresses.',
 };
 
 // The user's notepad beside a chat (notepad.js), and what the agent's notepad tool answers.
@@ -149,6 +263,22 @@ const MEMORY = {
  off: 'Error: the user has switched the memory off, so nothing can be saved or changed. Go on without it.',
  locked: 'Error: this chat is protected by a password, and nothing said in it goes into the memory that every chat reads. Go on without saving.',
  full: 'Error: the memory is full. Put what is new into the record it belongs to with update, or forget a record that no longer matters.',
+};
+// This chat's private record (library.js keeps the file). The agent rewrites it whole, and it never grows past `chars`.
+const RECORD = {
+ chars: 40000,
+ // When a line was added, by this computer's clock: the agent's own idea of the date can be wrong.
+ stamp: (at = new Date()) => `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')} ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`,
+ locked: 'Error: this chat is locked, so its record cannot be changed until it is open.',
+ early: 'Error: this chat is not saved yet, so there is nowhere to keep a record. It can be written once the chat exists.',
+ action: 'Error: action must be add, edit or write.',
+ empty: 'Error: text is empty.',
+ missing: 'Error: old_text is not in the record. Copy it exactly from the latest note of the record, or use write to set the whole record.',
+ twice: 'Error: old_text is in the record more than once. Give a longer piece, so that it is found in one place only.',
+ big: n => `Error: that record would be ${n} characters, and the file holds ${RECORD.chars} at most. Take out what is no longer true, shorten the rest, and write it again.`,
+ saved: n => `Saved at ${RECORD.stamp()} by this computer's clock. The record is ${n} characters. The next step is shown it, so there is no need to repeat it in the reply.`,
+ cleared: 'The record is empty now.',
+ failed: 'Error: the record could not be saved. Do not assume the change was kept. Try again before relying on it.',
 };
 // What the agent's skill tool answers (skills.js and desktop/skills.js find, read and put in the skills).
 const SKILL = {
@@ -468,13 +598,19 @@ function transcript(entries) {
   else if (entry.role === 'user') out.push(`User: ${cut(textOf(entry.content) || entry.text || '', COMPACT.text)}`);
   else if (entry.role === 'assistant' && !entry.steps) out.push(`OpenGhost: ${cut(entry.content || '', COMPACT.text)}`);
   else if (entry.role === 'assistant') {
+   const recordCalls = new Set(entry.steps.flatMap(step => (step.tool_calls || []).filter(call => call.function.name === 'record').map(call => call.id)));
    for (const step of entry.steps) {
-    if (step.role === 'tool') { out.push(`[Result] ${cut(step.content, COMPACT.tool)}`); continue; }
+    if (step.role === 'tool') {
+     if (!recordCalls.has(step.tool_call_id)) out.push(`[Result] ${cut(step.content, COMPACT.tool)}`);
+     continue;
+    }
     // A note from the app says how things stood then; the chat gets fresh ones after the summary.
     if (step.role === 'user' && typeof step.content === 'string') continue;
     if (step.role === 'user') { out.push(`[${step.content.filter(part => part.type === 'image_url').length} pictures from the tools were shown]`); continue; }
     if (step.content) out.push(`OpenGhost: ${cut(step.content, COMPACT.text)}`);
-    for (const call of step.tool_calls || []) out.push(`[Tool ${call.function.name}] ${cut(call.function.arguments, COMPACT.tool)}`);
+    for (const call of step.tool_calls || []) {
+     if (call.function.name !== 'record') out.push(`[Tool ${call.function.name}] ${cut(call.function.arguments, COMPACT.tool)}`);
+    }
    }
   }
  }
@@ -482,31 +618,69 @@ function transcript(entries) {
  return text.length > COMPACT.total ? `${text.slice(0, COMPACT.total / 4)}\n\n[… middle of the conversation left out …]\n\n${text.slice(-COMPACT.total * 3 / 4)}` : text;
 }
 
-// The messages some entries of a chat go to the model as.
-function flat(entries) {
+// The messages some entries of a chat go to the model as. `reader` is the model that will read them: a step another
+// model signed is given back without that signature, so the commands and the text stay and the signature cannot be refused.
+function flat(entries, reader) {
  const out = [];
  for (const entry of entries) {
   if (entry.role === 'user') out.push({ role: 'user', content: entry.content ?? entry.text ?? '' });
   else if (entry.role !== 'assistant') continue;
-  else if (entry.steps) out.push(...entry.steps);
+  else if (entry.steps) out.push(...(reader && entry.model && entry.model !== reader ? entry.steps.map(unsigned) : entry.steps));
   else if (entry.content) out.push({ role: 'assistant', content: entry.content });
  }
  return out;
 }
 
-// How many of the last messages stay word for word after a summary: as many as fit the budget, starting where a message
-// can stand on its own (a tool's result needs the call before it, the pictures of tools the results before them).
-function tail(messages, budget) {
- let at = messages.length, used = 0;
- while (at > 0) {
-  const cost = estimate([messages[at - 1]]);
-  if (used + cost > budget) break;
-  used += cost;
-  at--;
+function unsigned(step) {
+ if (!step.native && !step.reasoning_content) return step;
+ const { native, reasoning_content, ...rest } = step;
+ return rest;
+}
+
+// The last turns that stay word for word after a summary: the last few messages of the user and the last few replies,
+// and everything between them, so a reply is never split from the message it answers. A reply keeps its tool calls.
+function keptSpan(entries) {
+ const need = COMPACT.turns;
+ let users = 0, assistants = 0, start = entries.length;
+ for (let i = entries.length - 1; i >= 0 && (users < need.user || assistants < need.assistant); i--) {
+  const role = entries[i].role;
+  if (role !== 'user' && role !== 'assistant') continue;
+  if (role === 'user' ? users >= need.user : assistants >= need.assistant) continue;
+  if (role === 'user') users++;
+  else assistants++;
+  start = i;
  }
- const loose = message => message.role === 'tool' || (message.role === 'user' && Array.isArray(message.content) && message.content[0]?.text === TOOL_NOTES.images);
- while (at < messages.length && loose(messages[at])) at++;
- return messages.length - at;
+ return start >= entries.length ? [] : entries.slice(start);
+}
+
+// How many tokens a summary may run to: a share of the window of the model that writes it, never more than that model
+// can write in one answer. A model that never said how much it can write gets the old fixed room at most.
+function compactRoom(config) {
+ const window = Number(config?.window) || 0, output = Number(config?.output) || 0;
+ const limit = output > 0 ? output : COMPACT.output, share = Math.floor(window * COMPACT.part);
+ return Math.max(1, share > 0 ? Math.min(share, limit) : limit);
+}
+
+// What a reply says in the chat, without its commands.
+function replyText(entry) {
+ if (entry.content?.trim()) return entry.content;
+ return (entry.steps || []).filter(step => step.role === 'assistant' && typeof step.content === 'string' && step.content.trim()).map(step => step.content).join('\n\n');
+}
+
+// The last turns kept after a summary, as text: the user's messages as they were, the replies without their commands.
+// Older ones go first when they don't fit `room` tokens, and a single one too long for it is shortened.
+function keptTurns(entries, room) {
+ const out = [];
+ for (const entry of entries) {
+  if (entry.role === 'user') out.push({ role: 'user', content: entry.content ?? entry.text ?? '' });
+  else if (entry.role === 'assistant') {
+   const text = replyText(entry);
+   if (text) out.push({ role: 'assistant', content: text });
+  }
+ }
+ while (room > 0 && out.length > 1 && estimate(out) > room) out.shift();
+ if (room > 0 && out.length && estimate(out) > room) out[0] = { ...out[0], content: cut(textOf(out[0].content), Math.floor(room * CONTEXT.chars)) };
+ return out;
 }
 
 function settle(root) {
@@ -541,6 +715,8 @@ class Conversation {
   this.turn = null;
   // The user's notes beside the chat, read with its messages: { items: [{ id, text, done, at, by, reminded }], next }.
   this.pad = null;
+  // This chat's private record. Null until it has been read; a new chat has none, so ''.
+  this.brief = null;
   this.follow = true;
   this.scrollTop = 0;
   this.unread = false;
@@ -553,7 +729,7 @@ class Conversation {
 }
 
 class Chat {
- constructor({ main, thread, bottom, settings, library, onChange, onList, onRecall = null, onNotes = null, onLeave = null, onPredict = null }) {
+ constructor({ main, thread, bottom, settings, library, onChange, onList, onRecall = null, onNotes = null, onLeave = null, onPredict = null, onPlan = null }) {
   this.main = main;
   this.thread = thread;
   this.bottom = bottom;
@@ -563,6 +739,8 @@ class Chat {
   this.onList = onList;
   this.onRecall = onRecall;
   this.onNotes = onNotes;
+  // Told when what the top of a chat shows of its plan may have changed: the plan itself, or the agent waiting for the user.
+  this.onPlan = onPlan;
   // Told of a chat about to leave the screen or to lock, while its key is still at hand.
   this.onLeave = onLeave;
   // Told when a chat's prediction of the next message has come or gone; a chat with nobody to tell asks for none.
@@ -633,13 +811,22 @@ class Chat {
   this.onChange();
  }
 
- // The model the chat worked with summarizes it first, so the new one starts from a history that fits its own window.
+ // Who writes the summary when a chat moves to another model. The new one, when it reads at least as much as the one in
+ // use: the one in use may be out of credit, which is often why the chat moves. Otherwise the one in use, which the chat
+ // already fits.
+ summarizerFor(id, conv = this.active) {
+  const now = this.modelOf(conv);
+  return this.settings.windowOf(id) >= this.settings.windowOf(now) ? id : now;
+ }
+
+ // The chat moves to another model through a summary. On a failed summary it stays with the model it had.
  switchModel(id) {
   const conv = this.active;
   if (!conv?.record || conv.turn || id === this.modelOf(conv)) return;
   if (!this.hasHistory(conv)) { this.setModel(id); return; }
-  const turn = this.begin(conv, this.config(conv));
-  turn.switch = this.modelOf(conv);
+  const previous = this.modelOf(conv);
+  const turn = this.begin(conv, this.settings.configFor(this.summarizerFor(id, conv)));
+  turn.switch = previous;
   this.library.update(conv.id, { model: id });
   this.settings.setModel(id);
   this.summarize(conv, turn);
@@ -801,10 +988,11 @@ class Chat {
 
  // A chat's messages come with the notes kept beside it; a mini chat has none of its own.
  load(conv) {
-  return Promise.all([this.library.conversation(conv.id), this.library.notes?.(conv.id)]).then(([{ messages, tokens }, pad]) => {
+  return Promise.all([this.library.conversation(conv.id), this.library.notes?.(conv.id), this.library.record?.(conv.id)]).then(([{ messages, tokens }, pad, brief]) => {
    conv.messages = messages;
    conv.tokens = tokens;
    conv.pad = pad || null;
+   conv.brief = brief || '';
    this.restore(conv);
   });
  }
@@ -823,6 +1011,7 @@ class Chat {
    conv.messages = [];
    conv.tokens = 0;
    conv.pad = null;
+   conv.brief = null;
    conv.ready = null;
    conv.list.replaceChildren();
   };
@@ -1282,6 +1471,9 @@ class Chat {
     const output = typeof result === 'string' ? result : result.text;
     part.entry.steps.push({ role: 'tool', tool_call_id: call.id, content: output });
     conv.tokens += Math.ceil(output.length / CONTEXT.chars);
+    // What the step did, for the plan's proofs: that something was done, and how the last check ended.
+    const name = call.function.name;
+    if (AgentPlan.saw(conv, { name, shell: name === AgentTools.shell, args: call.function.arguments, output, worked: !/^Error\b/.test(output) && !UNDONE.has(output) })) turn.work = (turn.work || 0) + 1;
     if (result.images?.length) images.push(...result.images);
     told ||= output === TOOL_NOTES.message || output === TOOL_NOTES.browserMessage;
    }
@@ -1296,10 +1488,26 @@ class Chat {
     part.entry.steps.push(step);
     conv.tokens += estimate([step]);
    }
+   // A task that has taken a good many steps with no plan: the agent is reminded, once, that a task of parts gets one.
+   const nudge = calls.length && !turn.queue.length ? this.planNudge(conv, turn) : '';
+   if (nudge) {
+    const step = { role: 'user', content: nudge };
+    part.entry.steps.push(step);
+    conv.tokens += estimate([step]);
+   }
    this.save(conv);
    turn.controller.signal.throwIfAborted();
    if (turn.queue.length) { await this.takeQueue(conv, turn); continue; }
-   if (!calls.length) return finish;
+   if (!calls.length) {
+    const back = this.planBack(conv, turn, finish);
+    if (!back) return finish;
+    const step = { role: 'user', content: back };
+    part.entry.steps.push(step);
+    conv.tokens += estimate([step]);
+    this.save(conv);
+    this.showGhost(turn.next || part.view);
+    continue;
+   }
    // A place was kept for the reply to a message the user then took back, or the agent brought a note up: the reply
    // moves on, into that place or under the note.
    if (turn.next || turn.pills.length) await this.takeQueue(conv, turn);
@@ -1355,6 +1563,23 @@ class Chat {
   // Other agents at work in the same folder, the same way: nobody gets no note, unless an earlier note named somebody.
   const lines = this.peerLines(conv), named = told(TOOL_NOTES.peers), peers = lines || named ? `${TOOL_NOTES.peers}\n${lines || TOOL_NOTES.peersNone}` : '';
   if (peers && peers !== named) out.push({ role: 'user', content: peers });
+  // Servers other agents keep running, the same way: none gets no note, unless an earlier note named some.
+  const running = this.serverLines(conv), heard = told(TOOL_NOTES.servers), servers = running || heard ? `${TOOL_NOTES.servers}\n${running || TOOL_NOTES.serversNone}` : '';
+  if (servers && servers !== heard) out.push({ role: 'user', content: servers });
+  // The plan of the task under way, while steps of it are open. What the agent saw of it last, in a note or in the answer
+  // to its own plan call, is not told again; after a summary it is told anew.
+  const plan = this.planOf(conv);
+  if (AgentPlan.open(plan).length) {
+   const now = AgentPlan.lines(plan);
+   if (now !== this.planSeen(messages)) out.push({ role: 'user', content: `${TOOL_NOTES.plan}\n${now}` });
+  }
+  // This chat's private record. The mini chat over this same chat sees it too; another chat does not. Unread yet, it is not
+  // claimed empty: an empty note would invite the agent to write over facts still on the way from the disk.
+  const brief = this instanceof SideChat && typeof this.origin?.brief === 'string' ? this.origin.brief : conv.brief;
+  if (typeof brief === 'string') {
+   const had = told(TOOL_NOTES.record), note = brief || had ? `${TOOL_NOTES.record}\n${brief || TOOL_NOTES.recordEmpty}` : '';
+   if (note && note !== had && !this.wroteRecord(messages, brief)) out.push({ role: 'user', content: note });
+  }
   return out;
  }
 
@@ -1379,13 +1604,23 @@ class Chat {
  }
 
  peerLines(conv) {
-  const peers = Desk.others(conv, this.cwd(conv));
-  if (!peers.length) return '';
+  const cwd = this.cwd(conv), peers = Desk.others(conv, cwd), done = Desk.finished(conv, cwd);
+  if (!peers.length && !done.length) return '';
   const lines = peers.map(peer => {
    const name = this.peerName(conv, peer), files = [...peer.files.values()], task = peer.chat.taskOf(peer.conv);
    return `- ${name[0].toUpperCase()}${name.slice(1)} is working${task ? ` on: “${task}”` : ''}. ${files.length ? `Files it is changing: ${files.slice(-12).join(', ')}.` : 'It has changed no files so far.'}`;
   });
-  return `${lines.join('\n')}\n${TOOL_NOTES.peersRule}`;
+  // Finished a while ago: its files are free again, but what it changed is fresh work not to be undone by mistake.
+  for (const item of done) lines.push(`${TOOL_NOTES.peersRecent(this.peerName(conv, item))} Files it changed: ${item.files.slice(-12).join(', ')}. Do not undo that work by mistake.`);
+  return peers.length ? `${lines.join('\n')}\n${TOOL_NOTES.peersRule}` : lines.join('\n');
+ }
+
+ // Servers other agents started that still listen, anywhere on this computer: a port is the whole computer's.
+ serverLines(conv) {
+  return [...Desk.servers].filter(([, server]) => server.conv !== conv).map(([port, server]) => {
+   const task = server.chat.taskOf(server.conv);
+   return `- Port ${port}: ${this.peerName(conv, server)}${task ? `, for its task “${task}”` : ''}.`;
+  }).join('\n');
  }
 
  // The message the request before this one ended with: a provider that caches up to marked places (Claude) reads its
@@ -1395,14 +1630,17 @@ class Chat {
   return (conv.sent || 0) - 1;
  }
 
- // A chat goes to the model from its latest summary on. The steps right before the summary go along as they were, so
- // the agent still has what it has just read and run in full, not only what the summary says of it.
+ // A chat goes to the model from its latest summary on. The last messages before the summary go along once more as text,
+ // so the agent has the user's own words and its own last answers, not only what the summary says of them.
  history(conv) {
   const messages = conv.messages, start = messages.findLastIndex(entry => entry.role === 'compact'), entry = messages[start];
   if (!entry) return flat(messages);
   const out = [{ role: 'system', content: `${COMPACT.head}\n\n${entry.summary}` }];
   if (entry.skills) out.push({ role: 'user', content: `${COMPACT.skills}\n\n${entry.skills}` });
-  if (entry.keep) out.push({ role: 'user', content: COMPACT.kept }, ...flat(messages.slice(0, start)).slice(-entry.keep));
+  const kept = entry.turns ? keptTurns(messages.slice(0, start).slice(-entry.turns), entry.room) : [];
+  if (kept.length) out.push({ role: 'user', content: COMPACT.kept }, ...kept);
+  // A summary made by an earlier version kept its last steps with their commands.
+  else if (entry.keep) out.push({ role: 'user', content: COMPACT.keptSteps }, ...flat(messages.slice(0, start), entry.model).slice(-entry.keep));
   if (entry.resume) out.push({ role: 'user', content: COMPACT.resume });
   return [...out, ...flat(messages.slice(start + 1))];
  }
@@ -1411,6 +1649,7 @@ class Chat {
   const part = turn.part, view = part.view, base = part.entry.content;
   if (this.agent(conv)) await Skills.refresh(this.cwd(conv)).catch(() => {});
   const messages = [...(await this.system(conv)).map(content => ({ role: 'system', content })), ...withPictures(this.history(conv), UserContext.pictures())];
+  if (this.agent(conv)) await Desk.refresh().catch(() => {});
   const notes = this.notes(conv, messages), at = this.seam(conv, messages);
   if (messages[at]) messages[at] = { ...messages[at], cache: true };
   messages.push(...notes);
@@ -1423,7 +1662,7 @@ class Chat {
   try {
    result = await Providers.stream(turn.config, {
     messages,
-    tools: this.agent(conv) ? AgentTools.schemas : null,
+    tools: this.agent(conv) ? this.toolSchemas() : null,
     signal: turn.controller.signal,
     session: this.session(conv),
     onContent: (delta, stream) => {
@@ -1436,6 +1675,7 @@ class Chat {
      if (turn.next && !turn.queue.length) this.dismissGhost(turn.next);
      view.stream.push(part.entry.content);
     },
+    onRetry: () => this.showRetry(view),
    });
   } catch (error) {
    if (error.partial?.content) keep(assistantStep({ ...error.partial, toolCalls: [] }));
@@ -1466,6 +1706,8 @@ class Chat {
   if (name === 'routine') return this.useRoutine(conv, turn, args);
   if (name === 'ask_user') return this.useAsk(conv, turn, view, args);
   if (name === 'memory') return this.useMemory(conv, turn, args);
+  if (name === 'record') return this.useRecord(conv, turn, args);
+  if (name === 'plan') return this.usePlan(conv, turn, args);
   // A file another agent is changing in its own turn is that agent's until it is done.
   if (name === 'write_file' || name === 'edit_file') {
    const path = AgentTools.place(cwd, args.path), held = path && Desk.holder(conv, path);
@@ -1475,6 +1717,11 @@ class Chat {
    }
    if (path) Desk.claim(conv, path, String(args.path));
   }
+  // Commands and git in a folder another agent works in: what would take or move its work is refused before anyone is
+  // asked to approve it.
+  const shared = name === AgentTools.shell || name === 'git' ? sharedKinds(name, args) : null;
+  const refused = shared && this.sharedRefusal(conv, cwd, shared);
+  if (refused) return refused;
   let apart = this.seat(conv);
   if (AgentTools.needsApproval(name, args, { mode: this.settings.mode, cwd, attached: this.attachedFiles(conv), apart })) {
    if (turn.queue.length) return TOOL_NOTES.message;
@@ -1483,7 +1730,10 @@ class Chat {
   }
   if (turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
   if (name === 'skill') return this.useSkill(conv, turn, view, args);
+  if (name === 'show_pictures') return this.usePictures(conv, turn, view, args, { cwd, apart });
   this.showGhost(turn.next || view);
+  // What the step does, in the line beside the ghost; the next step's words take its place (agent-line.js).
+  AgentLine.show((turn.next || view).status, AgentLine.deed(name, args, cwd, apart));
   const panel = name.startsWith('browser_') ? window.browserPanel : null;
   // While the user has the browser the agent waits for it: the note to answer with if the wait ended some other way
   // than by Hand back, '' once the browser is the agent's again.
@@ -1513,8 +1763,11 @@ class Chat {
   // would otherwise hold the agent for up to a minute.
   const stopped = new Promise(resolve => turn.controller.signal.addEventListener('abort', () => resolve(TOOL_NOTES.cancelled), { once: true }));
   try {
+   if (shared) return await this.runShared(conv, turn, view, { name, args, id, cwd, apart, shared, stopped });
    if (!handed) {
     const done = await Promise.race([AgentTools.run(name, args, { id, cwd, apart }), stopped]);
+    // A change made to a file is shown a moment under the ghost's line, then folds away (agent-line.js).
+    if (name === 'edit_file' && typeof done === 'string' && done.startsWith('Edited ')) this.glanceEdit(turn.next || view, args);
     // Take control in the middle of the step: the step was cut, and the agent waits for the browser as above.
     if (!panel?.took(id) || done === TOOL_NOTES.cancelled) return done;
     const note = await yielded();
@@ -1530,6 +1783,56 @@ class Chat {
   }
  }
 
+ // The agent shows the user pictures (show_pictures): what it sees in the built-in browser, a picture from the
+ // internet or an image file. Each is kept with the chat (desktop/pictures.js) and goes into the reply at once, under
+ // what the agent has written so far, as pictures to leaf through; the agent goes on with its work.
+ async usePictures(conv, turn, view, args, { cwd, apart }) {
+  const items = (Array.isArray(args.pictures) ? args.pictures : []).filter(item => item && typeof item === 'object').slice(0, PICTURES.most);
+  const bridge = window.openghost?.pictures;
+  if (!items.length || !bridge) return PICTURES.none;
+  // A chat with a password keeps its pictures sealed (desktop/pictures.js).
+  const sealed = this.library.isProtected(conv.id);
+  const shown = [], told = [];
+  for (const [k, item] of items.entries()) {
+   if (turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
+   const caption = String(item.caption || '').replace(/\s+/g, ' ').trim();
+   let got;
+   try {
+    if (item.path) got = await bridge.file(conv.id, AgentTools.place(cwd, String(item.path)) || String(item.path), sealed);
+    else if (item.url) got = await bridge.web(conv.id, String(item.url), '', sealed);
+    else got = await this.browserPicture(conv, turn, item, { cwd, apart });
+   } catch (error) {
+    got = { error: error.message };
+   }
+   if (!got?.url) { told.push(`${k + 1}) not shown: ${got?.error || 'it could not be taken'}`); continue; }
+   shown.push({ caption: caption || got.alt || got.title || '', url: got.url, page: /^https?:/i.test(got.page || '') ? got.page : '' });
+   told.push(`${k + 1}) shown${got.from === 'screen' ? ', the whole screen of the browser' : ''}: ${caption}`);
+  }
+  if (shown.length) {
+   // Caption and page as Markdown takes them: no brackets in the one, no spaces or brackets in the other.
+   const words = text => text.replace(/[[\]]/g, '').trim();
+   const lines = shown.map(picture => picture.page
+    ? `[![${words(picture.caption)}](${picture.url})](${picture.page.replace(/[<>()\s]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)})`
+    : `![${words(picture.caption)}](${picture.url})`);
+   const part = turn.part;
+   part.entry.content = join(part.entry.content || '', lines.join('\n'));
+   turn.text = true;
+   this.dismissGhost(view);
+   view.stream.push(part.entry.content);
+  }
+  return [...told, shown.length ? PICTURES.done : ''].filter(Boolean).join('\n');
+ }
+
+ // A picture from the built-in browser, for show_pictures: of an element, of a part of the screen or of all of it.
+ // Only looking: nothing on the page is touched, and the user may hold the browser meanwhile.
+ async browserPicture(conv, turn, item, { cwd, apart }) {
+  const panel = window.browserPanel;
+  if (!panel || !panel.current(apart)) return { error: PICTURES.noBrowser };
+  const args = { chat: conv.id, sealed: this.library.isProtected(conv.id) };
+  for (const key of ['ref', 'x', 'y', 'width', 'height']) if (item[key] !== undefined && item[key] !== null && item[key] !== '') args[key] = item[key];
+  return panel.run('browser_picture', args, { id: turn.tool || `${conv.id}-${++this.tools}`, cwd, apart });
+ }
+
  // The agent asks the user (the ask_user tool): the composer of this chat turns into the card with the questions
  // (AskDeck), and the call waits there for as long as the user takes. Stop ends the wait, and so does a new message.
  async useAsk(conv, turn, view, args) {
@@ -1542,6 +1845,7 @@ class Chat {
   const answers = await new Promise(resolve => {
    conv.ask = { questions, settle: resolve };
    this.syncAsk();
+   this.onPlan?.(conv);
    // Asked in a chat that is not on screen: its row is marked, as for a reply that came in.
    if (conv !== this.active && conv.record && this.library.chat(conv.id)) this.library.update(conv.id, { unread: true });
    // The agent now waits for the user: one who is not looking is told so, as of a finished reply.
@@ -1549,36 +1853,50 @@ class Chat {
   });
   conv.ask = null;
   this.syncAsk();
+  this.onPlan?.(conv);
   if (typeof answers === 'string') return answers;
   turn.pills.push({ role: 'asked', items: AskDeck.record(questions, answers) });
   if (!turn.controller.signal.aborted) this.showGhost(turn.next || view);
   return AskDeck.report(questions, answers);
  }
 
- // The composer shows the question of the chat on screen, if it has one waiting.
+ // The composer shows the question of the chat on screen, if it has one waiting, and else the cards that ask before
+ // its agent acts (ApprovalDeck), if any wait.
  syncAsk() {
   const host = this.main.querySelector('.composer');
   if (!host) return;
   const ask = this.active?.ask || null;
-  if (!ask && !this.deck) return;
-  this.deck ||= new AskDeck(host);
-  if (ask) this.deck.show(ask);
-  else this.deck.hide();
+  const cards = ask ? [] : [...(this.active?.turn?.approvals || [])].map(pending => pending.card);
+  if (ask || this.deck) {
+   this.deck ||= new AskDeck(host);
+   if (ask) this.deck.show(ask);
+   else this.deck.hide();
+  }
+  if (cards.length || this.approvalDeck) {
+   this.approvalDeck ||= new ApprovalDeck(host);
+   this.approvalDeck.show(cards);
+  }
  }
 
+ // The card that asks before the agent acts stands in the composer's place, as the agent's questions do; a chat with no
+ // composer of its own keeps it in the reply, under the step it asks about.
  async approve(conv, turn, view, request) {
   this.dismissGhost(view);
   if (turn.next) this.dismissGhost(turn.next);
   const about = AgentTools.describe(request.name, request.args, request.cwd, request.apart), card = new ApprovalCard(about);
-  const pending = { ...request, card };
-  view.el.append(card.el);
+  const pending = { ...request, card }, deck = !!this.main.querySelector('.composer');
+  if (!deck) view.el.append(card.el);
   // The agent now waits for the user's OK: one who is not looking is told so, once while its steps wait together.
   if (!turn.approvals.size) this.replied(conv, I18n.t('notify.approve', { text: about.title }));
   turn.approvals.add(pending);
+  if (deck) this.syncAsk();
+  this.onPlan?.(conv);
   if (conv === this.active) this.followBottom();
   const answer = await card.answer;
   turn.approvals.delete(pending);
-  card.dismiss();
+  this.onPlan?.(conv);
+  if (deck) this.syncAsk();
+  else card.dismiss();
   return answer;
  }
 
@@ -1671,8 +1989,10 @@ class Chat {
   if (conv === this.active) this.followBottom();
   // A protected chat left while it was replying locks fully once the reply is saved.
   if (conv.locked && !conv.turn) this.seal(conv);
+  // An agent that stopped to wait for the user, for its plan's sake, is told of as waiting, whatever its reply says.
+  if (!error && !aborted && turn.waits) this.replied(conv, I18n.t('notify.waits', { text: turn.waits }));
   if (!error && !noted && !turn.quiet && text) {
-   this.replied(conv, turn.parts.findLast(part => part.entry.content.trim())?.entry.content || '');
+   if (!turn.waits) this.replied(conv, turn.parts.findLast(part => part.entry.content.trim())?.entry.content || '');
    this.foresee(conv, turn);
   }
  }
@@ -1733,8 +2053,12 @@ class Chat {
  }
 
  async compactIfNeeded(conv, turn) {
-  const used = conv.tokens || estimate(this.history(conv));
-  if (used < this.settings.windowOf(turn.config.id) * (1 - CONTEXT.reserve)) return;
+  const used = conv.tokens || estimate(this.history(conv)), window = this.settings.windowOf(turn.config.id);
+  if (used < window * (1 - CONTEXT.reserve)) return;
+  // Right after a summary there is little new to fold: what fills the window is the rest (the instructions, the record,
+  // a huge file). Another summary would change nothing and would come again at every step, so the request goes as it is.
+  const start = conv.messages.findLastIndex(entry => entry.role === 'compact');
+  if (start >= 0 && estimate(flat(conv.messages.slice(start + 1))) < window * COMPACT.part) return;
   await this.compact(conv, turn);
  }
 
@@ -1770,9 +2094,12 @@ class Chat {
   if (conv === this.active) this.followBottom();
   let summary = '', cost = null;
   try {
+   // A later summary reads the previous summary and what was said after it, not the messages that summary already folded.
+   const earlier = messages.findLastIndex((item, k) => k < at && item.role === 'compact');
+   const source = earlier >= 0 ? [messages[earlier], ...messages.slice(earlier + 1, at)] : messages.slice(0, at);
    summary = await Providers.complete(turn.config, {
-    messages: [{ role: 'system', content: COMPACT.prompt }, { role: 'user', content: transcript(messages.slice(0, at)) }],
-    maxTokens: COMPACT.output,
+    messages: [{ role: 'system', content: COMPACT.prompt }, { role: 'user', content: transcript(source) }],
+    maxTokens: compactRoom(turn.config),
     signal: turn.controller.signal,
     onUsage: usage => { cost = usage; },
    });
@@ -1785,13 +2112,18 @@ class Chat {
    return false;
   }
   const entry = { role: 'compact', summary, resume: middle, model: turn.config.id };
-  // Another model takes the chat over from the summary alone: the steps were sized and signed for the one before it.
   const from = messages.findLastIndex((item, k) => k < at && item.role === 'compact'), before = messages.slice(from + 1, at);
   // The skills in use go on past the summary word for word: a summary of their instructions would lose them halfway.
   const skills = Skills.blocks([...(from >= 0 && messages[from].skills ? [{ content: messages[from].skills }] : []), ...flat(before)]);
   if (skills) entry.skills = skills;
-  const keep = labels ? 0 : tail(flat(before), Math.min(COMPACT.keep, this.settings.windowOf(turn.config.id) * COMPACT.share));
-  if (keep) entry.keep = keep;
+  // The last two messages and the last two replies stay word for word as text, whichever model continues: the entries
+  // they are read from, and the room they may take. The previous summary's last turns still count when only one new
+  // exchange followed it.
+  const turns = keptSpan(messages.slice(0, at)).length;
+  if (turns) {
+   entry.turns = turns;
+   entry.room = Math.floor((Number(turn.config.window) || this.settings.windowOf(turn.config.id)) * COMPACT.keptShare);
+  }
   // How many messages of the conversation went into this summary: the mark in the chat says so.
   entry.count = before.filter(item => item.role === 'user' || item.role === 'assistant').length;
   spend(entry, cost);
@@ -1842,7 +2174,41 @@ class Chat {
  save(conv) {
   if (!this.library.chat(conv.id)) return;
   this.library.saveMessages(conv.id, conv.messages, conv.tokens);
-  this.library.update(conv.id, { updated: Date.now() });
+  this.library.update(conv.id, { updated: Date.now(), preview: this.preview(conv) });
+ }
+
+ // What the chat's row in the sidebar shows of it (chat-preview.js): its last message's words and its latest picture.
+ // A photo of the user's is made small first, once; the row keeps the one it had meanwhile.
+ preview(conv) {
+  const chat = this.library.chat(conv.id);
+  if (!chat || chat.lock) return null;
+  const { text, mine, photo } = ChatPreview.of(conv.messages, entry => this.promptOf(entry));
+  if (!/^data:/i.test(photo)) return { text, mine, photo };
+  if (conv.thumb?.src === photo) return { text, mine, photo: conv.thumb.url };
+  if (conv.thumbing !== photo) {
+   conv.thumbing = photo;
+   ChatPreview.thumb(photo).then(url => {
+    if (conv.thumbing !== photo) return;
+    conv.thumb = { src: photo, url };
+    const now = this.library.chat(conv.id);
+    if (now && !now.lock && now.preview) this.library.update(conv.id, { preview: { ...now.preview, photo: url } });
+   });
+  }
+  return { text, mine, photo: chat.preview?.photo || '' };
+ }
+
+ // Chats saved before their rows showed their last message have nothing to show yet: it is worked out for each of
+ // them once, one chat at a time, while the app has nothing else to do.
+ async fillPreviews() {
+  for (const chat of [...this.library.chats]) {
+   if ('preview' in chat || chat.lock) continue;
+   await new Promise(resolve => (window.requestIdleCallback || setTimeout)(resolve));
+   if (!this.library.chat(chat.id) || 'preview' in chat || chat.lock) continue;
+   const { messages } = await this.library.conversation(chat.id).catch(() => ({ messages: [] }));
+   const found = ChatPreview.of(messages, entry => this.promptOf(entry));
+   const photo = await ChatPreview.thumb(found.photo);
+   if (this.library.chat(chat.id) && !('preview' in chat) && !chat.lock) this.library.update(chat.id, { preview: { ...found, photo } });
+  }
  }
 
  // The notes the user keeps beside a chat, for things to come back to (notepad.js shows them). The agent reads them in a
@@ -2083,6 +2449,198 @@ class Chat {
   card.dismiss();
   if (answer === 'allow' && !turn.controller.signal.aborted) this.showGhost(turn.next || view);
   return turn.controller.signal.aborted ? 'deny' : answer;
+ }
+
+ // Why a command or a git step is not run while another agent works in this folder, or ''.
+ sharedRefusal(conv, cwd, shared) {
+  const peers = Desk.others(conv, cwd);
+  if (!peers.length) return '';
+  const who = seat => {
+   const task = seat.chat.taskOf(seat.conv);
+   return `${this.peerName(conv, seat)} is working in this folder right now${task ? ` (its task: “${task}”)` : ''}`;
+  };
+  for (const call of shared.gits) {
+   const what = sweeps(call);
+   if (what) return `Error: ${who(peers[0])}. “${what}” would move, reset or sweep up its unfinished work, so it is not run while that agent works. Do the rest of your task first, stage and commit only your own files by name, or ask the user.`;
+   if (call.sub === 'add' || call.sub === 'commit') {
+    for (const word of call.rest.filter(word => !word.startsWith('-'))) {
+     const held = Desk.holder(conv, AgentTools.place(cwd, word));
+     if (held) return `Error: ${who(held)}, and ${word} is one of the files it is changing. Leave that file out: stage and commit only your own files.`;
+    }
+   }
+  }
+  const named = shared.writes && Desk.named(conv, cwd, shared.text);
+  if (named) return `Error: ${who(named.seat)}, and this command names ${named.shown}, a file it is changing. Leave that file to it: do another part of your work first, or wait until it is done and read the file again before you change it.`;
+  return '';
+ }
+
+ // A command or git step in a folder that may be shared: installs, builds and git that changes things wait their turn
+ // behind another agent's; the files the command changed are this agent's while it works; a server it started is told
+ // by its port.
+ async runShared(conv, turn, view, { name, args, id, cwd, apart, shared, stopped }) {
+  const holder = turn.next || view, releases = [];
+  for (const kind of ['build', 'git'].filter(kind => shared[kind])) {
+   let line = null;
+   const release = await Desk.take(conv, cwd, kind, turn.controller.signal, () => {
+    line ||= this.showLine(holder, I18n.t('chat.waiting'));
+   });
+   this.hideLine(line);
+   if (!release) { releases.forEach(done => done()); return TOOL_NOTES.cancelled; }
+   releases.push(release);
+  }
+  try {
+   const token = Desk.others(conv, cwd).length ? await AgentTools.mark(cwd) : '';
+   const before = shared.server ? new Set(await AgentTools.ports()) : null;
+   const done = await Promise.race([AgentTools.run(name, args, { id, cwd, apart }), stopped]);
+   if (done === TOOL_NOTES.cancelled) return done;
+   const notes = [];
+   if (token) {
+    const crossed = [];
+    for (const shown of await AgentTools.changed(token)) {
+     const full = AgentTools.place(cwd, shown), held = full && Desk.holder(conv, full);
+     if (held) crossed.push(`${shown} (${this.peerName(conv, held)})`);
+     else if (full) Desk.claim(conv, full, shown);
+    }
+    if (crossed.length) notes.push(`Note from the app: this command also changed files another agent is changing right now: ${crossed.slice(0, 8).join(', ')}. Tell the user, and do not touch them again.`);
+   }
+   if (before) {
+    let opened = [];
+    for (const until = Date.now() + DESK.settle; !opened.length && Date.now() < until && !turn.controller.signal.aborted;) {
+     await new Promise(resolve => setTimeout(resolve, 500));
+     opened = (await AgentTools.ports()).filter(port => !before.has(port));
+    }
+    for (const port of opened) Desk.servers.set(port, { conv, chat: this, at: Date.now() });
+    if (opened.length) notes.push(`Note from the app: this computer now listens on port ${opened.join(', ')}, which this command opened.`);
+   }
+   return notes.length ? `${done}\n\n${notes.join('\n')}` : done;
+  } finally {
+   releases.forEach(done => done());
+  }
+ }
+
+
+ // Whether the agent itself set the whole record to `brief` after the latest note of it, with write: then the request
+ // holds it already, in the agent's own call, and a note would only repeat it. After a summary that call is gone, and
+ // the note comes again.
+ wroteRecord(messages, brief) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+   const message = messages[i];
+   if (message.role === 'user' && typeof message.content === 'string' && message.content.startsWith(TOOL_NOTES.record)) return false;
+   for (const call of [...(message.tool_calls || [])].reverse()) {
+    if (call.function?.name !== 'record') continue;
+    let args = null;
+    try { args = JSON.parse(call.function.arguments || '{}'); } catch {}
+    return args?.action === 'write' && String(args.text ?? '').replace(/\r\n/g, '\n').trim() === brief;
+   }
+  }
+  return false;
+ }
+
+ // The schemas this chat's agent is given. The mini chat over this chat gets the same record tool.
+ toolSchemas() {
+  return AgentTools.schemas;
+ }
+
+ // A chat's plan (agent-plan.js): the latest one kept on its replies, and where it is kept.
+ planAt(conv) {
+  const messages = conv?.messages || [];
+  for (let i = messages.length - 1; i >= 0; i--) if (messages[i].plan) return { plan: messages[i].plan, at: i };
+  return null;
+ }
+
+ planOf(conv) {
+  return this.planAt(conv)?.plan || null;
+ }
+
+ // What the top of the chat shows of its plan. A finished plan stays there until the user writes again. `waiting`: the
+ // agent waits for the user, for the plan's sake until they write, or for an answer to its question or for an approval.
+ planView(conv) {
+  const found = this.planAt(conv);
+  if (!found) return null;
+  const { plan, at } = found, after = conv.messages.slice(at + 1).some(entry => entry.role === 'user'), finished = AgentPlan.finished(plan);
+  if (finished && after) return null;
+  return { plan, finished, running: !!conv.turn, waiting: !!conv.ask || !!conv.turn?.approvals.size || (!!plan.wait && !after) };
+ }
+
+ // The plan as the agent saw it last in this request: in a note, or in the answer to its own plan call.
+ planSeen(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+   const message = messages[i];
+   if (message.role === 'user' && typeof message.content === 'string' && message.content.startsWith(TOOL_NOTES.plan)) return message.content.slice(TOOL_NOTES.plan.length + 1);
+   const seen = message.role === 'tool' ? AgentPlan.seen(message.content) : '';
+   if (seen) return seen;
+  }
+  return '';
+ }
+
+ // The agent's plan. Every change of it is kept on this reply, so the chat holds it from here on; the agent is answered
+ // with the plan as it now stands, so no note has to tell it again. Nothing of it waits for approval.
+ usePlan(conv, turn, args) {
+  const { plan, text } = AgentPlan.apply(this.planOf(conv), args, { work: conv.planWork || 0, check: conv.planCheck || null });
+  if (!plan) return text;
+  turn.part.entry.plan = plan;
+  turn.planned = true;
+  // A closed step's proof stands for the work done until then: the next step needs work of its own.
+  if (args.action === 'start' || args.action === 'done') conv.planWork = 0;
+  if (args.action === 'start') conv.planCheck = null;
+  if (args.action === 'wait') turn.waits = plan.wait;
+  this.onPlan?.(conv);
+  return text;
+ }
+
+ // A model left to judge alone often does a task of several parts without a plan. Once a turn has done a good many
+ // steps of work and no plan stands open, the agent is told so, once a turn; a task that is one small thing goes on.
+ planNudge(conv, turn) {
+  if (this instanceof SideChat || turn.nudged || turn.planned || (turn.work || 0) < AgentPlan.PLAN.nudge) return '';
+  if (AgentPlan.open(this.planOf(conv)).length) return '';
+  turn.nudged = true;
+  return TOOL_NOTES.planNudge;
+ }
+
+ // A turn that ends while its plan has open steps goes back to them, a couple of times at most: an agent says it is done
+ // far more often than it is. Not when it waits for the user, ran out of room or was stopped.
+ planBack(conv, turn, finish) {
+  if (turn.quiet || FINISH_NOTES.includes(finish) || turn.controller.signal.aborted || (turn.planBack || 0) >= AgentPlan.PLAN.returns) return '';
+  const view = this.planView(conv), left = AgentPlan.open(view?.plan);
+  if (!left.length || view.waiting) return '';
+  turn.planBack = (turn.planBack || 0) + 1;
+  return TOOL_NOTES.planBack(left.map(step => `${view.plan.steps.indexOf(step) + 1}. ${step.text}`).join('; '));
+ }
+
+ // The agent's hand on this chat's private record. Nothing of it is a file in the project folder, so no other chat can
+ // read it back with the file tools. add puts lines at its end, edit changes one piece of it, write sets the whole of it;
+ // a record past the limit is refused rather than cut.
+ async useRecord(conv, turn, args) {
+  if (!conv.id || !this.library.chat?.(conv.id)) return RECORD.early;
+  if (this.library.isProtected(conv.id) && !this.library.keys?.has(conv.id)) return RECORD.locked;
+  if (!['add', 'edit', 'write'].includes(args.action)) return RECORD.action;
+  const clean = value => String(value ?? '').replace(/\r\n/g, '\n');
+  let saved, text;
+  try {
+   if (conv.brief == null) conv.brief = (await this.library.record(conv.id)) || '';
+   const now = this instanceof SideChat && typeof this.origin?.brief === 'string' ? this.origin.brief : conv.brief;
+   if (args.action === 'write') text = clean(args.text).trim();
+   else if (args.action === 'add') {
+    const more = clean(args.text).trim();
+    if (!more) return RECORD.empty;
+    const line = `${RECORD.stamp()} — ${more}`;
+    text = now.trim() ? `${now.trimEnd()}\n${line}` : line;
+   } else {
+    const old = clean(args.old_text);
+    if (!old.trim()) return RECORD.missing;
+    const at = now.indexOf(old);
+    if (at < 0) return RECORD.missing;
+    if (now.indexOf(old, at + 1) >= 0) return RECORD.twice;
+    text = `${now.slice(0, at)}${clean(args.new_text)}${now.slice(at + old.length)}`.replace(/\n{3,}/g, '\n\n').trim();
+   }
+   if (text.length > RECORD.chars) return RECORD.big(text.length);
+   saved = await this.library.saveRecord(conv.id, text);
+  }
+  catch { return RECORD.failed; }
+  if (!saved) return RECORD.locked;
+  conv.brief = text;
+  if (this instanceof SideChat) this.origin.brief = text;
+  return text ? RECORD.saved(text.length) : RECORD.cleared;
  }
 
  // The agent's hand on the memory every chat shares: a new record, one written anew, one removed. Each stands in the
@@ -2453,16 +3011,52 @@ class Chat {
 
  showGhost(view) {
   const current = view.status;
+  // The ghost stands under the reply's words and over a change to a file still shown at its end (agent-line.js).
+  const glance = view.el.querySelector(':scope > .edit-glance');
   if (current?.isConnected && !current.classList.contains('is-leaving')) {
-   if (current !== view.el.lastElementChild && view.content.hasChildNodes()) view.el.append(current);
+   if (current.nextElementSibling !== glance && view.content.hasChildNodes()) view.el.insertBefore(current, glance);
    return;
   }
   const status = document.createElement('div');
   status.className = 'message-status is-working';
   status.innerHTML = '<ghost-thinking></ghost-thinking>';
-  view.el.append(status);
+  view.el.insertBefore(status, glance);
   view.status = status;
   if (view.el.closest('.thread-list') === this.active?.list) this.followBottom();
+ }
+
+ // A dropped connection is being asked again. The line sits with the ghost and leaves with it, when words arrive or the
+ // turn ends.
+ showRetry(view) {
+  if (!view.status?.querySelector('.message-retry')) this.showLine(view, I18n.t('chat.reconnecting'));
+ }
+
+ // A quiet line beside the ghost of a reply: what the agent is waiting for. It comes in the way the mode's name does when
+ // the mode changes, out of a blur, and goes the same way, or with the ghost.
+ showLine(view, text) {
+  this.showGhost(view);
+  const status = view.status, ghost = status?.querySelector('ghost-thinking');
+  if (!status?.isConnected) return null;
+  const line = document.createElement('div');
+  line.className = 'message-retry';
+  line.textContent = text;
+  status.append(line);
+  line.style.top = `${(ghost ? ghost.offsetTop + ghost.offsetHeight / 2 : status.offsetHeight / 2)}px`;
+  if (!reducedMotion()) line.animate([{ opacity: 0, filter: 'blur(4px)', transform: 'translate(-6px, -50%)' }, { opacity: 1, filter: 'blur(0)', transform: 'translate(0, -50%)' }], LINE);
+  if (view.el.closest('.thread-list') === this.active?.list) this.followBottom();
+  return line;
+ }
+
+ // A change the agent made to a file, at the end of the reply under its ghost. It goes away by itself (agent-line.js).
+ glanceEdit(view, args) {
+  const shown = AgentLine.glance(view.el, { path: args.path, was: String(args.old_string ?? ''), now: String(args.new_string ?? '') });
+  if (shown && view.el.closest('.thread-list') === this.active?.list) this.followBottom();
+ }
+
+ hideLine(line) {
+  if (!line?.isConnected) return;
+  if (reducedMotion()) { line.remove(); return; }
+  line.animate([{ opacity: 1, filter: 'blur(0)' }, { opacity: 0, filter: 'blur(4px)' }], { ...LINE, fill: 'forwards' }).finished.then(() => line.remove(), () => line.remove());
  }
 
  dismissGhost(view) {
@@ -2658,6 +3252,9 @@ class SideChat extends Chat {
    relock() {},
    isHome: chat => library.isHome(chat),
    cwdOf: chat => library.cwdOf(chat),
+   // The same private record as the chat this mini chat belongs to. Another chat's mini chat has its own origin, so it never reaches this one.
+   record: () => library.record(origin.id),
+   saveRecord: (_id, text) => library.saveRecord(origin.id, text),
   } });
   this.state = state;
   this.origin = origin;
@@ -2672,6 +3269,11 @@ class SideChat extends Chat {
  // A mini chat is forked along with its chat, not on its own.
  get forkable() {
   return false;
+ }
+
+ // A plan is shown at the top of its chat: the mini chat's agent, asked things on the side, keeps none.
+ toolSchemas() {
+  return super.toolSchemas().filter(tool => tool.function.name !== 'plan');
  }
 
  replied(conv, text) {

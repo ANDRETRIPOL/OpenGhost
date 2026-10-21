@@ -210,7 +210,9 @@ function cleanLabel(text) {
  return (text || '').trim()
   .replace(/^"([\s\S]*)"$/, '$1').replace(/^`([\s\S]*)`$/, '$1')
   .replace(/<br\s*\/?>/gi, '\n').replace(/\\n/g, '\n').replace(/<\/?[a-z][^>]*>/gi, '')
-  .replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/`([^`]+)`/g, '$1')
+  // A strong mark may hold a line break (a block's words marked strong over two lines); a star mark left without its
+  // pair is no part of the words either.
+  .replace(/\*\*([\s\S]+?)\*\*/g, '$1').replace(/__([\s\S]+?)__/g, '$1').replace(/\*\*/g, '').replace(/`([^`]+)`/g, '$1')
   .replace(/#quot;/g, '"').replace(/#amp;/g, '&').replace(/#lt;/g, '<').replace(/#gt;/g, '>')
   .replace(/#(\d+);/g, (_, code) => String.fromCodePoint(+code))
   .replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')

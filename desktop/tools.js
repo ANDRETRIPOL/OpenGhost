@@ -155,10 +155,47 @@ function detectGit() {
  return git;
 }
 
+// Records also occur in saved tool calls, so protect the whole app store, not just store/record.
+const privateRoot = () => path.join(app.getPath('userData'), 'store');
+const pathKey = file => {
+ const full = path.normalize(file).replace(/^\\\\[?.]\\UNC\\/i, '\\\\').replace(/^\\\\[?.]\\/, '');
+ return process.platform === 'linux' ? full : full.toLowerCase();
+};
+const within = (file, root) => file === root || file.startsWith(root + path.sep);
+// Resolve existing parents too, so a new file through a junction/symlink is checked against its real destination.
+function physical(file) {
+ let parent = path.resolve(file);
+ const tail = [];
+ for (;;) {
+  try { return path.join(fs.realpathSync(parent), ...tail); }
+  catch (error) {
+   if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error;
+   const next = path.dirname(parent);
+   if (next === parent) return path.resolve(file);
+   tail.unshift(path.basename(parent));
+   parent = next;
+  }
+ }
+}
+const inPrivateStore = file => {
+ const root = privateRoot(), full = path.resolve(file);
+ return within(pathKey(full), pathKey(root)) || within(pathKey(physical(full)), pathKey(physical(root)));
+};
+
 function resolvePath(cwd, file) {
  if (typeof file !== 'string' || !file.trim()) throw Object.assign(new Error('path is empty'), { plain: true });
  const clean = file.trim().replace(/^~(?=$|[\\/])/, os.homedir());
- return path.resolve(cwd, clean);
+ const full = path.resolve(cwd, clean);
+ if (inPrivateStore(full)) throw Object.assign(new Error('Application data is private and cannot be opened from a folder.'), { plain: true });
+ if (!ownChat(cwd, full)) throw Object.assign(new Error('That folder belongs to another chat. A chat without a project folder works only in its own folder.'), { plain: true });
+ return full;
+}
+
+// A chat without a project folder keeps to its own folder among the chats: another such chat's folder is not its own.
+function ownChat(cwd, full) {
+ if (!inChats(cwd) || !inChats(full)) return true;
+ const own = path.join(CHATS, path.relative(CHATS, cwd).split(path.sep)[0]), rest = path.relative(own, full);
+ return !rest.startsWith('..') && !path.isAbsolute(rest);
 }
 
 function explain(error, file = '') {
@@ -187,6 +224,7 @@ function decode(buffer, charset = 'utf-8') {
 
 async function runShell(id, { command, timeout }, cwd) {
  if (typeof command !== 'string' || !command.trim()) return { error: 'command is empty' };
+ if (inPrivateStore(cwd) || command.replaceAll('/', '\\').toLowerCase().includes(privateRoot().replaceAll('/', '\\').toLowerCase())) return { error: 'Application data is private and cannot be opened from a folder.' };
  const { exe } = await detectShell();
  const dir = path.join(os.tmpdir(), 'openghost');
  await fs.promises.mkdir(dir, { recursive: true });
@@ -384,6 +422,87 @@ async function pdfPages(id, { path: file, pages }, cwd) {
  return { path: full, ...found };
 }
 
+// What a folder holds, to tell which files a command changed while another agent works in the same folder: each file's
+// size and time of change, without the folders no one edits by hand. Bounded, so a huge folder costs a moment.
+const SNAPSHOT = { files: 20000, ms: 1500 };
+const marks = new Map();
+let marked = 0;
+
+async function snapshot(cwd) {
+ const files = new Map(), until = Date.now() + SNAPSHOT.ms, stack = [''];
+ let complete = true;
+ while (stack.length) {
+  if (files.size >= SNAPSHOT.files || Date.now() > until) { complete = false; break; }
+  const rel = stack.pop();
+  const entries = await fs.promises.readdir(path.join(cwd, rel), { withFileTypes: true }).catch(() => []);
+  const found = [];
+  for (const entry of entries) {
+   const child = rel ? path.join(rel, entry.name) : entry.name;
+   if (entry.isDirectory()) { if (!HEAVY.has(entry.name)) stack.push(child); }
+   else if (entry.isFile()) found.push(child);
+  }
+  const stats = await Promise.all(found.map(child => fs.promises.stat(path.join(cwd, child)).catch(() => null)));
+  found.forEach((child, k) => { if (stats[k]) files.set(child, `${stats[k].mtimeMs}:${stats[k].size}`); });
+ }
+ return { files, complete };
+}
+
+// Before a command: what the folder holds now. After it: the files that changed, appeared or went, as paths inside the
+// folder. A side that could not read the whole folder in time names only files both sides saw.
+async function mark(cwd) {
+ if (typeof cwd !== 'string' || !path.isAbsolute(cwd) || inPrivateStore(cwd)) return '';
+ const token = String(++marked);
+ marks.set(token, { cwd, ...(await snapshot(cwd)) });
+ return token;
+}
+
+async function changed(token) {
+ const before = marks.get(String(token));
+ marks.delete(String(token));
+ if (!before) return [];
+ const after = await snapshot(before.cwd), out = [];
+ for (const [file, sig] of after.files) {
+  const was = before.files.get(file);
+  if (was ? was !== sig : before.complete) out.push(file);
+ }
+ if (after.complete) for (const file of before.files.keys()) if (!after.files.has(file)) out.push(file);
+ return out.slice(0, 200);
+}
+
+// The TCP ports something on this computer listens on, read from the system's own list, for a few seconds at a time.
+let listening = { at: 0, ports: Promise.resolve([]) };
+function ports() {
+ if (Date.now() - listening.at < 2000) return listening.ports;
+ listening = { at: Date.now(), ports: readPorts().catch(() => []) };
+ return listening.ports;
+}
+
+async function readPorts() {
+ const found = new Set();
+ if (WINDOWS) {
+  // A listening socket has no other end yet: its foreign address ends in :0. That holds whatever the system's language.
+  const { output = '' } = await run('', 'netstat', ['-ano'], { cwd: os.homedir(), timeout: TIMEOUT.probe });
+  for (const line of output.split(/\r?\n/)) {
+   const parts = line.trim().split(/\s+/);
+   if (parts[0] !== 'TCP' || !/:0$/.test(parts[2] || '')) continue;
+   const port = Number(parts[1].slice(parts[1].lastIndexOf(':') + 1));
+   if (port) found.add(port);
+  }
+ } else {
+  let { output = '', code } = process.platform === 'linux' ? await run('', 'ss', ['-ltnH'], { cwd: os.homedir(), timeout: TIMEOUT.probe }) : { code: 1 };
+  if (code === 0) {
+   for (const line of output.split('\n')) {
+    const local = line.trim().split(/\s+/)[3] || '', port = Number(local.slice(local.lastIndexOf(':') + 1));
+    if (port) found.add(port);
+   }
+  } else {
+   ({ output = '' } = await run('', 'lsof', ['-nP', '-iTCP', '-sTCP:LISTEN'], { cwd: os.homedir(), timeout: TIMEOUT.probe }));
+   for (const match of output.matchAll(/:(\d+) \(LISTEN\)/g)) found.add(Number(match[1]));
+  }
+ }
+ return [...found].sort((a, b) => a - b);
+}
+
 const TOOLS = {
  [SYSTEM.tool]: runShell,
  read_file: readFile,
@@ -407,6 +526,8 @@ async function runTool(id, name, args, cwd, sender) {
  const tool = TOOLS[name];
  if (!tool) return { error: `Unknown tool ${name}` };
  if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return { error: 'This chat has no project folder' };
+ try { resolvePath(cwd, '.'); }
+ catch (error) { return { error: explain(error) }; }
  let stat = await fs.promises.stat(cwd).catch(() => null);
  // A chat's own folder is made the first time the agent needs it, so chats that only talk leave nothing on disk.
  if (!stat && inChats(cwd)) stat = await fs.promises.mkdir(cwd, { recursive: true }).then(() => fs.promises.stat(cwd)).catch(() => null);
@@ -449,7 +570,7 @@ async function guide(dir) {
   const names = await fs.promises.readdir(dir);
   const name = GUIDE.names.map(wanted => names.find(found => found.toLowerCase() === wanted)).find(Boolean);
   if (!name) return null;
-  const file = await fs.promises.open(path.join(dir, name), 'r');
+  const file = await fs.promises.open(resolvePath(dir, name), 'r');
   try {
    const { size } = await file.stat(), buffer = Buffer.alloc(Math.min(size, GUIDE.bytes));
    const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
@@ -471,4 +592,4 @@ async function release(dir) {
  return fs.promises.rmdir(dir).then(() => true, () => false);
 }
 
-module.exports = { runTool, cancel, cancelAll, environment, guide, release, CHATS };
+module.exports = { runTool, cancel, cancelAll, environment, guide, release, mark, changed, ports, CHATS };

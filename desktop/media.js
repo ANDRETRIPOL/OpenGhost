@@ -197,4 +197,9 @@ async function image(file, signal) {
  }
 }
 
-module.exports = { frames, image, isImage, COUNT };
+// A picture of any kind the built-in decoder reads, no larger than `side`, as WebP: for the pictures the agent shows.
+async function picture(file, side, signal = new AbortController().signal) {
+ return withPage(signal, run => run('image', [pathToFileURL(file).href, side, 0.9], WAIT.image));
+}
+
+module.exports = { frames, image, picture, isImage, COUNT };

@@ -38,6 +38,7 @@ const describe = provider => entry => {
   // The catalogue gives two windows: the one Codex works in unless told otherwise, and the most the model takes. The
   // app works in the whole of it.
   context: Number(entry.max_context_window) || Number(entry.context_window) || UNKNOWN.context,
+  output: Number(entry.max_output_tokens) || Number(entry.max_completion_tokens) || 0,
   vision: !Array.isArray(entry.input_modalities) || entry.input_modalities.includes('image'),
   efforts,
   defaultEffort: efforts.includes(entry.default_reasoning_level) ? entry.default_reasoning_level : efforts.includes('medium') ? 'medium' : efforts[0],
@@ -139,15 +140,24 @@ async function failure(response) {
 async function* events(body) {
  const decoder = new TextDecoder();
  let buffer = '';
- for await (const chunk of body) {
-  buffer += decoder.decode(chunk, { stream: true }).replace(/\r\n/g, '\n');
-  let at;
-  while ((at = buffer.indexOf('\n\n')) >= 0) {
-   const block = buffer.slice(0, at);
-   buffer = buffer.slice(at + 2);
-   const data = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
-   if (data && data !== '[DONE]') yield JSON.parse(data);
+ const dataOf = block => block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+ try {
+  for await (const chunk of body) {
+   buffer = (buffer + decoder.decode(chunk, { stream: true })).replace(/\r\n/g, '\n');
+   let at;
+   while ((at = buffer.indexOf('\n\n')) >= 0) {
+    const block = buffer.slice(0, at);
+    buffer = buffer.slice(at + 2);
+    const data = dataOf(block);
+    if (data && data !== '[DONE]') yield JSON.parse(data);
+   }
   }
+  const data = dataOf(buffer + decoder.decode());
+  if (data && data !== '[DONE]') yield JSON.parse(data);
+ } catch (cause) {
+  if (cause.name === 'AbortError' || cause.status !== undefined) throw cause;
+  if (cause instanceof SyntaxError) throw error('OpenAI sent an invalid stream event', 0, 'protocol');
+  throw error('network', 0, 'network');
  }
 }
 
@@ -182,6 +192,8 @@ async function stream(request, context) {
  // One key for all of a chat's requests keeps them on the servers that already hold the chat's cache. OpenAI's own Codex
  // sends the same key; the ChatGPT backend also reads it from the session-id header.
  if (request.session) body.prompt_cache_key = request.session;
+ // A summary and a short side job say how long the answer may be. Never past what this model can write, when that is known.
+ if (request.maxTokens) body.max_output_tokens = request.output > 0 ? Math.min(request.maxTokens, request.output) : request.maxTokens;
  const { url, headers } = await target(request, context);
  const post = async () => {
   try {
@@ -208,6 +220,8 @@ async function stream(request, context) {
  let textItem = '';
  const say = delta => { result.content += delta; onEvent({ type: 'content', delta }); };
  for await (const event of events(response.body)) {
+  if ((event.type === 'response.output_item.added' || event.type === 'response.output_item.done') && ['function_call', 'reasoning'].includes(event.item?.type)
+   || event.type === 'response.function_call_arguments.delta') onEvent({ type: 'activity' });
   if (event.type === 'response.output_text.delta') {
    // Separate message items read as separate paragraphs.
    if (textItem && event.item_id !== textItem && result.content) say('\n\n');
@@ -227,12 +241,14 @@ async function stream(request, context) {
    result.usage = { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0, total_tokens: usage.total_tokens || 0, cached_tokens: details.cached_tokens || 0, written_tokens: details.cache_write_tokens || 0 };
    const reason = done.incomplete_details?.reason;
    result.finishReason = reason === 'max_output_tokens' ? 'length' : reason === 'content_filter' ? 'content_filter' : result.toolCalls.length ? 'tool_calls' : 'stop';
+   return result;
   } else if (event.type === 'response.failed' || event.type === 'error') {
    const problem = event.response?.error || event.error || event;
    throw error(problem.message || 'OpenAI stopped the answer', Number(problem.status) || 0, problem.code || '');
   }
  }
- return result;
+ // A clean EOF can still be a lost connection. No terminal response means the answer is incomplete.
+ throw error('OpenAI disconnected before completing the answer', 0, 'network');
 }
 
 module.exports = { models, stream, convert };

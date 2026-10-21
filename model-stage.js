@@ -1,11 +1,21 @@
 (() => {
 'use strict';
 
-const OPEN = { veil: 460, flight: 640, lift: 40, delay: 90, row: 90, letters: 560, stagger: 26, spread: 420, meta: 180 };
+// still: how long rows coming up under a pointer that has not moved leave the focus with the chat's model.
+const OPEN = { veil: 460, flight: 640, lift: 40, delay: 90, row: 90, letters: 560, stagger: 26, spread: 420, meta: 180, still: 900 };
 const CLOSE = { veil: 380, veilDelay: 60, flight: 540, letters: 240, stagger: 12 };
+// How the glyph comes up by the chat's model as its name flies in: from this share of the name's way, softly.
+const GREET = { at: 0.55, duration: 560, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' };
+// The share of a name's way over which it and the button's own name cross-fade, and how many points its way is drawn by.
+// `swap`: how far along its way the copy set as the row's name comes up (from the first to the second) and the one set
+// as the button's goes from under it (from the second to the third).
+const CARRY = { steps: 36, melt: 180, swap: [0.15, 0.5, 0.85] };
 const HOP = { duration: 420, spin: 90 };
 const WAVE = { duration: 560, stagger: 22, spread: 300 };
 const TWIRL = { duration: 760, turn: 180, swell: 1.2 };
+// A model that needs the chat compacted first: the others go where they stand (`fade`), then the chosen one glides to its
+// new place (`glide`) and the question comes up under it.
+const CHOSEN = { fade: 240, glide: 560 };
 const EASE = {
  motion: 'cubic-bezier(0.32, 0.72, 0, 1)',
  out: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -13,7 +23,8 @@ const EASE = {
  spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
  wave: 'cubic-bezier(0.33, 1, 0.68, 1)',
 };
-// The veil takes the theme's look (--stage-veil): darker and dimmer over the dark theme, milky over the light one.
+// The veil takes the theme's look (--stage-veil), the one a selection in the chat takes: dimmer over the dark theme,
+// washed out over the light one.
 function veil() {
  const style = getComputedStyle(document.documentElement);
  const filter = style.getPropertyValue('--stage-veil').trim(), color = style.getPropertyValue('--stage-veil-bg').trim();
@@ -21,10 +32,23 @@ function veil() {
  return [{ backdropFilter: rest, backgroundColor: 'transparent' }, { backdropFilter: filter, backgroundColor: color }];
 }
 const ARC = { steps: 16, bend: -0.32, spin: -70 };
+// A timing curve as a function. A name's way takes its easing into its points and runs at an even pace, so that its
+// fade keeps time with the button's own name, which fades on the clock.
+function bezier(x1, y1, x2, y2) {
+ const at = (a, b, t) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+ return x => {
+  let lo = 0, hi = 1, t = x;
+  for (let i = 0; i < 24; i++) { t = (lo + hi) / 2; if (at(x1, x2, t) < x) lo = t; else hi = t; }
+  return at(y1, y2, t);
+ };
+}
+const CURVES = { flight: bezier(0.5, 0, 0.18, 1), motion: bezier(0.32, 0.72, 0, 1) };
 const GAP = 26;
 const MARK = 30;
 // Room the list keeps: above it for the title bar, and inside it for the glow, the ripple and the drum's sideways drift.
 const ROOM = { top: 52, right: 68, bottom: 10 };
+// A composer counts as standing high with this much of the window below it; the list over it keeps this off the edge.
+const LIFTED = { below: 140, margin: 24 };
 // The least a list is scaled to when its names are too long for a small window.
 const FIT = 0.62;
 // Many models turn the list into a drum: rows away from its middle drift right, tilt and shrink a little.
@@ -116,8 +140,9 @@ class ModelStage {
   this.list.addEventListener('pointerover', event => {
    const row = event.target.closest('.model-row');
    if (!row || this.state !== 'open' || row === this.focused) return;
-   // Rows that travel under a pointer at rest, as when a company opens or shuts, do not take the focus from the keyboard.
-   if (performance.now() < this.steered && this.pointer && event.clientX === this.pointer.x && event.clientY === this.pointer.y) return;
+   // Rows that travel under a pointer at rest, as when a company opens or shuts, do not take the focus from the keyboard;
+   // nor do rows that come up under it as the list opens over the composer, until the pointer moves.
+   if (performance.now() < this.steered && (!this.pointer || (event.clientX === this.pointer.x && event.clientY === this.pointer.y))) return;
    this.focus(row, true);
    row.focus({ preventScroll: true });
   });
@@ -160,6 +185,8 @@ class ModelStage {
  sync() {
   const locked = this.chat.busy, name = this.name(this.chat.model);
   this.button.setAttribute('label', name ? I18n.t('model.current', { name }) : I18n.t('model.none'));
+  // While the menu is out the button's name waits for the one that flies home into it (close).
+  if (this.state === 'closed') this.button.setName(name || I18n.t('model'));
   this.button.toggleAttribute('disabled', locked);
   this.button.title = locked ? I18n.t('model.locked') : '';
   if (locked && (this.state === 'open' || this.state === 'confirm')) this.cancel();
@@ -353,15 +380,25 @@ class ModelStage {
 
  // The glyph column stands right above the button; the list grows up from the composer and scrolls once it reaches the top.
  place() {
-  const b = this.button.getBoundingClientRect(), top = this.button.closest('.composer').getBoundingClientRect().top;
-  const bottom = innerHeight - top + GAP;
+  const b = this.button.getBoundingClientRect(), composer = this.button.closest('.composer').getBoundingClientRect();
+  let bottom = innerHeight - composer.top + GAP;
   // In a small window of its own (the quick chat) the stage has a box to keep to, `room`: the list stands against the
   // box's right edge and is no taller and no wider than the box.
   const room = this.room?.() || null;
+  let most = Math.max(room ? 120 : 180, innerHeight - bottom - ROOM.top + ROOM.bottom - (room ? room.top : 0));
+  // A composer standing high, as an empty chat holds it in the middle of the window and taller still with files in it,
+  // leaves too little room above it for the list, which was then a few names squeezed at the top of the window. The
+  // list then stands in the middle of the window over the composer, as tall as it needs, while the window has room.
+  const need = this.list.scrollHeight;
+  if (!room && need > most && innerHeight - composer.bottom > LIFTED.below) {
+   const height = Math.min(need, innerHeight - ROOM.top - LIFTED.margin);
+   bottom = Math.round(ROOM.bottom + Math.max(LIFTED.margin, (innerHeight - ROOM.top - height) / 2));
+   most = height;
+  }
   Object.assign(this.list.style, {
    right: `${room ? Math.max(0, innerWidth - room.right) : Math.max(0, innerWidth - (b.left + b.width / 2) - MARK / 2 - ROOM.right)}px`,
    bottom: `${bottom - ROOM.bottom}px`,
-   maxHeight: `${Math.max(room ? 120 : 180, innerHeight - bottom - ROOM.top + ROOM.bottom - (room ? room.top : 0))}px`,
+   maxHeight: `${most}px`,
    maxWidth: room ? `${room.width}px` : '',
   });
   if (room) this.fit(room.width);
@@ -432,8 +469,12 @@ class ModelStage {
   this.settings.freshen();
   this.state = 'open';
   this.keyboard = keyboard;
+  this.pointer = null;
+  this.steered = performance.now() + OPEN.still;
   this.build();
   this.root.showPopover();
+  // In a window of glass the page takes an opaque ground meanwhile, for the veil to soften all of it (styles.css).
+  document.documentElement.classList.add('is-staging');
   this.place();
   this.button.setAttribute('expanded', '');
   const current = this.current();
@@ -451,7 +492,7 @@ class ModelStage {
   });
   seen.forEach((row, r) => {
    // Rows rise from the button upwards: the nearest one first.
-   const base = OPEN.delay + (count - 1 - r) * pace, chars = row.querySelectorAll('.model-letter');
+   const base = OPEN.delay + (count - 1 - r) * pace, chars = row === current && !row.dataset.company ? [] : row.querySelectorAll('.model-letter');
    const step = stagger(chars.length, OPEN.stagger, OPEN.spread);
    chars.forEach((letter, k) => letter.animate(
     [{ opacity: 0, transform: 'translateY(0.5em)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
@@ -465,17 +506,119 @@ class ModelStage {
   this.launch(current);
  }
 
- // The button's glyph lifts off and lands next to the chat's model.
+ // The name of the chat's model lifts out of the button and flies up into its row, growing into it; the glyph comes
+ // up beside it as it lands. A company standing for the model (its company is shut) has no name of the model to take:
+ // the glyph only comes up by the company.
  launch(row) {
-  const mark = this.mark(row, true), timing = { duration: OPEN.flight, delay: OPEN.lift, easing: EASE.flight };
-  const flyer = this.makeFlyer(mark.getBoundingClientRect().width, this.button.turn, timing);
-  this.button.away(true);
-  arc(flyer, center(this.button.glyphRect()), center(mark.getBoundingClientRect()), timing).finished.then(() => {
-   if (this.flyer !== flyer) return;
-   this.dropFlyer();
-   this.mark(row);
-   mark.animate([{ transform: 'scale(1.3)' }, { transform: 'none' }], { duration: 520, easing: EASE.spring });
-  }, () => {});
+  this.mark(row, true);
+  // The glyph comes up out of nothing as the name nears its row, so the two arrive together and nothing is added after.
+  const greet = () => {
+   if (this.marked !== row || this.state === 'closed') return;
+   const svg = this.mark(row);
+   if (!reducedMotion()) svg.animate([{ opacity: 0, transform: 'scale(0.5) rotate(-40deg)' }, { opacity: 1, transform: 'none' }], GREET);
+  };
+  if (row.dataset.company) { this.button.fadeName(false, 200); setTimeout(greet, OPEN.flight / 2); return; }
+  // The copy stands over the button's name, set as it is, and the name under it goes at once: the copy sets out from it.
+  this.button.fadeName(false, 0);
+  // The row has just taken the focus and grows to it from a little smaller: the name is taken to where the row will
+  // stand, not to where it stands now, or it landed and the row went on growing under it, and the name jumped aside.
+  void getComputedStyle(row).transform;
+  for (const animation of row.getAnimations()) animation.finish();
+  const name = row.querySelector('.model-name');
+  this.carry(this.name(row.dataset.model), this.buttonEnd(), this.rowEnd(name), { duration: OPEN.flight, delay: OPEN.lift, curve: CURVES.flight }, name);
+  setTimeout(greet, OPEN.lift + OPEN.flight * GREET.at);
+ }
+
+ // The two ends of a name's way: the name in the button, at its size and colour (the colour it rests in, on the way
+ // home), and a model's name in its row.
+ buttonEnd(home = false) {
+  const rect = this.button.labelRect(), style = this.button.labelStyle(home);
+  return { x: rect.left, y: rect.top + rect.height / 2, size: style.size, width: rect.width, color: style.color, weight: style.weight, spacing: style.spacing, turn: 0 };
+ }
+
+ // A row away from the drum's middle is drawn a little turned and smaller. A copy taken to the name's box landed
+ // straight and too large and then gave way to the turned, smaller name: the name jumped as it landed. The name's two
+ // ends are found where they are drawn, so the copy takes the row's turn and size on its way.
+ rowEnd(name) {
+  const style = getComputedStyle(name), was = name.style.position;
+  name.style.position = 'relative';
+  const [start, end] = [0, 100].map(left => {
+   const pin = name.appendChild(document.createElement('i'));
+   pin.style.cssText = `position: absolute; left: ${left}%; top: 50%; width: 0; height: 0`;
+   const at = pin.getBoundingClientRect();
+   pin.remove();
+   return { x: at.left, y: at.top };
+  });
+  name.style.position = was;
+  // Its width as laid out, to the fraction: a whole pixel off at this size was a letter a quarter pixel apart.
+  const scale = Math.hypot(end.x - start.x, end.y - start.y) / (parseFloat(style.width) || name.offsetWidth || 1);
+  const size = parseFloat(style.fontSize);
+  return { x: start.x, y: start.y, size: size * scale, width: Math.hypot(end.x - start.x, end.y - start.y), color: style.color, weight: parseFloat(style.fontWeight), spacing: (parseFloat(style.letterSpacing) || 0) / size, turn: Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI };
+ }
+
+ // A name on its way between the button and a row, on the curve the glyph used to fly. It is set in the list's large
+ // type the whole way and scaled about its left end from one size to the other, so it is crisp at the large end; its
+ // colour goes from the one to the other, and at the button's end it cross-fades with the button's own name.
+ // `hidden`: the row's own name, out of sight while the carried one stands in for it. Resolves true once landed, false
+ // if let go of on the way.
+ carry(text, from, to, { duration, delay = 0, curve }, hidden, show = null) {
+  this.dropCarrier();
+  const carrier = this.carrier = document.createElement('div');
+  carrier.className = 'model-carrier';
+  // Two copies fly as one: one set as the button's name is, one as the row's, and the one gives way to the other on
+  // the way. A single copy that changed its weight and colour as it flew was drawn once, as it set out, and kept that
+  // look the whole way: it landed thin and grey and turned bold at once. Each copy is set letter by letter, as the
+  // row's name is, so each letter lands on its own.
+  const face = (end, row) => `<span class="model-name${row ? ' is-row' : ''}" style="font-weight: ${end.weight}; letter-spacing: ${end.spacing}em; color: ${end.color}">${letters(text)}</span>`;
+  const rowAtEnd = to.size > from.size;
+  carrier.innerHTML = face(from, !rowAtEnd) + face(to, rowAtEnd);
+  this.root.append(carrier);
+  this.carried = hidden;
+  hidden.style.visibility = 'hidden';
+  const [first, last] = carrier.children;
+  const big = parseFloat(getComputedStyle(first).fontSize), h = carrier.offsetHeight;
+  // Their widths as set, to the fraction: each is drawn a little wider or narrower along the way, so that both are
+  // as wide as the name is between its two ends, and each is its own width where it lands.
+  const wide = el => parseFloat(getComputedStyle(el).width) || el.offsetWidth || 1, firstWide = wide(first), lastWide = wide(last);
+  const dx = to.x - from.x, dy = to.y - from.y, c = { x: (from.x + to.x) / 2 - dy * ARC.bend, y: (from.y + to.y) / 2 + dx * ARC.bend };
+  const out = to.size > from.size, frames = [], firstFrames = [], lastFrames = [];
+  const ramp = (t, a, b) => { const k = Math.min(1, Math.max(0, (t - a) / (b - a))); return k * k * (3 - 2 * k); };
+  for (let i = 0; i <= CARRY.steps; i++) {
+   // `time` runs even, `t` is how far along the way the name is by then.
+   const time = i / CARRY.steps, t = curve(time), u = 1 - t;
+   const x = u * u * from.x + 2 * u * t * c.x + t * t * to.x, y = u * u * from.y + 2 * u * t * c.y + t * t * to.y;
+   const scale = (from.size + (to.size - from.size) * t) / big, turn = from.turn + (to.turn - from.turn) * t;
+   frames.push({ offset: time, transform: `translate(${x.toFixed(2)}px, ${(y - h / 2).toFixed(2)}px) rotate(${turn.toFixed(3)}deg) scale(${scale.toFixed(5)})` });
+   const width = (from.width + (to.width - from.width) * t) / scale;
+   // The one it lands as comes up over the other, which then goes from under it: never a moment with both half there.
+   firstFrames.push({ offset: time, transform: `scaleX(${(width / firstWide).toFixed(5)})`, opacity: 1 - ramp(t, CARRY.swap[1], CARRY.swap[2]) });
+   lastFrames.push({ offset: time, transform: `scaleX(${(width / lastWide).toFixed(5)})`, opacity: ramp(t, CARRY.swap[0], CARRY.swap[1]) });
+  }
+  const timing = { duration, delay, easing: 'linear', fill: 'both' };
+  const animation = carrier.animate(frames, timing);
+  first.animate(firstFrames, timing);
+  last.animate(lastFrames, timing);
+  return animation.finished.then(() => {
+   if (this.carrier !== carrier) return false;
+   // Landed. The copy is drawn on a layer of its own, and on a screen of 125% or 150% its edges fall on the pixels a
+   // little otherwise than the name it lands on: put in its place at once, the name still stepped. The name shows under
+   // it and the copy melts off it instead: the row's name, or the button's (`show`). The row's name it left on the way
+   // home stays away: the list goes with it.
+   if (out) hidden.style.visibility = '';
+   else show?.();
+   this.carried = null;
+   // The row's own glow is there now: the copy's would double it while it melts.
+   carrier.classList.add('is-landed');
+   const gone = () => { carrier.remove(); if (this.carrier === carrier) this.carrier = null; return true; };
+   return carrier.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CARRY.melt, easing: 'ease', fill: 'forwards' }).finished.then(gone, gone);
+  }, () => false);
+ }
+
+ dropCarrier() {
+  this.carrier?.remove();
+  this.carrier = null;
+  if (this.carried) this.carried.style.visibility = '';
+  this.carried = null;
  }
 
  // A short hop from one model to another before the stage closes, so the choice is seen being made.
@@ -525,10 +668,12 @@ class ModelStage {
  }
 
  // Focus moves like a lens: the name in focus sharpens and its letters ripple; the glyph turns when its own model is reached.
+ // The letters ripple by their place, not by a transform: a transform lifts each onto a layer of its own while it
+ // moves, and on a screen of 125% or 150% a letter dropped back from its layer was drawn a hair apart and twitched.
  wave(row) {
   const chars = row.querySelectorAll('.model-letter'), step = stagger(chars.length, WAVE.stagger, WAVE.spread);
   chars.forEach((letter, k) => letter.animate(
-   [{ transform: 'none' }, { transform: 'translateY(-0.14em)', offset: 0.38 }, { transform: 'none' }],
+   [{ top: '0em' }, { top: '-0.14em', offset: 0.38 }, { top: '0em' }],
    { duration: WAVE.duration, delay: k * step, easing: EASE.wave, composite: 'add' },
   ));
   const mark = row === this.marked && row.querySelector('.model-mark:not(.is-away) svg');
@@ -571,19 +716,23 @@ class ModelStage {
   });
  }
 
+ // The others go where they stand first, with nothing moving: carried along while their rows folded, the chosen name
+ // jerked on its way to its place. Once they are gone it glides there in one move.
  confirm(row) {
   this.state = 'confirm';
   this.choice = row;
   this.focus(row, false);
-  for (const other of this.rows) other.closest('.model-slot').classList.toggle('is-gone', other !== row);
-  for (const label of this.groups) label.closest('.model-slot').classList.add('is-gone');
   this.dropFlyer();
-  const mark = this.mark(row);
-  if (!reducedMotion()) mark.animate([{ opacity: 0, transform: 'scale(0.2) rotate(-120deg)' }, { opacity: 1, transform: 'none' }], { duration: 620, delay: 120, easing: EASE.spring, fill: 'backwards' });
+  this.dropCarrier();
+  const others = [...this.rows.filter(other => other !== row), ...this.groups].map(el => el.closest('.model-slot'));
+  for (const box of others) box.classList.add('is-going');
+  this.mark(row);
   const from = this.name(this.chat.model), to = this.name(row.dataset.model);
+  // Who will write the summary: the model the chat moves to, or the one it is on (chat.summarizerFor).
+  const self = this.chat.summarizerFor(row.dataset.model) === row.dataset.model;
   this.ask.innerHTML = `
    <p class="model-confirm-title" id="model-confirm-title">${words(I18n.t('model.confirm.title', { name: to }))}</p>
-   <p class="model-confirm-text">${escapeHtml(I18n.t('model.confirm.text', { from, to }))}</p>
+   <p class="model-confirm-text">${escapeHtml(I18n.t(self ? 'model.confirm.self' : 'model.confirm.text', { from, to }))}</p>
    <div class="model-confirm-actions">
     <button type="button" class="approval-button is-deny" data-answer="cancel">${escapeHtml(I18n.t('model.confirm.cancel'))}</button>
     <button type="button" class="approval-button is-allow" data-answer="ok">${escapeHtml(I18n.t('model.confirm.ok'))}</button>
@@ -591,9 +740,38 @@ class ModelStage {
   this.ask.setAttribute('aria-labelledby', 'model-confirm-title');
   this.ask.querySelector('[data-answer="cancel"]').addEventListener('click', () => this.cancel());
   this.ask.querySelector('[data-answer="ok"]').addEventListener('click', () => this.accept());
+  clearTimeout(this.going);
+  this.going = setTimeout(() => this.chosen(row, others), reducedMotion() ? 0 : CHOSEN.fade);
+ }
+
+ // Where a row stands in the list's own layout, on screen: its drawn place less the drum's turn and the glide.
+ laid(row) {
+  return row.offsetTop - this.list.scrollTop + this.list.getBoundingClientRect().top;
+ }
+
+ // The others gone, the list takes its new shape at once, out of sight of any move; the chosen row is drawn from where
+ // it stood to where it now stands, the drum's tilt with it, and the question comes up under it.
+ chosen(row, others) {
+  if (this.state !== 'confirm' || this.choice !== row) return;
+  const list = this.list, from = this.laid(row), was = { translate: row.style.translate, rotate: row.style.rotate, scale: row.style.scale };
+  list.classList.add('is-instant');
+  for (const box of others) box.classList.add('is-gone');
   this.askSlot.classList.remove('is-folded');
+  void list.offsetHeight;
+  this.bend();
+  const to = this.laid(row);
+  requestAnimationFrame(() => list.classList.remove('is-instant'));
   this.ask.querySelector('[data-answer="ok"]').focus({ preventScroll: true });
   if (reducedMotion()) return;
+  // The way down goes into `translate`, which comes before the drum's turn and shrink: put after them, it was shrunk
+  // with the row and the glide began a few pixels off.
+  const across = value => parseFloat(value) || 0;
+  row.animate([
+   { translate: `${across(was.translate)}px ${(from - to).toFixed(1)}px`, rotate: was.rotate || '0deg', scale: was.scale || '1' },
+   { translate: `${across(row.style.translate)}px 0px`, rotate: row.style.rotate || '0deg', scale: row.style.scale || '1' },
+  ], { duration: CHOSEN.glide, easing: EASE.motion });
+  const mark = row.querySelector('.model-mark svg');
+  mark?.animate([{ opacity: 0, transform: 'scale(0.2) rotate(-120deg)' }, { opacity: 1, transform: 'none' }], { duration: 620, delay: 120, easing: EASE.spring, fill: 'backwards' });
   this.ask.querySelectorAll('.model-word').forEach((word, k) => word.animate(
    [{ opacity: 0, transform: 'translateY(0.4em)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
    { duration: 480, delay: 120 + k * 40, easing: EASE.out, fill: 'backwards' },
@@ -611,6 +789,7 @@ class ModelStage {
  accept() {
   if (this.state !== 'confirm') return;
   const id = this.choice.dataset.model;
+  this.accepting = true;
   this.close();
   this.chat.switchModel(id);
  }
@@ -622,13 +801,18 @@ class ModelStage {
  // Everything dissolves and the glyph flies home from wherever it stands.
  close() {
   if (this.state !== 'open' && this.state !== 'confirm') return;
+  clearTimeout(this.going);
   this.state = 'closing';
   this.button.removeAttribute('expanded');
+  document.documentElement.classList.remove('is-staging');
   if (reducedMotion()) { this.finish(); return; }
   const waits = [];
-  const live = this.flyer?.isConnected ? this.flyer.getBoundingClientRect() : null;
+  // The name that goes home into the button: the model chosen (or kept); none when a model waiting to be confirmed is
+  // refused, as the chat's own row has gone by then.
+  const home = this.state === 'confirm' ? (this.accepting ? this.choice : null) : this.current();
+  const carried = home && !home.dataset.company ? home : null;
   for (const item of this.rows.filter(row => this.near(row))) {
-   const glyphs = [...item.querySelectorAll('.model-letter')].reverse(), step = stagger(glyphs.length, CLOSE.stagger, 160);
+   const glyphs = item === carried ? [] : [...item.querySelectorAll('.model-letter')].reverse(), step = stagger(glyphs.length, CLOSE.stagger, 160);
    glyphs.forEach((letter, k) => letter.animate(
     [{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: 'translateY(-0.3em)', filter: 'blur(6px)' }],
     { duration: CLOSE.letters, delay: k * step, easing: 'ease-in', fill: 'forwards' },
@@ -638,30 +822,33 @@ class ModelStage {
   for (const label of this.groups) label.animate([{ opacity: 0, filter: 'blur(4px)' }], { duration: 200, fill: 'forwards' });
   this.ask.animate([{ opacity: 0, filter: 'blur(6px)', transform: 'translateY(-4px)' }], { duration: 240, easing: 'ease-in', fill: 'forwards' });
   waits.push(quiet(this.veil.animate(veil().reverse(), { duration: CLOSE.veil, delay: CLOSE.veilDelay, easing: EASE.motion, fill: 'both' })));
-  const mark = this.marked?.querySelector('.model-mark svg');
-  if (mark) {
-   const from = live ? center(live) : center(mark.getBoundingClientRect()), timing = { duration: CLOSE.flight, easing: EASE.motion };
-   const turn = ModelGlyph.turnOf(live ? this.flyer.querySelector('svg') : mark);
-   const flyer = this.makeFlyer(mark.getBoundingClientRect().width, turn, timing);
-   mark.parentElement.classList.add('is-away');
-   waits.push(quiet(arc(flyer, from, center(this.button.glyphRect()), { ...timing, spin: -ARC.spin })).then(() => this.land()));
+  // The glyph stays by its row and goes with the list; the chosen name flies home into the button, which takes it.
+  this.marked?.querySelector('.model-mark svg')?.animate([{ opacity: 0, transform: 'scale(0.4)' }], { duration: 260, easing: 'ease-in', fill: 'forwards' });
+  this.dropFlyer();
+  if (carried) {
+   const name = carried.querySelector('.model-name'), text = this.name(carried.dataset.model);
+   this.button.setName(text);
+   waits.push(this.carry(text, this.rowEnd(name), this.buttonEnd(true), { duration: CLOSE.flight, curve: CURVES.motion }, name, () => this.button.fadeName(true, 0)).then(() => this.land()));
   } else {
+   this.button.fadeName(true, 220, CLOSE.veilDelay);
    this.land();
   }
   Promise.all(waits).then(() => this.finish());
  }
 
- // The glyph is back in the button: it settles with a small bounce.
+ // The name is back in the button, which has been fading its own in as the copy came.
  land() {
-  this.dropFlyer();
-  this.button.away(false);
-  if (!reducedMotion()) this.button.animate([{ transform: 'scale(0.82)' }, { transform: 'none' }], { duration: 460, easing: EASE.spring });
+  this.dropCarrier();
  }
 
  finish() {
   if (this.state !== 'closing') return;
   this.state = 'closed';
+  document.documentElement.classList.remove('is-staging');
+  this.accepting = false;
   this.dropFlyer();
+  this.dropCarrier();
+  this.sync();
   this.button.away(false);
   for (const animation of this.root.getAnimations({ subtree: true })) animation.cancel();
   this.root.hidePopover();
