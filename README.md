@@ -6,20 +6,18 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.5.0 beta**
+**v1.5.1 beta**
 
-[Windows version 1.5.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.0/OpenGhost-1.5.0-Setup.exe)
+[Windows version 1.5.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.1/OpenGhost-1.5.1-Setup.exe)
 
-[Linux version 1.5.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.0/OpenGhost-1.5.0-linux.tar.gz)
+[Linux version 1.5.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.1/OpenGhost-1.5.1-linux.tar.gz)
 
-[macOS version 1.5.0](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.0/OpenGhost-1.5.0-mac.dmg)
+[macOS version 1.5.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.1/OpenGhost-1.5.1-mac.dmg)
 
 What's new:
-- An agent for long work: every chat keeps a private memory of its own, compaction builds on the last summary, and a short network failure no longer stops the work.
-- The agent's plan: a task of several parts is laid out in steps in a black island at the top of the chat.
-- One line beside the ghost says what the agent is doing, and a code edit shows for a moment as its lines turn over.
-- The agent sends pictures as it works; in a chat with a password they are encrypted on disk.
-- An Update button, two-line chat rows with photos, narrow windows, and copy and paste with the mouse.
+- The app checks the agent's work itself before a step of its plan closes: tests after the last change, documents read back and weighed against the request, removed files named, pages opened at phone and desktop width, links and quotes checked against what was really opened.
+- After every reply the facts of the talk are kept in the chat's record and the shared memory, so even small models remember.
+- Welcome cards on the first start, and the app starts in your computer's language.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 
