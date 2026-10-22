@@ -457,16 +457,24 @@ async function mark(cwd) {
 }
 
 async function changed(token) {
+ const { touched, removed } = await changes(token);
+ return [...touched, ...removed].slice(0, 200);
+}
+
+// The same, told apart: files that changed or appeared (`touched`, the new ones also in `added`), and files that went.
+async function changes(token) {
  const before = marks.get(String(token));
  marks.delete(String(token));
- if (!before) return [];
- const after = await snapshot(before.cwd), out = [];
+ const out = { touched: [], added: [], removed: [] };
+ if (!before) return out;
+ const after = await snapshot(before.cwd);
  for (const [file, sig] of after.files) {
   const was = before.files.get(file);
-  if (was ? was !== sig : before.complete) out.push(file);
+  if (was ? was !== sig : before.complete) out.touched.push(file);
+  if (!was && before.complete) out.added.push(file);
  }
- if (after.complete) for (const file of before.files.keys()) if (!after.files.has(file)) out.push(file);
- return out.slice(0, 200);
+ if (after.complete) for (const file of before.files.keys()) if (!after.files.has(file)) out.removed.push(file);
+ return { touched: out.touched.slice(0, 200), added: out.added.slice(0, 200), removed: out.removed.slice(0, 200) };
 }
 
 // The TCP ports something on this computer listens on, read from the system's own list, for a few seconds at a time.
@@ -592,4 +600,4 @@ async function release(dir) {
  return fs.promises.rmdir(dir).then(() => true, () => false);
 }
 
-module.exports = { runTool, cancel, cancelAll, environment, guide, release, mark, changed, ports, CHATS };
+module.exports = { runTool, cancel, cancelAll, environment, guide, release, mark, changed, changes, ports, CHATS };

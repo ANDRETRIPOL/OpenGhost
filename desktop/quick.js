@@ -148,7 +148,7 @@ function create() {
   alwaysOnTop: true,
   webPreferences: {
    zoomFactor: zoom,
-   additionalArguments: ['--openghost-quick', `--openghost-quick-room=${ROOM.top},${ROOM.side},${ROOM.bottom}`],
+   additionalArguments: ['--openghost-quick', `--openghost-quick-room=${ROOM.top},${ROOM.side},${ROOM.bottom}`, ...(host.languages?.() || [])],
    preload: host.preload,
    contextIsolation: true,
    sandbox: true,

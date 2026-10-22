@@ -7,8 +7,9 @@
 // and outlives every summary.
 //
 // A step is closed only with proof, and the app checks what it can see of it: that something was done since the last
-// step was closed, and that the last check the agent ran (tests, a build, a linter) did not fail. A turn that ends while
-// steps are open is sent back to them (chat.js), and closing the last step asks for the whole request to be checked.
+// step was closed, and that the last check the agent ran (tests, a build, a linter) did not fail. Then it looks at the
+// result itself (plan-proof.js) before the step closes. A turn that ends while steps are open is sent back to them
+// (chat.js), and closing the last step asks for the whole request to be checked.
 const PLAN = {
  // Steps in a new plan, and in a plan at most, with the steps added along the way.
  steps: [2, 10],

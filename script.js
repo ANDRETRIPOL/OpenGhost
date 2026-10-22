@@ -96,6 +96,8 @@ if (MAIN_WINDOW && window.openghost?.update) updatePill = new UpdatePill({ main,
 const lockScreen = new LockScreen({ main, chat, composer, onOpen: () => composerInput.focus({ preventScroll: true }) });
 const lockCard = new LockCard({ chat, library, scroller: document.querySelector('.chats-scroll'), screen: lockScreen });
 new WelcomeGhost({ main, root: document.querySelector('.welcome'), input: composerInput });
+// Someone who has just installed the app is shown what it does, once, after the opening (welcome-tour.js).
+if (MAIN_WINDOW) WelcomeTour.start({ library, onDone: () => composerInput.focus({ preventScroll: true }) });
 folderPill = new FolderPill({ button: document.querySelector('.composer-folder'), library, chat });
 chatList = new ChatList({
   root: document.querySelector('.chats'),

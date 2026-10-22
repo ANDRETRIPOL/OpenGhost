@@ -1,0 +1,10 @@
+Brand marks shown on the first-run cards (welcome-tour.js). Each belongs to its owner and is shown only to name the
+service the agent can work with; OpenGhost is not affiliated with any of them.
+
+Taken through Iconify (https://iconify.design) on 2026-10-22, all CC0 1.0 (public domain dedication):
+- SVG Logos by Gil Barbara, https://github.com/gilbarbara/logos:
+  x, reddit (reddit-icon), telegram, gmail (google-gmail), youtube (youtube-icon), airtable, notion (notion-icon),
+  powerbi (microsoft-power-bi), analytics (google-analytics), drive (google-drive), airbnb (airbnb-icon),
+  maps (google-maps), whatsapp (whatsapp-icon), salesforce, stripe, xero, slack (slack-icon), trello, steam.
+- Simple Icons, https://github.com/simple-icons/simple-icons, in each brand's colour from its data:
+  sheets (googlesheets, #34A853), tripadvisor (#34E0A1), counterstrike (#1B1B1B), dota2 (#BF2E1A).

@@ -259,6 +259,13 @@ class PlanIsland {
     row.dataset.key = `${k}:${step.text}`;
     row.classList.toggle('is-unfolded', this.unfolded.has(row.dataset.key));
    }
+   // What the app saw of a closed step itself, or that it rests on the agent's word (plan-proof.js). A step closed
+   // before the app looked says nothing.
+   const seen = step.state === 'done' && step.by ? PlanIsland.seen(step) : '';
+   if (seen) {
+    row.classList.add(`is-by-${step.by}`);
+    row.append(element('span', 'plan-step-seen', seen));
+   }
    return row;
   });
   this.list.replaceChildren(...rows);
@@ -326,6 +333,26 @@ class PlanIsland {
    row.__fold = null;
    if (!open) row.classList.remove('is-unfolded', 'is-folding');
   });
+ }
+
+ // A closed step's line of what the app saw, in the user's language: one or two things, or the agent's word alone.
+ static seen(step) {
+  const said = (step.saw || []).map(item => {
+   if (item.k === 'check') return I18n.t('proof.check', { command: item.command });
+   if (item.k === 'judged') return I18n.t('proof.judged');
+   if (item.k === 'site') return I18n.t(item.errors ? 'proof.siteErrors' : 'proof.site', { count: item.errors });
+   if (item.k === 'read') return I18n.t('proof.read', { file: item.file });
+   if (item.k === 'shown') return I18n.t('proof.shown', { file: item.file });
+   if (item.k === 'page') return I18n.t('proof.page', { title: item.title });
+   if (item.k === 'opened') return I18n.t('proof.opened', { count: item.count });
+   if (item.k === 'files') {
+    const parts = [['added', 'proof.filesNew'], ['moved', 'proof.filesMoved'], ['changed', 'proof.filesChanged'], ['removed', 'proof.filesRemoved']].filter(([key]) => item[key] > 0).map(([key, word]) => I18n.t(word, { count: item[key] }));
+    return parts.length ? I18n.t('proof.files', { list: parts.join(', ') }) : '';
+   }
+   if (item.k === 'ran') return I18n.t('proof.ran');
+   return '';
+  }).filter(Boolean);
+  return said.length ? said.join(' · ') : step.by === 'word' ? I18n.t('proof.word') : '';
  }
 }
 

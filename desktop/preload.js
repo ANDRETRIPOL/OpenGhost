@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('openghost', {
  desktop: true,
  platform: process.platform,
  glass: process.argv.includes('--openghost-glass'),
+ // The computer's own languages, most preferred first (desktop/main.js), for a page with no language picked yet.
+ languages: (found => found ? found.slice(found.indexOf('=') + 1).split(',').filter(Boolean) : [])(process.argv.find(item => item.startsWith('--openghost-languages='))),
  // The quick chat. Whether this window is its own, and the clear room that window keeps round the chat's card (above
  // it, at its sides, below it); its settings; what its window and the main one tell each other.
  quick: process.argv.includes('--openghost-quick'),
@@ -147,7 +149,14 @@ contextBridge.exposeInMainWorld('openghost', {
   guide: folder => ipcRenderer.invoke('tool:guide', folder),
   mark: folder => ipcRenderer.invoke('tool:mark', folder),
   changed: token => ipcRenderer.invoke('tool:changed', token),
+  changes: token => ipcRenderer.invoke('tool:changes', token),
   ports: () => ipcRenderer.invoke('tool:ports'),
+ },
+ // What the app looks at itself before a step of the agent's plan is closed.
+ proof: {
+  facts: file => ipcRenderer.invoke('proof:facts', file),
+  project: cwd => ipcRenderer.invoke('proof:project', cwd),
+  glimpse: request => ipcRenderer.invoke('proof:glimpse', request),
  },
  browser: {
   onEvent: callback => ipcRenderer.on('browser:event', (event, data) => callback(data)),

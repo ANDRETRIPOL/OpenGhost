@@ -297,7 +297,8 @@ function open(fly, word, soft, ghost) {
  splash.classList.add('is-opening');
  const welcome = document.querySelector('.main.is-empty .welcome'), mark = welcome?.querySelector('ghost-thinking');
  for (const animation of welcome?.getAnimations() || []) animation.finish();
- const target = welcome && getComputedStyle(welcome).display !== 'none' ? welcome.querySelector('.welcome-flight').getBoundingClientRect() : null;
+ // Under the first look at the app (welcome-tour.js) the empty chat is out of sight: the ghost fades where it is.
+ const target = welcome && !document.querySelector('.tour') && getComputedStyle(welcome).display !== 'none' ? welcome.querySelector('.welcome-flight').getBoundingClientRect() : null;
  const now = fly.getBoundingClientRect(), current = splash.querySelector('.splash-ghost-body').getBoundingClientRect();
  const app = document.querySelector('.app');
  // The name goes out of focus as it leaves: the sharp letters fade and the soft ones show for a moment. The ghost sets

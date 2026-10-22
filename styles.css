@@ -20232,6 +20232,34 @@ html:not([data-theme="light"]) .skill-page-key {
   color: rgba(255, 255, 255, 0.62);
 }
 
+/* What the app saw of a closed step itself (plan-proof.js): a quiet line under its proof, green where a check passed.
+   A step that rests on the agent's word alone says so, and its tick is drawn hollow. */
+.plan-step-seen {
+  grid-column: 2;
+  margin-top: 3px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 11.5px;
+  line-height: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.plan-step.is-by-check .plan-step-seen {
+  color: rgba(48, 209, 88, 0.8);
+}
+
+.plan-step.is-by-word > .plan-tick circle {
+  r: 6.9px;
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-width: 1.2;
+}
+
+.plan-step.is-by-word > .plan-tick path {
+  stroke: rgba(255, 255, 255, 0.7);
+}
+
 .plan-step.is-now .plan-step-name {
   color: #fff;
   font-weight: 600;
@@ -20861,4 +20889,780 @@ html:not([data-theme="light"]) .skill-page-key {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The first look at the app (welcome-tour.js): five cards over the whole window once the opening has played, the words
+   on the left with the marks of the services floating over them, and the mini chat beside them where the agent works;
+   bars at the top run like stories. */
+.tour {
+  --tour-good-rgb: 90, 200, 130;
+  position: fixed;
+  z-index: 900;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 100%;
+  grid-template-rows: auto minmax(0, 1fr);
+  container-type: size;
+  overflow: hidden;
+  background: radial-gradient(46% 56% at 74% 52%, rgba(var(--link-rgb), 0.13), transparent 70%), var(--app-bg);
+  color: var(--fg-primary);
+}
+
+[data-theme="light"] .tour {
+  --tour-good-rgb: 30, 150, 80;
+}
+
+/* Laid under the opening while it plays: the ground shows as the opening clears, the words come once it has. */
+.tour.is-waiting > * {
+  visibility: hidden;
+}
+
+/* The window can still be dragged by its top while the cards show. */
+.tour-drag {
+  position: absolute;
+  inset: 0 0 auto;
+  height: max(var(--titlebar-height), 28px);
+  -webkit-app-region: drag;
+}
+
+.tour-bars {
+  display: flex;
+  justify-self: center;
+  gap: 6px;
+  width: min(1000px, calc(100% - 88px));
+  margin-top: calc(max(var(--titlebar-height), 28px) + 10px);
+}
+
+/* A bar: its track, and its light filling from the left while the card stays. */
+.tour-bar {
+  position: relative;
+  flex: 1;
+  height: 15px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.tour-bar::before {
+  content: "";
+  position: absolute;
+  inset: 6px 0;
+  border-radius: 2px;
+  background: rgba(var(--fg-rgb), 0.12);
+}
+
+.tour-bar i {
+  position: relative;
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(var(--fg-rgb), 0.72);
+  transform-origin: 0 50%;
+}
+
+.tour-bar:focus-visible {
+  outline: none;
+}
+
+.tour-bar:focus-visible::before {
+  box-shadow: 0 0 0 2px rgba(var(--link-rgb), 0.6);
+}
+
+.tour-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 400px) 330px;
+  grid-template-areas: "left side" "go side";
+  grid-template-rows: auto auto;
+  /* Centred while it fits; a stage taller than the window starts at its top rather than under the bars. */
+  align-content: safe center;
+  justify-content: center;
+  column-gap: clamp(32px, 8cqw, 110px);
+  padding: 24px 44px 40px;
+}
+
+.tour-left {
+  grid-area: left;
+  align-self: end;
+}
+
+/* The marks of the card's services, each as it is drawn, floating at its own size and pace. */
+.tour-orbit {
+  position: relative;
+  height: 128px;
+}
+
+.tour-float {
+  position: absolute;
+}
+
+.tour-logo {
+  display: block;
+  width: auto;
+  max-width: calc(var(--size) * 2.4);
+  height: var(--size);
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.16));
+  animation: tour-float var(--pace) ease-in-out var(--delay) infinite alternate;
+  user-select: none;
+}
+
+/* A mark drawn in black on its own shows in white on the dark theme, as these services draw it on dark grounds. */
+html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [data-mark="counterstrike"]) {
+  filter: invert(1) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
+}
+
+@keyframes tour-float {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+
+  to {
+    transform: translate(var(--dx), var(--dy)) rotate(var(--turn));
+  }
+}
+
+.tour-title {
+  margin: 10px 0 0;
+  font: 300 44px/49px "OpenGhost Display", var(--font);
+  letter-spacing: -0.025em;
+}
+
+.tour-title-light,
+.tour-title-bold {
+  display: block;
+  text-wrap: balance;
+}
+
+.tour-title-bold {
+  font-weight: 600;
+}
+
+.tour-word {
+  display: inline-block;
+}
+
+.tour-about {
+  max-width: 390px;
+  margin: 18px 0 0;
+  color: var(--fg-secondary);
+  font-size: 15.5px;
+  line-height: 23px;
+  text-wrap: pretty;
+}
+
+.tour-go {
+  grid-area: go;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 34px;
+  -webkit-app-region: no-drag;
+}
+
+.tour-next {
+  height: 44px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 22px;
+  background: rgb(var(--composer-accent-rgb));
+  color: rgb(var(--composer-on-accent-rgb));
+  font: 600 15px/44px var(--font);
+  cursor: pointer;
+  transition: transform 0.25s var(--motion-easing), opacity 0.2s;
+}
+
+.tour-next:hover {
+  opacity: 0.88;
+}
+
+.tour-next:active {
+  transform: scale(0.97);
+}
+
+.tour-skip {
+  padding: 8px 2px;
+  border: 0;
+  background: none;
+  color: var(--fg-tertiary);
+  font: 500 14px/1 var(--font);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.tour-skip:hover {
+  color: var(--fg-secondary);
+}
+
+.tour-next:focus-visible,
+.tour-skip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--link-rgb), 0.45);
+}
+
+/* The mini chat's place beside the words: empty while they are read. */
+.tour-side {
+  position: relative;
+  grid-area: side;
+  align-self: center;
+  width: 330px;
+  height: 530px;
+}
+
+/* The mini chat as the app draws it (styles.css .mini), here only shown: its head, the talk and its field. */
+.tour-mini {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 22px;
+  background: var(--chat-bg);
+  box-shadow: var(--contour), 0 30px 80px rgba(0, 0, 0, calc(0.55 * var(--shadow)));
+  color: var(--fg-primary);
+}
+
+.tour-mini-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 8px 0 16px;
+}
+
+.tour-mini-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 650;
+}
+
+.tour-mini-title .glyph-ghost {
+  width: 14px;
+  height: 15px;
+  color: rgb(var(--composer-accent-rgb));
+}
+
+.tour-mini .glyph-ghost-eye {
+  fill: var(--chat-bg);
+}
+
+.tour-mini-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  color: var(--fg-tertiary);
+}
+
+.tour-mini-close svg,
+.tour-mini-plus svg,
+.tour-mini-send svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The talk keeps to the foot of the window, as a chat does; what goes past the top fades out under the head. */
+.tour-mini-thread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+  padding: 0 16px;
+  overflow: hidden;
+  mask-image: linear-gradient(transparent, #000 22px);
+}
+
+.tour-mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.tour-mini-ask {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: flex-end;
+  gap: 6px;
+  max-width: 86%;
+}
+
+.tour-mini-bubble {
+  padding: 9px 14px;
+  border-radius: 18px;
+  background: var(--user-bubble, rgb(var(--composer-accent-rgb)));
+  color: rgb(var(--user-bubble-fg, var(--composer-on-accent-rgb)));
+  font-size: 13.5px;
+  line-height: 19px;
+}
+
+.tour-mini-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px 6px 8px;
+  border-radius: 12px;
+  background: rgba(var(--fg-rgb), 0.07);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tour-mini-file .tour-mark {
+  width: 16px;
+  height: 16px;
+}
+
+/* The mini chat's field, as its composer looks. */
+.tour-mini-field {
+  flex: none;
+  margin: 0 12px 12px;
+  padding: 12px 14px 10px;
+  border-radius: 22px;
+  background: var(--composer-bg);
+  box-shadow: inset 0 0 0 1px var(--composer-border), 0 10px 30px rgba(0, 0, 0, calc(0.3 * var(--shadow)));
+}
+
+.tour-mini-placeholder {
+  color: var(--fg-tertiary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.tour-mini-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.tour-mini-plus,
+.tour-mini-send {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--fg-secondary);
+}
+
+.tour-mini-send {
+  background: rgba(var(--fg-rgb), 0.12);
+}
+
+.tour-mark {
+  display: block;
+  flex: none;
+  width: auto;
+  max-width: 34px;
+  height: 14px;
+  object-fit: contain;
+}
+
+/* The agent's line, as in the chat (agent-line.js): its ghost, and one step at a time rolling in with a wave of light. */
+.tour-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tour-line ghost-thinking {
+  --ghost-eye: var(--chat-bg);
+  flex: none;
+  width: 20px;
+  height: 22px;
+}
+
+.tour-drum {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  perspective: 26em;
+  font: 300 15.5px/22px "OpenGhost Display", var(--font);
+  letter-spacing: -0.01em;
+}
+
+.tour-drum-line {
+  position: absolute;
+  inset: 0 auto 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--fg-primary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform-origin: 0 50% -0.6em;
+  backface-visibility: hidden;
+}
+
+.tour-drum-wave {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: rgb(var(--fg-rgb));
+  mask-image: linear-gradient(100deg, transparent 38%, #000 50%, transparent 62%);
+  mask-size: 250% 100%;
+  mask-repeat: no-repeat;
+  animation: deed-wave 2.8s infinite;
+  pointer-events: none;
+}
+
+.tour-items {
+  display: grid;
+  gap: 9px;
+}
+
+.tour-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--fg-secondary);
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+.tour-item-mark {
+  display: block;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.tour-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tour-item.is-waiting {
+  color: var(--fg-tertiary);
+}
+
+.tour-sign {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  color: rgb(var(--tour-good-rgb));
+}
+
+.tour-item.is-waiting .tour-sign {
+  color: var(--fg-tertiary);
+}
+
+.tour-sign svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The tick draws itself once its line has come in. */
+.tour-item .tour-sign path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.tour-item:not(.is-in) .tour-sign path {
+  stroke-dashoffset: 1;
+}
+
+.tour-item.is-in .tour-sign path {
+  transition: stroke-dashoffset 0.42s 0.18s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* What came of the work, as a card in the talk. */
+.tour-result,
+.tour-chart-card {
+  padding: 11px 12px 12px;
+  border-radius: 14px;
+  background: rgba(var(--fg-rgb), 0.04);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08);
+}
+
+.tour-result.is-chart {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.tour-result-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-tertiary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.tour-result-text {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  line-height: 17px;
+}
+
+.tour-reply {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  line-height: 19px;
+}
+
+.tour-bubble {
+  width: fit-content;
+  max-width: 250px;
+  margin-top: 8px;
+  padding: 8px 11px;
+  border-radius: 14px 14px 14px 5px;
+  background: rgba(var(--fg-rgb), 0.07);
+  font-size: 12.5px;
+  line-height: 17px;
+}
+
+/* The year of sales: the line draws itself, the ground under it rises, the dip and the end light up, the note comes. */
+.tour-chart-box {
+  position: relative;
+  margin-top: 10px;
+  color: rgb(var(--link-rgb));
+}
+
+.tour-chart {
+  display: block;
+  width: 100%;
+  height: 80px;
+  overflow: visible;
+}
+
+.tour-chart-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.tour-result:not(.is-in) .tour-chart-line {
+  stroke-dashoffset: 1;
+}
+
+.tour-result.is-in .tour-chart-line {
+  transition: stroke-dashoffset 1.3s 0.2s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.tour-chart-area {
+  transform-origin: 50% 100%;
+}
+
+.tour-result:not(.is-in) .tour-chart-area {
+  opacity: 0;
+  transform: scaleY(0.4);
+}
+
+.tour-result.is-in .tour-chart-area {
+  transition: opacity 0.9s 0.9s ease, transform 1s 0.8s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.tour-chart-dip,
+.tour-chart-end {
+  fill: currentColor;
+  stroke: var(--chat-bg);
+  stroke-width: 2px;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.tour-chart-dip {
+  fill: rgb(240, 120, 90);
+}
+
+.tour-result:not(.is-in) :is(.tour-chart-dip, .tour-chart-end, .tour-trade-buy) {
+  opacity: 0;
+  transform: scale(0.2);
+}
+
+.tour-result.is-in :is(.tour-chart-dip, .tour-chart-end, .tour-trade-buy) {
+  transition: opacity 0.3s 1.25s ease, transform 0.5s 1.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tour-chart-note {
+  position: absolute;
+  top: 20px;
+  left: 48%;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: rgba(240, 120, 90, 0.14);
+  color: rgb(230, 110, 80);
+  font-size: 10.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.tour-result:not(.is-in) .tour-chart-note {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.tour-result.is-in .tour-chart-note {
+  transition: opacity 0.4s 1.5s ease, transform 0.5s 1.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.tour-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  color: var(--fg-tertiary);
+  font-size: 10.5px;
+}
+
+/* The week in figures. */
+.tour-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.tour-kpi {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(var(--fg-rgb), 0.05);
+}
+
+.tour-kpi small {
+  overflow: hidden;
+  color: var(--fg-tertiary);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tour-kpi b {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.tour-kpi em {
+  color: rgb(var(--tour-good-rgb));
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* A week of the skin's price: the limit, and the moment it fell under it and was bought. */
+.tour-trade {
+  margin-top: 9px;
+  color: rgb(var(--link-rgb));
+}
+
+.tour-trade .tour-chart {
+  height: 58px;
+}
+
+.tour-trade-limit {
+  fill: none;
+  stroke: rgba(var(--fg-rgb), 0.3);
+  stroke-width: 1.2px;
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.tour-trade-buy {
+  fill: rgb(var(--tour-good-rgb));
+  stroke: var(--chat-bg);
+  stroke-width: 2px;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.tour-trade-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tour-trade-limit-label {
+  color: var(--fg-tertiary);
+}
+
+.tour-trade-bought {
+  color: rgb(var(--tour-good-rgb));
+}
+
+/* A narrow window: the mini chat goes under the words; a low one leaves it out. */
+@container (max-width: 860px) {
+  .tour-stage {
+    grid-template-columns: minmax(0, 420px);
+    grid-template-areas: "left" "side" "go";
+    row-gap: 24px;
+  }
+
+  .tour-side {
+    width: min(330px, 100%);
+    height: 440px;
+    justify-self: start;
+  }
+
+  .tour-go {
+    margin-top: 4px;
+  }
+}
+
+@container (max-height: 1040px) and (max-width: 860px) {
+  .tour-side {
+    display: none;
+  }
+}
+
+@container (max-height: 600px) {
+  .tour-side {
+    display: none;
+  }
+
+  .tour-stage {
+    grid-template-columns: minmax(0, 420px);
+    grid-template-areas: "left" "go";
+  }
+
+  .tour-orbit {
+    height: 96px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-drum-wave {
+    display: none;
+  }
+
+  .tour-logo {
+    animation: none;
+  }
+
+  .tour-item .tour-sign path,
+  .tour-result :is(path, circle, span) {
+    transition: none !important;
+  }
 }

@@ -1128,6 +1128,13 @@ window.AgentTools = {
  // listens on: for agents that share a folder.
  mark: cwd => bridge?.mark && cwd ? bridge.mark(cwd).catch(() => '') : Promise.resolve(''),
  changed: token => bridge?.changed && token ? bridge.changed(token).catch(() => []) : Promise.resolve([]),
+ changes: token => bridge?.changes && token ? bridge.changes(token).catch(() => ({ touched: [], added: [], removed: [] })) : Promise.resolve({ touched: [], added: [], removed: [] }),
+ // What the app looks at itself before a step of the agent's plan is closed (desktop/proof.js).
+ proof: {
+  facts: file => window.openghost?.proof ? window.openghost.proof.facts(file).catch(() => ({ exists: false })) : Promise.resolve({ exists: false }),
+  project: cwd => window.openghost?.proof && cwd ? window.openghost.proof.project(cwd).catch(() => ({ checks: [], tests: false })) : Promise.resolve({ checks: [], tests: false }),
+  glimpse: request => window.openghost?.proof ? window.openghost.proof.glimpse(request).catch(error => ({ ok: false, error: error.message })) : Promise.resolve({ ok: false, error: 'not in the app' }),
+ },
  ports: () => bridge?.ports ? bridge.ports().catch(() => []) : Promise.resolve([]),
  // `apart`: the agent works in a browser tab of its own (a mini chat's).
  async run(name, args, { id, cwd, apart = null }) {

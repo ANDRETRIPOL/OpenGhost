@@ -527,6 +527,96 @@ const STRINGS = {
   'plan.waiting': 'Waiting for you',
   'plan.done': 'Done',
   'plan.count': '{done} of {total} steps',
+  'proof.check': '{command} passed',
+  'proof.judged': 'Checked against your request',
+  'proof.site': 'Page checked on a phone and a desktop',
+  'proof.siteErrors': 'Page checked, console errors: {count}',
+  'proof.read': '{file} read back',
+  'proof.shown': '{file} looked at by the app',
+  'proof.page': 'Ended on “{title}”',
+  'proof.opened': 'Pages opened: {count}',
+  'proof.files': 'Files: {list}',
+  'proof.filesNew': '{count} new',
+  'proof.filesMoved': '{count} moved',
+  'proof.filesChanged': '{count} changed',
+  'proof.filesRemoved': '{count} removed',
+  'proof.ran': 'Run after the change',
+  'proof.word': 'On the agent\'s word',
+  // The first look at the app (welcome-tour.js).
+  'tour.label': 'Welcome to OpenGhost',
+  'tour.cardOf': 'Card {n} of {count}',
+  'tour.next': 'Next',
+  'tour.skip': 'Skip',
+  'tour.start': 'Start',
+  'tour.accounts.title': 'Your accounts, day and night.',
+  'tour.accounts.bold': 'Working even without you.',
+  'tour.accounts.about': 'Connect X, Reddit, Telegram, Gmail or other services. Just say what needs doing: the agent will publish posts, answer messages and get tasks done, even while you sleep.',
+  'tour.accounts.ask': 'Every morning post a digest to my Telegram channel and answer the comments on X',
+  'tour.accounts.step1': 'Writing the morning digest',
+  'tour.accounts.step2': 'Posting to the channel',
+  'tour.accounts.step3': 'Answering comments on X',
+  'tour.accounts.item1': 'Digest posted in the channel',
+  'tour.accounts.item2': 'Answered 14 comments',
+  'tour.accounts.item3': 'r/startups post · at 18:00',
+  'tour.accounts.head': 'Your channel · 07:00',
+  'tour.accounts.body': 'Good morning! The three biggest stories of the week, in two minutes of reading.',
+  'tour.data.title': 'Complex data.',
+  'tour.data.bold': 'Simple answers.',
+  'tour.data.about': 'Work with documents, spreadsheets and reports in a whole new way. OpenGhost analyses the information, builds beautiful charts, visualises data and turns the complex into the clear.',
+  'tour.data.file': 'sales_2026.xlsx',
+  'tour.data.ask': 'Here are this year’s sales. Where did we grow and where did we dip?',
+  'tour.data.step1': 'Reading sales_2026.xlsx',
+  'tour.data.step2': 'Adding up the months',
+  'tour.data.step3': 'Drawing the chart',
+  'tour.data.body': 'Sales grew by 38% over the year. The only dip was in July, after delivery prices went up.',
+  'tour.data.head': 'Sales 2026 · +38%',
+  'tour.data.dip': 'July −18%',
+  'tour.data.jan': 'Jan',
+  'tour.data.jul': 'Jul',
+  'tour.data.dec': 'Dec',
+  'tour.trip.title': 'Plan a trip.',
+  'tour.trip.bold': 'Leave the rest to the agent.',
+  'tour.trip.about': 'Ask it to find an apartment, a car or the right hotel. OpenGhost goes through the offers, contacts the owners, talks prices and agrees on dates that suit you.',
+  'tour.trip.ask': 'Find an apartment in Barcelona for 12–19 May under €900, and a car for the week',
+  'tour.trip.step1': 'Looking through 46 apartments',
+  'tour.trip.step2': 'Writing to the owners',
+  'tour.trip.step3': 'Talking the price down',
+  'tour.trip.item1': '3 apartments by the sea fit',
+  'tour.trip.item2': 'The owner agreed to €840',
+  'tour.trip.item3': 'Car: Toyota Corolla, €29 a day',
+  'tour.trip.head': 'Maria, the owner · 2 min',
+  'tour.trip.body': 'All right, €840 for the week. Check-in on 12 May from 3 pm, does that suit you?',
+  'tour.business.title': 'Your business.',
+  'tour.business.bold': 'Less routine.',
+  'tour.business.about': 'Connect your CRM, accounting tools or work services. The agent helps manage clients, handle requests, check invoices and prepare reports. While you grow the business, it takes care of the everyday tasks.',
+  'tour.business.ask': 'Sort the new leads in the CRM, check the invoices and send me the week’s report',
+  'tour.business.step1': 'Sorting leads in Salesforce',
+  'tour.business.step2': 'Checking invoices in Xero',
+  'tour.business.step3': 'Putting the report together',
+  'tour.business.item1': '14 new leads, 5 answered',
+  'tour.business.item2': 'Invoices checked: 2 overdue',
+  'tour.business.item3': 'Report sent to #sales',
+  'tour.business.head': 'Week 43',
+  'tour.business.kpi1': 'Leads',
+  'tour.business.kpi1Value': '14',
+  'tour.business.kpi1Note': '+22%',
+  'tour.business.kpi2': 'Revenue',
+  'tour.business.kpi2Value': '€18,400',
+  'tour.business.kpi3': 'Overdue',
+  'tour.business.kpi3Value': '2',
+  'tour.skins.title': 'You carry the game.',
+  'tour.skins.bold': 'It catches the prices.',
+  'tour.skins.about': 'Buying and selling skins in CS2 or Dota 2? Name the item, the price and the terms. The agent watches the market 24/7 and makes the trades you allowed when the right offer comes up.',
+  'tour.skins.ask': 'Buy an AK-47 | Redline (FT) under $32 and sell my AWP | Asiimov if someone offers $95',
+  'tour.skins.step1': 'Watching the Steam market',
+  'tour.skins.step2': 'Comparing 380 offers',
+  'tour.skins.step3': 'Buying the AK-47 | Redline',
+  'tour.skins.item1': 'Watching the market 24/7',
+  'tour.skins.item2': 'AK-47 | Redline bought for $31.40',
+  'tour.skins.item3': 'AWP | Asiimov: waiting for $95',
+  'tour.skins.head': 'AK-47 | Redline (FT) · 7 days',
+  'tour.skins.limit': 'Limit $32',
+  'tour.skins.bought': 'Bought for $31.40',
   'plan.close': 'Close the plan',
   'update.ready': 'Update',
   'update.after': 'After the agent',
@@ -860,7 +950,24 @@ const NAMES = { en: 'English', it: 'Italiano', fr: 'Français', ru: 'Русск�
 const KEY = 'openghost.lang';
 Object.assign(STRINGS, window.I18nMore);
 const saved = (() => { try { return localStorage.getItem(KEY); } catch { return null; } })();
-const lang = Object.hasOwn(STRINGS, saved) ? saved : 'en';
+// The first of the computer's own languages the app knows, in the order the computer prefers them (desktop/main.js
+// passes them; a page outside the app asks the browser).
+const system = () => {
+ const list = window.openghost ? window.openghost.languages || [] : navigator.languages || [];
+ return list.map(code => String(code).toLowerCase().split(/[-_]/)[0]).find(code => Object.hasOwn(STRINGS, code));
+};
+// The very first time the app opens on a computer (nothing kept yet), it speaks the computer's language and keeps it,
+// as if picked in the settings; English when it knows none of them. Someone who used the app before without picking
+// a language keeps English.
+const first = (() => {
+ try {
+  if (Object.hasOwn(STRINGS, saved) || localStorage.length) return null;
+  const found = system() || 'en';
+  localStorage.setItem(KEY, found);
+  return found;
+ } catch { return null; }
+})();
+const lang = Object.hasOwn(STRINGS, saved) ? saved : first || 'en';
 // The main process speaks it too: in the tray and in the browser's menu.
 window.openghost?.lang?.set(lang)?.catch(() => {});
 

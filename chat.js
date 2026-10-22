@@ -1443,7 +1443,7 @@ class Chat {
    error = e;
   }
   await this.end(conv, turn, error, finish);
-  this.tidyMemory(conv, turn.config);
+  this.keepFacts(conv, turn, error, finish).catch(() => {}).finally(() => this.tidyMemory(conv, turn.config));
  }
 
  async loop(conv, turn) {
@@ -1472,8 +1472,13 @@ class Chat {
     part.entry.steps.push({ role: 'tool', tool_call_id: call.id, content: output });
     conv.tokens += Math.ceil(output.length / CONTEXT.chars);
     // What the step did, for the plan's proofs: that something was done, and how the last check ended.
-    const name = call.function.name;
-    if (AgentPlan.saw(conv, { name, shell: name === AgentTools.shell, args: call.function.arguments, output, worked: !/^Error\b/.test(output) && !UNDONE.has(output) })) turn.work = (turn.work || 0) + 1;
+    const name = call.function.name, worked = !/^Error\b/.test(output) && !UNDONE.has(output);
+    if (AgentPlan.saw(conv, { name, shell: name === AgentTools.shell, args: call.function.arguments, output, worked })) turn.work = (turn.work || 0) + 1;
+    // And what the app itself sees of it, for the step to be closed on (plan-proof.js).
+    if (this.planWatch(conv)) {
+     const cwd = this.cwd(conv);
+     PlanProof.note(conv, PlanProof.read(name, call.function.arguments, output, { place: shown => AgentTools.place(cwd, shown), worked, shell: AgentTools.shell, check: AgentPlan.PLAN.check }));
+    }
     if (result.images?.length) images.push(...result.images);
     told ||= output === TOOL_NOTES.message || output === TOOL_NOTES.browserMessage;
    }
@@ -1499,7 +1504,7 @@ class Chat {
    turn.controller.signal.throwIfAborted();
    if (turn.queue.length) { await this.takeQueue(conv, turn); continue; }
    if (!calls.length) {
-    const back = this.planBack(conv, turn, finish);
+    const back = this.planBack(conv, turn, finish) || this.proofAudit(conv, turn, finish);
     if (!back) return finish;
     const step = { role: 'user', content: back };
     part.entry.steps.push(step);
@@ -2489,17 +2494,24 @@ class Chat {
    releases.push(release);
   }
   try {
-   const token = Desk.others(conv, cwd).length ? await AgentTools.mark(cwd) : '';
+   // The folder is looked at before and after the command when another agent works in it, and while a plan stands, whose
+   // steps answer for what commands made, changed and removed (plan-proof.js).
+   const peers = Desk.others(conv, cwd).length > 0, planned = this.planWatch(conv);
+   const token = peers || planned ? await AgentTools.mark(cwd) : '';
    const before = shared.server ? new Set(await AgentTools.ports()) : null;
    const done = await Promise.race([AgentTools.run(name, args, { id, cwd, apart }), stopped]);
    if (done === TOOL_NOTES.cancelled) return done;
    const notes = [];
    if (token) {
+    const found = await AgentTools.changes(token);
+    if (planned) PlanProof.note(conv, PlanProof.changes(found, shown => AgentTools.place(cwd, shown)));
     const crossed = [];
-    for (const shown of await AgentTools.changed(token)) {
-     const full = AgentTools.place(cwd, shown), held = full && Desk.holder(conv, full);
-     if (held) crossed.push(`${shown} (${this.peerName(conv, held)})`);
-     else if (full) Desk.claim(conv, full, shown);
+    if (peers) {
+     for (const shown of [...found.touched, ...found.removed].slice(0, 200)) {
+      const full = AgentTools.place(cwd, shown), held = full && Desk.holder(conv, full);
+      if (held) crossed.push(`${shown} (${this.peerName(conv, held)})`);
+      else if (full) Desk.claim(conv, full, shown);
+     }
     }
     if (crossed.length) notes.push(`Note from the app: this command also changed files another agent is changing right now: ${crossed.slice(0, 8).join(', ')}. Tell the user, and do not touch them again.`);
    }
@@ -2510,6 +2522,7 @@ class Chat {
      opened = (await AgentTools.ports()).filter(port => !before.has(port));
     }
     for (const port of opened) Desk.servers.set(port, { conv, chat: this, at: Date.now() });
+    if (planned) PlanProof.note(conv, opened.map(port => ({ kind: 'server', port })));
     if (opened.length) notes.push(`Note from the app: this computer now listens on port ${opened.join(', ')}, which this command opened.`);
    }
    return notes.length ? `${done}\n\n${notes.join('\n')}` : done;
@@ -2575,17 +2588,72 @@ class Chat {
 
  // The agent's plan. Every change of it is kept on this reply, so the chat holds it from here on; the agent is answered
  // with the plan as it now stands, so no note has to tell it again. Nothing of it waits for approval.
- usePlan(conv, turn, args) {
+ async usePlan(conv, turn, args) {
   const { plan, text } = AgentPlan.apply(this.planOf(conv), args, { work: conv.planWork || 0, check: conv.planCheck || null });
   if (!plan) return text;
+  // A step closes once the app has looked at its result itself (plan-proof.js): before that it may be sent back, or
+  // be shown what the app found first. The step keeps how it was shown to work, for the top of the chat.
+  if (args.action === 'done' && this.planWatch(conv)) {
+   const n = Number(args.step);
+   const gate = await PlanProof.gate(conv, n, {
+    io: this.proofIO(conv, turn), last: AgentPlan.finished(plan), vision: turn.config.vision !== false,
+    texts: [...turn.parts.map(part => part.entry.content || ''), ...plan.steps.map(step => step.proof || '')], given: this.userTexts(conv),
+   });
+   if (gate.refuse) return gate.images.length ? { text: gate.refuse, images: gate.images } : gate.refuse;
+   Object.assign(plan.steps[n - 1], { by: gate.by, saw: gate.saw });
+  }
   turn.part.entry.plan = plan;
   turn.planned = true;
   // A closed step's proof stands for the work done until then: the next step needs work of its own.
   if (args.action === 'start' || args.action === 'done') conv.planWork = 0;
-  if (args.action === 'start') conv.planCheck = null;
+  if (args.action === 'start') { conv.planCheck = null; PlanProof.begin(conv); }
+  if (args.action === 'done') PlanProof.closed(conv);
   if (args.action === 'wait') turn.waits = plan.wait;
   this.onPlan?.(conv);
   return text;
+ }
+
+ // Whether the app notes what the agent does, for its plan's steps: while a plan of this chat has steps open. A plan that
+ // came back with the chat is watched from now on.
+ planWatch(conv) {
+  if (!AgentPlan.open(this.planOf(conv)).length) return false;
+  if (!PlanProof.watching(conv)) PlanProof.begin(conv);
+  return true;
+ }
+
+ // How the app looks at the work itself before a step of the plan closes: nothing of it runs a command or changes a file.
+ proofIO(conv, turn) {
+  const cwd = () => this.cwd(conv);
+  return {
+   project: () => AgentTools.proof.project(cwd()),
+   facts: file => AgentTools.proof.facts(file),
+   // The first pages of a PDF as pictures, as pdf_pages gives them.
+   pdf: async file => {
+    const got = await AgentTools.run('pdf_pages', { path: file, pages: '1-2' }, { id: `${conv.id}-${++this.tools}`, cwd: cwd() });
+    return got && typeof got === 'object' ? got : null;
+   },
+   // Servers this agent started that are up now.
+   servers: async () => {
+    await Desk.refresh();
+    return [...Desk.servers].filter(([port, server]) => server.conv === conv && Desk.live.has(port)).map(([port]) => port);
+   },
+   glimpse: (url, shots) => AgentTools.proof.glimpse({ url, cwd: cwd(), shots }),
+   judge: docs => this.judgeDocs(conv, turn, docs),
+  };
+ }
+
+ // What the user wrote in this chat, the latest last.
+ userTexts(conv) {
+  return conv.messages.filter(entry => entry.role === 'user').map(entry => typeof entry.text === 'string' ? entry.text : typeof entry.content === 'string' ? entry.content : '').filter(Boolean).slice(-6);
+ }
+
+ // Documents the plan made, weighed against the user's request by the chat's model asked apart: it sees the request and
+ // what the files hold, nothing of what the agent said of them. Null when it can't say.
+ async judgeDocs(conv, turn, docs) {
+  const request = this.userTexts(conv).slice(-3).join('\n\n');
+  if (!request.trim() || turn.controller.signal.aborted) return null;
+  const answer = await Providers.complete(turn.config, { messages: PlanProof.judgeMessages(request, docs), signal: turn.controller.signal, maxTokens: PlanProof.JUDGE.answer });
+  return PlanProof.verdict(answer);
  }
 
  // A model left to judge alone often does a task of several parts without a plan. Once a turn has done a good many
@@ -2605,6 +2673,15 @@ class Chat {
   if (!left.length || view.waiting) return '';
   turn.planBack = (turn.planBack || 0) + 1;
   return TOOL_NOTES.planBack(left.map(step => `${view.plan.steps.indexOf(step) + 1}. ${step.text}`).join('; '));
+ }
+
+ // The answer that follows a plan finished in this turn is read once for its sources (plan-proof.js): links never opened
+ // and quotations found on no page opened send the agent back to check them, with a line of correction if need be.
+ proofAudit(conv, turn, finish) {
+  if (turn.audited || turn.quiet || FINISH_NOTES.includes(finish) || turn.controller.signal.aborted || !turn.planned || !PlanProof.watching(conv)) return '';
+  if (!AgentPlan.finished(this.planOf(conv))) return '';
+  turn.audited = true;
+  return PlanProof.audit(conv, turn.parts.map(part => part.entry.content || '').join('\n'), this.userTexts(conv));
  }
 
  // The agent's hand on this chat's private record. Nothing of it is a file in the project folder, so no other chat can
@@ -2678,6 +2755,57 @@ class Chat {
   const line = `${{ save: '+', forget: '−' }[kind] || '→'} ${text}`, mark = turn.pills.find(entry => entry.role === 'memory');
   if (mark) mark.text = `${mark.text}\n${line}`;
   else turn.pills.push({ role: 'memory', text: line });
+ }
+
+ // What of the reply just finished goes into this chat's record and the memory every chat shares, whatever the agent
+ // kept of it itself (fact-keeper.js): the chat's own model is asked apart, once the reply stands, and the app writes
+ // what it names with the agent's own tools, so the same rules hold. The exchange looked at runs from the last look,
+ // so a reply stopped, failed or followed at once by the next leaves its facts to the look after it.
+ async keepFacts(conv, turn, error, finish) {
+  if (error || turn.quiet || FINISH_NOTES.includes(finish) || !turn.config?.ready || !conv.record || !this.library.chat?.(conv.id)) return;
+  const first = conv.messages.findIndex(entry => entry.turn === turn.id);
+  if (first < 0) return;
+  let start = first;
+  while (start > 0 && conv.messages[start - 1].role === 'user') start--;
+  const from = conv.keptTo && conv.messages.includes(conv.keptTo) ? conv.messages.indexOf(conv.keptTo) + 1 : start;
+  const entries = conv.messages.slice(from), last = conv.messages.at(-1);
+  if (!entries.length || !FactKeeper.worth(entries)) return;
+  const recordOn = !(this.library.isProtected(conv.id) && !this.library.keys?.has(conv.id));
+  const memoryOn = Memory.on && !FactKeeper.touched(entries, 'memory') && !(this.library.guarded ? this.library.guarded() : this.library.isProtected(conv.id));
+  if (!recordOn && !memoryOn) return;
+  // While it looks, the chat says so (`keeping`), for whatever waits on its record.
+  conv.keeping = true;
+  try {
+   if (conv.brief == null) conv.brief = (await this.library.record(conv.id).catch(() => '')) || '';
+   const record = this instanceof SideChat && typeof this.origin?.brief === 'string' ? this.origin.brief : conv.brief;
+   let cost = null;
+   const answer = await Providers.complete(turn.config, {
+    messages: FactKeeper.messages({ exchange: FactKeeper.exchange(entries), record, memory: memoryOn ? Memory.lines() : '', memoryOn }),
+    maxTokens: FactKeeper.KEEP.answer,
+    onUsage: usage => { cost = usage; },
+   });
+   // A new reply under way writes the record itself: this look is left for the next one, which starts from the same place.
+   if (conv.turn) return;
+   const found = FactKeeper.verdict(answer);
+   if (recordOn) {
+    for (const fact of found.record) await this.useRecord(conv, turn, fact.add ? { action: 'add', text: fact.add } : { action: 'edit', old_text: fact.old, new_text: fact.new });
+   }
+   if (memoryOn) {
+    for (const fact of found.memory) this.useMemory(conv, turn, fact.save ? { action: 'save', text: fact.save } : { action: 'update', id: fact.id, text: fact.text });
+   }
+   conv.keptTo = last;
+   // What the look cost is the reply's, where the chat's stats count it; the memory's mark stands after the reply's own.
+   const reply = conv.messages.findLast(entry => entry.role === 'assistant' && entry.turn === turn.id);
+   if (reply && cost) spend(reply, cost);
+   if (turn.pills.length) {
+    let after = turn.part.view.el;
+    while (after.nextElementSibling?.classList.contains('thread-note')) after = after.nextElementSibling;
+    this.postPills(conv, turn, after);
+   }
+   if ((cost || found.memory.length) && conv.record && this.library.chat(conv.id)) this.save(conv);
+  } finally {
+   conv.keeping = false;
+  }
  }
 
  // A memory grown crowded is written anew as one whole by the chat's own model, once the agent has finished its reply.

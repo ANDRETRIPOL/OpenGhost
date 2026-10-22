@@ -23,6 +23,8 @@ function chatVM() {
  vm.createContext(context);
  vm.runInContext(read('agent-plan.js'), context);
  context.AgentPlan = context.window.AgentPlan;
+ vm.runInContext(read('plan-proof.js'), context);
+ context.PlanProof = context.window.PlanProof;
  vm.runInContext(read('chat.js').replace('Chat.splitQuotes = splitQuotes;', 'window.audit = { TOOL_NOTES, SideChat }; Chat.splitQuotes = splitQuotes;'), context);
  return context;
 }
@@ -115,17 +117,31 @@ check('The plan seen last is read from a note', chat.planSeen([{ role: 'user', c
 check('or from the answer to a plan call, whichever is later', chat.planSeen([{ role: 'user', content: `${TOOL_NOTES.plan}\nold` }, { role: 'tool', content: P.apply(null, { action: 'start', steps: ['A', 'B'] }).text }]), lines);
 check('Other tool results say nothing of it', chat.planSeen([{ role: 'tool', content: 'Exit code 0\nThe plan now: no' }]), '');
 
+(async () => {
 // A tool call keeps the plan on the reply it was made in.
-const entry = reply(), live = { messages: [user('make a site'), entry] }, turn = { part: { entry } };
+const entry = reply(), live = { messages: [user('make a site'), entry] }, turn = { part: { entry }, parts: [{ entry }], config: {} };
 chat.onPlan = () => { live.told = (live.told || 0) + 1; };
-chat.usePlan(live, turn, { action: 'start', steps: ['Frame', 'Menu'] });
+await chat.usePlan(live, turn, { action: 'start', steps: ['Frame', 'Menu'] });
 check('A new plan stands on the reply and the top is told', [!!entry.plan, entry.plan.steps.length, live.told], [true, 2, 1]);
 live.planWork = 3;
-chat.usePlan(live, turn, { action: 'done', step: 1, proof: 'the page opens and shows the frame' });
+await chat.usePlan(live, turn, { action: 'done', step: 1, proof: 'the page opens and shows the frame' });
 check('Closing a step uses up the work done for it', [entry.plan.steps[0].state, live.planWork], ['done', 0]);
-check('The next step then needs work of its own', chat.usePlan(live, turn, { action: 'done', step: 2, proof: 'the menu shows 18 items on the page' }), TEXT.idle(2));
-chat.usePlan(live, turn, { action: 'wait', reason: 'Which of the two menus to keep' });
+check('The next step then needs work of its own', await chat.usePlan(live, turn, { action: 'done', step: 2, proof: 'the menu shows 18 items on the page' }), TEXT.idle(2));
+check('A step closed with nothing for the app to see rests on the agent\'s word', [entry.plan.steps[0].by, entry.plan.steps[0].saw], ['word', []]);
+await chat.usePlan(live, turn, { action: 'wait', reason: 'Which of the two menus to keep' });
 check('Waiting is told at the end of the turn', turn.waits, 'Which of the two menus to keep');
+
+// The answer after a plan finished in the turn, read once for its sources.
+{
+ const finished = P.apply(P.apply(open, { action: 'done', step: 1, proof: 'node a.js printed 1' }, ok).plan, { action: 'done', step: 2, proof: 'node b.js printed 2' }, ok).plan;
+ const conv = { messages: [user('find sources'), reply({ plan: finished, content: 'See https://made.up/x' })] };
+ c.PlanProof.begin(conv);
+ c.PlanProof.note(conv, { kind: 'opened', url: 'https://real.test/a', text: 'page' });
+ const t = { controller: new AbortController(), planned: true, parts: [{ entry: conv.messages[1] }] };
+ const first = chat.proofAudit(conv, t, 'stop');
+ check('An answer after a plan finished in the turn, with a link never opened, is sent back once', [first.includes('https://made.up/x'), chat.proofAudit(conv, t, 'stop')], [true, '']);
+ check('Not when the plan was not touched in the turn, nor when the answer ran out of room', [chat.proofAudit(conv, { controller: new AbortController(), parts: t.parts }, 'stop'), chat.proofAudit(conv, { controller: new AbortController(), planned: true, parts: t.parts }, 'length')], ['', '']);
+}
 
 // The turn sent back to open steps.
 const back = (messages, extra = {}) => {
@@ -154,3 +170,4 @@ const failed = results.filter(item => !item.pass);
 for (const item of results) console.log(`${item.pass ? 'ok  ' : 'FAIL'} ${item.name}${item.pass ? '' : `\n     got      ${JSON.stringify(item.actual)}\n     expected ${JSON.stringify(item.expected)}`}`);
 console.log(`\n${results.length - failed.length} of ${results.length} passed`);
 process.exit(failed.length ? 1 : 0);
+})().catch(error => { console.error(error); process.exit(1); });

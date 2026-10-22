@@ -8,6 +8,7 @@ const Browser = require('./browser');
 const LLM = require('./llm');
 const Keys = require('./keys');
 const Pdf = require('./pdf');
+const Proof = require('./proof');
 const Size = require('./size');
 const Quick = require('./quick');
 const Lang = require('./lang');
@@ -67,6 +68,10 @@ function readTheme() {
 // 'system' lets the page and the sites in the built-in browser follow the computer; light and dark hold them to one look.
 nativeTheme.themeSource = readTheme();
 const look = () => THEMES[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
+// The computer's own languages, most preferred first, for a page that has no language picked yet (i18n.js).
+const languages = () => {
+ try { return [`--openghost-languages=${app.getPreferredSystemLanguages().filter(code => /^[\w-]+$/.test(code)).join(',')}`]; } catch { return []; }
+};
 
 function createShortcut() {
  const link = path.join(app.getPath('desktop'), 'OpenGhost.lnk');
@@ -145,7 +150,7 @@ function createWindow(unseen = false) {
   }),
   webPreferences: {
    zoomFactor: size.zoom,
-   additionalArguments: GLASS ? ['--openghost-glass'] : [],
+   additionalArguments: [...(GLASS ? ['--openghost-glass'] : []), ...languages()],
    preload: path.join(__dirname, 'preload.js'),
    contextIsolation: true,
    sandbox: true,
@@ -287,6 +292,11 @@ ipcMain.handle('tool:guide', (event, folder) => fromApp(event) ? Tools.guide(fol
 ipcMain.handle('tool:mark', (event, folder) => fromApp(event) ? Tools.mark(folder) : '');
 ipcMain.handle('tool:changed', (event, token) => fromApp(event) ? Tools.changed(token) : []);
 ipcMain.handle('tool:ports', event => fromApp(event) ? Tools.ports() : []);
+ipcMain.handle('tool:changes', (event, token) => fromApp(event) ? Tools.changes(token) : { touched: [], added: [], removed: [] });
+// What the app looks at itself before a step of the agent's plan is closed (desktop/proof.js).
+ipcMain.handle('proof:facts', (event, file) => fromApp(event) ? Proof.facts(file) : { exists: false });
+ipcMain.handle('proof:project', (event, cwd) => fromApp(event) ? Proof.project(cwd) : { checks: [], tests: false });
+ipcMain.handle('proof:glimpse', (event, request) => fromApp(event) ? Proof.glimpse(request) : { ok: false, error: 'not allowed' });
 // Skills (desktop/skills.js): those a chat can use, one's instructions, and one put in from a link; every window is told.
 Skills.setup({ fromApp, chats: Tools.CHATS, changed: () => { for (const each of BrowserWindow.getAllWindows()) if (!each.isDestroyed()) each.webContents.send('skills:changed'); } });
 ipcMain.handle('pdf:read', (event, source) => fromApp(event) ? Pdf.read(source) : { text: '', reason: 'unreadable' });
@@ -348,6 +358,7 @@ if (process.argv.includes('--create-shortcut')) {
     Tools.cancelAll();
     LLM.cancelAll();
     Pdf.cancelAll();
+    Proof.cancelAll();
     app.quit();
    });
   }
@@ -392,7 +403,7 @@ if (process.argv.includes('--create-shortcut')) {
   Keys.load();
   Quick.setup({
    fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'), stay: () => Routines.alive,
-   preload: path.join(__dirname, 'preload.js'), page: path.join(ROOT, 'index.html'),
+   preload: path.join(__dirname, 'preload.js'), page: path.join(ROOT, 'index.html'), languages,
   });
   // A new version of the app (desktop/update.js), put in only while no agent works, here or in the quick chat.
   Update.setup({ fromApp, window: () => win, busy: () => working || Quick.working });
@@ -401,6 +412,7 @@ if (process.argv.includes('--create-shortcut')) {
  app.on('window-all-closed', () => { if (!Quick.on && !Routines.alive) app.quit(); });
  app.on('before-quit', event => {
   Tools.cancelAll();
+  Proof.cancelAll();
   if (!writes.size) return;
   event.preventDefault();
   Promise.allSettled([...writes.values()]).then(() => app.quit());
