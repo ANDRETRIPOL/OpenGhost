@@ -113,14 +113,17 @@ function spring(s, goal, [k, c], dt) {
  return true;
 }
 
+// The nodes that are no longer wanted go before anything moves. A row moved in front of a row that is removed in the
+// same pass (a new chat's stand-in, say) came out with its buttons' hover style stale: they stayed dimmed under the
+// pointer until the list drew that row again.
 function place(parent, children) {
+ for (const node of [...parent.children]) if (!children.includes(node)) node.remove();
  children.forEach((child, k) => {
   const at = parent.children[k] || null;
   if (at === child) return;
   if (child.isConnected && parent.moveBefore) parent.moveBefore(child, at);
   else parent.insertBefore(child, at);
  });
- while (parent.children.length > children.length) parent.lastElementChild.remove();
 }
 
 class ChatList {
