@@ -62,7 +62,7 @@
  'lock.guard.text': 'Он закроется снова, когда вы уйдёте из него или закроете приложение.',
  'lock.now': 'Закрыть сейчас',
  'lock.remove': 'Снять пароль',
- 'lock.remove.confirm': 'Нажмите ещё раз, чтобы снять',
+ 'lock.remove.confirm': 'Нажмите ещё раз',
  'folder.new': 'Новая папка',
  'folder.newChat': 'Новый чат в {name}',
  'folder.delete': 'Удалить папку',

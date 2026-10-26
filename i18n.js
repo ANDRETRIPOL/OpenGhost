@@ -64,7 +64,7 @@ const STRINGS = {
   'lock.guard.text': 'It locks again when you leave it or close the app.',
   'lock.now': 'Lock now',
   'lock.remove': 'Remove password',
-  'lock.remove.confirm': 'Click again to remove',
+  'lock.remove.confirm': 'Click again',
   'folder.new': 'New Folder',
   'folder.newChat': 'New chat in {name}',
   'folder.delete': 'Delete folder',

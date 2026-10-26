@@ -61,7 +61,7 @@
  'lock.guard.text': 'Il se verrouille à nouveau quand vous le quittez ou fermez l’application.',
  'lock.now': 'Verrouiller maintenant',
  'lock.remove': 'Retirer le mot de passe',
- 'lock.remove.confirm': 'Cliquez encore pour le retirer',
+ 'lock.remove.confirm': 'Cliquez encore',
  'folder.new': 'Nouveau dossier',
  'folder.newChat': 'Nouveau chat dans {name}',
  'folder.delete': 'Supprimer le dossier',

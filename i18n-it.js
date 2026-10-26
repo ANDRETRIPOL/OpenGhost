@@ -61,7 +61,7 @@
  'lock.guard.text': 'Si blocca di nuovo quando la lasci o chiudi l’app.',
  'lock.now': 'Blocca ora',
  'lock.remove': 'Rimuovi la password',
- 'lock.remove.confirm': 'Clicca di nuovo per rimuoverla',
+ 'lock.remove.confirm': 'Clicca di nuovo',
  'folder.new': 'Nuova cartella',
  'folder.newChat': 'Nuova chat in {name}',
  'folder.delete': 'Elimina cartella',
