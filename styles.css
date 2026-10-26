@@ -19936,7 +19936,7 @@ html:not([data-theme="light"]) .skill-page-key {
 }
 
 .plan-island.is-open {
-  width: min(440px, calc(100% - 32px));
+  width: var(--plan-sheet, min(440px, calc(100% - 32px)));
   max-width: none;
   border-radius: 26px;
 }
@@ -20115,8 +20115,12 @@ html:not([data-theme="light"]) .skill-page-key {
 }
 
 /* The panel: how far the plan has come, what the agent waits for, and every step with the proof it was closed with. */
+/* The panel lays out at its own width from the first frame, centred in the capsule as the capsule grows into it: its words
+   keep their lines while the box moves (plan-island.js sets --plan-sheet). */
 .plan-sheet {
   display: none;
+  width: var(--plan-sheet, 440px);
+  margin-left: calc(50% - var(--plan-sheet, 440px) / 2);
   padding: 8px 16px 14px;
 }
 

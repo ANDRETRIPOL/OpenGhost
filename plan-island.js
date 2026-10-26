@@ -12,6 +12,8 @@
 // ring: the least room for the ring alone; with less the island steps out of sight. settle: how long the room has to
 // hold before the capsule changes to the ring or back, or goes.
 const ROOM = { gap: 12, least: 150, again: 12, ring: 30, settle: 160 };
+// The open panel: as wide as the chat allows, up to this, with a gutter of this much between it and the chat's edges.
+const PANEL = { width: 440, gutter: 32 };
 // The capsule shrinking to the ring alone or growing back to its words.
 const TIGHT = { duration: 420, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 // The capsule grows into the panel and back as one thing, with a little spring; what it holds comes up once it has room.
@@ -128,15 +130,19 @@ class PlanIsland {
   if (this.state === 'open') this.paint(same);
  }
 
- // How wide the capsule may be: as far as the buttons on either side of it leave room, the same on both sides.
+ // How wide the capsule may be: as far as the buttons on either side of it leave room, the same on both sides. The
+ // buttons are read from the layout (offsetLeft), not from their boxes on screen: the routines' and the update's come
+ // in on a scale, and their boxes stand further in while they do.
  fit() {
   if (this.root.hidden) return;
-  const box = this.main.getBoundingClientRect(), middle = box.left + box.width / 2;
+  const width = this.main.clientWidth, middle = width / 2;
   const seen = el => el && !el.hidden && el.getClientRects().length > 0;
-  let left = box.left, right = box.right;
-  for (const el of this.main.querySelectorAll(':scope > .top-tools, :scope > .notes-pill')) if (seen(el)) left = Math.max(left, el.getBoundingClientRect().right);
-  for (const el of this.main.querySelectorAll(':scope > .routines-pill, :scope > .update-pill, :scope > .browser-tools')) if (seen(el)) right = Math.min(right, el.getBoundingClientRect().left);
+  let left = 0, right = width;
+  for (const el of this.main.querySelectorAll(':scope > .top-tools, :scope > .notes-pill')) if (seen(el)) left = Math.max(left, el.offsetLeft + el.offsetWidth);
+  for (const el of this.main.querySelectorAll(':scope > .routines-pill, :scope > .update-pill, :scope > .browser-tools')) if (seen(el)) right = Math.min(right, el.offsetLeft);
   const room = Math.floor(2 * Math.min(middle - left, right - middle) - 2 * ROOM.gap);
+  // The open panel's own width, set here so that it lays out at its final width from the first frame of its move.
+  this.root.style.setProperty('--plan-sheet', `${Math.max(0, Math.min(PANEL.width, width - PANEL.gutter))}px`);
   // Never narrower than the ring: while a panel slides in or out the room shrinks and swells for a few frames, and
   // the capsule went down to nothing and back.
   this.root.style.setProperty('--plan-room', `${Math.max(ROOM.ring, room)}px`);
