@@ -156,6 +156,7 @@ class ChatList {
      // A locked chat can't be read, so it can't be forked until it is open.
      ...(this.onFork ? [{ name: 'fork', label: I18n.t('chat.fork'), icon: Glyphs.fork, disabled: this.library.isLocked(id) }] : []),
      { name: 'lock', label: item.lock.getAttribute('aria-label') || I18n.t('chat.lock'), icon: Glyphs.padlock, disabled: item.lock.disabled },
+     ...(this.library.resetPermissions ? [{ name: 'permissions', label: I18n.t('approve.reset'), icon: Glyphs.shield, disabled: this.library.isLocked(id) }] : []),
      { name: 'delete', label: I18n.t('chat.delete'), icon: Glyphs.trash },
     ];
    },
@@ -163,6 +164,7 @@ class ChatList {
     if (name === 'rename') this.rename(id);
     else if (name === 'fork') this.onFork?.(id);
     else if (name === 'lock') this.onLock?.(id, row, from);
+    else if (name === 'permissions') return this.library.resetPermissions(id);
     else if (name === 'delete') this.remove(id);
    },
   });

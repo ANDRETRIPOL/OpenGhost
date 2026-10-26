@@ -279,7 +279,7 @@ class Library {
 
  // A password change or save already in flight finishes before the final deletion of every chat file.
  removeFiles(id) {
-  return this.queue(id, () => Promise.all(['chats', 'mini', 'notes', 'record', 'drafts'].map(kind => this.store.remove(`${kind}/${id}`))));
+  return this.queue(id, () => Promise.all(['chats', 'mini', 'notes', 'record', 'drafts', 'permissions'].map(kind => this.store.remove(`${kind}/${id}`))));
  }
 
  forget(id) {
@@ -376,6 +376,43 @@ class Library {
   }, true);
  }
 
+ // ASK exceptions belong to this chat, not to the agent or the global settings. They are sealed with its password,
+ // read afresh for each step (also across windows), and deliberately not copied when the chat is forked.
+ async readPermissions(id) {
+  if (!this.chat(id) || this.isLocked(id)) return [];
+  const data = await this.store.read(`permissions/${id}`);
+  const body = data?.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
+  return [...new Set((Array.isArray(body?.rules) ? body.rules : []).filter(key => typeof key === 'string' && key.length <= 16000))].slice(0, 128);
+ }
+
+ permissions(id) {
+  return this.queue(id, () => this.readPermissions(id), true);
+ }
+
+ allowPermission(id, rule, signal) {
+  return this.queue(id, async () => {
+   const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
+   if (!chat || (chat.lock && !key) || typeof rule !== 'string' || !rule || rule.length > 16000) return false;
+   const rules = await this.readPermissions(id);
+   if (!rules.includes(rule)) {
+    if (rules.length >= 128) return false;
+    rules.push(rule);
+   }
+   const body = { rules }, value = key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body };
+   signal?.throwIfAborted();
+   await this.store.write(`permissions/${id}`, value);
+   return true;
+  }, true);
+ }
+
+ resetPermissions(id) {
+  return this.queue(id, async () => {
+   if (!this.chat(id) || this.isLocked(id)) throw new Error('The chat is locked or gone');
+   await this.store.remove(`permissions/${id}`);
+   return true;
+  }, true);
+ }
+
  // The words written in a chat's field and not sent yet (script.js): kept beside the chat so they outlive a restart, and
  // sealed with the chat's key when it has a password. `new` holds those of a chat not started yet. A locked chat gives
  // none: they can't be read without its key.
@@ -442,7 +479,7 @@ class Library {
  // Prepare every file before changing the password. Keep originals so a failed write can be rolled back.
  async passwordFiles(id, key, loaded) {
   const files = [];
-  for (const kind of ['chats', 'mini', 'notes', 'drafts', 'record']) {
+  for (const kind of ['chats', 'mini', 'notes', 'drafts', 'record', 'permissions']) {
    const name = `${kind}/${id}`, before = await this.store.read(name);
    if (kind !== 'chats' && (!before || !!before.sealed === !!key)) continue;
    const body = kind === 'chats' && loaded ? loaded : before?.sealed ? await ChatLock.open(this.keys.get(id), before.sealed) : before || { messages: [], tokens: 0 };

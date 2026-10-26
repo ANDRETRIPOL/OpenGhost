@@ -2699,13 +2699,24 @@ ghost-thinking {
 
 .approval-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 14px;
 }
 
-.approval-foot > * {
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.approval-foot > :not(.approval-actions),
+.approval-actions > * {
   animation: approval-rise 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) calc(240ms + var(--i) * 50ms) backwards;
 }
 
@@ -2765,11 +2776,31 @@ ghost-thinking {
   transition: background-color 0.15s ease, transform 0.2s var(--motion-easing), opacity 0.2s ease;
 }
 
+.approval-hint,
+.approval-error {
+  margin: 8px 0 0;
+  color: var(--fg-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.approval-error {
+  color: rgb(var(--danger-rgb));
+}
+
+.approval-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.approval-button.is-always,
 .approval-button.is-deny {
   background: rgba(var(--fg-rgb), 0.07);
   color: var(--fg-primary);
 }
 
+.approval-button.is-always:hover:not(:disabled),
 .approval-button.is-deny:hover {
   background: rgba(var(--fg-rgb), 0.11);
 }

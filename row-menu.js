@@ -134,6 +134,24 @@ class RowMenu {
 
  choose(line) {
   const name = line.dataset.name;
+  // A reset is complete only when it is on disk. Keep the menu open on failure so it can be retried.
+  if (name === 'permissions') {
+   const { id, row } = this;
+   if (line.disabled) return;
+   line.disabled = true;
+   line.querySelector('.row-menu-word').textContent = I18n.t('approve.resetting');
+   Promise.resolve().then(() => this.act(name, id, row)).then(() => {
+    if (this.id !== id || !this.root.contains(line)) return;
+    this.close(true);
+    row?.focus({ preventScroll: true });
+   }, () => {
+    if (this.id !== id || !this.root.contains(line)) return;
+    line.disabled = false;
+    line.querySelector('.row-menu-word').textContent = I18n.t('approve.resetFailed');
+    line.focus({ preventScroll: true });
+   });
+   return;
+  }
   // Deleting asks twice.
   if (name === 'delete' && this.armed !== line) {
    this.armed = line;

@@ -106,8 +106,46 @@ class ApprovalCard {
   this.deny.type = this.allow.type = 'button';
   this.deny.addEventListener('click', () => this.settle('deny'));
   this.allow.addEventListener('click', () => this.settle('allow'));
-  foot.append(this.deny, this.allow);
+  if (info.always?.save) {
+   this.saveAlways = info.always.save;
+   this.always = staged(element('button', 'approval-button is-always', I18n.t('approve.always')), 2);
+   this.always.type = 'button';
+   this.always.title = info.always.hint;
+   this.hint = element('p', 'approval-hint', info.always.hint);
+   this.hint.id = `approval-scope-${++ApprovalCard.next}`;
+   this.always.setAttribute('aria-describedby', this.hint.id);
+   this.allow.style.setProperty('--i', 3);
+   this.always.addEventListener('click', () => this.chooseAlways());
+  }
+  const actions = element('div', 'approval-actions');
+  actions.append(this.deny, ...(this.always ? [this.always] : []), this.allow);
+  foot.append(actions);
   el.append(foot);
+  if (this.hint) el.append(this.hint);
+ }
+
+ async chooseAlways() {
+  if (this.settled || this.saving) return;
+  this.saving = true;
+  this.el.setAttribute('aria-busy', 'true');
+  for (const button of [this.deny, this.allow, this.always]) button.disabled = true;
+  this.always.textContent = I18n.t('approve.saving');
+  try {
+   await this.saveAlways();
+   this.settle('allow');
+  } catch {
+   if (!this.settled) {
+    this.error ||= element('p', 'approval-error');
+    this.error.setAttribute('role', 'alert');
+    this.error.textContent = I18n.t('approve.saveFailed');
+    this.el.append(this.error);
+   }
+  } finally {
+   this.saving = false;
+   this.el.removeAttribute('aria-busy');
+   this.always.textContent = I18n.t('approve.always');
+   if (!this.settled) for (const button of [this.deny, this.allow, this.always]) button.disabled = false;
+  }
  }
 
  // The command or the changes unfold under the headline, and the choice is kept for the next cards.
@@ -137,6 +175,7 @@ class ApprovalCard {
   this.el.classList.add('is-answered');
   this.el.classList.toggle('is-allowed', value === 'allow');
   this.deny.disabled = this.allow.disabled = true;
+  if (this.always) this.always.disabled = true;
   if (this.reveal) this.reveal.disabled = true;
   this.resolve(value);
  }
@@ -277,6 +316,7 @@ class ApprovalDeck {
  }
 }
 
+ApprovalCard.next = 0;
 window.ApprovalCard = ApprovalCard;
 window.ApprovalDeck = ApprovalDeck;
 })();

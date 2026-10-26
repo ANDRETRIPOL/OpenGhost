@@ -783,6 +783,56 @@ function needsApproval(name, args, { mode, cwd, attached = [], apart = null }) {
  }
 }
 
+// An ASK exception is a tool kind, never a change of mode. Shell and git match the exact request and working folder;
+// file writes stay in the project (or at the one outside file). Sensitive browser actions still ask every time.
+const ALWAYS_READ = new Set(['read_file', 'list_files', 'pdf_pages', 'web_search', 'fetch_url', 'find_media', 'show_pictures']);
+function approvalRule(name, args, { cwd = '', apart = null } = {}) {
+ const rule = (scope = '', hint = 'kind') => ({ key: JSON.stringify([name, scope]), hint: I18n.t(`approve.always.${hint}`) });
+ const pathScope = shown => {
+  const full = resolve(cwd, shown);
+  if (!full) return null;
+  const parts = [], floor = WINDOWS && full.startsWith('\\\\') ? 4 : 1;
+  for (const part of norm(full).split(PATHS.sep)) {
+   if (part === '..') { if (parts.length > floor) parts.pop(); }
+   else if (part !== '.') parts.push(part);
+  }
+  return parts.join(PATHS.sep);
+ };
+ const folder = pathScope(cwd);
+ const exact = value => {
+  const scope = JSON.stringify([folder, value]);
+  return scope.length <= 12000 ? rule(scope, 'exact') : null;
+ };
+ const web = value => {
+  const text = String(value || '').trim();
+  if (!text || /^(?:back|forward|reload)$/i.test(text)) return false;
+  if (/^https?:\/\//i.test(text)) { try { return !!new URL(text).hostname; } catch { return false; } }
+  return !/^(?:[a-z][\w+.-]*:|[\\/])/i.test(text);
+ };
+ if (ALWAYS_READ.has(name)) return rule();
+ if (name === SHELL.tool) return typeof args.command === 'string' && args.command.trim() ? exact(args.command) : null;
+ if (name === 'git') return Array.isArray(args.args) || typeof args.args === 'string' ? exact(args.args) : null;
+ if (name === 'write_file' || name === 'edit_file') {
+  const full = pathScope(args.path), project = full !== null && (full === folder || full.startsWith(`${folder}${PATHS.sep}`));
+  return full !== null ? rule(JSON.stringify([folder, project ? 'project' : full]), project ? 'files' : 'file') : null;
+ }
+ if (name === 'video_frames') {
+  if (!args.save_to) return rule();
+  const full = pathScope(args.save_to);
+  return full !== null ? rule(full, 'frames') : null;
+ }
+ if (name === 'browser_navigate') return web(args.url) ? rule('web') : null;
+ if (name === 'browser_tabs') return args.action === 'new' && web(args.url) ? rule('new-web') : null;
+ if (name === 'browser_click') {
+  const target = refsOf(apart)[args.ref] || '';
+  return /^(link|button|clickable|menuitem|option)\b/.test(target) && !RISKY_CLICK.test(target) ? rule('ordinary', 'browser') : null;
+ }
+ if (name === 'browser_type') return args.submit ? null : rule('without-submit', 'browser');
+ if (name === 'browser_press') return /^(escape|esc|tab|arrow(up|down|left|right)|page(up|down)|home|end)$/i.test(String(args.key || '')) ? rule(String(args.key).toLowerCase(), 'browser') : null;
+ if (name === 'browser_select') return RISKY_CLICK.test(`${refsOf(apart)[args.ref] || ''} ${args.option || ''}`) ? null : rule('', 'browser');
+ return null;
+}
+
 function relative(cwd, path) {
  const raw = String(path ?? '.').trim() || '.';
  if (!PATHS.absolute(raw)) return raw.replace(PATHS.here, '');
@@ -1112,6 +1162,7 @@ window.AgentTools = {
  schemas: window.openghost?.quick ? SCHEMAS.filter(tool => !tool.function.name.startsWith('browser_')) : SCHEMAS,
  modes: MODES,
  needsApproval,
+ approvalRule,
  describe,
  inside,
  environment() {

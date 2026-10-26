@@ -1728,7 +1728,13 @@ class Chat {
   const refused = shared && this.sharedRefusal(conv, cwd, shared);
   if (refused) return refused;
   let apart = this.seat(conv);
-  if (AgentTools.needsApproval(name, args, { mode: this.settings.mode, cwd, attached: this.attachedFiles(conv), apart })) {
+  let asks = AgentTools.needsApproval(name, args, { mode: this.settings.mode, cwd, attached: this.attachedFiles(conv), apart });
+  if (asks && this.settings.mode === 'ask') {
+   const rule = AgentTools.approvalRule?.(name, args, { cwd, apart });
+   // Missing, locked or unreadable storage never grants access. Read on every step so a reset applies at once.
+   if (rule && this.library.permissions) asks = !(await this.library.permissions(conv.id).catch(() => [])).includes(rule.key);
+  }
+  if (asks) {
    if (turn.queue.length) return TOOL_NOTES.message;
    const answer = await this.approve(conv, turn, view, { name, args, cwd, apart });
    if (answer !== 'allow') return answer === 'deny' ? TOOL_NOTES.declined : answer;
@@ -1888,7 +1894,13 @@ class Chat {
  async approve(conv, turn, view, request) {
   this.dismissGhost(view);
   if (turn.next) this.dismissGhost(turn.next);
-  const about = AgentTools.describe(request.name, request.args, request.cwd, request.apart), card = new ApprovalCard(about);
+  const about = AgentTools.describe(request.name, request.args, request.cwd, request.apart);
+  const rule = this.settings.mode === 'ask' ? AgentTools.approvalRule?.(request.name, request.args, { cwd: request.cwd, apart: request.apart }) : null;
+  const always = rule && this.library.allowPermission ? { hint: rule.hint, save: async () => {
+   const saved = await this.library.allowPermission(conv.id, rule.key, turn.controller.signal);
+   if (!saved) throw new Error('The permission could not be saved');
+  } } : null;
+  const card = new ApprovalCard({ ...about, always });
   const pending = { ...request, card }, deck = !!this.main.querySelector('.composer');
   if (!deck) view.el.append(card.el);
   // The agent now waits for the user's OK: one who is not looking is told so, once while its steps wait together.
@@ -3383,6 +3395,9 @@ class SideChat extends Chat {
    // The same private record as the chat this mini chat belongs to. Another chat's mini chat has its own origin, so it never reaches this one.
    record: () => library.record(origin.id),
    saveRecord: (_id, text) => library.saveRecord(origin.id, text),
+   // The mini chat shares only its own main chat's ASK exceptions.
+   permissions: () => library.permissions(origin.id),
+   allowPermission: (_id, rule, signal) => library.allowPermission(origin.id, rule, signal),
   } });
   this.state = state;
   this.origin = origin;
