@@ -84,6 +84,8 @@ class UpdatePill {
   return face;
  }
 
+ // The edge is read from the layout (offsetLeft), not from the box on screen: the routines' pill comes in on a scale, and
+ // its box is smaller and further in while it does, so the button was set against the wrong edge and stayed flush.
  place() {
   const pill = this.pill;
   if (pill.hidden) return;
@@ -91,8 +93,7 @@ class UpdatePill {
   const routines = this.main.querySelector(':scope > .routines-pill');
   const globe = this.main.querySelector(':scope > .browser-tools browser-toggle');
   const beside = seen(routines) ? routines : seen(globe) ? this.main.querySelector(':scope > .browser-tools') : null;
-  const box = this.main.getBoundingClientRect();
-  pill.style.right = beside ? `${Math.round(box.right - beside.getBoundingClientRect().left + GAP)}px` : '';
+  pill.style.right = beside ? `${Math.round(this.main.clientWidth - beside.offsetLeft + GAP)}px` : '';
   this.onMove();
  }
 
