@@ -22,6 +22,7 @@ class ProviderError extends Error {
 
 function explain(provider, { status = 0, code = '', message = '' }) {
  const name = NAMES[provider] || provider;
+ code = String(code || '').trim().toLowerCase();
  // A local server is the user's own program: when it is not there the app says so in plain words, and when it answers
  // with an error, its own words say more than a status would (a model too large for the memory, a name it does not know).
  if (provider === 'local') return code === 'network' ? I18n.t('error.local') : message || I18n.t('error.statusOf', { provider: name, status });
@@ -29,7 +30,7 @@ function explain(provider, { status = 0, code = '', message = '' }) {
  if (provider === 'custom' && status !== 401) return code === 'network' ? I18n.t('error.custom') : message || I18n.t('error.statusOf', { provider: name, status });
  if (code === 'network') return I18n.t('error.connect', { provider: name });
  if (status === 401) return I18n.t(provider === 'chatgpt' ? 'error.signin' : 'error.key', { provider: name });
- if (status === 402 || code === 'insufficient_quota' || code === 'billing_error') return I18n.t('error.quota', { provider: name });
+ if (status === 402 || QUOTA.has(code)) return I18n.t('error.quota', { provider: name });
  if (status === 429) return I18n.t('error.rate', { provider: name });
  if (status >= 500) return I18n.t('error.server', { provider: name });
  return message || I18n.t('error.statusOf', { provider: name, status });
@@ -41,16 +42,26 @@ const aborted = partial => Object.assign(new DOMException('Aborted', 'AbortError
 // these: asking again would get the same answer. A local server's own 500 usually means the request itself cannot be
 // done (the model does not fit, the name is unknown), so that is not waited out either.
 const TRANSIENT = new Set([408, 409, 429, 500, 502, 503, 504, 529]);
-const PERMANENT = new Set(['insufficient_quota', 'billing_error', 'content_filter']);
+const QUOTA = new Set(['insufficient_quota', 'billing_error', 'credit_balance_exhausted', 'organization_spend_limit_exceeded', 'project_spend_limit_exceeded', 'organization_usage_limit_exceeded']);
+const PERMANENT = new Set([...QUOTA, 'content_filter']);
+// An HTTP 200 stream may end with an error code, with no numeric status at all. It is still a temporary failure.
+const TRANSIENT_CODES = new Set(['server_error', 'internal_server_error', 'server_overloaded', 'server_is_overloaded', 'overloaded_error', 'service_unavailable', 'service_unavailable_error', 'temporarily_unavailable', 'rate_limit_exceeded', 'rate_limit_error', 'slow_down']);
+const OVERLOAD_MESSAGE = 'our servers are currently overloaded. please try again later.';
 const WAITS = [1000, 2000, 4000, 8000, 16000, 32000];
 
 function transient(error, provider) {
  if (!error || error.name === 'AbortError') return false;
- if (PERMANENT.has(error.code)) return false;
- if (error.code === 'network') return true;
+ const code = String(error.code || '').trim().toLowerCase();
+ if (PERMANENT.has(code)) return false;
  const status = Number(error.status) || 0;
- if (provider === 'local' && status === 500) return false;
- return TRANSIENT.has(status);
+ // Explicit request/auth errors win over a misleading symbolic code. Preserve local model errors as before.
+ if (status >= 400) return !(provider === 'local' && status === 500) && TRANSIENT.has(status);
+ if (code === 'network') return true;
+ if (provider === 'local') return false;
+ if (TRANSIENT_CODES.has(code)) return true;
+ // The known GPT overload wording can arrive without either field. Do not infer retries from arbitrary error text.
+ return !code && (provider === 'openai' || provider === 'chatgpt')
+  && String(error.message || '').replace(/\s+/g, ' ').trim().toLowerCase() === OVERLOAD_MESSAGE;
 }
 
 function pause(ms, signal) {

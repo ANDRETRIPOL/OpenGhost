@@ -12,6 +12,10 @@ Per-chat effort is covered by `chat-effort.cjs`: independent preferences for cha
 
 Run `npm run test:effort-ui` for the isolated Electron check of the real effort control while switching chats, changing models and reopening saved data. Its profile and screenshots also stay in a new temporary folder, not the application's profile.
 
+Overload recovery is covered by `overload-retry.cjs`: the real OpenAI/ChatGPT stream parser, shared retry policy and `Chat.request` recover from known transient codes without an HTTP status. A narrow compatibility case recognizes the exact GPT overload message when both code and status are absent. The envelope type `error` is not a provider code. Structured failures from other remote providers use the same policy; local model failures, unknown errors, auth, credits/spend/quota and content refusals are not blindly retried. Tests also cover concurrent chats, existing tool-result history, unchanged request parameters, cancellation, usage accounting and one real-timer backoff.
+
+Recovery stays bounded by the existing six waits (1, 2, 4, 8, 16 and 32 seconds). Once content, reasoning or tool activity has arrived, requests are not automatically replayed. After retry exhaustion the normal error and manual Retry remain available. The transient overload and permanent billing codes follow the [OpenAI error-code guide](https://developers.openai.com/api/docs/guides/error-codes.md).
+
 The file-tool privacy guard protects the application store, including saved copies of record tool calls, with case normalization and physical path resolution. It is a tool-level guard. The application's unrestricted shell still runs as the OS user; absolute isolation from arbitrary shell code requires an OS sandbox and is not provided by a path check.
 
 These fixes keep existing on-disk formats. The preceding checkpoint commit preserves the reconnect changes that were uncommitted before this work. All audit fixes and these tests belong in the single following commit, which can be undone with `git revert <fix-commit>`.

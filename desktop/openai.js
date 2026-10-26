@@ -244,7 +244,9 @@ async function stream(request, context) {
    return result;
   } else if (event.type === 'response.failed' || event.type === 'error') {
    const problem = event.response?.error || event.error || event;
-   throw error(problem.message || 'OpenAI stopped the answer', Number(problem.status) || 0, problem.code || '');
+   // The envelope's type "error" is not a provider error code; a nested error type can be one.
+   const code = problem.code || (problem !== event ? problem.type : '') || '';
+   throw error(problem.message || 'OpenAI stopped the answer', Number(problem.status) || Number(problem.status_code) || 0, code);
   }
  }
  // A clean EOF can still be a lost connection. No terminal response means the answer is incomplete.
