@@ -7,6 +7,7 @@ const sidebar = document.querySelector('.sidebar');
 const sidebarToggle = document.querySelector('.sidebar-toggle');
 const searchButton = document.querySelector('.sidebar-search-button');
 const main = document.querySelector('.main');
+const splitTemplate = main.cloneNode(true);
 const thread = document.querySelector('.thread');
 const composer = document.querySelector('.composer');
 const composerField = document.querySelector('.composer-field');
@@ -28,13 +29,14 @@ let routineMaker = null;
 let planIsland = null;
 let updatePill = null;
 let sidePanels = null;
+let splitView = null;
 const MAIN_WINDOW = !window.openghost?.quick;
 Routines.load();
 Skills.load();
 
 new SmoothHeight(composerField, composerInput);
 ComposerSpace.watch(main, composer);
-new ThreadBones({ app, main, thread });
+const threadBones = new ThreadBones({ app, main, thread });
 ThreadWindow.watch(thread);
 const composerScrollbar = new Scrollbar(composerInput, document.querySelector('.composer-scrollbar'));
 const threadScrollbar = new Scrollbar(thread, document.querySelector('.thread-scrollbar'));
@@ -83,10 +85,10 @@ const UNSENT_DELAY = 300;
 let written = null, unsentTimer = 0;
 const chat = new Chat({
   main, thread, bottom: threadBottom, settings, library, onChange: syncAll, onList: list => threadScrollbar.observe(list), onRecall: recall,
-  onNotes: (conv, change) => notepad?.onNotes(conv, change),
+  onNotes: (conv, change) => { notepad?.onNotes(conv, change); splitView?.pane?.notepad?.onNotes(conv, change); },
   onLeave: conv => putAway(conv),
-  onPredict: conv => { if (conv === chat.active) syncComposer(); },
-  onPlan: conv => { if (conv === chat.active) planIsland?.sync(); },
+  onPredict: conv => { if (conv === chat.active) syncComposer(); splitView?.pane?.sync(); },
+  onPlan: conv => { if (conv === chat.active) planIsland?.sync(); chat.syncAsk(); splitView?.pane?.sync(); },
 });
 if (MAIN_WINDOW) planIsland = new PlanIsland({ main, chat });
 // The chats' rows show the last message of each: older chats have it worked out once, a while after the start.
@@ -106,12 +108,14 @@ chatList = new ChatList({
   onNewFolder: async () => {
     const folder = await library.pick();
     if (!folder) return;
-    chat.newChat(folder);
-    composerInput.focus();
+    const target = splitView?.currentChat || chat;
+    target.newChat(folder);
+    target.main.querySelector('.composer-input').focus();
   },
   onNewChat: (folder) => {
-    chat.newChat(folder);
-    composerInput.focus();
+    const target = splitView?.currentChat || chat;
+    target.newChat(folder);
+    target.main.querySelector('.composer-input').focus();
   },
   onLock: (id, row, from) => lockCard.open(id, row, from),
   onNewRoutine: MAIN_WINDOW && Routines.available ? head => routineMaker?.open({ anchor: head }) : null,
@@ -119,6 +123,7 @@ chatList = new ChatList({
   onSkills: MAIN_WINDOW && Skills.available ? () => spotlight.showSkills() : null,
   // A fork of the whole chat, from its row's menu (chat.js).
   onFork: MAIN_WINDOW ? id => chat.forkChat(id) : null,
+  onSplit: MAIN_WINDOW ? id => splitView?.open(id) : null,
 });
 document.querySelector('.titlebar-name').innerHTML = `${Glyphs.ghost}<span>OpenGhost</span>`;
 const modeButton = document.querySelector('.composer-mode');
@@ -144,7 +149,7 @@ const attachments = new Attachments({
   onText: (text, undo) => composerText.place(text, undo),
   // Files dropped on the open settings go to the settings' own list, not into the message.
   // And files dropped on the open mini chat are the mini chat's.
-  isActive: event => !event?.target?.closest?.('.mini') && !chat.active?.locked && !settings.dialog.open,
+  isActive: event => (!event || main.contains(event.target)) && !event?.target?.closest?.('.mini') && !chat.active?.locked && !settings.dialog.open,
 });
 // A fork made from a message of the user's has that message waiting in its field: its words come with the fork's
 // draft (chat.js), and its pictures, kept in the message, are put back here.
@@ -161,7 +166,8 @@ chat.onForked = (made, prompt) => {
     }
   };
   const files = pictures.map(file).filter(Boolean);
-  if (chat.activeId === made.id && files.length) attachments.add(files);
+  const target = splitView?.viewOfId(made.id) || chat;
+  if (target.activeId === made.id && files.length) (target === chat ? attachments : splitView.pane.attachments).add(files);
 };
 // A right click on a field or on selected words: cut, copy, paste, select all (edit-menu.js).
 new EditMenu();
@@ -169,10 +175,14 @@ new SelectionMenu({
   onAsk: (text, box) => {
     const mini = box.closest('.mini')?.__mini;
     if (mini) { mini.quote(text); return; }
+    if (box.closest('.is-split-secondary')) { splitView.pane.text.insertQuote(text); splitView.pane.sync(); return; }
     composerText.insertQuote(text);
     syncComposer();
   },
-  onMini: text => { if (chat.active?.record) MiniChat.open({ settings, source: chat, library, quote: text }); },
+  onMini: text => {
+    const source = splitView?.currentChat || chat;
+    if (source.active?.record) MiniChat.open({ settings: source.settings, source, library, quote: text });
+  },
 });
 new AddMenu({ button: document.querySelector('.composer-add'), attachments, chat, input: composerInput });
 settings.show(chat.model);
@@ -225,8 +235,9 @@ async function createRoutine({ text, rule, model, effort }) {
 document.querySelector('.sidebar-settings').addEventListener('settings-open', () => settings.open());
 
 document.querySelector('.sidebar-new-chat').addEventListener('add', () => {
-  chat.newChat();
-  composerInput.focus();
+  const target = splitView?.currentChat || chat;
+  target.newChat();
+  target.main.querySelector('.composer-input').focus();
 });
 
 function setSidebarCollapsed(collapsed) {
@@ -243,8 +254,21 @@ else sidebarToggle.addEventListener('sidebar-toggle', () => {
   setSidebarCollapsed(!app.classList.contains('is-sidebar-collapsed'));
 });
 
+if (MAIN_WINDOW) {
+  splitView = new SplitView({ app, main, chat, settings, library, bones: threadBones, sidePanels, template: splitTemplate, browser: browserPanel,
+    changed: syncAll, notes: (conv, change) => { notepad?.onNotes(conv, change); splitView?.pane?.notepad?.onNotes(conv, change); },
+  });
+  chatList.chat = new Proxy(chat, { get(_target, name) {
+    const owner = splitView.currentChat, value = owner[name];
+    return typeof value === 'function' ? value.bind(owner) : value;
+  } });
+}
+
 // Search opens over the middle of the chat; the sidebar's list stays as it is.
-const spotlight = new Spotlight({ button: searchButton, anchor: main, library, chat, onSkill: name => { composerText.insertSkill(name); syncComposer(); } });
+const spotlight = new Spotlight({ button: searchButton, anchor: main, library, chat: chatList.chat, onSkill: name => {
+  if (splitView?.currentChat !== chat && splitView?.pane) { splitView.pane.text.insertSkill(name); splitView.pane.sync(); }
+  else { composerText.insertSkill(name); syncComposer(); }
+} });
 // Typing / in the message field lists the skills over it.
 new SkillPicker({ input: composerInput, text: composerText, anchor: composer, onPick: syncComposer });
 
@@ -342,13 +366,16 @@ function bringOut() {
 function syncAll() {
   if (!chatList) return;
   // The marks where forks begin follow their chats' names, and their going.
+  main.classList.toggle('is-empty', !chat.active?.locked && !chat.active?.list.childElementCount);
   chat.syncForks();
   // The skills of the chat on screen: its project may have skills of its own.
-  const folder = chat.active?.record ? chat.cwd(chat.active) : '';
+  const focused = splitView?.currentChat || chat;
+  const folder = focused.active?.record ? focused.cwd(focused.active) : '';
   if (folder !== Skills.folder) { Skills.folder = folder; if (folder) Skills.refresh(folder); }
   folderPill.sync();
   chatList.render();
   lockScreen.sync();
+  chat.syncAsk();
   // After the lock screen has let go of the field: words can't be put into a field it holds.
   bringOut();
   syncComposer();
@@ -359,13 +386,15 @@ function syncAll() {
   notepad?.sync();
   routinePanel?.sync();
   planIsland?.sync();
-  sidePanels?.sync(chat.activeId);
+  sidePanels?.sync(focused.activeId);
+  splitView?.sync();
   MiniChat.check();
 }
 
 // The ghost at the top of the chat: there while this chat's mini chat is out of sight with its agent at work or its
 // answer ready, and says which.
 MiniChat.onSignal = () => {
+  splitView?.pane?.signalMini();
   const state = chat.active ? MiniChat.state(chat.active) : '';
   miniToggle.hidden = !state;
   if (!state) return;
@@ -420,6 +449,7 @@ composerInput.addEventListener('keydown', (event) => {
 // fields that use Escape themselves (renaming, search, the address bar), get it first.
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || !chat.busy) return;
+  if (splitView?.opened && splitView.currentChat !== chat) return;
   if (document.querySelector(':popover-open:not(.mini), dialog[open]')) return;
   event.preventDefault();
   chat.stop();

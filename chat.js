@@ -950,6 +950,8 @@ class Chat {
  }
 
  open(id) {
+  const shown = this.workspace?.viewOfId(id);
+  if (shown && shown !== this) { this.workspace.focus(shown); return Promise.resolve(); }
   if (this.active?.id === id) return Promise.resolve();
   const token = ++this.opening;
   let conv = this.conversations.get(id);
@@ -967,6 +969,8 @@ class Chat {
   return Promise.resolve(conv.ready).then(() => {
    clearTimeout(slow);
    if (token !== this.opening) return;
+   const shown = this.workspace?.viewOfId(id);
+   if (shown && shown !== this) { this.showWait(false); this.workspace.focus(shown); return; }
    this.activate(conv);
    this.onChange();
   });
@@ -1052,6 +1056,8 @@ class Chat {
  }
 
  lock(id) {
+  const shown = this.workspace?.viewOfId(id);
+  if (shown && shown !== this) return shown.lock(id);
   const conv = this.conversations.get(id);
   if (!conv || conv.locked || !this.library.isProtected(id)) return;
   if (conv === this.active) this.onLeave?.(conv);
@@ -1061,6 +1067,8 @@ class Chat {
 
  // The password opens the chat; its messages are read again unless a reply still running kept them in memory.
  async unlock(id, password) {
+  const shown = this.workspace?.viewOfId(id);
+  if (shown && shown !== this) return shown.unlock(id, password);
   const conv = this.conversations.get(id);
   if (!conv?.locked) return true;
   if (!(await this.library.unlock(id, password))) return false;
@@ -1087,6 +1095,8 @@ class Chat {
 
  // Setting a password locks the chat straight away, so the first thing its owner does is open it with the new password.
  async protect(id, password) {
+  const shown = this.workspace?.viewOfId(id);
+  if (shown && shown !== this) return shown.protect(id, password);
   const conv = this.conversations.get(id);
   if (conv?.turn || conv?.locked) return false;
   const loaded = conv?.ready ? { messages: conv.messages, tokens: conv.tokens } : null;
@@ -1098,6 +1108,8 @@ class Chat {
  }
 
  async unprotect(id) {
+  const shown = this.workspace?.viewOfId(id);
+  if (shown && shown !== this) return shown.unprotect(id);
   const conv = this.conversations.get(id);
   if (!conv || conv.locked) return false;
   const done = await this.library.unprotect(id, conv.ready ? { messages: conv.messages, tokens: conv.tokens } : null);
@@ -1106,6 +1118,8 @@ class Chat {
  }
 
  remove(id) {
+  const shown = this.workspace?.viewOfId(id);
+  if (shown && shown !== this) return shown.remove(id);
   const conv = this.conversations.get(id), record = this.library.chat(id);
   if (conv) {
    this.abort(conv);
@@ -1146,6 +1160,7 @@ class Chat {
    // A protected chat locks again as soon as it is left.
    if (prev.record && !prev.locked && this.library.isProtected(prev.id)) this.seal(prev);
   }
+  if (this.workspace && conv.list.parentElement !== this.thread) conv.list.remove();
   this.attach(conv);
   this.syncForks(conv);
   this.active = conv;
@@ -1171,6 +1186,11 @@ class Chat {
   } else this.hold(conv, show);
   this.syncAsk();
   this.syncBottom();
+ }
+
+ // A conversation has one shared state and can be visible in one split pane at a time.
+ viewOf(conv) {
+  return this.workspace ? this.workspace.viewOf(conv) : this.active === conv ? this : null;
  }
 
  // Holds the end of the chat in view. A card taller than the room over the composer (postStats) holds its own top in view
@@ -1946,7 +1966,7 @@ class Chat {
    this.syncAsk();
    this.onPlan?.(conv);
    // Asked in a chat that is not on screen: its row is marked, as for a reply that came in.
-   if (conv !== this.active && conv.record && this.library.chat(conv.id)) this.library.update(conv.id, { unread: true });
+   if (!this.viewOf(conv) && conv.record && this.library.chat(conv.id)) this.library.update(conv.id, { unread: true });
    // The agent now waits for the user: one who is not looking is told so, as of a finished reply.
    this.replied(conv, I18n.t('notify.asks', { text: questions[0].question }));
   });
@@ -1994,13 +2014,13 @@ class Chat {
   // The agent now waits for the user's OK: one who is not looking is told so, once while its steps wait together.
   if (!turn.approvals.size) this.replied(conv, I18n.t('notify.approve', { text: about.title }));
   turn.approvals.add(pending);
-  if (deck) this.syncAsk();
+  if (deck) (this.viewOf(conv) || this).syncAsk();
   this.onPlan?.(conv);
-  if (conv === this.active) this.followBottom();
+  this.viewOf(conv)?.followBottom();
   const answer = await card.answer;
   turn.approvals.delete(pending);
   this.onPlan?.(conv);
-  if (deck) this.syncAsk();
+  if (deck) (this.viewOf(conv) || this).syncAsk();
   else card.dismiss();
   return answer;
  }
@@ -2068,7 +2088,7 @@ class Chat {
    this.save(conv);
    if (turn.text && !conv.record.named) this.name(conv, turn.config);
   }
-  if (conv !== this.active) {
+  if (!this.viewOf(conv)) {
    conv.unread = true;
    if (conv.record && this.library.chat(conv.id)) this.library.update(conv.id, { unread: true });
   }
@@ -2094,7 +2114,7 @@ class Chat {
    else last.el.append(tools);
   }
   if (!text && !noted) collapse(view.el);
-  if (conv === this.active) this.followBottom();
+  this.viewOf(conv)?.followBottom();
   // A protected chat left while it was replying locks fully once the reply is saved.
   if (conv.locked && !conv.turn) this.seal(conv);
   // An agent that stopped to wait for the user, for its plan's sake, is told of as waiting, whatever its reply says.
@@ -2199,7 +2219,7 @@ class Chat {
    if (first?.isConnected) first.before(notice);
    else turn.part.view.el.before(notice);
   }
-  if (conv === this.active) this.followBottom();
+  this.viewOf(conv)?.followBottom();
   let summary = '', cost = null;
   try {
    // A later summary reads the previous summary and what was said after it, not the messages that summary already folded.
@@ -2513,7 +2533,7 @@ class Chat {
   conv.messages.push(entry);
   this.openPart(conv, turn);
   this.onChange();
-  if (conv === this.active) this.followBottom();
+  this.viewOf(conv)?.followBottom();
   await this.drive(conv, turn);
  }
 
@@ -2555,7 +2575,7 @@ class Chat {
   const card = new SkillCard(skill);
   view.el.append(card.el);
   turn.skillCard = card;
-  if (conv === this.active) this.followBottom();
+  this.viewOf(conv)?.followBottom();
   const answer = await card.answer;
   turn.skillCard = null;
   card.dismiss();
@@ -2942,7 +2962,7 @@ class Chat {
    else conv.list.append(el);
    after = el;
    (entry.role === 'memory' ? MemoryPill : entry.role === 'asked' ? AskRecord : entry.role === 'routine' ? RoutinePill : entry.role === 'skill' ? SkillPill : NotePill).enter(el);
-   if (conv === this.active) this.followBottom();
+   this.viewOf(conv)?.followBottom();
   }
  }
 
@@ -3328,7 +3348,7 @@ class Chat {
   if (!conv.messages.includes(view.el.__entry)) view.el.remove();
   if (conv === this.active) this.follow = true;
   this.resume(conv, config);
-  if (conv === this.active) this.followBottom();
+  this.viewOf(conv)?.followBottom();
  }
 
  note(view, text) {
@@ -3430,7 +3450,7 @@ class Chat {
   el.className = 'message is-assistant is-streaming';
   el.innerHTML = '<div class="message-status"><ghost-thinking></ghost-thinking></div><div class="message-content markdown"></div>';
   const content = el.querySelector('.message-content');
-  return { el, status: el.querySelector('.message-status'), content, stream: new StreamView(content, { onChange: () => { if (conv === this.active) this.followBottom(); } }) };
+  return { el, status: el.querySelector('.message-status'), content, stream: new StreamView(content, { onChange: () => { this.viewOf(conv)?.followBottom(); } }) };
  }
 }
 

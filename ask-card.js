@@ -61,8 +61,10 @@ function report(questions, answers) {
 // What stays in the chat: each question's short name and the answer to it.
 const record = (questions, answers) => questions.map((question, k) => ({ header: question.header, question: question.question, answer: given(answers[k]) ? phrase(question, answers[k]) : '' }));
 
+let deckId = 0;
 class AskDeck {
  constructor(host) {
+  this.id = ++deckId;
   this.host = host;
   this.ask = null;
   this.root = null;
@@ -161,7 +163,7 @@ class AskDeck {
   head.append(element('span', 'ask-tag', question.header));
   if (total > 1) head.append(element('span', 'ask-count', I18n.t('ask.count', { n: index + 1, total })));
   const title = element('div', 'ask-question', question.question);
-  title.id = `ask-q-${index}`;
+  title.id = `ask-${this.id}-q-${index}`;
   const list = element('div', 'ask-options');
   list.setAttribute('role', question.multi ? 'group' : 'radiogroup');
   list.setAttribute('aria-labelledby', title.id);

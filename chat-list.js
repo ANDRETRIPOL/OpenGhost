@@ -127,7 +127,7 @@ function place(parent, children) {
 }
 
 class ChatList {
- constructor({ root, library, chat, onNewFolder, onNewChat, onLock, onNewRoutine = null, onSkills = null, onFork = null }) {
+ constructor({ root, library, chat, onNewFolder, onNewChat, onLock, onNewRoutine = null, onSkills = null, onFork = null, onSplit = null }) {
   this.root = root;
   this.list = root.querySelector('.chats-list');
   this.library = library;
@@ -142,6 +142,7 @@ class ChatList {
   this.onSkills = onSkills;
   // Fork a whole chat (chat.js), from the dots' menu; how far in each chat's row stands, as `tree` put it.
   this.onFork = onFork;
+  this.onSplit = onSplit;
   this.depths = new Map();
   // The groups whose chats all show (see `trim`), and the one whose rest is coming out now.
   this.opened = new Set();
@@ -152,6 +153,7 @@ class ChatList {
    items: id => this.menuItems(id),
    act: (name, id, row, from) => {
     if (name === 'rename') this.rename(id);
+    else if (name === 'split') this.onSplit?.(id);
     else if (name === 'fork') this.onFork?.(id);
     else if (name === 'lock') this.onLock?.(id, row, from);
     else if (name === 'permissions') return this.library.resetPermissions(id);
@@ -196,6 +198,7 @@ class ChatList {
   reset = reset && this.chat.settings?.mode === 'ask' && !this.library.isLocked(id);
   return [
    { name: 'rename', label: I18n.t('chat.rename'), icon: Glyphs.pencil, disabled: item.rename.disabled },
+   ...(this.onSplit ? [{ name: 'split', label: I18n.t('split.open'), icon: Glyphs.split }] : []),
    ...(this.onFork ? [{ name: 'fork', label: I18n.t('chat.fork'), icon: Glyphs.fork, disabled: this.library.isLocked(id) }] : []),
    { name: 'lock', label: item.lock.getAttribute('aria-label') || I18n.t('chat.lock'), icon: Glyphs.padlock, disabled: item.lock.disabled },
    ...(reset ? [{ name: 'permissions', label: I18n.t('approve.reset'), icon: Glyphs.shield }] : []),

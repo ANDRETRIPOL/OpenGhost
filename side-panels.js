@@ -109,7 +109,7 @@ class SidePanels {
   const sum = selector => inset + [...main.querySelectorAll(selector)].filter(seen).reduce((total, el) => total + el.offsetWidth + 8, 0);
   const left = sum(':scope > .top-tools, :scope > .notes-pill'), right = sum(':scope > .routines-pill, :scope > .update-pill, :scope > .browser-tools');
   const top = seen(main.querySelector(':scope > .plan-island')) ? 2 * Math.max(left, right) + CHAT.island : left + right + CHAT.between;
-  return Math.ceil(Math.max(CHAT.least, composer, top));
+  return Math.ceil(Math.max(CHAT.least, composer, top, this.splitRoom?.() || 0));
  }
 
  // The sidebar's width now: the one the user dragged it to, or its own (a share of the window, never less than 240).
