@@ -198,7 +198,7 @@ class ChatList {
   reset = reset && this.chat.settings?.mode === 'ask' && !this.library.isLocked(id);
   return [
    { name: 'rename', label: I18n.t('chat.rename'), icon: Glyphs.pencil, disabled: item.rename.disabled },
-   ...(this.onSplit ? [{ name: 'split', label: I18n.t('split.open'), icon: Glyphs.split }] : []),
+   ...(this.onSplit && this.chat.activeId !== id && !this.chat.workspace?.viewOfId(id) ? [{ name: 'split', label: I18n.t('split.open'), icon: Glyphs.split, disabled: this.chat.workspace && !this.chat.workspace.canFit() }] : []),
    ...(this.onFork ? [{ name: 'fork', label: I18n.t('chat.fork'), icon: Glyphs.fork, disabled: this.library.isLocked(id) }] : []),
    { name: 'lock', label: item.lock.getAttribute('aria-label') || I18n.t('chat.lock'), icon: Glyphs.padlock, disabled: item.lock.disabled },
    ...(reset ? [{ name: 'permissions', label: I18n.t('approve.reset'), icon: Glyphs.shield }] : []),

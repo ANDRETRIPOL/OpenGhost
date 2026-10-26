@@ -255,7 +255,7 @@ else sidebarToggle.addEventListener('sidebar-toggle', () => {
 });
 
 if (MAIN_WINDOW) {
-  splitView = new SplitView({ app, main, chat, settings, library, bones: threadBones, sidePanels, template: splitTemplate, browser: browserPanel,
+  splitView = new SplitView({ app, main, chat, settings, library, bones: threadBones, sidePanels, template: splitTemplate,
     changed: syncAll, notes: (conv, change) => { notepad?.onNotes(conv, change); splitView?.pane?.notepad?.onNotes(conv, change); },
   });
   chatList.chat = new Proxy(chat, { get(_target, name) {

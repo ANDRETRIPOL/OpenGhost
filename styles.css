@@ -21770,7 +21770,7 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
     transition: none !important;
   }
 }
-/* Two independent chat views, separated by a black gutter with four rounded corners. */
+/* The split keeps the app's own backdrop visible between the chat cards, as beside the browser. */
 .chat-split {
   position: absolute;
   z-index: 1;
@@ -21781,7 +21781,7 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   background: transparent;
   border-radius: var(--chat-radius);
   --split-left: calc((100% - 14px) / 2);
-  transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing);
+  transition: none;
 }
 .chat-split[hidden] { display: none; }
 .app.is-sidebar-collapsed .chat-split { left: var(--chat-gap); }
@@ -21791,7 +21791,7 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   top: 0; bottom: 0; left: 0; right: auto;
   width: var(--split-left);
   border-radius: var(--chat-radius) 26px 26px var(--chat-radius);
-  min-width: 0;
+  min-width: var(--split-min, 400px);
   transition: none;
   overflow: clip;
 }
@@ -21809,15 +21809,13 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .split-divider::after {
   content: ''; position: absolute; top: 50%; left: 50%;
   width: 3px; height: 38px; border-radius: 3px;
-  transform: translate(-50%, -50%); background: #a8a8a8;
+  transform: translate(-50%, -50%); background: rgba(var(--fg-rgb), 0.28);
   transition: height 0.2s ease, background 0.2s ease;
 }
-.split-divider:hover::after, .split-divider:focus-visible::after { height: 54px; background: #fff; }
+.split-divider:hover::after, .split-divider:focus-visible::after { height: 54px; background: rgba(var(--fg-rgb), 0.6); }
 .split-divider:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -4px; border-radius: 14px; }
 .is-split-resizing { cursor: col-resize; user-select: none; }
 .is-split-resizing .chat-split > .main { pointer-events: none; }
-.chat-split.will-close-right > .is-split-secondary,
-.chat-split.will-close-left > .main:not(.is-split-secondary) { opacity: 0.4; }
 .split-close {
   display: grid; place-items: center; width: 32px; height: 32px;
   padding: 0; border: 0; background: transparent; border-radius: 50%;
@@ -21834,23 +21832,19 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 }
 .is-split-secondary > .routines-pill { right: 52px; }
 .is-split-secondary > .browser-tools { width: auto; min-width: 44px; gap: 4px; padding: 2px 8px; }
-.is-split-secondary:has(> .browser-tools > .browser-toggle) > .routines-pill { right: 92px; }
 .is-split-secondary .split-close { width: 26px; height: 26px; }
 .chat-row.is-open-beside:not(.is-active) { box-shadow: inset 3px 0 0 rgba(var(--fg-rgb), 0.3); }
 .chat-split .composer { --composer-side-gap: 16px; }
 .chat-split .composer-toolbar { gap: 4px; flex-wrap: wrap; row-gap: 6px; }
 .chat-split .composer-actions, .chat-split .composer-tools { gap: 4px; min-width: 0; }
-.chat-split .composer-actions { margin-left: auto; }
+.chat-split .composer-tools { flex: 0 0 auto; }
+.chat-split .composer-actions { flex: 0 0 auto; margin-left: auto; }
 .chat-split .composer-model { min-width: 0; max-width: 150px; }
-.chat-split .composer-mode { max-width: 108px; }
 .chat-split .composer-mode-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-split .composer-folder { max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: reduce) {
   .chat-split, .split-divider::after { transition: none; }
 }
-.chat-split::before {
-  content: ''; position: absolute; top: 0; bottom: 0;
-  left: calc(var(--split-left) - 26px); width: 66px; background: #000;
-}
+.is-split-secondary > .top-tools[hidden] { display: none; }
 .is-split-secondary > .notes-pill { left: 12px; }
 .is-split-secondary.has-split-mini > .notes-pill { left: 58px; }
