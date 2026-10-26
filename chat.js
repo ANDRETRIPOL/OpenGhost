@@ -705,6 +705,7 @@ class Conversation {
   this.record = record;
   this.folder = null;
   this.model = '';
+  this.effort = '';
   this.messages = [];
   this.tokens = 0;
   // How many messages the latest request held, the system prompt's included (see Chat.seam).
@@ -793,7 +794,29 @@ class Chat {
  }
 
  config(conv) {
-  return this.settings.configFor(this.modelOf(conv));
+  // Existing chats without the field keep their pre-update preference until it is migrated by load().
+  const preferred = conv?.record?.effort || conv?.effort || (conv?.record ? this.settings.legacyEffort : '') || '';
+  return this.settings.configFor(this.modelOf(conv), preferred);
+ }
+
+ get effort() {
+  return this.config(this.active).effort;
+ }
+
+ setEffort(value) {
+  const conv = this.active;
+  if (!conv || conv.turn || conv.locked) return false;
+  const config = this.settings.configFor(this.modelOf(conv), value);
+  if (!config.efforts?.includes(value)) return false;
+  if (conv.record) {
+   if (conv.record.effort === value) return true;
+   this.library.update(conv.id, { effort: value });
+  } else {
+   if (conv.effort === value) return true;
+   conv.effort = value;
+  }
+  this.onChange();
+  return true;
  }
 
  // Whether the chat has turns no summary covers yet: a new model would need them compacted first.
@@ -825,7 +848,7 @@ class Chat {
   if (!conv?.record || conv.turn || id === this.modelOf(conv)) return;
   if (!this.hasHistory(conv)) { this.setModel(id); return; }
   const previous = this.modelOf(conv);
-  const turn = this.begin(conv, this.settings.configFor(this.summarizerFor(id, conv)));
+  const turn = this.begin(conv, this.settings.configFor(this.summarizerFor(id, conv), this.config(conv).effort));
   turn.switch = previous;
   this.library.update(conv.id, { model: id });
   this.settings.setModel(id);
@@ -914,6 +937,7 @@ class Chat {
   const draft = this.draft || this.newDraft();
   draft.folder = folder;
   draft.model = '';
+  draft.effort = '';
   this.opening++;
   this.activate(draft);
   this.onChange();
@@ -993,6 +1017,8 @@ class Chat {
    conv.tokens = tokens;
    conv.pad = pad || null;
    conv.brief = brief || '';
+   // Freeze the old application-wide preference once for a legacy chat. Never replace another chat's choice.
+   if (conv.record && !conv.record.effort && this.settings.legacyEffort) this.library.update(conv.id, { effort: this.settings.legacyEffort });
    this.restore(conv);
   });
  }
@@ -1170,12 +1196,12 @@ class Chat {
   }
   if (!conv.record) {
    conv.record = this.library.create({ folder: conv.folder, text, attachments });
-   this.library.update(conv.id, { model: this.modelOf(conv) });
+   this.library.update(conv.id, { model: this.modelOf(conv), effort: config.effort });
    this.conversations.set(conv.id, conv);
    if (this.library.notes) conv.pad = { items: [], next: 1 };
    this.draft = null;
   } else {
-   this.library.update(conv.id, { updated: Date.now() });
+   this.library.update(conv.id, { updated: Date.now(), ...(!conv.record.effort ? { effort: config.effort } : {}) });
   }
   for (const actions of conv.list.querySelectorAll('.message-actions')) actions.remove();
   const prompt = { text, attachments };
@@ -3372,9 +3398,9 @@ function movedNotice() {
 // chat's own, the same system prompt and the same history, so the provider serves that part from the cache the chat has
 // already paid for; the mini chat's own words come after it.
 class SideChat extends Chat {
- constructor({ library, origin, model, ...options }) {
+ constructor({ library, origin, model, effort = '', ...options }) {
   const state = { seen: 0 };
-  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model };
+  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model, effort: effort || origin.record.effort || origin.effort || '' };
   if (library.isHome(origin.record)) record.space = origin.record.space;
   if (origin.record.session) record.session = origin.record.session;
   super({ ...options, library: {
@@ -3382,8 +3408,8 @@ class SideChat extends Chat {
    chats: [record],
    chat: id => id === record.id ? record : null,
    update: (id, changes) => id === record.id ? Object.assign(record, changes) : null,
-   conversation: id => library.side(id).then(body => { state.seen = body.seen; return body; }),
-   saveMessages: (id, messages, tokens) => library.saveSide(id, { messages, tokens, seen: state.seen }),
+   conversation: id => library.side(id).then(body => { state.seen = body.seen; if (body.effort) record.effort = body.effort; return body; }),
+   saveMessages: (id, messages, tokens) => library.saveSide(id, { messages, tokens, seen: state.seen, effort: record.effort }),
    clear: id => library.clearSide(id),
    isProtected: () => false,
    // The chat the mini chat is opened over may be protected, and then so is what is said here.
@@ -3403,6 +3429,13 @@ class SideChat extends Chat {
   this.origin = origin;
   this.waiting = null;
   this.driving = null;
+ }
+
+ setEffort(value) {
+  if (!super.setEffort(value)) return false;
+  const conv = this.active;
+  if (conv?.record) this.library.saveMessages(conv.id, conv.messages, conv.tokens);
+  return true;
  }
 
  get hasMessages() {

@@ -272,7 +272,7 @@ class QuickChat {
   // keep to the card.
   this.models = new ModelStage({ button: $('.composer-model'), root: popover('model-stage is-quick', 'model'), chat: this.chat, settings, input: this.input });
   this.models.room = () => dialog.getBoundingClientRect();
-  this.effort = new EffortSlider({ button: $('.composer-effort'), panel: popover('effort-panel is-quick', 'effort', EFFORT), settings });
+  this.effort = new EffortSlider({ button: $('.composer-effort'), panel: popover('effort-panel is-quick', 'effort', EFFORT), settings, chat: this.chat });
 
   this.input.addEventListener('input', () => this.sync());
   this.input.addEventListener('keydown', event => this.onKey(event));
@@ -506,6 +506,7 @@ class QuickChat {
   this.expandButton.title = busy ? I18n.t('quick.expand.wait') : '';
   if (!has) this.disarm();
   settings.show(chat.model);
+  this.effort.follow();
   this.models.sync();
   this.effort.lock(busy);
   // A reply that came while the window was out of sight is marked in the list, like one that came to a chat off

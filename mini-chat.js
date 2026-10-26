@@ -134,7 +134,7 @@ class MiniChat {
   this.source = source;
   this.clearButton = $('.mini-clear');
   this.chat = new SideChat({
-   main: this.main, thread, bottom, settings, library, origin, model: source.modelOf(origin), onChange: () => this.sync(), onList: list => scrollbar.observe(list),
+   main: this.main, thread, bottom, settings, library, origin, model: source.modelOf(origin), effort: source.config(origin).effort, onChange: () => this.sync(), onList: list => scrollbar.observe(list),
    // A waiting message taken back to be rewritten: its words return to the field, its files to the tray.
    onRecall: ({ rest, quotes, attachments }) => {
     this.attachments.give(attachments);

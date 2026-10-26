@@ -187,6 +187,7 @@ effortSlider = new EffortSlider({
   button: document.querySelector('.composer-effort'),
   panel: document.querySelector('.effort-panel'),
   settings,
+  chat,
 });
 effortSlider.lock(chat.busy);
 notepad = new Notepad({ chat, thread, button: notesToggle });
@@ -209,7 +210,7 @@ if (MAIN_WINDOW && Routines.available) {
 // the routines' group with the routine's pill as its first line, and opens.
 async function createRoutine({ text, rule, model, effort }) {
   const record = library.create({ folder: null, text, attachments: [] });
-  library.update(record.id, { model, routine: true });
+  library.update(record.id, { model, effort, routine: true });
   const { item } = await Routines.add({ text, rule, chat: record.id, own: true, effort, by: 'user' });
   if (!item) {
     library.remove(record.id);
@@ -355,6 +356,7 @@ function syncAll() {
   bringOut();
   syncComposer();
   settings.show(chat.model);
+  effortSlider?.follow();
   modelStage?.sync();
   effortSlider?.lock(chat.busy);
   notepad?.sync();

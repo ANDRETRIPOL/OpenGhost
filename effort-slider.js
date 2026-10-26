@@ -28,10 +28,12 @@ const rubber = d => (1 - 1 / (d * RUBBER.k / RUBBER.limit + 1)) * RUBBER.limit;
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 class EffortSlider {
- constructor({ button, panel, settings }) {
+ constructor({ button, panel, settings, chat = null }) {
   this.button = button;
   this.panel = panel;
   this.settings = settings;
+  this.chat = chat;
+  this.scope = chat?.active;
   this.slider = panel.querySelector('.effort-slider');
   this.track = panel.querySelector('.effort-track');
   this.fill = panel.querySelector('.effort-fill');
@@ -44,7 +46,8 @@ class EffortSlider {
   this.opened = false;
   this.locked = false;
   this.lens = 0;
-  this.efforts = settings.efforts?.length ? settings.efforts.slice() : EFFORTS.slice();
+  const config = this.configuration();
+  this.efforts = config.efforts?.length ? config.efforts.slice() : EFFORTS.slice();
   // A model with one level has nothing to choose: its control is not shown at all.
   button.toggleAttribute('hidden', this.efforts.length < 2);
   this.morph = new EffortMorph({
@@ -57,7 +60,7 @@ class EffortSlider {
   this.stage = new EffortStage(panel, { onDismiss: () => this.close(), lens: () => this.thumb.getBoundingClientRect(), room: () => this.button.closest('.mini')?.getBoundingClientRect() || null });
   this.ticks = [];
   this.fillTicks();
-  const saved = this.efforts.indexOf(settings.effort);
+  const saved = this.efforts.indexOf(config.effort);
   this.value = saved < 0 ? Math.max(0, this.efforts.indexOf('high')) : saved;
   this.pos = this.value;
   this.vel = 0;
@@ -87,11 +90,15 @@ class EffortSlider {
   });
   new ResizeObserver(() => this.relayout()).observe(panel);
 
-  this.commit(this.value);
+  this.commit(this.value, false);
   button.setLevel(this.value, true);
   button.setCount(this.efforts.length);
   const prior = settings.onEfforts;
-  settings.onEfforts = efforts => { prior?.(efforts); this.setEfforts(efforts); };
+  settings.onEfforts = efforts => { prior?.(efforts); this.setEfforts(this.configuration().efforts || efforts); this.follow(); };
+ }
+
+ configuration() {
+  return this.chat ? this.chat.config(this.chat.active) : { effort: this.settings.effort, efforts: this.settings.efforts };
  }
 
  get isOpen() {
@@ -103,11 +110,16 @@ class EffortSlider {
   else if (!this.locked) this.open();
  }
 
- // The level was chosen in another window of the app: the slider and its button take it.
+ // A chat switch or a library refresh only displays that chat's value; it never saves a choice into another chat.
  follow() {
-  const index = this.efforts.indexOf(this.settings.effort);
-  if (index < 0 || index === this.value || this.opened) return;
+  const scope = this.chat?.active;
+  if (scope !== this.scope) { if (this.opened) this.close(); this.scope = scope; }
+  const config = this.configuration();
+  this.setEfforts(config.efforts);
+  const index = this.efforts.indexOf(config.effort);
+  if (index < 0 || this.opened) return;
   this.value = this.goal = this.pos = index;
+  this.commit(index, false);
   this.button.setLevel(index, true);
  }
 
@@ -234,12 +246,12 @@ class EffortSlider {
   this.button.setCount(next.length);
   this.morph.setLevels(next.length);
   this.fillTicks();
-  let index = next.indexOf(this.settings.effort);
+  let index = next.indexOf(this.configuration().effort);
   if (index < 0) index = next.indexOf('high');
   if (index < 0) index = Math.min(next.length - 1, 2);
   this.value = this.goal = this.pos = index;
   this.button.setLevel(index, true);
-  this.commit(index);
+  this.commit(index, false);
   if (this.opened && this.panel.matches(':popover-open')) {
    this.geo = { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
    this.morph.measure(this.value);
@@ -308,8 +320,8 @@ class EffortSlider {
  }
 
  moveTo(i) {
+  if (this.locked || !this.commit(i)) return;
   this.goal = i;
-  this.commit(i);
   this.syncPaint();
   this.wake();
  }
@@ -322,15 +334,19 @@ class EffortSlider {
   else if (e.key === 'Tab') this.close();
  }
 
- commit(i) {
+ commit(i, remember = true) {
   const value = this.efforts[i];
-  if (!value) return;
+  if (!value) return false;
+  if (remember) {
+   if (this.chat) { if (!this.chat.setEffort(value)) return false; }
+   else if (value !== this.settings.effort) this.settings.setEffort(value);
+  }
   const name = EffortStage.nameOf(value);
   this.value = i;
-  if (value !== this.settings.effort) this.settings.setEffort(value);
   this.slider.setAttribute('aria-valuenow', String(i));
   this.slider.setAttribute('aria-valuetext', name);
   this.button.setAttribute('label', I18n.t('effort.current', { name }));
+  return true;
  }
 
  wake() {

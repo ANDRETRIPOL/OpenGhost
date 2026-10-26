@@ -126,8 +126,9 @@ function choices(className, items, chosen, onPick, { multi = false } = {}) {
 
 // What a routine is about to be, as the editor holds it: every kind keeps its own settings, so going from one kind to
 // another and back loses nothing.
-function draftOf(item, settings, chatModel) {
+function draftOf(item, settings, chatModel, chatEffort = '') {
  const rule = item?.rule || null, now = new Date();
+ const model = chatModel || settings.resolve(settings.model);
  const nextHour = clockOf(Math.min(23, now.getHours() + 1) * 60);
  const d = {
   text: item?.text || '',
@@ -137,8 +138,8 @@ function draftOf(item, settings, chatModel) {
   daily: { time: '09:00' },
   weekly: { days: [1, 2, 3, 4, 5], time: '09:00' },
   monthly: { day: now.getDate(), time: '09:00' },
-  model: chatModel || settings.resolve(settings.model),
-  effort: item?.effort || settings.effort,
+  model,
+  effort: item?.effort || chatEffort || settings.configFor(model).effort,
  };
  if (rule?.kind === 'once') {
   const at = new Date(rule.at), day = Math.round((new Date(at).setHours(0, 0, 0, 0) - midnight().getTime()) / 864e5);
@@ -352,10 +353,10 @@ class RoutineEditor {
  }
 
  // item: the routine to change, or none for a new one. withModel: its model and effort are picked here.
- load(item, { withModel = false, model = '' } = {}) {
+ load(item, { withModel = false, model = '', effort = '' } = {}) {
   this.item = item;
   this.withModel = withModel;
-  this.draft = draftOf(item, this.settings, model);
+  this.draft = draftOf(item, this.settings, model, effort);
   this.build();
  }
 
@@ -721,7 +722,7 @@ class RoutinePanel {
   this.titleEl.textContent = t(item ? 'routine.edit' : 'routine.newTitle');
   const own = this.mode === 'new' || !!item?.own;
   const model = this.mode === 'new' ? '' : this.chat.modelOf(this.conv);
-  this.editor.load(item, { withModel: own, model: own && item ? this.chat.library.chat(item.chat)?.model || model : model });
+  this.editor.load(item, { withModel: own, model: own && item ? this.chat.library.chat(item.chat)?.model || model : model, effort: this.mode === 'new' ? '' : this.chat.config(this.conv).effort });
   this.pageEl.replaceChildren(this.editor.el);
  }
 
@@ -789,11 +790,11 @@ class RoutinePanel {
   }
   const conv = this.conv;
   if (!conv?.record) return;
-  // A routine with a chat of its own takes the model picked here as its chat's model.
-  if (item?.own && value.model && value.model !== this.chat.modelOf(conv) && !conv.turn) this.chat.library.update(conv.id, { model: value.model });
+  // A routine with a chat of its own keeps that chat's model and effort together.
+  if (item?.own && !conv.turn) this.chat.library.update(conv.id, { ...(value.model ? { model: value.model } : {}), ...(value.effort ? { effort: value.effort } : {}) });
   const result = item
    ? await Routines.update(item.id, { text: value.text, rule: value.rule, ...(item.own ? { effort: value.effort } : {}) })
-   : await Routines.add({ text: value.text, rule: value.rule, chat: conv.id, own: false, effort: this.settings.configFor(this.chat.modelOf(conv)).effort, by: 'user' });
+   : await Routines.add({ text: value.text, rule: value.rule, chat: conv.id, own: false, effort: this.chat.config(conv).effort, by: 'user' });
   if (!result.item) { this.editor.summary.textContent = t('routine.failed'); return; }
   this.chat.markRoutine(conv, item ? 'changed' : 'set', result.item);
   this.show('list');

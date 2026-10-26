@@ -320,14 +320,14 @@ class Library {
   return this.queue(id, async () => {
    const data = await this.store.read(`mini/${id}`).catch(() => null);
    const body = data?.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
-   return { messages: Array.isArray(body?.messages) ? body.messages : [], tokens: Number(body?.tokens) || 0, seen: Number(body?.seen) || 0 };
+   return { messages: Array.isArray(body?.messages) ? body.messages : [], tokens: Number(body?.tokens) || 0, seen: Number(body?.seen) || 0, ...(typeof body?.effort === 'string' ? { effort: body.effort } : {}) };
   }).then(body => body || { messages: [], tokens: 0, seen: 0 });
  }
 
- saveSide(id, { messages, tokens = 0, seen = 0 }) {
+ saveSide(id, { messages, tokens = 0, seen = 0, effort = '' }) {
   const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
   if (!chat || (chat.lock && !key)) return Promise.resolve();
-  const body = { messages, tokens, seen };
+  const body = { messages, tokens, seen, ...(effort ? { effort } : {}) };
   return this.queue(id, async () => this.store.write(`mini/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
  }
 
@@ -437,6 +437,7 @@ class Library {
   // A chat without a project folder: the fork works in the same folder of its own, with what the agent made there.
   if (chat.space) copy.space = chat.space;
   if (chat.model) copy.model = chat.model;
+  if (chat.effort) copy.effort = chat.effort;
   const [notes, side, brief] = await Promise.all([this.notes(id), this.side(id), this.record(id)]);
   const seal = async body => key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body };
   // The fork keeps copies of the pictures the agent showed, under its own name, so deleting the chat it came from
@@ -451,7 +452,7 @@ class Library {
   await this.queue(copy.id, async () => {
    await this.store.write(`chats/${copy.id}`, await seal({ messages, tokens }));
    if (notes.items.length) await this.store.write(`notes/${copy.id}`, await seal({ items: notes.items, next: notes.next }));
-   if (mini.length) await this.store.write(`mini/${copy.id}`, await seal({ messages: mini, tokens: side.tokens, seen: side.seen }));
+   if (mini.length) await this.store.write(`mini/${copy.id}`, await seal({ messages: mini, tokens: side.tokens, seen: side.seen, ...(side.effort ? { effort: side.effort } : {}) }));
    if (brief) await this.store.write(`record/${copy.id}`, await seal({ text: brief }));
   });
   if (key) {
