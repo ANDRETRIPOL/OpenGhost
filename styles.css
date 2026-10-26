@@ -10768,6 +10768,7 @@ h6.md-h {
 
 .settings {
   --settings-nav: 180px;
+  user-select: none;
   position: fixed;
   inset: 0;
   width: min(780px, 100% - 48px);
