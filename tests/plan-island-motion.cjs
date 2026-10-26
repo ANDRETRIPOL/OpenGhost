@@ -31,7 +31,7 @@ app.whenReady().then(async()=>{
  const shot=async name=>{await pause(70);fs.writeFileSync(path.join(output,name+'.png'),(await win.webContents.capturePage()).toPNG());};
  const settle=()=>js(`Promise.all(island.root.getAnimations().concat(island.sheet.getAnimations(),island.cap.getAnimations()).filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))).then(()=>null)`);
  await win.loadFile(fixture);
- await js(`window.I18n={t:(key,v)=>key==='plan.count'?v.done+' of '+v.total+' steps':key==='plan.label'?'Agent plan':key==='plan.close'?'Close plan':key};
+ await js(`window.doneWord='Done';window.I18n={t:(key,v)=>key==='plan.done'?doneWord:key==='plan.count'?v.done+' of '+v.total+' steps':key==='plan.label'?'Agent plan':key==='plan.close'?'Close plan':key};
  window.view={plan:{id:'motion-test',steps:[{text:'Review the plan animation in a narrow window',state:'done',proof:'Checked the source code and reproduced the first-frame clipping.'},{text:'Check opening and closing without losing the text layout',state:'open'},{text:'Verify keyboard controls and reduced motion',state:'open'}]},waiting:false,finished:false};
  window.conv={};window.island=new PlanIsland({main:document.querySelector('main'),chat:{active:conv,planView:()=>view}});island.sync();`);
  await settle();await pause(200);
@@ -76,6 +76,18 @@ app.whenReady().then(async()=>{
  check('Hiding during close cancels pending transition',await js(`island.root.hidden&&!island.morph&&!island.root.classList.contains('is-open')&&!island.root.classList.contains('is-closing')`));
  await js(`island.sync();island.open()`);await settle();
  await js(`document.documentElement.dataset.theme='light';island.close()`);await settle();await shot('light-closed');
+ // The spring slightly undershoots the closed width. The caption must not shrink
+ // with it and briefly turn a short, fitting word such as "Done" into "Do…".
+ report.finishedCaptions=[];
+ for(const [text,zoom] of [['Done',1],['Готово',1],['Fatto',1],['Terminé',1],['Done',1.5]]){
+  win.webContents.setZoomFactor(zoom);await pause(100);
+  await js(`doneWord=${JSON.stringify(text)};view.finished=true;view.plan.steps.forEach(step=>step.state='done');island.sync();island.open();island.panelAnimations.forEach(a=>a.finish())`);await settle();
+  const frames=await js(`(()=>{island.close();island.panelAnimations.forEach(a=>a.pause());return [120,200,280,340,400,460,500].map(time=>{island.panelAnimations.forEach(a=>a.currentTime=time);const word=island.label.querySelector('.plan-word:not(.is-leaving)');return {time,panel:island.root.getBoundingClientRect().width,caption:island.cap.getBoundingClientRect().width,client:word.clientWidth,scroll:word.scrollWidth}})})()`);
+  report.finishedCaptions.push({text,zoom,frames});
+  check(text+' at '+zoom+': full caption throughout closing',frames.every(frame=>frame.scroll<=frame.client));
+  if(text==='Done'&&zoom===1.5){await js(`island.panelAnimations.forEach(a=>a.currentTime=340)`);await shot('done-closing');}
+  await js(`island.panelAnimations.forEach(a=>a.finish())`);await settle();
+ }
  win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
  await js(`island.open();island.close()`);
  check('Reduced motion skips the geometry morph',await js(`island.state==='shut'&&!island.morph&&!island.root.classList.contains('is-open')&&!island.root.classList.contains('is-closing')&&!island.sheet.inert`));

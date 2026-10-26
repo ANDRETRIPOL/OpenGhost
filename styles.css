@@ -20013,6 +20013,8 @@ html:not([data-theme="light"]) .skill-page-key {
   left: 50%;
   display: flex;
   width: var(--plan-cap-width);
+  /* The spring can undershoot the capsule's width; keep fitting words whole. */
+  max-width: none;
   transform: translateX(-50%);
 }
 
