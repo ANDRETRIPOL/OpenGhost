@@ -20006,6 +20006,16 @@ html:not([data-theme="light"]) .skill-page-key {
   display: none;
 }
 
+/* During the closing morph the full-width sheet fades behind the returning capsule. */
+.plan-island.is-closing .plan-cap {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  display: flex;
+  width: var(--plan-cap-width);
+  transform: translateX(-50%);
+}
+
 /* With no room beside the buttons, the ring alone; with no room even for that (a window narrower than the chat's least),
    none: a sliver of black squeezed between the buttons is worse than nothing. */
 .plan-island.is-crowded {

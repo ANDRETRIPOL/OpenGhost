@@ -169,7 +169,7 @@ class PlanIsland {
   const root = this.root, from = root.offsetWidth;
   this.tight = tight;
   for (const animation of [...root.getAnimations(), ...this.label.getAnimations()]) if (animation.id === 'tight') animation.cancel();
-  if (reducedMotion() || this.state !== 'shut' || !from) {
+  if (reducedMotion() || this.state !== 'shut' || this.root.classList.contains('is-closing') || !from) {
    root.classList.toggle('is-tight', tight);
    return;
   }
@@ -206,6 +206,7 @@ class PlanIsland {
  // The words on the capsule. A new step's name takes the old one's place with a little flight, and the capsule grows or
  // shrinks to it at the same time.
  say(text, move) {
+  if (this.root.classList.contains('is-closing')) { this.pendingWord = text; return; }
   const old = this.label.querySelector('.plan-word:not(.is-leaving)');
   if (old?.textContent === text) return;
   const word = element('span', 'plan-word', text);
@@ -236,7 +237,7 @@ class PlanIsland {
 
  hide(fade) {
   if (this.root.hidden) return;
-  if (this.state === 'open') this.close({ instant: true });
+  if (this.state === 'open' || this.root.classList.contains('is-closing')) this.close({ instant: true });
   if (!fade || reducedMotion()) { this.root.hidden = true; return; }
   const gone = this.leaving = this.root.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.6)' }], AWAY);
   quiet(gone).then(() => {
@@ -291,7 +292,11 @@ class PlanIsland {
  // The capsule grows into the panel: its size and its corners go over in one move, and the steps come up in it.
  open() {
   if (this.state !== 'shut' || !this.view || this.root.hidden) return;
-  const from = this.root.getBoundingClientRect();
+  const from = this.root.getBoundingClientRect(), round = getComputedStyle(this.root).borderRadius;
+  const returning = this.root.classList.contains('is-closing'), sheet = getComputedStyle(this.sheet);
+  const words = returning ? { opacity: sheet.opacity, filter: sheet.filter, transform: sheet.transform }
+   : { opacity: 0, filter: 'blur(6px)', transform: 'scale(0.97)' };
+  this.stopMorph();
   this.state = 'open';
   // Laid out first, so that what does not fit can be measured.
   this.root.classList.add('is-open');
@@ -299,22 +304,52 @@ class PlanIsland {
   this.cap.setAttribute('aria-expanded', 'true');
   this.head.focus({ preventScroll: true });
   if (reducedMotion()) { this.sheet.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 }); return; }
-  const to = this.root.getBoundingClientRect(), round = getComputedStyle(this.root).borderRadius;
-  this.root.animate([{ width: `${from.width}px`, height: `${from.height}px`, borderRadius: `${from.height / 2}px` }, { width: `${to.width}px`, height: `${to.height}px`, borderRadius: round }], MORPH);
-  this.sheet.animate([{ opacity: 0, filter: 'blur(6px)', transform: 'scale(0.97)' }, { opacity: 1, filter: 'blur(0)', transform: 'none' }], SHOW);
+  const to = this.root.getBoundingClientRect(), toRound = getComputedStyle(this.root).borderRadius;
+  const move = this.morph = this.root.animate([{ width: `${from.width}px`, height: `${from.height}px`, borderRadius: round }, { width: `${to.width}px`, height: `${to.height}px`, borderRadius: toRound }], MORPH);
+  this.panelAnimations = [move, this.sheet.animate([words, { opacity: 1, filter: 'blur(0)', transform: 'none' }], { ...SHOW, delay: returning ? 0 : SHOW.delay })];
+  quiet(move).then(() => { if (this.morph === move) this.stopMorph(); });
  }
 
  close({ instant = false, focus = false } = {}) {
-  if (this.state !== 'open') return;
+  if (this.state !== 'open' && !this.root.classList.contains('is-closing')) return;
   const from = this.root.getBoundingClientRect(), round = getComputedStyle(this.root).borderRadius;
+  const sheet = getComputedStyle(this.sheet), words = { opacity: sheet.opacity, filter: sheet.filter, transform: sheet.transform };
+  this.stopMorph();
   this.state = 'shut';
   this.root.classList.remove('is-open');
   this.cap.setAttribute('aria-expanded', 'false');
   if (focus) this.cap.focus({ preventScroll: true });
   if (instant || reducedMotion()) return;
   const to = this.root.getBoundingClientRect();
-  this.root.animate([{ width: `${from.width}px`, height: `${from.height}px`, borderRadius: round }, { width: `${to.width}px`, height: `${to.height}px`, borderRadius: `${to.height / 2}px` }], SHRINK);
-  this.cap.animate([{ opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'blur(0)' }], { ...SHOW, delay: 160 });
+  // Keep the sheet and the open panel's unrestricted width until the move ends.
+  // Applying the capsule's max-width now would clip the very first closing frame.
+  this.root.style.setProperty('--plan-cap-width', `${to.width}px`);
+  this.root.classList.add('is-open', 'is-closing');
+  this.sheet.inert = true;
+  const move = this.morph = this.root.animate([{ width: `${from.width}px`, height: `${from.height}px`, borderRadius: round }, { width: `${to.width}px`, height: `${to.height}px`, borderRadius: `${to.height / 2}px` }], MORPH);
+  this.panelAnimations = [move,
+   this.sheet.animate([words, { opacity: 0, filter: 'blur(6px)', transform: 'scale(0.97)' }], { duration: SHOW.duration, easing: 'ease-in', fill: 'forwards' }),
+   this.cap.animate([{ opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'blur(0)' }], SHOW)];
+  quiet(move).then(() => {
+   if (this.morph !== move) return;
+   this.root.classList.remove('is-open');
+   this.stopMorph(true);
+  });
+ }
+
+ // A second press continues from the size and opacity that are on screen now.
+ stopMorph(moveWords = false) {
+  this.morph = null;
+  for (const animation of this.panelAnimations || []) animation.cancel();
+  this.panelAnimations = [];
+  this.root.classList.remove('is-closing');
+  this.root.style.removeProperty('--plan-cap-width');
+  this.sheet.inert = false;
+  if (this.pendingWord !== undefined) {
+   const text = this.pendingWord;
+   delete this.pendingWord;
+   this.say(text, moveWords);
+  }
  }
 
  // A step's proof opens whole under it, and shuts back to two lines, in one soft move. Shutting, it stays whole until
