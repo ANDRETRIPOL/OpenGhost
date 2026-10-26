@@ -150,7 +150,7 @@ class RowMenu {
   }
   const { id, row } = this;
   let from = null;
-  if (name === 'lock' && !reducedMotion()) {
+  if (name === 'lock') {
    const style = getComputedStyle(this.root), content = document.createElement('div');
    content.className = 'lock-menu-content';
    content.append(...[...this.root.children].map(node => node.cloneNode(true)));

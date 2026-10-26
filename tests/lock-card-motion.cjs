@@ -45,11 +45,14 @@ app.whenReady().then(async()=>{
  check('Only the new surface is open',!report.start.oldMenu&&report.start.newCard);
  check('Old menu content is decorative; password receives focus',report.start.snapshot&&report.start.focus);
  await js(`card.handoff.animations.forEach(a=>a.pause());card.handoff.animations.forEach(a=>a.currentTime=180)`);await shot('morph-middle');
- report.middle=await js(`(()=>{const r=card.root.getBoundingClientRect();return {width:r.width,height:r.height,body:card.body.offsetWidth,old:Number(getComputedStyle(card.handoff.content).opacity),fresh:Number(getComputedStyle(card.body).opacity)}})()`);
+ report.middle=await js(`(()=>{const r=card.root.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,body:card.body.offsetWidth,old:Number(getComputedStyle(card.handoff.content).opacity),fresh:Number(getComputedStyle(card.body).opacity)}})()`);
  check('Intermediate surface grows continuously',report.middle.width>report.start.first.width&&report.middle.width<320);
+ check('Menu top-left corner stays fixed during expansion',Math.abs(report.middle.x-report.start.source.x)<1&&Math.abs(report.middle.y-report.start.source.y)<1);
  check('Password content keeps its final layout width',report.middle.body===report.start.body);
  check('Content crossfades without a blank surface',report.middle.fresh>0&&report.middle.old<1&&await js(`getComputedStyle(card.root).opacity==='1'`));
  await js(`card.handoff.animations.forEach(a=>a.play())`);await settle();await shot('password');
+ report.end=await js(`(()=>{const r=card.root.getBoundingClientRect();return {x:r.x,y:r.y}})()`);
+ check('Completed card keeps the menu position',Math.abs(report.end.x-report.start.source.x)<1&&Math.abs(report.end.y-report.start.source.y)<1);
  check('Transition removes its copy and temporary state',await js(`!card.handoff&&!document.querySelector('.lock-menu-content')&&!card.root.classList.contains('is-from-menu')&&!card.root.style.getPropertyValue('--lock-body-width')`));
  check('Input stays focused at completion',await js(`document.activeElement===card.field.input`));
  await win.webContents.insertText('fixture-secret');
@@ -73,6 +76,14 @@ app.whenReady().then(async()=>{
  await click(`card.body.querySelector('[data-act="remove"]')`);await pause(700);
  check('Second click invokes password removal once',await js(`calls.unprotect===1&&!card.id`));
  await js(`delete fixtureRecord.lock;lib.keys.clear();lib.titles.clear();list.render()`);
+ // A lower row keeps the same origin too; only viewport overflow can move the card.
+ await js(`list.rows.get(fixtureRecord.id).row.style.transform='translateY(260px)'`);await menu();
+ const lower=await choose();await settle();
+ check('Lower row keeps both menu offsets',await js(`(()=>{const r=card.root.getBoundingClientRect();return Math.abs(r.left-${lower.source.x})<1&&Math.abs(r.top-${lower.source.y})<1})()`));
+ await js(`card.close(true);{const row=list.rows.get(fixtureRecord.id).row;row.style.transform='';row.style.transform='translateY('+(innerHeight-row.getBoundingClientRect().bottom-20)+'px)'}`);await menu();
+ const bottom=await choose();await settle();await shot('bottom-password');
+ check('Bottom edge moves the card only enough to fit',await js(`(()=>{const r=card.root.getBoundingClientRect();return Math.abs(r.left-${bottom.source.x})<1&&Math.abs(r.top-Math.min(${bottom.source.y},innerHeight-r.height-12))<1&&r.bottom<=innerHeight})()`));
+ await js(`card.close(true);list.rows.get(fixtureRecord.id).row.style.transform=''`);
  // Dismiss and reopen mid-transition; cancelled completions must not clear the new card.
  await menu();await choose();await js(`card.close()`);await menu();await choose();await settle();
  check('Interrupted transition cannot clear its replacement',await js(`card.id===fixtureRecord.id&&card.root.matches(':popover-open')&&document.querySelectorAll('.lock-menu-content').length===0`));
@@ -91,6 +102,7 @@ app.whenReady().then(async()=>{
  win.webContents.debugger.attach('1.3');await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
  await menu();await choose();
  check('Reduced motion skips the geometry transition',await js(`card.root.matches(':popover-open')&&!card.handoff&&!document.querySelector('.lock-menu-content')`));
+ check('Reduced motion keeps the same menu position',await js(`(()=>{const r=card.root.getBoundingClientRect(),m=list.menu.root.style;return Math.abs(r.left-parseFloat(m.left))<1&&Math.abs(r.top-parseFloat(m.top))<1})()`));
  await js(`card.close(true)`);win.webContents.debugger.detach();
  check('No renderer errors',report.errors.length===0);win.destroy();finish();
 }).catch(finish);

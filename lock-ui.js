@@ -597,7 +597,7 @@ class LockCard {
   this.first = '';
   this.render();
   this.root.showPopover();
-  this.place();
+  this.place(from?.rect);
   row.classList.add('is-carding');
   (this.body.querySelector('.pass-input') || this.body.querySelector('[data-act="lock"]'))?.focus({ preventScroll: true });
   this.title(this.mode === 'set' ? 'lock.set.title' : 'lock.guard.title', { delay: from ? 0 : 150, instant: true, animate: !from });
@@ -685,13 +685,13 @@ class LockCard {
   this.frost(instant);
  }
 
- // The capsule stands just right of the list, level with the chat's row when there is room for the title over it, and the
- // stage keeps clear of the window's edges.
- place() {
+ // Keep the menu's top-left corner, growing right and down unless the window's edge needs more room.
+ // Without a menu, align the capsule with the chat's row as before.
+ place(anchor = null) {
   const rect = this.row.getBoundingClientRect(), root = this.root, capsule = this.capsule;
   const width = root.offsetWidth, height = root.offsetHeight, level = capsule.offsetTop + capsule.offsetHeight / 2;
-  const left = Math.round(Math.min(rect.right + GAP, innerWidth - width - EDGE));
-  const top = Math.round(Math.min(Math.max(EDGE, rect.top + rect.height / 2 - level), innerHeight - height - EDGE));
+  const left = Math.round(Math.min(anchor?.left ?? rect.right + GAP, innerWidth - width - EDGE));
+  const top = Math.round(Math.min(anchor?.top ?? Math.max(EDGE, rect.top + rect.height / 2 - level), innerHeight - height - EDGE));
   Object.assign(root.style, { left: `${left}px`, top: `${top}px` });
  }
 
