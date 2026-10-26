@@ -16801,6 +16801,23 @@ html[data-theme="light"] .select-menu {
   letter-spacing: -0.01em;
 }
 
+.lock-card.is-from-menu {
+  overflow: hidden;
+}
+
+.lock-card.is-from-menu .lock-card-body {
+  width: var(--lock-body-width);
+}
+
+.lock-menu-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--lock-menu-width);
+  pointer-events: none;
+  user-select: none;
+}
+
 .lock-card .lock-shell {
   background: rgba(var(--fg-rgb), 0.09);
   box-shadow: none;

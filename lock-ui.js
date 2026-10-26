@@ -40,6 +40,7 @@ const FROST = 620;
 // Opening: the shackle springs open, then the frost thaws, the padlock and the words dissolve and the chat comes forward.
 const OPENING = { thaw: 260, duration: 640 };
 const FLIGHT = { in: 560, out: 660, back: 460 };
+const MENU_MORPH = { duration: 480, easing: EASE.motion, fill: 'both' };
 // The shackle, in the symbol's own units: lifted this far and turned this far about its left leg when the padlock is open.
 const LIFT = 4;
 const TURN = -26;
@@ -579,7 +580,7 @@ class LockCard {
   return this.body.querySelector('.lock-shell');
  }
 
- open(id, row) {
+ open(id, row, from = null) {
   if (this.id === id) { this.close(); return; }
   const record = this.library.chat(id);
   if (!record || this.chat.isBusy(id)) return;
@@ -599,9 +600,43 @@ class LockCard {
   this.place();
   row.classList.add('is-carding');
   (this.body.querySelector('.pass-input') || this.body.querySelector('[data-act="lock"]'))?.focus({ preventScroll: true });
-  this.title(this.mode === 'set' ? 'lock.set.title' : 'lock.guard.title', { delay: 150, instant: true });
+  this.title(this.mode === 'set' ? 'lock.set.title' : 'lock.guard.title', { delay: from ? 0 : 150, instant: true, animate: !from });
+  if (from && !reducedMotion()) { this.fromMenu(from); return; }
   // It comes as the usage panel does: in from a little wider and flatter, out of a slight blur.
   this.root.animate(reducedMotion() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'scale(1.09, 0.96)', filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'blur(0px)' }], { duration: 133, easing: 'cubic-bezier(0.37, 0, 0.63, 1)' });
+ }
+
+ // One surface changes from the menu into the password card. Its new content is
+ // laid out at the final width, so no line wraps while the glass grows around it.
+ fromMenu({ rect, radius, padding, content }) {
+  const root = this.root, target = root.getBoundingClientRect(), round = getComputedStyle(root).borderRadius;
+  root.style.setProperty('--lock-body-width', `${this.body.getBoundingClientRect().width}px`);
+  root.style.setProperty('--lock-menu-width', `${rect.width}px`);
+  content.style.padding = padding;
+  content.setAttribute('aria-hidden', 'true');
+  content.inert = true;
+  root.append(content);
+  root.classList.add('is-from-menu');
+  const move = root.animate([
+   { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, borderRadius: radius },
+   { left: `${target.left}px`, top: `${target.top}px`, width: `${target.width}px`, height: `${target.height}px`, borderRadius: round },
+  ], MENU_MORPH);
+  const handoff = this.handoff = { content, animations: [move,
+   content.animate([{ opacity: 1 }, { opacity: 0, filter: 'blur(3px)' }], { duration: 160, easing: EASE.out, fill: 'forwards' }),
+   this.body.animate([{ opacity: 0, filter: 'blur(3px)' }, { opacity: 1, filter: 'blur(0px)' }], { duration: 320, delay: 100, easing: EASE.out, fill: 'backwards' }),
+  ] };
+  quiet(move).then(() => { if (this.handoff === handoff) this.finishHandoff(); });
+ }
+
+ finishHandoff() {
+  const handoff = this.handoff;
+  this.handoff = null;
+  if (!handoff) return;
+  handoff.content.remove();
+  for (const animation of handoff.animations) animation.cancel();
+  this.root.classList.remove('is-from-menu');
+  this.root.style.removeProperty('--lock-body-width');
+  this.root.style.removeProperty('--lock-menu-width');
  }
 
  render() {
@@ -643,10 +678,10 @@ class LockCard {
  }
 
  // The step in large type: its letters come out of the padlock, the old step melts away.
- title(key, { delay = 0, instant = false } = {}) {
+ title(key, { delay = 0, instant = false, animate = true } = {}) {
   const text = I18n.t(key);
   this.body.querySelector('.lock-card-label').textContent = text;
-  this.words.show(text, { from: center(this.seal.getBoundingClientRect()), delay });
+  this.words.show(text, { from: animate ? center(this.seal.getBoundingClientRect()) : null, delay });
   this.frost(instant);
  }
 
@@ -917,6 +952,7 @@ class LockCard {
  // The title dissolves, the padlock flies back into the lock button, shutting on its way, and the capsule folds into the button.
  close(instant = false) {
   if (!this.id) return;
+  for (const animation of this.handoff?.animations || []) animation.pause();
   this.release();
   if (instant || reducedMotion()) { this.hide(); return; }
   // It goes as the usage panel does: a little larger, into a deeper blur.
@@ -932,6 +968,7 @@ class LockCard {
   this.leaving = null;
   landing?.();
   this.ground();
+  this.finishHandoff();
   for (const animation of this.root.getAnimations({ subtree: true })) animation.cancel();
   if (this.root.matches(':popover-open')) this.root.hidePopover();
   this.words?.clear();

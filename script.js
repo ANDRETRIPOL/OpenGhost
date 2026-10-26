@@ -113,7 +113,7 @@ chatList = new ChatList({
     chat.newChat(folder);
     composerInput.focus();
   },
-  onLock: (id, row) => lockCard.open(id, row),
+  onLock: (id, row, from) => lockCard.open(id, row, from),
   onNewRoutine: MAIN_WINDOW && Routines.available ? head => routineMaker?.open({ anchor: head }) : null,
   // The Skills row above the routines opens the search for skills alone.
   onSkills: MAIN_WINDOW && Skills.available ? () => spotlight.showSkills() : null,

@@ -159,10 +159,10 @@ class ChatList {
      { name: 'delete', label: I18n.t('chat.delete'), icon: Glyphs.trash },
     ];
    },
-   act: (name, id, row) => {
+   act: (name, id, row, from) => {
     if (name === 'rename') this.rename(id);
     else if (name === 'fork') this.onFork?.(id);
-    else if (name === 'lock') this.onLock?.(id, row);
+    else if (name === 'lock') this.onLock?.(id, row, from);
     else if (name === 'delete') this.remove(id);
    },
   });

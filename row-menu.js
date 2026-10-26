@@ -29,7 +29,7 @@ function spring(s, goal, [k, c], dt) {
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 class RowMenu {
- // items(id): the lines to show, each { name, label, icon, disabled }; act(name, id, row): one was chosen.
+ // items(id): the lines to show; act(name, id, row, from): one was chosen. The password card can grow from this menu.
  constructor({ items, act, scroller }) {
   Object.assign(this, { items, act });
   this.id = '';
@@ -149,8 +149,15 @@ class RowMenu {
    return;
   }
   const { id, row } = this;
+  let from = null;
+  if (name === 'lock' && !reducedMotion()) {
+   const style = getComputedStyle(this.root), content = document.createElement('div');
+   content.className = 'lock-menu-content';
+   content.append(...[...this.root.children].map(node => node.cloneNode(true)));
+   from = { rect: this.root.getBoundingClientRect(), radius: style.borderRadius, padding: style.padding, content };
+  }
   this.close(true);
-  this.act(name, id, row);
+  this.act(name, id, row, from);
  }
 
  onKey(event) {
