@@ -9829,6 +9829,8 @@ h6.md-h {
    hangs below the line, they stood a pixel lower than the shield and the plus. */
 .composer-mode-label {
   text-box: trim-both cap alphabetic;
+  /* Keep rasterised capitals inside the clipping box while the composer moves. */
+  padding-block: .3em;
 }
 
 .composer-mode:hover {
