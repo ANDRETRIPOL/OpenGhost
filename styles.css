@@ -20038,6 +20038,8 @@ html:not([data-theme="light"]) .skill-page-key {
 
 .plan-label {
   position: relative;
+  /* Centre the visible letters beside the ring, accounting for the font's baseline space. */
+  top: -0.08em;
   display: block;
   min-width: 0;
   overflow: hidden;
