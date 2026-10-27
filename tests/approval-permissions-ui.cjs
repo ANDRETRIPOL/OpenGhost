@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
  window.makeTurn=()=>({controller:new AbortController(),queue:[],approvals:new Set()});window.view={el:document.querySelector('.fixture-reply'),status:document.createElement('div')};
  window.begin=()=>{conv.turn=makeTurn();window.answer=chat.approve(conv,conv.turn,view,{name:'web_search',args:{query:'Electron ASK permission fixture'},cwd:fixtureRecord.folder,apart:null});return null};
  window.finishCard=async()=>{chat.approvalDeck?.card?.settle('deny');await answer;return null};
- window.agent={active:{id:'other'},activeId:fixtureRecord.id,isDraft:false,isBusy:()=>false,isUnread:()=>false,isLocked:()=>lib.isLocked(fixtureRecord.id)};
+ window.agent={settings:chat.settings,active:{id:'other'},activeId:fixtureRecord.id,isDraft:false,isBusy:()=>false,isUnread:()=>false,isLocked:()=>lib.isLocked(fixtureRecord.id)};
  window.list=new ChatList({root:document.querySelector('.fixture-chats'),library:lib,chat:agent,onNewFolder(){},onNewChat(){},onLock(){}});void 0`);
  // The actual Chat.approve method constructs a card with a scoped persistence callback.
  await language('en'); await js('begin()'); await settle(); await shot('initial-card');
@@ -122,7 +122,7 @@ app.whenReady().then(async () => {
  check('Reduced motion still exposes and settles all actions', await js(`document.querySelectorAll('.approval-actions button').length===3`)); await click('.approval-button.is-deny'); await js('answer'); await settle(); win.webContents.debugger.detach();
  // Real menu item, reset storage, keyboard focus and retry after an injected disk error.
  await js(`document.querySelector('.fixture-chats').style.display='block';document.querySelector('.main').style.display='none';lib.allowPermission(fixtureRecord.id,'fixture-rule')`);
- const menu = () => js(`{const item=list.rows.get(fixtureRecord.id);list.menu.open(fixtureRecord.id,item.row,item.row.querySelector('.is-more'));}void 0`);
+ const menu = () => js(`(async()=>{const item=list.rows.get(fixtureRecord.id);await list.menu.open(fixtureRecord.id,item.row,item.row.querySelector('.is-more'));return null})()`);
  await menu(); await settle(); await shot('reset-menu','.row-menu'); await click('.row-menu-line.is-permissions');
  check('Menu reset removes saved permissions and restores row focus', await until(`!disk.has('permissions/'+fixtureRecord.id)&&!list.menu.id&&document.activeElement===list.rows.get(fixtureRecord.id).row`));
  await js(`lib.allowPermission(fixtureRecord.id,'fixture-rule')`); await js(`fault.remove=true`); await menu(); await settle(); await click('.row-menu-line.is-permissions');
@@ -130,7 +130,7 @@ app.whenReady().then(async () => {
  await js(`fault.remove=false`); await click('.row-menu-line.is-permissions');
  check('Retry after failed reset succeeds', await until(`!disk.has('permissions/'+fixtureRecord.id)&&!list.menu.id`));
  await js(`fixtureRecord.lock={fixture:true};lib.keys.clear();list.render()`); await menu();
- check('A locked chat cannot reset permissions until unlocked', await js(`document.querySelector('.is-permissions').disabled`)); await js(`list.menu.close(true)`);
+ check('A locked chat does not offer an inapplicable ASK reset', await js(`!document.querySelector('.is-permissions')`)); await js(`list.menu.close(true)`);
  check('No renderer errors', report.errors.length===0);
  win.destroy(); finish();
 }).catch(finish);

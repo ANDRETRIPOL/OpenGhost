@@ -149,17 +149,7 @@ class ChatList {
   // The dots' menu of a row: what the row's own hidden buttons say and allow, as lines.
   this.menu = new RowMenu({
    scroller: root.querySelector('.chats-scroll') || root,
-   items: id => {
-    const item = this.rows.get(id);
-    return item && [
-     { name: 'rename', label: I18n.t('chat.rename'), icon: Glyphs.pencil, disabled: item.rename.disabled },
-     // A locked chat can't be read, so it can't be forked until it is open.
-     ...(this.onFork ? [{ name: 'fork', label: I18n.t('chat.fork'), icon: Glyphs.fork, disabled: this.library.isLocked(id) }] : []),
-     { name: 'lock', label: item.lock.getAttribute('aria-label') || I18n.t('chat.lock'), icon: Glyphs.padlock, disabled: item.lock.disabled },
-     ...(this.library.resetPermissions ? [{ name: 'permissions', label: I18n.t('approve.reset'), icon: Glyphs.shield, disabled: this.library.isLocked(id) }] : []),
-     { name: 'delete', label: I18n.t('chat.delete'), icon: Glyphs.trash },
-    ];
-   },
+   items: id => this.menuItems(id),
    act: (name, id, row, from) => {
     if (name === 'rename') this.rename(id);
     else if (name === 'fork') this.onFork?.(id);
@@ -192,6 +182,25 @@ class ChatList {
   this.list.addEventListener('pointerleave', () => this.hover(null));
   setInterval(() => this.clock(), CLOCK);
   this.render();
+ }
+
+ async menuItems(id) {
+  const item = this.rows.get(id);
+  if (!item) return null;
+  let reset = false;
+  if (this.chat.settings?.mode === 'ask' && this.library.resetPermissions && this.library.permissions && !this.library.isLocked(id)) {
+   try { reset = (await this.library.permissions(id)).length > 0; } catch {}
+  }
+  // The mode, lock or row can change while the permission file is read.
+  if (this.rows.get(id) !== item) return null;
+  reset = reset && this.chat.settings?.mode === 'ask' && !this.library.isLocked(id);
+  return [
+   { name: 'rename', label: I18n.t('chat.rename'), icon: Glyphs.pencil, disabled: item.rename.disabled },
+   ...(this.onFork ? [{ name: 'fork', label: I18n.t('chat.fork'), icon: Glyphs.fork, disabled: this.library.isLocked(id) }] : []),
+   { name: 'lock', label: item.lock.getAttribute('aria-label') || I18n.t('chat.lock'), icon: Glyphs.padlock, disabled: item.lock.disabled },
+   ...(reset ? [{ name: 'permissions', label: I18n.t('approve.reset'), icon: Glyphs.shield }] : []),
+   { name: 'delete', label: I18n.t('chat.delete'), icon: Glyphs.trash },
+  ];
  }
 
  setQuery(query) {

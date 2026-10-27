@@ -33,6 +33,8 @@ class RowMenu {
  constructor({ items, act, scroller }) {
   Object.assign(this, { items, act });
   this.id = '';
+  this.pending = '';
+  this.opening = 0;
   this.row = null;
   this.button = null;
   this.armed = null;
@@ -58,21 +60,34 @@ class RowMenu {
   root.addEventListener('focusin', event => this.point(event.target.closest?.('.row-menu-line') || null));
   // A press anywhere else puts the menu away; the dots themselves toggle it.
   document.addEventListener('pointerdown', event => {
-   if (this.id && !root.contains(event.target) && !event.target.closest?.('[data-action="more"]')) this.close();
+   if ((this.id || this.pending) && !root.contains(event.target) && !event.target.closest?.('[data-action="more"]')) this.close();
   }, true);
+  document.addEventListener('keydown', event => {
+   if (this.pending && event.key === 'Escape' && !event.isComposing) { event.preventDefault(); this.close(true); }
+  });
   window.addEventListener('resize', () => this.close(true));
   scroller?.addEventListener('scroll', () => this.close(), { passive: true });
  }
 
  toggle(id, row, button) {
-  if (this.id === id) { this.close(); return; }
+  if (this.id === id || this.pending === id) { this.close(); return; }
   this.open(id, row, button);
  }
 
- open(id, row, button) {
-  if (this.id) this.finish();
-  const lines = this.items(id);
-  if (!lines?.length) return;
+ async open(id, row, button) {
+  this.finish();
+  const request = ++this.opening;
+  this.pending = id;
+  let lines;
+  try { lines = await this.items(id); } catch { if (request === this.opening) this.pending = ''; return false; }
+  if (request !== this.opening) return false;
+  this.pending = '';
+  if (!lines?.length || row?.isConnected === false || button?.isConnected === false) return false;
+  this.show(id, row, button, lines);
+  return true;
+ }
+
+ show(id, row, button, lines) {
   Object.assign(this, { id, row, button });
   this.glide = Object.assign(document.createElement('span'), { className: 'row-menu-glide' });
   this.glide.setAttribute('aria-hidden', 'true');
@@ -194,6 +209,8 @@ class RowMenu {
  }
 
  close(instant = false) {
+  this.opening++;
+  this.pending = '';
   if (!this.id) return;
   this.release();
   if (instant || !this.root.matches(':popover-open')) { this.finish(); return; }
@@ -212,6 +229,8 @@ class RowMenu {
  }
 
  finish() {
+  this.opening++;
+  this.pending = '';
   if (this.id) this.release();
   this.leaving = null;
   for (const animation of this.root.getAnimations()) animation.cancel();
