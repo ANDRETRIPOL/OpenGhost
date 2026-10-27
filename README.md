@@ -105,6 +105,8 @@ OpenGhost understands the open Agent Skills format. Send a link to a skill and a
 
 The magnifier, or Ctrl+K, opens a search in the middle of the chat. Type, and the chats it finds come out under it, each under its folder.
 
+![Chat search showing recent conversations grouped by folder](images/readme-search.png)
+
 To explore another direction, fork a conversation from any message or from its menu. The new chat continues from that point without changing the original; its notes, mini chat, folder and password come along.
 
 ## Quick chat, from anywhere
