@@ -15,20 +15,19 @@ class SendButton extends IconButton {
       <path d="M60 84V37"/>
       <path d="M41 56 60 37 79 56"/>
      </g>
-     <rect class="stop-mark" x="43" y="43" width="34" height="34" rx="6" fill="currentColor"/>
     </g>
-   </svg><span class="caption" aria-hidden="true"><span></span></span>`,{lift:[230,27],wide:[190,24]},`
+   </svg><span class="stop-mark" aria-hidden="true"></span><span class="caption" aria-hidden="true"><span></span></span>`,{lift:[230,27],wide:[190,24]},`
    :host{position:relative}
    button{position:absolute;right:0;top:0;place-items:center end;padding-right:calc((var(--icon-button-size,32px) - var(--icon-size,22px))/2);border-radius:calc(var(--icon-button-size,32px)/2);background:rgb(var(--send-bg,250,250,250));font:inherit}
    button:focus-visible::after{inset:-4px}
    .arrow,.stop-mark{transition:opacity .16s ease}
-   .stop-mark{opacity:0}
-   :host([stop]) button{place-items:center start;padding-left:calc((var(--icon-button-size,32px) - 20px)/2);padding-right:0;background:rgb(var(--send-end-bg,218,43,59));color:rgb(var(--send-end-ink,255,255,255));transition:background-color .18s ease,color .18s ease,opacity .18s ease}
-   :host([stop]) .icon{width:20px;height:20px}
+   .stop-mark{--end-cap:round(up,1cap,1px);position:absolute;left:calc((var(--icon-button-size,32px) - var(--end-cap))/2);top:50%;translate:0 -50%;width:var(--end-cap);height:var(--end-cap);border-radius:2px;background:currentColor;font-size:15px;font-weight:600;pointer-events:none;opacity:0}
+   :host([stop]) button{place-items:center start;padding-left:calc((var(--icon-button-size,32px) - 20px)/2);padding-right:0;background:rgb(var(--send-end-bg,255,77,87));color:rgb(var(--send-end-ink,255,255,255));transition:background-color .18s ease,color .18s ease,opacity .18s ease}
+   :host([stop]) .icon{opacity:0}
    :host([stop]) .arrow{opacity:0}
    :host([stop]) .stop-mark{opacity:1}
-   :host([stop]) .caption{left:calc(var(--icon-button-size,32px) - 2px);right:0}
-   :host([stop]) .caption span{left:2px;top:-1px;font-size:15px;font-weight:700}
+   :host([stop]) .caption{left:calc(var(--icon-button-size,32px) - 2px);right:0;display:flex;align-items:center}
+   :host([stop]) .caption span{position:relative;left:2px;top:auto;height:auto;display:block;font-size:15px;font-weight:600;text-box:trim-both cap alphabetic}
    :host([stop][disabled]) button{opacity:.65}
    @media(prefers-reduced-motion:reduce){button,.arrow,.stop-mark{transition:none!important}}
    .caption{position:absolute;left:0;top:0;bottom:0;right:calc(var(--icon-button-size,32px) - 2px);overflow:hidden;pointer-events:none}

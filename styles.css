@@ -10801,7 +10801,7 @@ h6.md-h {
 .composer-send {
   --icon-rgb: var(--composer-on-accent-rgb);
   --send-bg: var(--composer-accent-rgb);
-  --send-end-bg: 218, 43, 59;
+  --send-end-bg: 255, 77, 87;
   --send-end-ink: 255, 255, 255;
 }
 

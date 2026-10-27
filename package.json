@@ -12,7 +12,7 @@
     "test:visuals-ui": "electron tests/native-visuals-ui.cjs",
     "test:photos-ui": "electron tests/composer-photo-preview-ui.cjs",
     "test:end-ui": "electron tests/agent-end-button-ui.cjs",
-    "test:app-ui": "electron tests/app-controls-ui.cjs",
+    "test:app-ui": "electron tests/app-controls-ui.cjs --all",
     "start": "electron .",
     "shortcut": "electron . --create-shortcut",
     "dist": "electron-builder --win nsis --publish never",
