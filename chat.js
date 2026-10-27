@@ -56,6 +56,7 @@ const TOOL_NOTES = {
  message: 'The user didn\'t approve this and sent a new message instead, read it next.',
  withdrawn: 'This note comes from the app, not from the user: the user took that message back before you could read it, so there is no new message. The step it stood in for was not done: ask the user how to go on before you try it again.',
  cancelled: 'Cancelled: the user stopped the agent.',
+ reconnect: 'This note comes from the app, not from the user: the last response was interrupted by a temporary provider failure. Continue the user\'s task from the saved progress, without restarting or repeating text already shown. Completed tool calls and their results above remain valid: do not run them again just because the response was interrupted. Incomplete tool calls from the failed response were discarded and were not executed; request them afresh only if still needed. Continue working without asking the user to press Retry.',
  images: 'This message comes from the app, not from the user: the pictures your last tool calls returned, in order.',
  browserMessage: 'The user has taken control of the browser and sent you a message instead, read it next. The browser stays theirs until they press Hand back.',
  handedBack: 'The user took control of the browser for a while and has handed it back. The page may have changed, so this action was not done. This is the page now:',
@@ -1382,7 +1383,7 @@ class Chat {
 
  begin(conv, config) {
   const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  return conv.turn = { id, controller: new AbortController(), config, part: null, parts: [], next: null, queue: [], pills: [], approvals: new Set(), tool: '', text: false, writing: false };
+  return conv.turn = { id, controller: new AbortController(), config, part: null, parts: [], next: null, queue: [], pills: [], approvals: new Set(), tool: '', text: false, writing: false, retryBudget: { used: 0 }, reconnecting: false };
  }
 
  run(conv, prompt, config, bubble) {
@@ -1493,8 +1494,11 @@ class Chat {
    await this.takeQueue(conv, turn);
   }
   for (;;) {
+   turn.controller.signal.throwIfAborted();
    await this.compactIfNeeded(conv, turn);
-   const { part, calls, finish } = await this.request(conv, turn);
+   const response = await this.request(conv, turn);
+   if (!response) continue; // A temporary stream failure opened the next part of this same turn.
+   const { part, calls, finish } = response;
    const images = [];
    let told = false;
    for (const call of calls) {
@@ -1691,7 +1695,7 @@ class Chat {
   messages.push(...notes);
   // What was sent stays in the chat with the reply to it, the notes included, and the next request is told where this one ended.
   const keep = step => {
-   part.entry.steps.push(...notes, step);
+   part.entry.steps.push(...notes, ...(step ? [step] : []));
    conv.sent = messages.length;
   };
   let result;
@@ -1701,6 +1705,7 @@ class Chat {
     tools: this.agent(conv) ? this.toolSchemas() : null,
     signal: turn.controller.signal,
     session: this.session(conv),
+    retryBudget: turn.retryBudget ||= { used: 0 },
     onContent: (delta, stream) => {
      if (!stream.content.trim()) return;
      turn.text = true;
@@ -1714,7 +1719,18 @@ class Chat {
     onRetry: () => this.showRetry(view),
    });
   } catch (error) {
-   if (error.partial?.content) keep(assistantStep({ ...error.partial, toolCalls: [] }));
+   // Only plain visible text is safe to keep from a failed stream. Its tool arguments and signed/native thinking
+   // may be incomplete; completed blocks from earlier successful requests stay in history unchanged.
+   const content = error.partial?.content || '';
+   keep(content.trim() ? assistantStep({ content }) : null);
+   if (content.trim()) {
+    turn.text = true;
+    part.entry.content = join(base, content);
+    view.stream.push(part.entry.content);
+   }
+   conv.tokens = estimate(messages) + estimate(content ? [{ role: 'assistant', content }] : []);
+   turn.writing = false;
+   if (await this.reconnect(conv, turn, error)) return null;
    throw error;
   } finally {
    turn.writing = false;
@@ -1740,6 +1756,33 @@ class Chat {
    this.showGhost(turn.next || view);
   }
   return { part, calls, finish: result.finishReason };
+ }
+
+ // Called only for Providers.stream failures, never for tool, compaction or storage errors. Waiting keeps the
+ // current turn/controller alive, so End, queued recommendations and other conversations keep their normal behavior.
+ async reconnect(conv, turn, error) {
+  try {
+   const again = await Providers.retry(turn.config, error, {
+    signal: turn.controller.signal,
+    retryBudget: turn.retryBudget,
+    onRetry: () => {
+     turn.reconnecting = true;
+     turn.part.view.stream.checkpoint?.();
+     this.save(conv);
+     this.showRetry(turn.next || turn.part.view);
+    },
+   });
+   if (!again) return false;
+   turn.controller.signal.throwIfAborted();
+   const step = { role: 'user', content: TOOL_NOTES.reconnect };
+   turn.part.entry.steps.push(step);
+   conv.tokens += estimate([step]);
+   await this.takeQueue(conv, turn);
+   this.save(conv);
+   return true;
+  } finally {
+   turn.reconnecting = false;
+  }
  }
 
  async useTool(conv, turn, view, call) {

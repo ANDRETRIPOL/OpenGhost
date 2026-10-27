@@ -140,10 +140,9 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
   if (error.name === 'AbortError') throw Object.assign(error, { partial: done() });
   if (error instanceof DeepSeekError) throw Object.assign(error, { partial: done() });
   if (result.finishReason) return done();
-  // The connection died before a token arrived. The same request can be asked again; one that already spoke cannot.
-  const partial = done();
-  if (!partial.content && !partial.reasoning && !partial.toolCalls.length) throw new DeepSeekError(I18n.t('error.interrupted'), 0, 'network');
-  throw Object.assign(new DeepSeekError(I18n.t('error.interrupted')), { partial });
+  // Keep the network classification after partial output too: Chat can continue from that saved text without
+  // replaying the failed request. Invalid JSON is a protocol error, not a transient disconnect.
+  throw Object.assign(new DeepSeekError(I18n.t('error.interrupted'), 0, error instanceof SyntaxError ? 'protocol' : 'network'), { partial: done() });
  } finally {
   reader.cancel().catch(() => {});
  }

@@ -73,18 +73,27 @@ function pause(ms, signal) {
  });
 }
 
-// The same request, again, while the failure is the kind that passes. Once a letter, a thought or a tool call has
-// reached the chat, it is not asked again: the person would see the start twice, and a tool might run twice.
-async function endure(config, run, { signal, onRetry } = {}) {
+// One outage budget for both safe request replays and Chat's continuation from saved progress. A partial stream
+// must not acquire another six attempts just because the next request contains its retained text.
+async function retry(config, error, { signal, onRetry, retryBudget = { used: 0 } } = {}) {
+ if (signal?.aborted) throw aborted(error?.partial);
+ if (!transient(error, config.provider) || retryBudget.used >= WAITS.length) return false;
+ const ms = WAITS[retryBudget.used++];
+ onRetry?.();
+ await pause(ms, signal);
+ return true;
+}
+
+// The same request, again, only before any content, reasoning or tool activity. Chat can continue a partial response
+// with a different request and retained history, but this layer never blindly replays one that has already begun.
+async function endure(config, run, { signal, onRetry, retryBudget = { used: 0 } } = {}) {
  let begun = false;
  const begin = () => { begun = true; };
- for (let attempt = 0; ; attempt++) {
+ for (;;) {
   try {
    return await run(begin);
   } catch (error) {
-   if (signal?.aborted || error.name === 'AbortError' || begun || !transient(error, config.provider) || attempt >= WAITS.length) throw error;
-   onRetry?.();
-   await pause(WAITS[attempt], signal);
+   if (begun || !await retry(config, error, { signal, onRetry, retryBudget })) throw error;
   }
  }
 }
@@ -146,12 +155,13 @@ function heard(begin, onContent, onReasoning) {
 async function stream(config, options) {
  // A model whose window is smaller than the agent's instructions would lose them without a word: said before it is asked.
  if (config.window && config.window < NEED) throw new ProviderError(I18n.t('error.window', { window: config.window.toLocaleString('en-US'), need: NEED.toLocaleString('en-US') }));
- const { messages, tools, signal, onReasoning, onContent, onRetry } = options;
+ const { messages, tools, signal, onReasoning, onContent, onRetry, retryBudget } = options;
  const result = await endure(config, begin => {
   const live = heard(begin, onContent, onReasoning);
   if (config.provider !== 'deepseek') return viaMain(config, { ...options, ...live });
   return DeepSeek.streamChat({ key: config.key, model: config.model, effort: config.effort, vision: config.vision, messages, tools, signal, ...live });
- }, { signal, onRetry });
+ }, { signal, onRetry, retryBudget });
+ if (retryBudget) retryBudget.used = 0;
  return counted(config, result);
 }
 
@@ -231,5 +241,5 @@ async function account(provider, key) {
  return reply?.account || null;
 }
 
-window.Providers = { stream, complete, predict, models, account, NAMES, NEED, available: !!bridge };
+window.Providers = { stream, complete, predict, models, account, retry, NAMES, NEED, available: !!bridge };
 })();
