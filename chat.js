@@ -291,7 +291,11 @@ const SKILL = {
 };
 const FORMAT_GUIDE = [
  'Format replies in Markdown; the app renders it richly and draws live, editable charts and diagrams.',
- '- Split longer answers into sections with ## or ### headings and keep headings short.',
+ '- This applies to every visible reply, including intermediate messages between tool calls, not only the final answer. Show useful findings with the same headings, emphasis, tables, callouts and native figures while work continues. Keep simple status updates short; do not add decoration or repeat an unchanged figure just to fill space.',
+ '- The built-in drawing engine is the default for requests such as "draw a chart", "make a graph", "show a diagram" or "visualize this": put the actual figure directly in the chat in a fenced mermaid block. It works without tools, files, dependencies or a browser server; do not create HTML, JavaScript, SVG files, Chart.js/Plotly pages, Python images or a local preview server merely to show a chart.',
+ '  Create an export, file, website, dashboard or runnable visualization code when the user explicitly asks for that artifact or implementation. That is a separate deliverable, not the default interpretation of asking for a graph; do not ask the user to choose an export format when an in-chat figure answers the request.',
+ '  Before a tool call, finish and close each figure\'s fence so it can be shown immediately. Draw progress from known findings, label estimates and illustrative data, and never fabricate results or completion percentages.',
+ '- Split longer answers into sections with ## or ### headings and keep headings short. The app automatically gives these headings different highlight colors and keeps them during continuation; use ordinary Markdown, not HTML, inline styles or hand-picked colors.',
  '- Use **bold** for key terms, lists for steps and options, tables for comparisons.',
  '- Never use horizontal rules (---) or decorative separators.',
  '- You must visualize: a text-only answer where something could be shown is a dry answer. Whenever something can be drawn, draw it: a chart or diagram beside the explanation, not a description of it.',
@@ -395,7 +399,8 @@ const FORMAT_GUIDE = [
 // GPT models lean toward plain text. The last thing they read before answering asks them to look for the visual.
 const VISUAL_CHECK = [
  '# Before you answer',
- 'Check the reply against the formatting rules: OpenGhost is a visual app, and a text-only answer where a chart, a diagram, a wireframe or a files block fits is a worse answer.',
+ 'Check every visible reply, including intermediate messages before tools, against the formatting rules: OpenGhost is a visual app, and a text-only answer where a chart, a diagram, a wireframe or a files block fits is a worse answer.',
+ '- A direct request for a chart or diagram means a native fenced mermaid figure in this chat, not HTML or a preview server, unless the user explicitly requested a file, website, export or code. Useful progress findings can have the same colored ##/### headings and rich Markdown as the final answer; close each figure\'s fence before a tool call.',
  '- Files or folders in it: a files block. A document the user sent: facts, outline, checklist.',
  '- Numbers to compare, a trend or shares: a chart. A process, a plan, a structure or a history: a diagram. An interface or a page: a wireframe.',
  '- A few key numbers: metrics. Values against a norm: ranges. Steps to follow: steps. A plan by days: plan.',
@@ -1714,12 +1719,26 @@ class Chat {
   } finally {
    turn.writing = false;
   }
+  // Some compatible services deliver text in the terminal packet only. Keep that text visible too, including
+  // native figures before a tool call; streaming deltas remain the normal path.
+  if (typeof result.content === 'string' && result.content.trim()) {
+   turn.text = true;
+   const content = join(base, result.content);
+   if (content !== part.entry.content) {
+    part.entry.content = content;
+    this.dismissGhost(view);
+    view.stream.push(content);
+   }
+  }
   keep(assistantStep(result));
   spend(part.entry, result.usage);
   const usage = result.usage;
   conv.tokens = usage ? usage.total_tokens || usage.prompt_tokens + usage.completion_tokens : estimate(messages) + estimate([part.entry.steps.at(-1)]);
   const calls = part.entry.steps.at(-1).tool_calls || [];
-  if (calls.length) this.showGhost(turn.next || view);
+  if (calls.length) {
+   view.stream.checkpoint?.();
+   this.showGhost(turn.next || view);
+  }
   return { part, calls, finish: result.finishReason };
  }
 

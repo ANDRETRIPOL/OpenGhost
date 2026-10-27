@@ -63,6 +63,7 @@ class StreamView {
   this.done = false;
   this.painted = -1;
   this.final = false;
+  this.boundary = false;
   this.alive = [];
   this.heading = null;
   this.settling = [];
@@ -74,8 +75,24 @@ class StreamView {
  }
 
  push(source) {
+  if (source !== this.source) this.boundary = false;
   this.source = source;
   this.wake();
+ }
+
+ // A model response can end at a tool call without ending the turn. Show all of that fragment now, with the same
+ // Markdown, tones and diagram views, while keeping this stream open for the next response.
+ checkpoint() {
+  if (this.done || !this.source || !this.root.isConnected) return false;
+  cancelAnimationFrame(this.raf);
+  clearTimeout(this.wait);
+  this.raf = this.wait = 0;
+  this.shown = this.source.length;
+  this.rate = 0;
+  if (this.shown !== this.painted || !this.boundary) this.paint(this.shown, false, performance.now(), 0, true);
+  this.sweep(Infinity);
+  this.settle(Infinity);
+  return true;
  }
 
  finish() {
@@ -142,10 +159,14 @@ class StreamView {
   return n;
  }
 
- paint(count, final, now, dt) {
+ paint(count, final, now, dt, boundary = false) {
   this.painted = count;
   this.final = final;
-  const blocks = Markdown.blocks(this.source.slice(0, count), { live: !final, tones: this.tones, cache: this.cache });
+  this.boundary = boundary;
+  // Confirm the fragment's last line without changing stored text or inventing a fence. In particular a closing
+  // ``` at the end of a tool-call response must not remain a pending live line until the next model response.
+  const text = this.source.slice(0, count);
+  const blocks = Markdown.blocks(boundary && !text.endsWith('\n') ? `${text}\n` : text, { live: !final, tones: this.tones, cache: this.cache });
   const wave = { spans: [], animate: !reducedMotion() };
   const kids = this.root.children;
   let diagrams = false, media = false;
