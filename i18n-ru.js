@@ -766,6 +766,7 @@
  'attach.add': 'Добавить фото, видео и файлы',
  'attach.label': 'Вложения',
  'attach.remove': 'Убрать {name}',
+ 'attach.preview': 'Открыть фото {name}',
  'attach.nameOnly': 'только имя',
  'attach.page': '1 страница',
  'attach.pages': 'Страниц: {n}',

@@ -13407,6 +13407,22 @@ h6.md-h {
   pointer-events: none;
 }
 
+.attachment-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.attachment-preview:focus-visible {
+  outline: 2px solid rgb(var(--link-rgb));
+  outline-offset: 2px;
+}
+
 .attachment-thumb {
   display: block;
   width: 100%;

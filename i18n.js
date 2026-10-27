@@ -762,6 +762,7 @@ const STRINGS = {
   'attach.add': 'Add photos, videos and files',
   'attach.label': 'Attachments',
   'attach.remove': 'Remove {name}',
+  'attach.preview': 'Open photo {name}',
   'attach.nameOnly': 'name only',
   'attach.page': '1 page',
   'attach.pages': '{n} pages',

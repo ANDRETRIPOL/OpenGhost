@@ -759,6 +759,7 @@
  'attach.add': 'Aggiungi foto, video e file',
  'attach.label': 'Allegati',
  'attach.remove': 'Togli {name}',
+ 'attach.preview': 'Apri la foto {name}',
  'attach.nameOnly': 'solo il nome',
  'attach.page': '1 pagina',
  'attach.pages': '{n} pagine',

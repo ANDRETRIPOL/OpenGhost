@@ -64,6 +64,8 @@ class Attachments {
   this.input = input;
   this.onChange = onChange;
   this.items = [];
+  this.preview = null;
+  this.previewItems = [];
   this.editing = null;
   this.cancelled = false;
   this.closed = { item: null, at: 0 };
@@ -151,6 +153,7 @@ class Attachments {
     this.paintFrame(item);
    }
   } else if (item.image) {
+   if (this.previewItems.includes(item)) this.closePreview();
    URL.revokeObjectURL(item.url);
    item.image = false;
    item.url = '';
@@ -178,7 +181,14 @@ class Attachments {
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', item.name);
   if (item.image || item.video) {
-   if (item.url) el.append(thumb(item.url));
+   if (item.image) {
+    const preview = element('button', 'attachment-preview');
+    preview.type = 'button';
+    preview.setAttribute('aria-label', I18n.t('attach.preview', { name: item.name }));
+    if (item.url) preview.append(thumb(item.url));
+    preview.addEventListener('click', () => this.openPhoto(item));
+    el.append(preview);
+   } else if (item.url) el.append(thumb(item.url));
    if (item.video) el.append(element('span', 'attachment-duration', duration(item)));
   } else {
    el.insertAdjacentHTML('beforeend', FileKinds.icon(item.info));
@@ -206,6 +216,25 @@ class Attachments {
   item.el = el;
   this.paintMeta(item);
   return el;
+ }
+
+ // Draft photos use the same viewer as sent ones. Take a snapshot so files/videos never become photo slides.
+ openPhoto(item) {
+  if (!this.items.includes(item) || !item.image || !item.url || !window.PhotoViewer) return;
+  const photos = this.items.filter(photo => photo.image && photo.url);
+  const preview = PhotoViewer.open({
+   items: photos.map(photo => ({ url: photo.url, name: photo.name, width: photo.width, height: photo.height })),
+   index: photos.indexOf(item),
+   opener: item.el.querySelector('.attachment-preview'),
+  });
+  if (preview) { this.preview = preview; this.previewItems = photos; }
+ }
+
+ closePreview() {
+  const preview = this.preview;
+  this.preview = null;
+  this.previewItems = [];
+  preview?.close();
  }
 
  paintMeta(item) {
@@ -252,6 +281,7 @@ class Attachments {
  remove(item, keyboard = false) {
   const at = this.items.indexOf(item);
   if (at < 0) return;
+  if (this.previewItems.includes(item)) this.closePreview();
   this.items.splice(at, 1);
   if (this.editing === item) this.panel.hidePopover();
   if (item.url) URL.revokeObjectURL(item.url);
@@ -281,6 +311,7 @@ class Attachments {
  }
 
  take() {
+  this.closePreview();
   const items = this.items;
   if (this.editing) this.panel.hidePopover();
   this.items = [];

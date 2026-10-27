@@ -759,6 +759,7 @@
  'attach.add': 'Ajouter des photos, des vidéos et des fichiers',
  'attach.label': 'Pièces jointes',
  'attach.remove': 'Retirer {name}',
+ 'attach.preview': 'Ouvrir la photo {name}',
  'attach.nameOnly': 'nom seul',
  'attach.page': '1 page',
  'attach.pages': '{n} pages',

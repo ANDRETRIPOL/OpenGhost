@@ -43,7 +43,8 @@ class PhotoViewer {
   return new PhotoViewer(options);
  }
 
- constructor({ items, index = 0, slider = null }) {
+ constructor({ items, index = 0, slider = null, opener = null }) {
+  this.opener = opener;
   this.items = items;
   this.index = index;
   this.slider = slider;
@@ -223,7 +224,7 @@ class PhotoViewer {
   const done = () => {
    dialog.close();
    dialog.remove();
-   this.slider?.el.focus?.({ preventScroll: true });
+   (this.opener || this.slider?.el)?.focus?.({ preventScroll: true });
   };
   flight.finished.then(done, done);
  }

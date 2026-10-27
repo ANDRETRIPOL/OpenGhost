@@ -158,7 +158,8 @@ class QuickViewer {
   return QuickViewer.current = new QuickViewer(options);
  }
 
- constructor({ items, index = 0, slider = null }) {
+ constructor({ items, index = 0, slider = null, opener = null }) {
+  this.opener = opener;
   this.slider = slider;
   this.closing = false;
   const veil = this.veil = popover('quick-photo-veil', 'viewer.label');
@@ -190,10 +191,11 @@ class QuickViewer {
  }
 
  closed(index) {
+  this.closing = true;
   document.removeEventListener('keydown', this.onKey, true);
   if (QuickViewer.current === this) QuickViewer.current = null;
   if (Number.isInteger(index)) this.slider?.go(index);
-  const veil = this.veil, done = () => { veil.hidePopover(); veil.remove(); };
+  const veil = this.veil, done = () => { veil.hidePopover(); veil.remove(); this.opener?.focus?.({ preventScroll: true }); };
   veil.animate({ opacity: [1, 0] }, VEIL_FADE).finished.then(done, done);
  }
 }
