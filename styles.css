@@ -10236,12 +10236,14 @@ h6.md-h {
   --icon-rgb: var(--composer-accent-rgb);
 }
 
-/* The send button has grown over them into "Send suggestion": they slip under it and are gone. */
+/* The send button grows over the locked controls into End or "Send suggestion": they slip under it and are gone. */
 .composer-effort,
 .composer-model {
   transition: opacity 0.2s ease, transform 0.32s cubic-bezier(0.3, 0.7, 0.2, 1), filter 0.2s ease, visibility 0s;
 }
 
+.composer-actions:has(> .composer-send[working]) .composer-effort,
+.composer-actions:has(> .composer-send[working]) .composer-model,
 .composer-actions.is-suggesting .composer-effort,
 .composer-actions.is-suggesting .composer-model {
   opacity: 0;
@@ -10254,6 +10256,8 @@ h6.md-h {
 @media (prefers-reduced-motion: reduce) {
   .composer-effort,
   .composer-model,
+  .composer-actions:has(> .composer-send[working]) .composer-effort,
+  .composer-actions:has(> .composer-send[working]) .composer-model,
   .composer-actions.is-suggesting .composer-effort,
   .composer-actions.is-suggesting .composer-model {
     transition: none;
@@ -10797,6 +10801,8 @@ h6.md-h {
 .composer-send {
   --icon-rgb: var(--composer-on-accent-rgb);
   --send-bg: var(--composer-accent-rgb);
+  --send-end-bg: 218, 43, 59;
+  --send-end-ink: 255, 255, 255;
 }
 
 .settings {

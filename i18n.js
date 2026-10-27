@@ -466,6 +466,8 @@ const STRINGS = {
   'error.desktop': '{provider} works in the desktop app only',
   'composer.placeholder': 'Ask anything',
   'composer.suggest': 'Send suggestion',
+  'composer.stop': 'Stop agent',
+  'composer.stopping': 'Stopping agent',
   'composer.label': 'Message',
   'button.add': 'Add',
   'button.send': 'Send',

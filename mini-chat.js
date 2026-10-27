@@ -171,6 +171,7 @@ class MiniChat {
   this.input.addEventListener('input', () => this.sync());
   this.input.addEventListener('keydown', event => this.onKey(event));
   this.send.addEventListener('composer-send', () => this.submit());
+  this.send.addEventListener('composer-stop', () => { this.chat.stop(); this.sync(); });
   this.composer.addEventListener('mousedown', event => {
    if (event.target === this.composer || event.target.classList.contains('composer-toolbar')) {
     event.preventDefault();
@@ -401,7 +402,7 @@ class MiniChat {
 
  sync() {
   MiniChat.signal();
-  this.send.toggleAttribute('disabled', !this.text.text().trim() && !this.attachments?.count);
+  this.send.configure({ busy: this.chat.busy, empty: !this.text.text().trim() && !this.attachments?.count, stopping: !!this.chat.active?.turn?.controller.signal.aborted });
   this.field.classList.toggle('has-value', this.input.value !== '');
   const kept = !!this.chat?.hasMessages;
   this.clearButton.classList.toggle('is-shown', kept);

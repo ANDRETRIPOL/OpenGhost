@@ -463,6 +463,8 @@
  'error.desktop': '{provider} funziona solo nell’app desktop',
  'composer.placeholder': 'Chiedi qualsiasi cosa',
  'composer.suggest': 'Invia un suggerimento',
+ 'composer.stop': 'Interrompi l’agente',
+ 'composer.stopping': 'Interruzione dell’agente',
  'composer.label': 'Messaggio',
  'button.add': 'Aggiungi',
  'button.send': 'Invia',

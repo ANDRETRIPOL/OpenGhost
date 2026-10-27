@@ -466,6 +466,8 @@
  'error.desktop': '{provider} работает только в настольном приложении',
  'composer.placeholder': 'Спросите что угодно',
  'composer.suggest': 'Отправить рекомендацию',
+ 'composer.stop': 'Остановить агента',
+ 'composer.stopping': 'Остановка агента',
  'composer.label': 'Сообщение',
  'button.add': 'Добавить',
  'button.send': 'Отправить',

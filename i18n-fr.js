@@ -463,6 +463,8 @@
  'error.desktop': '{provider} ne fonctionne que dans l’application de bureau',
  'composer.placeholder': 'Demandez n’importe quoi',
  'composer.suggest': 'Envoyer une suggestion',
+ 'composer.stop': 'Arrêter l’agent',
+ 'composer.stopping': 'Arrêt de l’agent',
  'composer.label': 'Message',
  'button.add': 'Ajouter',
  'button.send': 'Envoyer',

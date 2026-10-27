@@ -264,12 +264,9 @@ composer.addEventListener('mousedown', (event) => {
 
 function syncComposer() {
   const empty = !composerText.text().trim() && !attachments.count;
-  composerSend.toggleAttribute('disabled', empty);
-  // Written while OpenGhost works, a message is a suggestion for the work under way: the send button says so, and the
-  // model and effort, locked till the work is over, make way for it.
+  composerSend.configure({ busy: chat.busy, empty, stopping: !!chat.active?.turn?.controller.signal.aborted });
+  // An empty field offers End while work runs; words or attachments still send a suggestion.
   const suggesting = chat.busy && !empty;
-  if (suggesting) composerSend.setAttribute('caption', I18n.t('composer.suggest'));
-  else composerSend.removeAttribute('caption');
   composerActions.classList.toggle('is-suggesting', suggesting);
   // The likely next message waits in the empty field as grey words (predictions.js); anything written sends it away.
   if (!empty && chat.prediction) chat.forget(chat.active, true);
@@ -429,6 +426,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 composerSend.addEventListener('composer-send', () => send());
+composerSend.addEventListener('composer-stop', () => { chat.stop(); syncComposer(); });
 
 syncComposer();
 

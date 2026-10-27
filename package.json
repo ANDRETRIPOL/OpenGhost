@@ -6,11 +6,12 @@
   "description": "OpenGhost",
   "main": "desktop/main.js",
   "scripts": {
-    "test": "node tests/compact-record-retry.cjs && node tests/agents-queue.cjs && node tests/agent-plan.cjs && node tests/plan-proof.cjs && node tests/fact-keeper.cjs && node tests/language.cjs && node tests/update.cjs && node tests/approval-permissions.cjs && node tests/chat-effort.cjs && node tests/overload-retry.cjs && node tests/native-visuals.cjs && node tests/composer-photo-preview.cjs",
+    "test": "node tests/compact-record-retry.cjs && node tests/agents-queue.cjs && node tests/agent-plan.cjs && node tests/plan-proof.cjs && node tests/fact-keeper.cjs && node tests/language.cjs && node tests/update.cjs && node tests/approval-permissions.cjs && node tests/chat-effort.cjs && node tests/overload-retry.cjs && node tests/native-visuals.cjs && node tests/composer-photo-preview.cjs && node tests/agent-end-button.cjs",
     "test:approvals-ui": "electron tests/approval-permissions-ui.cjs",
     "test:effort-ui": "electron tests/chat-effort-ui.cjs",
     "test:visuals-ui": "electron tests/native-visuals-ui.cjs",
     "test:photos-ui": "electron tests/composer-photo-preview-ui.cjs",
+    "test:end-ui": "electron tests/agent-end-button-ui.cjs",
     "start": "electron .",
     "shortcut": "electron . --create-shortcut",
     "dist": "electron-builder --win nsis --publish never",
