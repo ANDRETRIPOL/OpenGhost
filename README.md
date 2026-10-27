@@ -1,6 +1,6 @@
 **Visualize, explore and learn in a new way, with OpenGhost.**
 
-![OpenGhost answering a question and drawing the charts that explain it](images/demo.gif)
+![OpenGhost explaining AI training with diagrams in the chat](images/readme-visualization.png)
 
 # OpenGhost
 
@@ -16,7 +16,7 @@
 
 What's new:
 - The app checks the agent's work itself before a step of its plan closes: tests after the last change, documents read back and weighed against the request, removed files named, pages opened at phone and desktop width, links and quotes checked against what was really opened.
-- After every reply the facts of the talk are kept in the chat's record and the shared memory, so even small models remember.
+- After a reply the facts of the talk are kept in the chat's record and the shared memory, so even small models remember.
 - Welcome cards on the first start, and the app starts in your computer's language.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
@@ -28,8 +28,6 @@ OpenGhost is an open desktop agent for Windows, macOS and Linux. It runs command
 ## An agent built for visualization
 
 OpenGhost is an agent built for visualization. When something is better shown than told, the answer comes with a drawing beside it, and the whole app is made so that reading and working with documents feels comfortable. A new chat needs no folder: type, and it goes to Chats at the top of the list, with a folder of its own for the files the agent makes. A chat about a project still lives in that project's folder.
-
-![OpenGhost, an agent built for visualization](images/welcome.jpg)
 
 ## Written from scratch
 
@@ -45,9 +43,7 @@ The app stands on two things only: Electron, which gives it a window, and Anthro
 
 ## It shows what it explains
 
-Ask how something works, and the answer comes with drawings: the whole as a scheme, the curves the topic is known for as charts, the key numbers as tiles. The engine knows more than forty kinds of drawings, from a day of meals and the route of a trip to the heavy charts of physics and any other science. Here one series of games stands as a mindmap of its universes and as a ring of what each universe holds.
-
-![A mindmap of the GTA universes and a ring of the games by universe](images/visual.jpg)
+Ask how something works, and the answer comes with drawings: the whole as a scheme, the curves the topic is known for as charts, the key numbers as tiles. The engine knows more than forty kinds of drawings, from a day of meals and the route of a trip to the charts of physics and other sciences. In the picture at the top, a training process is explained as a sequence and a cycle.
 
 ## A scheme with the detail in it
 
@@ -67,6 +63,14 @@ A drawing is not a finished picture. Open it and change the layout, the blocks a
 
 When a thing is better seen than described, a dish, a place, a game, the agent looks for pictures and videos itself. Pictures stand in a stack to leaf through, each with the page it came from. A video is a card with its preview, name and length, and a click opens it in your browser.
 
+## A plan that checks the work
+
+Give the agent a goal with several parts and it makes a plan on its own. The steps stay at the top of the chat as it works, and each finished step says what showed it was done. The agent cannot finish while steps are still open.
+
+Before a step closes, OpenGhost checks the work it can see: tests, builds or linters after code changes; documents read back and checked against the request; pages at phone and desktop sizes; and sources and quotations in research. If a check fails, the step stays open. When a step can only be accepted on the agent's word, a hollow tick makes that clear. These checks make it harder to claim work was done without evidence, though they cannot guarantee every result is right.
+
+![The agent's plan, with completed, current and remaining steps](images/readme-plan.png)
+
 ## A browser with its own cursor
 
 OpenGhost has a built-in browser and drives it itself. It opens a page, moves its own cursor, clicks, types, and sees what is on the screen. The panel sits on the right of the chat. Close it and the agent still works.
@@ -75,21 +79,33 @@ OpenGhost has a built-in browser and drives it itself. It opens a page, moves it
 
 The browser panel is signed in where you are, so the agent works inside your own accounts and not only on open pages. A custom MCP server of ours gives it the control it needs over the sites it drives. One request can cover a whole round: open my Reddit account, tell me the view counts of my three most recent posts, then go through the comments and pull out the ones that matter, both the suggestions and the bugs people ran into.
 
-![A request about three Reddit posts, and the note the agent wrote down](images/notes.jpg)
+![The agent reviewing Reddit comments in its browser while a daily routine is shown in the chat](images/readme-browser.png)
+
+## Routines, without having to name them
+
+Say "check this every morning", "remind me at 19:00" or "tell me when the price drops", and the agent understands that the task needs a routine and sets one up. A routine can run once or repeat, do the work while you are away, and tell you what it found. OpenGhost keeps running in the tray when its window is closed, so routines can run then too. They run while the app is running.
 
 ## Notes it keeps an eye on
 
-Ask the agent to write a note down, or write one yourself, for example "Add to my notes: check my DMs on X today". The notes stay in the list beside the chat, the agent reads them and keeps them in mind, and when a conversation arrives at what a note is about, the agent brings it up by itself and asks whether to deal with it now. It never acts on a note on its own.
+For something to return to at a moment in your work together, say "when the design is done, remind me about the tests". The agent puts it in the notepad beside the chat and keeps it in mind. When that moment arrives, it brings the note up by itself and asks whether to deal with it now. It does not act on a note without your say. Notes wait for a moment in the conversation; timed, repeated or background tasks are routines.
 
-## It remembers you
+## Memory for long work
 
-Tell OpenGhost about yourself once, in any chat, and every chat knows it: who you are, what you work with, how you like answers. It keeps short records, changes a record when the thing changes instead of writing a second one, and never keeps passwords or the details of one task. Everything it remembers is on one page of the settings, where you can rewrite a record, remove it, add your own, or switch the memory off.
+OpenGhost combines several kinds of memory. Each chat has a private, dated record of its own: decisions, discoveries, preferences for the task and details worth keeping. A separate shared memory holds what matters across chats, such as who you are and how you like answers. The agent keeps these records as you work, and you can read, edit or switch off the shared memory in Settings. A project can have instructions of its own in an AGENTS.md file.
 
-A project can have its own instructions too: put an AGENTS.md in its folder, and the agent working there follows it.
+As a chat grows, OpenGhost compacts the conversation into a rolling summary while keeping the latest exchanges and the chat's private record. It builds on the previous summary instead of processing the entire chat again. Together, these layers are designed for work that continues for months without having to carry the whole conversation in the model's context. Important facts can still be missed, so check critical details.
 
-## Find a chat
+## Skills
+
+OpenGhost understands the open Agent Skills format. Send a link to a skill and add it after reviewing the card; the agent can then choose it when the work calls for it, or you can pick it yourself with /name. Skills are available from the sidebar and can be used across chats.
+
+![A skill installation card, with its source, contents and an Add skill button](images/readme-skills.png)
+
+## Find or fork a chat
 
 The magnifier, or Ctrl+K, opens a search in the middle of the chat. Type, and the chats it finds come out under it, each under its folder.
+
+To explore another direction, fork a conversation from any message or from its menu. The new chat continues from that point without changing the original; its notes, mini chat, folder and password come along.
 
 ## Quick chat, from anywhere
 
@@ -117,17 +133,29 @@ The app itself speaks English, Italian, French and Russian, and you choose the l
 
 The memory is the other side of the same page: everything OpenGhost has remembered about you is there to read and to change, to add to or to remove, or to switch off.
 
-![The General page of the settings: the four languages, instructions and files kept for every chat](images/general.jpg)
+![General settings with the language menu, instructions and files for every chat](images/readme-general.png)
+
+## A composer that helps you write
+
+If you turn on next-message prediction, OpenGhost suggests a follow-up after a reply. Press Tab or the right arrow to put it in the message field, where you can change it before sending. Nothing is sent by itself. You can turn the feature off in Settings.
+
+![Composer settings for predicting the next message](images/readme-composer.png)
 
 ## Make it yours
 
 Light, dark, or the system's theme; the size of the interface; and, new in 1.4.5, the colour of your own messages and of the chat's background, each theme keeping its own. Nothing is picked for you: until you choose, the themes look as they always did.
 
-![The Appearance page of the settings: themes, message colours and chat backgrounds](images/appearance.jpg)
+![Appearance settings with light, dark and system themes, message colours and chat backgrounds](images/readme-appearance.png)
 
 ## Three ways to let it act
 
 Ask waits for approval before commands, file changes, and the web. Auto works inside the project folder and asks before a risky step. Full access does not ask.
+
+## Pick your model
+
+Choose from the models available through your connected providers. You can also connect a local model server such as Ollama, LM Studio or llama.cpp, or an OpenAI-compatible API. The models shown depend on what your provider or server offers.
+
+![The model picker, showing the selected model and alternatives](images/readme-models.png)
 
 ## The key stays on this computer
 
