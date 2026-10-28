@@ -20853,7 +20853,7 @@ html:not([data-theme="light"]) .skill-page-key {
   display: none;
 }
 
-.app.is-browser-peek:not(.is-browser-open) .browser:not(.is-agent) .browser-view {
+.app.is-browser-peek:not(.is-browser-open) .browser:not(.is-agent) .browser-view.is-active {
   visibility: visible;
 }
 
