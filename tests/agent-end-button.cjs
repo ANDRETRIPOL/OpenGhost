@@ -63,4 +63,26 @@ const calls=cancel.length;c.composerSend.activate();check('A repeated stop press
 for(const source of [miniSource,quickSource])check('Compact composer has the actual stop event binding',source.includes("this.send.addEventListener('composer-stop', () => { this.chat.stop(); this.sync(); });"));
 for(const file of ['i18n.js','i18n-ru.js','i18n-fr.js','i18n-it.js'])check(file+': localized stop and stopping labels exist',read(file).includes("'composer.stop':")&&read(file).includes("'composer.stopping':"));
 const rgb=read('styles.css').match(/--send-end-bg:\s*(\d+),\s*(\d+),\s*(\d+)/).slice(1).map(Number),linear=rgb.map(v=>{v/=255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)}),contrast=1.05/(.2126*linear[0]+.7152*linear[1]+.0722*linear[2]+.05);check('End uses the exact coral color requested in the reference',rgb.join(',')==='255,77,87');check('White stop icon retains at least 3:1 non-text contrast',contrast>=3);check('Square and caption share cap-height sizing and semibold weight',b.css.includes('--end-cap:round(up,1cap,1px)')&&b.css.includes('text-box:trim-both cap alphabetic')&&b.css.includes('font-weight:600'));
+// Font pixels are controlled here; the full application test measures real Chromium/native pixels.
+let reads=0;const draw=[];
+class CanvasFixture{
+ constructor(){this.width=0;this.height=0;this.style={};this.context={globalAlpha:1,scale(){},measureText:()=>({width:9,actualBoundingBoxAscent:10,actualBoundingBoxDescent:0}),fillText(){},clearRect(){},
+  getImageData:()=>{reads++;const data=new Uint8ClampedArray(this.width*this.height*4),x=Math.round(34*(c.window.devicePixelRatio||1));for(let y=4;y<=14;y++)for(let col=x;col<x+7;col++){const i=(y*this.width+col)*4;data[i]=data[i+1]=data[i+2]=255;data[i+3]=y===4?80:y===14?120:255}return{data}},
+  createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData:data=>{this.data=data.data},drawImage:(image,x,y)=>draw.push({image,x,y,alpha:this.context.globalAlpha})};}
+ getContext(){return this.context}
+}
+c.document={createElement:()=>new CanvasFixture()};c.getComputedStyle=el=>el===b.button?{color:'rgb(0,0,0)',getPropertyValue:()=> '255,255,255'}:{font:'600 15px system-ui',letterSpacing:'0px',fontKerning:'auto'};
+b.configure({busy:true,empty:true});b.ink=new CanvasFixture();b.button.classList={add(){},remove(){}};b.button.getBoundingClientRect=()=>({left:.4,top:.4});
+check('Hidden or disconnected End safely retains its CSS fallback',b.prepareEnd(34,1.5)===null);
+b.isConnected=true;c.window.devicePixelRatio=1.5;const bitmap=b.prepareEnd(34,1.5);
+check('End bitmap uses device pixels rather than a guessed CSS cap size',bitmap.glyph.width===Math.ceil(b.long*1.5)&&bitmap.glyph.height===51&&bitmap.n===11);
+check('End raster uses its target white palette, never an in-flight black send color',bitmap.glyph.context.fillStyle==='rgb(255,255,255)');
+check('Stop square keeps the exact first and last alpha rows of E',bitmap.top===4&&bitmap.square.data[(5*4)+3]===80&&bitmap.square.data[((10*11+5)*4)+3]===120);
+check('The cap-sized stop square retains rounded corners',bitmap.square.data[3]===0&&bitmap.square.data[((5*11+5)*4)+3]===255);
+b.endBitmap=bitmap;const before=reads;b.paintEnd(34,1);b.paintEnd(34,1);
+check('Unchanged End frames reuse the bitmap without scanning font pixels again',reads===before&&draw.length===2);
+check('The shared End layer snaps a fractional origin onto the device pixel grid',b.ink.style.left===`${1/1.5-.4}px`&&b.ink.style.top===`${1/1.5-.4}px`);
+b.paintEnd(34,.5);check('Caption keeps its existing reveal while the square stays opaque',draw.at(-2).alpha===1&&draw.at(-1).alpha===.5&&draw.at(-1).x===6);
+c.window.devicePixelRatio=2;b.paintEnd(34,1);check('A device-scale change rebuilds the cached End raster',b.endBitmap.dpr===2&&reads===before+1&&b.ink.width===Math.ceil(b.long*2));
+b.refreshEnd();check('Resize and font refresh invalidate only the visual cache',b.endBitmap===null&&b.hasAttribute('stop')&&!b.button.disabled);
 console.log(`\n${count} checks passed`);
