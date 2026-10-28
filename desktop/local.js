@@ -23,6 +23,25 @@ const AUTO = 32768;
 
 const error = (message, status = 0, code = '') => Object.assign(new Error(message), { status, code });
 
+// HTTP and stream errors carry the same information to Providers. In particular, quota/content codes must not
+// disappear behind a generic 429 or a fabricated 500: those are permanent failures, not an outage to wait out.
+function serverProblem(body, transportStatus = 0) {
+ const envelope = body && typeof body === 'object' ? body : {};
+ const detail = envelope.error ?? body;
+ const fields = detail && typeof detail === 'object' ? detail : {};
+ const statusOf = value => { const n = Number(value); return Number.isInteger(n) && n >= 100 && n <= 599 ? n : 0; };
+ const symbolic = value => {
+  if (typeof value !== 'string') return '';
+  const text = value.trim();
+  return text && text.toLowerCase() !== 'error' && !Number.isFinite(Number(text)) ? text : '';
+ };
+ const status = statusOf(transportStatus) || statusOf(fields.status) || statusOf(fields.status_code)
+  || statusOf(envelope.status) || statusOf(envelope.status_code) || statusOf(fields.code) || statusOf(envelope.code);
+ const code = [fields.code, fields.type, envelope.code, envelope.type].map(symbolic).find(Boolean) || '';
+ const message = typeof detail === 'string' ? detail : fields.message || envelope.message || '';
+ return error(message || (transportStatus ? `The server returned error ${transportStatus}` : 'The server stopped the answer'), status, code);
+}
+
 // The address as the user may have typed it: with or without http://, a slash at its end, or the /v1 a guide told
 // them to add.
 function origin(address) {
@@ -97,12 +116,9 @@ async function reach(where, path, init = {}, ask = fetch) {
 }
 
 async function failure(response) {
- let detail = '';
- try {
-  const body = await response.json();
-  detail = typeof body.error === 'string' ? body.error : body.error?.message || body.message || '';
- } catch {}
- return error(detail || `The server returned error ${response.status}`, response.status);
+ let body = null;
+ try { body = await response.json(); } catch {}
+ return serverProblem(body, response.status);
 }
 
 async function ask(url, init = {}) {
@@ -497,7 +513,7 @@ async function stream(request, { signal, onEvent = () => {} } = {}) {
  try {
   for await (const event of events(response.body)) {
    if (event === STREAM_DONE) { ended = true; break; }
-   if (event.error) throw error(typeof event.error === 'string' ? event.error : event.error.message || 'The server stopped the answer', Number(event.error.code) || 500);
+   if (event.error || event.type === 'error') throw serverProblem(event);
    if (event.usage) {
     const usage = event.usage;
     result.usage = {
