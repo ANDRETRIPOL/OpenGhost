@@ -148,9 +148,22 @@ const SCHEMAS = [
   amount: { type: 'number', description: 'How many screens, 0.8 by default' },
   ref: { type: 'integer', description: 'Scroll this element into view instead' },
  }),
- fn('browser_screenshot', 'Look at the page in the built-in browser yourself: returns a picture of the screen, or of the page from the top with full_page. Use it when layout, images, colors, charts or the look of a site you build matter, or when the snapshot is not enough.', {
-  full_page: { type: 'boolean', description: 'The page from the top, up to four screens tall' },
+ fn('browser_screenshot', 'Capture the page in the built-in browser, not the desktop or app frame. Returns an inline preview. To attach the screenshot on a website, pass save_to: it creates a new normal unencrypted PNG file at original resolution and reports its path. Does not change app/page zoom or window size. Choose the viewport, full_page, a visible element ref, or a rectangle.', {
+  full_page: { type: 'boolean', description: 'The page from the top, up to four screens tall; not together with a ref or rectangle' },
+  save_to: { type: 'string', minLength: 1, description: 'New .png file path, relative to the project folder or absolute. Existing files are never overwritten' },
+  ref: { type: 'integer', description: 'Capture this visible element from the latest snapshot without scrolling it' },
+  x: { type: 'number', description: 'Left of a rectangle in visible-page pixels, not desktop pixels; provide all four rectangle values' },
+  y: { type: 'number', description: 'Top of a rectangle in visible-page pixels' },
+  width: { type: 'number', description: 'Width of the rectangle in page pixels' },
+  height: { type: 'number', description: 'Height of the rectangle in page pixels' },
+  description: PURPOSE('screenshot file'),
  }),
+ fn('browser_upload', 'Select local files in this browser page for an attachment or upload. Pass a file input ref from the latest snapshot, including a hidden input; or omit ref after browser_click opened an attachment file chooser. Files may be transferred to the site immediately on selection. Use only files and destinations authorized by the user. This tool does not press Send: inspect the attachment preview and then use the normal browser controls to finish the user\'s sending task. Do not type a file path into a native dialog or change app zoom.', {
+  paths: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' }, description: '1 to 10 local file paths, relative to the project folder or absolute; no URLs, folders or internal application data. At most 100 MiB each and 200 MiB total' },
+  ref: { type: 'integer', description: 'The file input [number] from the latest snapshot. Omit only for the file chooser opened by your last attachment click' },
+  replace: { type: 'boolean', description: 'true replaces files already selected in that input. Omit unless the user wants the current selection replaced' },
+  description: PURPOSE('file upload'),
+ }, ['paths']),
  fn('browser_read', 'Read the whole text of the page open in the built-in browser, with headings, lists and links, as the user sees it: signed in and after scripts ran. Long pages come in parts, pass start to read further.', {
   start: { type: 'integer', description: 'Character to start from when reading further' },
  }),
@@ -245,6 +258,7 @@ const RISKY_CLICK = /\b(buy|purchase|order|checkout|check out|pay|payment|subscr
 // tab of its own (a mini chat's).
 const MAIN = {};
 const seen = new Map();
+const browserPages = new Map();
 const refsOf = apart => seen.get(apart || MAIN) || {};
 
 const READ_GIT = new Set(['status', 'log', 'diff', 'show', 'rev-parse', 'ls-files', 'blame', 'shortlog', 'describe', 'grep', 'help', 'version']);
@@ -736,7 +750,9 @@ function host(url) {
  try { return new URL(/^[a-z]+:\/\//i.test(url) ? url : `https://${url}`).host.replace(/^www\./, ''); } catch { return String(url); }
 }
 
-function browserApproval(name, args, ask, apart) {
+function browserApproval(name, args, ask, apart, cwd) {
+ if (name === 'browser_upload') return true; // Full access returned false before this policy; ASK/AUTO approve external transfer.
+ if (name === 'browser_screenshot' && args.save_to !== undefined) return ask || !inside(cwd, args.save_to);
  if (BROWSER_FREE.has(name)) return false;
  if (name === 'browser_tabs') return ask && args.action === 'new' && !!args.url;
  if (ask) return true;
@@ -760,7 +776,7 @@ const pictureList = args => (Array.isArray(args?.pictures) ? args.pictures : [])
 function needsApproval(name, args, { mode, cwd, attached = [], apart = null }) {
  if (mode === 'full') return false;
  const ask = mode !== 'auto';
- if (name.startsWith('browser_')) return browserApproval(name, args, ask, apart);
+ if (name.startsWith('browser_')) return browserApproval(name, args, ask, apart, cwd);
  const videos = Array.isArray(attached) ? attached : attached.videos || [], pdfs = Array.isArray(attached) ? [] : attached.pdfs || [];
  switch (name) {
   case 'read_file':
@@ -812,8 +828,8 @@ function approvalRule(name, args, { cwd = '', apart = null } = {}) {
  if (ALWAYS_READ.has(name)) return rule();
  if (name === SHELL.tool) return typeof args.command === 'string' && args.command.trim() ? exact(args.command) : null;
  if (name === 'git') return Array.isArray(args.args) || typeof args.args === 'string' ? exact(args.args) : null;
- if (name === 'write_file' || name === 'edit_file') {
-  const full = pathScope(args.path), project = full !== null && (full === folder || full.startsWith(`${folder}${PATHS.sep}`));
+ if (name === 'write_file' || name === 'edit_file' || (name === 'browser_screenshot' && args.save_to !== undefined)) {
+  const full = pathScope(name === 'browser_screenshot' ? args.save_to : args.path), project = full !== null && (full === folder || full.startsWith(`${folder}${PATHS.sep}`));
   return full !== null ? rule(JSON.stringify([folder, project ? 'project' : full]), project ? 'files' : 'file') : null;
  }
  if (name === 'video_frames') {
@@ -872,6 +888,13 @@ function describe(name, args, cwd, apart = null) {
    const places = items.map(item => item.url ? site(String(item.url)) : item.path ? { kind: 'file', label: String(item.path).split(/[\\/]/).filter(Boolean).pop() || String(item.path), title: relative(cwd, item.path) } : null).filter(Boolean);
    return { kind: online ? 'web' : 'file', title: I18n.t('approve.showPictures'), effect: online ? 'online' : 'read', places, quote: items.map(item => `“${String(item.caption || '')}”`).join(', ') };
   }
+  case 'browser_upload': {
+   const page = browserPages.get(apart || MAIN)?.page || '';
+   const places = (Array.isArray(args.paths) ? args.paths : []).map(given => ({ kind: 'file', label: String(given).split(/[\\/]/).pop(), title: relative(cwd, given) }));
+   if (page) places.push(site(page));
+   return { kind: 'web', title: purpose || I18n.t('approve.upload'), effect: 'online', places, quote: refs[args.ref] || '' };
+  }
+  case 'browser_screenshot': return { kind: 'file', title: purpose || I18n.t('approve.write'), effect: args.save_to !== undefined ? 'change' : 'read', places: args.save_to !== undefined ? [{ kind: 'file', label: String(args.save_to || '').split(/[\\/]/).filter(Boolean).pop() || String(args.save_to || ''), title: relative(cwd, args.save_to || '.') }] : [] };
   case 'browser_navigate': return { kind: 'web', title: I18n.t('approve.browse'), effect: 'online', places: [site(String(args.url || ''))] };
   case 'browser_tabs': return { kind: 'web', title: I18n.t('approve.tab'), effect: 'online', places: [site(String(args.url || ''))] };
   case 'browser_click': return { kind: 'web', title: I18n.t('approve.click'), effect: 'online', places: [], quote: refs[args.ref] || (args.ref ? `[${args.ref}]` : `x ${Math.round(args.x)}, y ${Math.round(args.y)}`) };
@@ -1144,9 +1167,12 @@ function frames(result) {
 async function browser(name, args, id, cwd, apart) {
  const panel = window.browserPanel;
  if (!panel) return 'Error: the built-in browser is only available in the desktop app';
- const result = await panel.run(name, args, { id, cwd, apart });
+ const context = browserPages.get(apart || MAIN);
+ // These fields come from the app's snapshot, never from model- or page-supplied upload arguments.
+ const request = name === 'browser_upload' ? { ...args, _page: context?.page || '', _document: context?.document || '' } : args;
+ const result = await panel.run(name, request, { id, cwd, apart });
  if (!result || result.error) return `Error: ${result?.error || 'the browser did not answer'}`;
- if (result.refs) seen.set(apart || MAIN, result.refs);
+ if (result.refs) { seen.set(apart || MAIN, result.refs);browserPages.set(apart || MAIN, { page: result.page || '', document: result.document || '' }); }
  if (result.image) return { text: result.text, images: [{ label: 'Screenshot of the built-in browser', url: result.image }] };
  if (result.html !== undefined) return page({ url: result.url, status: 200, type: 'text/html', text: result.html }, args.start);
  const tabs = name === 'browser_tabs' ? '' : panel.tabsLine(apart);

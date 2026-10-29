@@ -3,6 +3,8 @@
 const { app, clipboard, Menu, nativeImage, session, webContents } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const { fileURLToPath } = require('node:url');
 const Lang = require('./lang');
 const Pictures = require('./pictures');
 
@@ -11,6 +13,7 @@ const WORLD = 1077;
 const WAIT = { load: 30000, stop: 15000, call: 12000, quiet: [300, 2000], pointer: 420 };
 const SNAPSHOT = { view: 9000, full: 40000 };
 const SHOT = { max: 1280, quality: 82, tall: 4 };
+const UPLOAD = { files: 10, each: 100 * 1024 * 1024, total: 200 * 1024 * 1024 };
 const READ_MAX = 4 * 1024 * 1024;
 const WAIT_MAX = 60;
 const ALLOWED = new Set(['clipboard-sanitized-write', 'fullscreen', 'pointerLock']);
@@ -38,7 +41,7 @@ function install() {
  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'META', 'LINK', 'svg', 'SVG', 'CANVAS', 'VIDEO', 'AUDIO', 'OBJECT', 'EMBED']);
  const INLINE = new Set(['SPAN', 'B', 'I', 'EM', 'STRONG', 'SMALL', 'MARK', 'CODE', 'SUB', 'SUP', 'ABBR', 'TIME', 'FONT', 'U', 'S', 'Q', 'CITE', 'BR', 'WBR', 'DATA', 'VAR', 'KBD', 'SAMP', 'BDI', 'BDO']);
  const SELECTOR = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=checkbox],[role=radio],[role=tab],[role=menuitem],[role=option],[role=switch],[role=combobox],[role=textbox],[role=searchbox],[contenteditable=""],[contenteditable=true],[onclick]';
- const state = { next: 1, refs: new Map(), ids: new WeakMap() };
+ const state = { next: 1, refs: new Map(), ids: new WeakMap(), document: Array.from(crypto.getRandomValues(new Uint32Array(4)), n => n.toString(16)).join('-') };
  const clean = text => (text || '').replace(/\s+/g, ' ').trim();
  const cut = (text, max) => text.length > max ? `${text.slice(0, max - 1)}…` : text;
  const quote = (text, max = 100) => `"${cut(clean(text), max).replace(/"/g, '\'')}"`;
@@ -131,6 +134,13 @@ function install() {
    else if (clean(value)) text += ` value=${quote(value, 160)}`;
    if (name !== clean(el.getAttribute('placeholder') || '') && el.getAttribute('placeholder') && !clean(value)) text += ` placeholder=${quote(el.getAttribute('placeholder'))}`;
   }
+  if (el.tagName === 'INPUT' && el.type === 'file') {
+   if (el.accept) text += ` accept=${quote(el.accept)}`;
+   if (el.multiple) text += ' multiple';
+   if (el.webkitdirectory) text += ' directory';
+   if (el.files?.length) text += ` selected=${quote([...el.files].map(file => file.name).join(', '), 160)}`;
+   if (!shown(el) || !rectOf(el).width || !rectOf(el).height) text += ' hidden';
+  }
   if (el.tagName === 'SELECT') {
    const options = [...el.options].map(option => clean(option.text)).filter(Boolean);
    const chosen = el.selectedOptions[0];
@@ -205,9 +215,24 @@ function install() {
    children(el);
   };
   children(document.body || document.documentElement);
+  // Upload controls are often hidden or live in an open shadow root/frame. They still need explicit refs, not guesses.
+  const roots = new Set();let uploadNodes = 0, uploadCount = 0;
+  const uploads = root => {
+   if (!root || roots.has(root) || uploadCount >= 64) return;roots.add(root);
+   for (const el of root.querySelectorAll('*')) {
+    if (++uploadNodes > 20000 || uploadCount >= 64) break;
+    if (el.tagName === 'INPUT' && el.type === 'file') {
+     const id = idOf(el);uploadCount++;
+     if (!refs[id]) { const text = describe(el, 'file input');refs[id] = cut(text, 140);push(`[${id}] ${text}`); }
+    }
+    if (el.shadowRoot) uploads(el.shadowRoot);
+    if (el.tagName === 'IFRAME') { try { uploads(el.contentDocument); } catch {} }
+   }
+  };
+  uploads(document);
   const scroller = document.scrollingElement || document.documentElement;
   const height = scroller.scrollHeight, top = scroller.scrollTop;
-  return { lines, refs, skipped, scroll: { top, height, vh, vw, below: Math.max(0, height - top - vh) } };
+  return { lines, refs, skipped, document: state.document, scroll: { top, height, vh, vw, below: Math.max(0, height - top - vh) } };
  }
 
  function element(ref) {
@@ -337,7 +362,20 @@ function install() {
   return false;
  }
 
- window.__og = { snapshot, point, choose, reveal, quiet, has, image, imageIn };
+ function uploadTarget(ref, marker = '') {
+  const el = element(ref);
+  if (el.tagName !== 'INPUT' || el.type !== 'file') throw new Error(`[${ref}] is not a file input. Click the attachment button first, then use browser_upload for its file chooser.`);
+  if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true') throw new Error('That file input is disabled');
+  if (el.webkitdirectory) throw new Error('Directory uploads are not supported; select individual files instead');
+  if (marker) el.setAttribute('data-openghost-upload', marker);
+  return true;
+ }
+ function unmarkUpload(ref, marker) {
+  const el = state.refs.get(Number(ref))?.deref();
+  if (el?.getAttribute('data-openghost-upload') === marker) el.removeAttribute('data-openghost-upload');
+ }
+ window.__og = { snapshot, point, choose, reveal, quiet, has, image, imageIn, box: ref => rectOf(element(ref)), document: () => state.document,
+  uploadTarget, unmarkUpload, isFile: ref => { const el = element(ref);return el.tagName === 'INPUT' && el.type === 'file'; } };
 }
 
 const INSTALL = `(${install.toString()})();`;
@@ -395,6 +433,7 @@ function guard(host, prefs, params) {
 function adopt(host, guest) {
  guests.set(guest.id, { guest, host, queue: Promise.resolve(), attached: false });
  guest.once('destroyed', () => guests.delete(guest.id));
+ guest.on('did-start-navigation', () => { const found = guests.get(guest.id);if (found) found.chooser = null; });
  const tell = (type, data = {}) => { if (!host.isDestroyed()) host.send('browser:event', { type, id: guest.id, ...data }); };
  guest.setWindowOpenHandler(({ url, disposition }) => {
   if (disposition === 'new-window') return { action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 700, autoHideMenuBar: true, backgroundColor: '#ffffff' } };
@@ -498,7 +537,7 @@ async function state(guest, { full = false, note = '' } = {}) {
  if (snap.skipped) tail.push(`[… ${snap.skipped} more lines not shown. ${full ? 'Scroll to them and take a snapshot' : 'Call browser_snapshot with full true or scroll'}.]`);
  else if (!full && scroll.below > 8) tail.push('[More content below: scroll down to see it.]');
  const body = snap.lines.length ? snap.lines.join('\n') : '(nothing readable on screen)';
- return { text: `${head.join('\n')}\n\n${body}${tail.length ? `\n${tail.join('\n')}` : ''}`, refs: snap.refs };
+ return { text: `${head.join('\n')}\n\n${body}${tail.length ? `\n${tail.join('\n')}` : ''}`, refs: snap.refs, page: guest.getURL(), document: snap.document };
 }
 
 async function pointer(found, x, y) {
@@ -564,19 +603,62 @@ async function navigate(guest, target) {
  return failure;
 }
 
-async function screenshot(guest, full) {
+async function saveScreenshot(files, given, image, signal) {
+ if (!files?.file) throw plain('This screenshot has no working folder');
+ const full = files.file(given);
+ if (path.extname(full).toLowerCase() !== '.png') throw plain('Save a browser screenshot to a new .png file');
+ signal.throwIfAborted();
+ await fs.promises.mkdir(path.dirname(full), { recursive: true });
+ files.file(given); // Recheck real parents after mkdir, including a junction into private application data.
+ signal.throwIfAborted();
+ const handle = await fs.promises.open(full, 'wx');
+ let complete = false;
+ try {
+  signal.throwIfAborted();
+  const data = image.toPNG();
+  await handle.writeFile(data);
+  signal.throwIfAborted();
+  complete = true;
+  return { path: full, ...image.getSize(), bytes: data.length, format: 'PNG' };
+ } finally {
+  await handle.close();
+  if (!complete) await fs.promises.rm(full, { force: true }).catch(() => {});
+ }
+}
+
+async function screenshot(guest, args, signal, files) {
+ // A private profile file cannot be laundered into an uploadable PNG by navigating to its file URL first.
+ if (args.save_to !== undefined && /^file:/i.test(guest.getURL?.() || '')) {
+  if (!files?.file) throw plain('This screenshot has no working folder');
+  files.file(fileURLToPath(guest.getURL()));
+ }
  const cdp = (method, params = {}) => guest.debugger.sendCommand(method, params);
- const metrics = await cdp('Page.getLayoutMetrics');
- const view = metrics.cssVisualViewport, content = metrics.cssContentSize;
+ const full = !!args.full_page, keys = ['x', 'y', 'width', 'height'], region = keys.some(key => args[key] !== undefined), reference = args.ref !== undefined;
+ if ((full && (region || reference)) || (region && reference)) throw plain('Choose full_page, an element ref, or one viewport rectangle, not several at once');
+ let crop = reference ? await world(guest, `__og.box(${Number(args.ref)})`) : region ? Object.fromEntries(keys.map(key => [key, Number(args[key])])) : null;
+ if (crop && reference) crop = { x: crop.left, y: crop.top, width: crop.width, height: crop.height };
+ const metrics = await cdp('Page.getLayoutMetrics'), view = metrics.cssVisualViewport, content = metrics.cssContentSize;
  const width = Math.round(view.clientWidth), height = Math.round(full ? Math.min(content.height, view.clientHeight * SHOT.tall) : view.clientHeight);
+ if (!width || !height || width * height > 64000000) throw plain('The page is too large to capture safely: choose the viewport or a smaller region');
+ if (crop && (!keys.every(key => Number.isFinite(crop[key])) || crop.x < 0 || crop.y < 0 || crop.width < 1 || crop.height < 1 || crop.x + crop.width > view.clientWidth + .5 || crop.y + crop.height > view.clientHeight + .5)) throw plain('The screenshot rectangle must be inside the visible page; scroll the element into view first');
  const params = { format: 'png' };
  if (full) Object.assign(params, { captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 } });
+ signal.throwIfAborted();
  const shot = await timed(cdp('Page.captureScreenshot', params), WAIT.call, 'The page did not draw a screenshot');
+ signal.throwIfAborted();
  let image = nativeImage.createFromBuffer(Buffer.from(shot.data, 'base64'));
- const target = Math.min(width, SHOT.max);
+ if (image.isEmpty()) throw plain('The browser page returned an empty screenshot; wait for it to draw and try again');
+ if (crop) {
+  const size = image.getSize(), k = size.width / view.clientWidth;
+  const x = Math.round(crop.x * k), y = Math.round(crop.y * k);
+  image = image.crop({ x, y, width: Math.min(size.width - x, Math.round(crop.width * k)), height: Math.min(size.height - y, Math.round(crop.height * k)) });
+ }
+ // Export the original native PNG, not the smaller JPEG preview the model receives. Never resize the page or app.
+ const saved = args.save_to !== undefined ? await saveScreenshot(files, args.save_to, image, signal) : null;
+ const pageWidth = crop ? crop.width : width, target = Math.min(pageWidth, SHOT.max);
  if (image.getSize().width !== target) image = image.resize({ width: target, quality: 'good' });
  const size = image.getSize();
- return { image: `data:image/jpeg;base64,${image.toJPEG(SHOT.quality).toString('base64')}`, width: size.width, height: size.height, scale: size.width / width };
+ return { image: `data:image/jpeg;base64,${image.toJPEG(SHOT.quality).toString('base64')}`, width: size.width, height: size.height, scale: size.width / pageWidth, origin: { x: crop?.x || 0, y: crop?.y || 0 }, saved };
 }
 
 // A picture for the agent to show the user (show_pictures), kept for its chat: the picture of element ref, the picture
@@ -608,7 +690,102 @@ async function picture(guest, args, signal) {
  return { ...kept, page, title, alt: seen?.alt || '', from: rect ? 'part' : 'screen' };
 }
 
-async function act(found, name, args, signal) {
+const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif', '.avif':'image/avif', '.bmp':'image/bmp', '.svg':'image/svg+xml', '.heic':'image/heic', '.pdf':'application/pdf', '.txt':'text/plain', '.csv':'text/csv', '.json':'application/json', '.zip':'application/zip', '.mp4':'video/mp4', '.webm':'video/webm', '.mp3':'audio/mpeg' };
+function acceptsFile(file, accept) {
+ const rules = String(accept || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+ if (!rules.length) return true;
+ const ext = path.extname(file).toLowerCase(), mime = MIME[ext] || 'application/octet-stream';
+ return rules.some(rule => rule === '*/*' || (rule.startsWith('.') ? rule === ext : rule.endsWith('/*') ? mime.startsWith(rule.slice(0, -1)) : rule === mime));
+}
+
+async function uploadFiles(found, args, signal, files) {
+ const { guest } = found;
+ const cdp = (name, params = {}, sessionId) => sessionId ? guest.debugger.sendCommand(name, params, sessionId) : guest.debugger.sendCommand(name, params);
+ const current = async () => {
+  signal.throwIfAborted();
+  if (!args._page || !args._document || guest.getURL() !== args._page || await world(guest, '__og.document()') !== args._document) throw plain('The upload page changed or has no current snapshot. Take a fresh browser_snapshot before selecting files.');
+ };
+ await current();
+ if (!files?.file) throw plain('This upload has no working folder');
+ if (!Array.isArray(args.paths) || !args.paths.length || args.paths.length > UPLOAD.files) throw plain(`Pass 1 to ${UPLOAD.files} local file paths`);
+ const paths = [], selected = [], real = new Set();let total = 0;
+ for (const given of args.paths) {
+  signal.throwIfAborted();
+  if (typeof given !== 'string' || /^(?:https?:|data:|blob:|ogpic:|file:)/i.test(given.trim())) throw plain('Upload local file paths, not picture URLs or application picture addresses');
+  const full = files.file(given), stat = await fs.promises.stat(full);
+  if (!stat.isFile()) throw plain('Upload individual regular files, not folders');
+  if (stat.size > UPLOAD.each || (total += stat.size) > UPLOAD.total) throw plain('Upload at most 100 MiB per file and 200 MiB in one step');
+  const actual = await fs.promises.realpath(full), key = process.platform === 'win32' ? actual.toLowerCase() : actual;
+  if (real.has(key)) throw plain('The same file was listed more than once');real.add(key);
+  paths.push(full);selected.push({ name: path.basename(full), bytes: stat.size });
+ }
+ let backendNodeId, sessionId = '', marker = '', searchId = '';
+ const reference = args.ref !== undefined && args.ref !== null;
+ if (reference) {
+  if (!Number.isInteger(Number(args.ref)) || Number(args.ref) < 1) throw plain('Pass a file input ref from the latest snapshot');
+  marker = crypto.randomBytes(12).toString('hex');
+  try {
+   await world(guest, `__og.uploadTarget(${Number(args.ref)}, ${JSON.stringify(marker)})`);
+   await cdp('DOM.getDocument', { depth: 1, pierce: true });
+   const result = await cdp('DOM.performSearch', { query: `[data-openghost-upload="${marker}"]`, includeUserAgentShadowDOM: true });searchId = result.searchId;
+   if (result.resultCount !== 1) throw plain('The upload field changed. Take a fresh snapshot and choose it again.');
+   const nodes = await cdp('DOM.getSearchResults', { searchId, fromIndex: 0, toIndex: 1 });
+   const detail = await cdp('DOM.describeNode', { nodeId: nodes.nodeIds[0] });backendNodeId = detail.node.backendNodeId;
+  } finally {
+   if (searchId) await cdp('DOM.discardSearchResults', { searchId }).catch(() => {});
+   if (marker) await world(guest, `__og.unmarkUpload(${Number(args.ref)}, ${JSON.stringify(marker)})`).catch(() => {});
+  }
+ } else {
+  const chooser = found.chooser;
+  if (!chooser || chooser.page !== args._page || chooser.document !== args._document) throw plain('Click the attachment button first, or pass the ref of a file input from the latest snapshot');
+  if (!chooser.backendNodeId) throw plain('This site opened a picker that is not an HTML file input. Use its ordinary file attachment control instead.');
+  ({ backendNodeId, sessionId = '' } = chooser);
+ }
+ const object = await cdp('DOM.resolveNode', { backendNodeId }, sessionId);const objectId = object.object?.objectId;
+ if (!objectId) throw plain('The file input is gone. Open the attachment control again.');
+ try {
+  const result = await cdp('Runtime.callFunctionOn', { objectId, functionDeclaration: `function(){return {tag:this.tagName,type:this.type,multiple:!!this.multiple,disabled:this.matches(':disabled')||this.getAttribute('aria-disabled')==='true',directory:!!this.webkitdirectory,accept:String(this.accept||'').slice(0,4096),count:this.files?this.files.length:0}}`, returnByValue: true }, sessionId);
+  const input = result.result?.value;
+  if (result.exceptionDetails || input?.tag !== 'INPUT' || input.type !== 'file') throw plain('The selected element is not a usable file input');
+  if (input.disabled || input.directory) throw plain(input.directory ? 'Directory uploads are not supported' : 'That file input is disabled');
+  if (!input.multiple && paths.length > 1) throw plain('This input accepts only one file');
+  if (input.count && args.replace !== true) throw plain('This input already has selected files. Use replace true only if the user wants that selection replaced.');
+  if (!paths.every(file => acceptsFile(file, input.accept))) throw plain(`These files do not match this input's accepted types (${input.accept}). Choose the correct attachment input.`);
+  await current();
+  for (let k = 0; k < args.paths.length; k++) files.file(args.paths[k]);
+  signal.throwIfAborted();found.chooser = null;
+  try { await timed(cdp('DOM.setFileInputFiles', { backendNodeId, files: paths }, sessionId), WAIT.call, 'File selection could not be confirmed. Inspect the attachment preview before trying again.'); }
+  catch (error) { if (error.plain) throw error;throw plain('File selection failed or could not be confirmed. Inspect the page before trying again; do not blindly duplicate the upload.'); }
+  signal.throwIfAborted();
+  return selected;
+ } finally {
+  await cdp('Runtime.releaseObject', { objectId }, sessionId).catch(() => {});
+ }
+}
+
+// Intercept only agent input steps. The user's own clicks keep the browser's normal native file picker.
+async function perform(found, name, args, signal, files) {
+ await attach(found);
+ if (!['browser_click', 'browser_press', 'browser_type'].includes(name)) return act(found, name, args, signal, files);
+ const { guest } = found, document = await world(guest, '__og.document()');
+ found.chooser = null;
+ const choose = (_event, method, params, sessionId = '') => {
+  if (method === 'Page.fileChooserOpened') found.chooser = { backendNodeId: params.backendNodeId, mode: params.mode, frameId: params.frameId, sessionId, page: guest.getURL(), document };
+ };
+ guest.debugger.on('message', choose);
+ try {
+  await guest.debugger.sendCommand('Page.enable');
+  await guest.debugger.sendCommand('Page.setInterceptFileChooserDialog', { enabled: true });
+  const result = await act(found, name, args, signal, files);
+  if (found.chooser && result?.text) result.text += '\nA file chooser was opened by this step; no system dialog is waiting. Use browser_upload with local paths (without ref), or select an explicit file input from a fresh snapshot.';
+  return result;
+ } finally {
+  guest.debugger.removeListener('message', choose);
+  await guest.debugger.sendCommand('Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
+ }
+}
+
+async function act(found, name, args, signal, files) {
  const { guest } = found;
  // A step the user stopped, or took the browser from, goes no further: it asks before each thing it does to the page.
  const check = () => { if (signal.aborted) throw plain('Stopped by the user'); };
@@ -651,6 +828,7 @@ async function act(found, name, args, signal) {
   case 'browser_type': {
    const text = String(args.text ?? '');
    if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
+    if (await world(guest, `__og.isFile(${Number(args.ref)})`)) throw plain('A local file cannot be typed into this input. Use browser_upload with local file paths.');
     const spot = await world(guest, `__og.point(${Number(args.ref)})`);
     check();
     await pointer(found, spot.x, spot.y);
@@ -696,12 +874,21 @@ async function act(found, name, args, signal) {
    await settle(guest);
    return state(guest);
   }
+  case 'browser_upload': {
+   const selected = await uploadFiles(found, args, signal, files);
+   done();
+   const note = `Selected ${selected.map(file => JSON.stringify(file.name)).join(', ')} (${selected.reduce((n, file) => n + file.bytes, 0)} bytes) for this page. The site may upload on selection. This tool did not press Send or submit a form: inspect the attachment preview, then follow the user's sending instructions.`;
+   try { await settle(guest);return await state(guest, { note }); }
+   catch (error) { check();return { text: `${note}\nThe file selection was accepted, but the updated page could not be read (${error.message}). Take a fresh snapshot before any retry; the attachment may already be present.` }; }
+  }
   case 'browser_picture':
    return picture(guest, args, signal);
   case 'browser_screenshot': {
-   const shot = await screenshot(guest, !!args.full_page);
-   const scale = Math.abs(shot.scale - 1) < 0.01 ? 'one screenshot pixel is one page pixel, so x and y for browser_click can be read from it' : `to click by coordinates divide screenshot pixels by ${shot.scale.toFixed(3)}`;
-   return { ...shot, text: `Screenshot of ${args.full_page ? 'the page from the top' : 'the viewport'}: ${guest.getTitle() || guest.getURL()}, ${shot.width}×${shot.height}; ${scale}.` };
+   const shot = await screenshot(guest, args, signal, files);
+   const scale = Math.abs(shot.scale - 1) < 0.01 ? 'one screenshot pixel is one page pixel' : `divide screenshot pixels by ${shot.scale.toFixed(3)}`;
+   const offset = shot.origin.x || shot.origin.y ? `, then add x ${shot.origin.x}, y ${shot.origin.y} for browser_click` : ', so x and y for browser_click follow that scale';
+   const saved = shot.saved ? `\nSaved PNG: ${shot.saved.path} (${shot.saved.width}×${shot.saved.height}, ${shot.saved.bytes} bytes). This is a normal unencrypted file, ready for a browser attachment.` : '';
+   return { ...shot, text: `Screenshot of ${args.full_page ? 'the page from the top' : 'the viewport'}: ${guest.getTitle() || guest.getURL()}, ${shot.width}×${shot.height}; ${scale}${offset}.${saved}` };
   }
   case 'browser_read': {
    const html = await timed(guest.executeJavaScript('document.documentElement ? document.documentElement.outerHTML : ""'), WAIT.call, 'The page is not responding');
@@ -728,9 +915,9 @@ async function act(found, name, args, signal) {
  }
 }
 
-function run(name, args, host, signal) {
+function run(name, args, host, signal, files = null) {
  const found = entry(args.tab, host);
- const job = found.queue.catch(() => {}).then(() => act(found, name, args, signal));
+ const job = found.queue.catch(() => {}).then(() => perform(found, name, args, signal, files));
  found.queue = job;
  return job;
 }

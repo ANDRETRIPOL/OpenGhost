@@ -532,25 +532,33 @@ const TOOLS = {
  fetch_url: fetchUrl,
 };
 
-async function runTool(id, name, args, cwd, sender) {
- if (name.startsWith('browser_')) {
-  try {
-   return await cancellable(String(id || ''), signal => Browser.run(name, args && typeof args === 'object' ? args : {}, sender, signal));
-  } catch (error) {
-   return { error: explain(error) };
-  }
+// Browser exports/uploads are ordinary user files, never a route into keys, cookies, sealed pictures or chat data.
+function browserFile(cwd, given) {
+ const full = resolvePath(cwd, given), profile = app.getPath('userData');
+ if (!ownChat(physical(cwd), physical(full))) throw Object.assign(new Error('That file belongs to another chat folder.'), { plain: true });
+ if (within(pathKey(full), pathKey(path.resolve(profile))) || within(pathKey(physical(full)), pathKey(physical(profile)))) {
+  throw Object.assign(new Error('The application profile is private and cannot be exported or uploaded through browser tools.'), { plain: true });
  }
- const tool = TOOLS[name];
- if (!tool) return { error: `Unknown tool ${name}` };
- if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return { error: 'This chat has no project folder' };
- try { resolvePath(cwd, '.'); }
- catch (error) { return { error: explain(error) }; }
+ return full;
+}
+
+async function workingFolder(cwd) {
+ if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) throw Object.assign(new Error('This chat has no project folder'), { plain: true });
+ resolvePath(cwd, '.');
  let stat = await fs.promises.stat(cwd).catch(() => null);
  // A chat's own folder is made the first time the agent needs it, so chats that only talk leave nothing on disk.
  if (!stat && inChats(cwd)) stat = await fs.promises.mkdir(cwd, { recursive: true }).then(() => fs.promises.stat(cwd)).catch(() => null);
- if (!stat?.isDirectory()) return { error: `The project folder ${cwd} doesn't exist anymore` };
+ if (!stat?.isDirectory()) throw Object.assign(new Error(`The project folder ${cwd} doesn't exist anymore`), { plain: true });
+}
+
+async function runTool(id, name, args, cwd, sender) {
+ const browser = name.startsWith('browser_'), tool = TOOLS[name], params = args && typeof args === 'object' ? args : {};
+ if (!browser && !tool) return { error: `Unknown tool ${name}` };
+ const files = name === 'browser_upload' || (name === 'browser_screenshot' && params.save_to !== undefined);
  try {
-  return await tool(String(id || ''), args && typeof args === 'object' ? args : {}, cwd);
+  if (!browser || files) await workingFolder(cwd);
+  if (browser) return await cancellable(String(id || ''), signal => Browser.run(name, params, sender, signal, files ? { file: given => browserFile(cwd, given) } : null));
+  return await tool(String(id || ''), params, cwd);
  } catch (error) {
   return { error: explain(error, error.file) };
  }

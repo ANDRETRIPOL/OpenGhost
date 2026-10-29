@@ -41,8 +41,9 @@ function deed(name, args = {}, cwd = '', apart = null) {
   case 'fetch_url':
   case 'browser_navigate': return say('open', host(args.url));
   case 'browser_tabs': return args.action === 'new' ? (args.url ? say('open', host(args.url)) : say('newTab')) : args.action === 'switch' ? say('tab') : args.action === 'close' ? say('closeTab') : null;
+  case 'browser_screenshot': return args.save_to !== undefined ? say('write', base(args.save_to)) : say('page');
+  case 'browser_upload': return say('upload', (Array.isArray(args.paths) ? args.paths : []).map(base).join(', '));
   case 'browser_snapshot':
-  case 'browser_screenshot':
   case 'browser_read': return say('page');
   case 'browser_click': {
    // The element by the name the page gives it; a bare number or a place on the screen says nothing to a person.

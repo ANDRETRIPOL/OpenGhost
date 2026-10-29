@@ -16,7 +16,7 @@ const TOAST_TIME = 4200;
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 // The agent's steps that use the window's one keyboard: they type or press keys in a page, or click in one (a click puts
 // the keyboard into the page, as any click would); and keys go wherever the keyboard is.
-const KEYBOARD = new Set(['browser_click', 'browser_type', 'browser_press', 'browser_select']);
+const KEYBOARD = new Set(['browser_click', 'browser_type', 'browser_press', 'browser_select', 'browser_upload']);
 // Such a step waits for a pause of `quiet` ms in the user's typing in the app, but no longer than `most` ms.
 const PAUSE = { quiet: 700, most: 12000 };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
