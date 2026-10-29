@@ -488,13 +488,22 @@ function ports() {
 async function readPorts() {
  const found = new Set();
  if (WINDOWS) {
-  // A listening socket has no other end yet: its foreign address ends in :0. That holds whatever the system's language.
-  const { output = '' } = await run('', 'netstat', ['-ano'], { cwd: os.homedir(), timeout: TIMEOUT.probe });
-  for (const line of output.split(/\r?\n/)) {
-   const parts = line.trim().split(/\s+/);
-   if (parts[0] !== 'TCP' || !/:0$/.test(parts[2] || '')) continue;
-   const port = Number(parts[1].slice(parts[1].lastIndexOf(':') + 1));
-   if (port) found.add(port);
+  // netstat can omit fresh listeners or leave misleading rows on some Windows builds. Prefer the TCP provider.
+  const tcp = await run('', 'powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-NetTCPConnection -ErrorAction Stop | Where-Object { $_.RemotePort -eq 0 } | ForEach-Object { $_.LocalPort }'], { cwd: os.homedir(), timeout: TIMEOUT.probe });
+  if (tcp.code === 0) {
+   for (const line of tcp.output.split(/\r?\n/)) {
+    const port = /^\s*\d{1,5}\s*$/.test(line) ? Number(line) : 0;
+    if (port > 0 && port <= 65535) found.add(port);
+   }
+  } else {
+   // Older systems without the cmdlet keep the original, language-independent netstat fallback.
+   const { output = '' } = await run('', 'netstat', ['-ano'], { cwd: os.homedir(), timeout: TIMEOUT.probe });
+   for (const line of output.split(/\r?\n/)) {
+    const parts = line.trim().split(/\s+/);
+    if (parts[0] !== 'TCP' || !/:0$/.test(parts[2] || '')) continue;
+    const port = Number(parts[1].slice(parts[1].lastIndexOf(':') + 1));
+    if (port) found.add(port);
+   }
   }
  } else {
   let { output = '', code } = process.platform === 'linux' ? await run('', 'ss', ['-ltnH'], { cwd: os.homedir(), timeout: TIMEOUT.probe }) : { code: 1 };
