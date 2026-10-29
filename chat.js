@@ -2078,8 +2078,11 @@ class Chat {
   view.el.classList.remove('is-streaming');
   const text = !!entry.content.trim();
   let noted = true;
-  if (error && !aborted) this.fail(conv, view, error);
-  else if (turn.quiet) noted = false;
+  if (error && !aborted) {
+   // A summary-only turn keeps its empty answer hidden until it has a real error to show.
+   view.el.hidden = false;
+   this.fail(conv, view, error);
+  } else if (turn.quiet) noted = false;
   else if (aborted) this.note(view, I18n.t('chat.stopped'));
   else if (FINISH_NOTES.includes(finish)) this.note(view, I18n.t(`finish.${finish}`));
   else if (!turn.text) this.note(view, I18n.t('chat.empty'));
@@ -2209,7 +2212,11 @@ class Chat {
     onUsage: usage => { cost = usage; },
    });
   } catch (error) {
-   if (error.name === 'AbortError') { this.finishNotice(notice, false); throw error; }
+   // Never continue with another request to the same unavailable model after a failed summary. Let end() release
+   // the turn, expose the provider error and roll back a failed model switch, with the original history intact.
+   if (middle && error.name !== 'AbortError') this.openPart(conv, turn);
+   this.finishNotice(notice, false);
+   throw error;
   }
   if (middle) this.openPart(conv, turn);
   if (!summary) {
