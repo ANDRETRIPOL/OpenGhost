@@ -1,7 +1,7 @@
 {
   "name": "openghost",
   "productName": "OpenGhost",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
   "description": "OpenGhost",
   "main": "desktop/main.js",
