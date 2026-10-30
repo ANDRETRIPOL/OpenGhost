@@ -6,18 +6,20 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.5.1 beta**
+**v1.5.2 beta**
 
-[Windows version 1.5.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.1/OpenGhost-1.5.1-Setup.exe)
+[Windows version 1.5.2](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.2/OpenGhost-1.5.2-Setup.exe)
 
-[Linux version 1.5.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.1/OpenGhost-1.5.1-linux.tar.gz)
+[Linux version 1.5.2](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.2/OpenGhost-1.5.2-linux.tar.gz)
 
-[macOS version 1.5.1](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.1/OpenGhost-1.5.1-mac.dmg)
+[macOS version 1.5.2](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.2/OpenGhost-1.5.2-mac.dmg)
 
 What's new:
-- The app checks the agent's work itself before a step of its plan closes: tests after the last change, documents read back and weighed against the request, removed files named, pages opened at phone and desktop width, links and quotes checked against what was really opened.
-- After a reply the facts of the talk are kept in the chat's record and the shared memory, so even small models remember.
-- Welcome cards on the first start, and the app starts in your computer's language.
+- Save browser screenshots as PNG files and attach local files on websites, without extra approval prompts in Full access.
+- Remember ASK approvals for a type of action in the current chat, and reset them from its menu.
+- Each chat keeps its own reasoning effort.
+- Continue from completed work after a temporary disconnect, with better recovery after failed compaction and clearer permanent API errors.
+- End a running task from the composer, preview photos before sending, and see finished charts between tool calls. Browser tabs, plan and password panels are smoother too.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 

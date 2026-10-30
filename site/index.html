@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.5.1</span>
+      <span class="ver" data-version>v1.5.2</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.1.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.2.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.5.1</h3>
+        <h3 class="h3" data-news-title>What's new in 1.5.2</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.5.1';
+const FALLBACK = '1.5.2';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,16 +1470,18 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'The app checks the agent\'s work itself before a plan step closes: tests, documents, removed files, pages at phone and desktop width.',
-    'Links and quotes in research are checked against the pages really opened.',
-    'After every reply the facts are kept in the chat\'s record and the shared memory, so even small models remember.',
-    'Welcome cards on the first start, in your computer\'s language.',
+    'Save browser screenshots as PNG files and attach local files on websites. No extra approval prompts in Full access.',
+    'Remember ASK approvals for the current chat and reset them from its menu.',
+    'Each chat keeps its own reasoning effort.',
+    'Continue after temporary disconnects, with better recovery after failed compaction.',
+    'End a running task, preview photos before sending and see charts between tool calls. Smoother browser tabs, plan and password panels.',
   ],
   ru: [
-    'Приложение само проверяет работу агента, прежде чем шаг плана закроется: тесты, документы, удалённые файлы, страницы на телефоне и компьютере.',
-    'Ссылки и цитаты в исследованиях сверяются со страницами, которые агент действительно открыл.',
-    'После каждого ответа факты сохраняются в записях чата и общей памяти — помнят даже слабые модели.',
-    'Знакомство при первом запуске, на языке вашего компьютера.',
+    'Скриншоты браузера сохраняются в PNG, локальные файлы можно прикреплять на сайтах. В Full access без лишних разрешений.',
+    'Разрешения ASK можно запомнить для текущего чата и сбросить из его меню.',
+    'У каждого чата свой уровень рассуждения модели.',
+    'Продолжение после временного обрыва и более надёжное восстановление после ошибки компакта.',
+    'Остановка задачи, просмотр фото до отправки и графики между действиями агента. Плавнее работают вкладки, план и карточка пароля.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };
