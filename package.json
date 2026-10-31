@@ -4,6 +4,8 @@
   "version": "1.5.2",
   "private": true,
   "description": "OpenGhost",
+  "author": "OpenGhost <support@openghost.app>",
+  "desktopName": "openghost.desktop",
   "main": "desktop/main.js",
   "scripts": {
     "test": "node tests/compact-record-retry.cjs && node tests/agents-queue.cjs && node tests/agent-plan.cjs && node tests/plan-proof.cjs && node tests/fact-keeper.cjs && node tests/language.cjs && node tests/update.cjs && node tests/approval-permissions.cjs && node tests/chat-effort.cjs && node tests/overload-retry.cjs && node tests/native-visuals.cjs && node tests/composer-photo-preview.cjs && node tests/agent-end-button.cjs && node tests/ask-reset-visibility.cjs && node tests/auto-resume-transient.cjs && node tests/custom-error-metadata.cjs && node tests/browser-peek-tabs.cjs && node tests/compact-model-recovery.cjs && node tests/browser-file-transfer.cjs",
@@ -21,7 +23,9 @@
     "shortcut": "electron . --create-shortcut",
     "dist": "electron-builder --win nsis --publish never",
     "dist:mac": "electron-builder --mac dmg --universal --publish never",
-    "dist:linux": "electron-builder --linux tar.gz --publish never"
+    "dist:linux": "electron-builder --linux tar.gz AppImage deb --publish never",
+    "dist:deb": "electron-builder --linux deb --publish never",
+    "dist:appimage": "electron-builder --linux AppImage --publish never"
   },
   "devDependencies": {
     "electron": "^44.4.5",
@@ -75,10 +79,20 @@
       }
     },
     "linux": {
-      "target": "tar.gz",
+      "target": [
+        "tar.gz",
+        "AppImage",
+        "deb"
+      ],
       "icon": "desktop/icon.png",
       "category": "Utility",
+      "maintainer": "OpenGhost <support@openghost.app>",
+      "syncDesktopName": true,
       "artifactName": "OpenGhost-${version}-linux.${ext}"
+    },
+    "deb": {
+      "priority": "optional",
+      "packageCategory": "utils"
     }
   },
   "dependencies": {
