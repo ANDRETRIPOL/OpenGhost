@@ -182,7 +182,7 @@ npm start
 
 - Windows: `npm run dist` makes `dist/OpenGhost-<version>-Setup.exe`
 - macOS: `npm run dist:mac` makes `dist/OpenGhost-<version>-mac.dmg`
-- Linux: `npm run dist:linux` makes `dist/OpenGhost-<version>-linux.tar.gz`
+- Linux: `npm run dist:linux` makes `dist/OpenGhost-<version>-linux.tar.gz`, `OpenGhost-<version>-linux.AppImage`, and `OpenGhost-<version>-linux.deb` (or `npm run dist:deb` / `npm run dist:appimage`)
 
 No Mac or Linux machine at hand? A fork can build both on GitHub: turn on Actions, open Build and press Run workflow. The files appear on the page of that run.
 

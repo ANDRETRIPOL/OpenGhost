@@ -65,7 +65,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: OpenGhost-linux
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/*.AppImage
+            dist/*.deb
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

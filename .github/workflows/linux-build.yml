@@ -1,0 +1,49 @@
+name: Linux Packages CI
+
+# Builds the Debian (.deb) package and AppImage, tests them, and uploads them as workflow artifacts.
+on:
+  push:
+    branches: [main, linux-native]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-packages:
+    name: Build Linux Packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Debian package and AppImage
+        run: npm run dist:linux
+      - name: Verify Debian package
+        run: |
+          deb_file=$(find dist -maxdepth 1 -name '*.deb' | head -1)
+          echo "Found deb package: $deb_file"
+          dpkg-deb -I "$deb_file"
+          dpkg-deb -c "$deb_file" | grep -q "opt/OpenGhost/openghost"
+      - name: Verify AppImage
+        run: |
+          appimage_file=$(find dist -maxdepth 1 -name '*.AppImage' | head -1)
+          echo "Found AppImage: $appimage_file"
+          test -f "$appimage_file"
+          chmod +x "$appimage_file"
+      - name: Test running application
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb imagemagick > /dev/null
+          appimage_file=$(find dist -maxdepth 1 -name '*.AppImage' | head -1)
+          xvfb-run -a -s '-screen 0 1280x840x24' bash -c "'$appimage_file' --appimage-extract-and-run --no-sandbox --user-data-dir='$RUNNER_TEMP/profile' & PID=\$!; sleep 10; ps -p \$PID && kill \$PID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenGhost-linux-packages
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: error
