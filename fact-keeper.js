@@ -9,7 +9,7 @@
 const KEEP = {
  // What goes to the model of the exchange, of the record and of the memory, in characters: the latest is kept.
  exchange: 9000,
- record: 8000,
+ record: 40000,
  memory: 4000,
  // Of one tool call: its arguments and its result.
  args: 160,

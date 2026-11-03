@@ -42,6 +42,17 @@ check('Its own record call alone is no work', K.worth([user('go'), reply('', [['
 const asked = K.messages({ exchange: 'User: hi', record: '2026-10-22 10:00 — Budget 450 €', memory: '- [m1] Andrew, a designer', memoryOn: true });
 check('The model is told the rules apart and given the stores and the exchange', [asked[0].role, asked[1].content.includes('Budget 450 €'), asked[1].content.includes('[m1] Andrew'), asked[1].content.endsWith('User: hi')], ['system', true, true, true]);
 check('With the memory off it is told to leave the memory alone', K.messages({ exchange: 'x', memoryOn: false })[1].content.includes('leave "memory" empty'), true);
+check('The keeper can see the full 40,000-character private record', K.KEEP.record, 40000);
+for (const size of [8000, 8001, 39999, 40000]) {
+ const head = 'HEAD_FACT: keep the oldest fact.\n', middle = '\nMIDDLE_FACT: keep this fact.\n', tail = '\nTAIL_FACT: keep the latest fact.';
+ const record = (head.padEnd(Math.floor(size / 2), 'а') + middle).padEnd(size - tail.length, 'б') + tail;
+ const request = K.messages({ exchange: 'User: a new fact', record, memoryOn: false })[1].content;
+ check(`A valid ${size}-character record is sent whole, including its oldest facts`, [record.length, request.includes(record)], [size, true]);
+}
+check('Exchange, shared-memory and output limits do not grow with the private record', [K.KEEP.exchange, K.KEEP.memory, K.KEEP.answer], [9000, 4000, 900]);
+const oversized = 'OUTSIDE_RECORD_HEAD\n' + 'x'.repeat(40000) + '\nRECORD_END';
+const capped = K.messages({ exchange: 'User: a new fact', record: oversized, memoryOn: false })[1].content;
+check('The defensive cap applies only beyond 40,000 characters', [capped.startsWith("The chat's record now:\n[…]\n"), capped.includes(oversized.slice(-40000)), capped.includes('OUTSIDE_RECORD_HEAD')], [true, true, false]);
 
 // The answer read back.
 const answer = 'Sure:\n```json\n{"record":[{"add":"Budget: 450 € for the whole stay"},{"old":"850 €","new":"820 €"},{"add":""},{"x":1}],"memory":[{"save":"Lives in Porto."},{"id":"[m2]","text":"Prefers short answers."},{"id":"two","text":"bad"}]}\n```';
