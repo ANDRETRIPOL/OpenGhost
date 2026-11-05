@@ -145,6 +145,14 @@ app.whenReady().then(async()=>{
  check('Top-right split toggle button reappears when the window fits two panes',await js(`!splitView.splitToggle.hidden`));
  await js(`splitView.splitToggle.click()`);await pause(450);
  check('Widening the window and clicking the split toggle opens two valid panes again',await js(`splitView.opened&&main.getBoundingClientRect().width>=400&&splitView.pane.main.getBoundingClientRect().width>=400&&!turns[0].turn.controller.signal.aborted`));
+ const Size=require('../desktop/size');
+ check('Split view doubles the application window minimum width across zoom levels',Size.minimum(1,{width:1920,height:1080},true).width===Size.minimum(1,{width:1920,height:1080},false).width*2&&Size.minimum(1.25,{width:2560,height:1440},true).width===Size.minimum(1.25,{width:2560,height:1440},false).width*2);
+ Size.pick(win,1);
+ const singleMin=Size.setSplit(win,false);
+ const splitMin=Size.setSplit(win,true);
+ check('Opening split view doubles the BrowserWindow minimum width and expands the window to at least that minimum',splitMin[0]===singleMin[0]*2&&win.getMinimumSize()[0]===singleMin[0]*2&&win.getBounds().width>=splitMin[0]);
+ const restoredMin=Size.setSplit(win,false);
+ check('Closing split view restores the single-window minimum width',restoredMin[0]===singleMin[0]&&win.getMinimumSize()[0]===singleMin[0]);
  check('No new renderer errors compared with the original UI',report.errors.length<=report.baselineErrors.length&&report.errors.every(error=>report.baselineErrors.some(old=>JSON.stringify(old)===JSON.stringify(error)))&&await js(`fixtureErrors.length===0`));
  finish();
 }).catch(finish);

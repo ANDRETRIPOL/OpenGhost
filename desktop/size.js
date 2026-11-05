@@ -37,15 +37,43 @@ const zoomOf = win => choice === 'auto' ? fit(displayOf(win)) : choice;
 const titleBar = win => Math.round(TITLE_BAR * (win && !win.isDestroyed() ? win.webContents.getZoomFactor() : 1));
 const state = win => ({ choice, zoom: win.webContents.getZoomFactor(), fit: fit(displayOf(win)), sizes: SIZES });
 
+// In Split View the window's minimum width is twice the single-window minimum width (760 * 2 = 1520 in page points).
+function minimum(zoom = 1, room = BASE, split = false) {
+ const singleWidth = Math.min(Math.round(SMALLEST.width * zoom), Math.round(room.width * 0.9));
+ return {
+  width: split ? singleWidth * 2 : singleWidth,
+  height: Math.min(Math.round(SMALLEST.height * zoom), Math.round(room.height * 0.9)),
+ };
+}
+
 function apply(win) {
  if (!win || win.isDestroyed()) return;
  const zoom = zoomOf(win), contents = win.webContents;
  if (Math.abs(contents.getZoomFactor() - zoom) > 0.001) contents.setZoomFactor(zoom);
- const room = displayOf(win).workAreaSize;
- win.setMinimumSize(Math.min(Math.round(SMALLEST.width * zoom), Math.round(room.width * 0.9)), Math.min(Math.round(SMALLEST.height * zoom), Math.round(room.height * 0.9)));
+ const display = displayOf(win), room = display.workAreaSize;
+ const min = minimum(zoom, room, !!win.__split);
+ win.setMinimumSize(min.width, min.height);
+ if (win.__split && !win.isMaximized() && !win.isFullScreen()) {
+  const bounds = win.getBounds();
+  if (bounds.width < min.width || bounds.height < min.height) {
+   const area = display.workArea;
+   const width = Math.max(bounds.width, min.width);
+   const height = Math.max(bounds.height, min.height);
+   const x = Math.max(area.x, Math.min(bounds.x, area.x + area.width - width));
+   const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - height));
+   win.setBounds({ x, y, width, height });
+  }
+ }
  // The buttons of the Windows title bar grow with the page's own title bar, which is drawn at the app's size.
  if (process.platform === 'win32') try { win.setTitleBarOverlay({ height: titleBar(win) }); } catch {}
  contents.send('size:changed', state(win));
+}
+
+function setSplit(win, split) {
+ if (!win || win.isDestroyed()) return null;
+ win.__split = !!split;
+ apply(win);
+ return win.getMinimumSize();
 }
 
 function pick(win, next) {
@@ -70,6 +98,10 @@ function setup(fromApp) {
   return fromApp(event) && win ? state(win) : null;
  });
  ipcMain.handle('size:set', (event, next) => fromApp(event) ? pick(BrowserWindow.fromWebContents(event.sender), next) : null);
+ ipcMain.on('size:split', (event, split) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  event.returnValue = fromApp(event) && win ? setSplit(win, split) : null;
+ });
 }
 
 let watching = false;
@@ -96,7 +128,14 @@ function attach(win) {
  watch();
  win.__sized = true;
  let display = displayOf(win).id;
- win.webContents.on('did-finish-load', () => apply(win));
+ win.webContents.on('did-finish-load', () => {
+  win.__split = false;
+  apply(win);
+ });
+ win.on('will-resize', (event, newBounds) => {
+  const [minW, minH] = win.getMinimumSize();
+  if (newBounds.width < minW || newBounds.height < minH) event.preventDefault();
+ });
  // A window taken to another screen fits that one.
  win.on('moved', () => {
   const now = displayOf(win).id;
@@ -110,4 +149,4 @@ function attach(win) {
 // one (the quick chat's) draws itself at the same size.
 const zoom = display => choice === 'auto' ? fit(display) : choice;
 
-module.exports = { setup, initial, attach, step, pick, titleBar, fit, zoom };
+module.exports = { SMALLEST, minimum, setSplit, setup, initial, attach, step, pick, titleBar, fit, zoom };

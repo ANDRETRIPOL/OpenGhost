@@ -304,7 +304,11 @@ class SplitView {
  viewOf(conv) { return [...this.views].find(view => view.active === conv) || null; }
  viewOfId(id) { return id ? [...this.views].find(view => view.activeId === id) || null : null; }
  canFit() {
-  return !!SplitSizing.fit(this.app.clientWidth - 2 * this.sidePanels.gap());
+  const canGrow = typeof window.openghost?.size?.setSplit === 'function';
+  const width = canGrow && !this.opened
+   ? Math.max(this.app.clientWidth, window.screen?.availWidth || 0)
+   : this.app.clientWidth;
+  return !!SplitSizing.fit(width - 2 * this.sidePanels.gap());
  }
  syncToggle() {
   if (!this.toggleButton) return;
@@ -344,6 +348,11 @@ class SplitView {
   this.pane ||= new SplitPane(this, this.template);
   this.pane.ensureBrowser();
   if (this.opened) return false;
+  window.openghost?.size?.setSplit?.(true);
+  if (!SplitSizing.fit(this.app.clientWidth - 2 * this.sidePanels.gap())) {
+   window.openghost?.size?.setSplit?.(false);
+   return false;
+  }
   this.opened = true;
   this.root.hidden = false;
   this.root.prepend(this.main);
@@ -466,6 +475,7 @@ class SplitView {
   this.end(); this.pane.chat.newChat();
   this.opened = false; this.app.insertBefore(this.main, this.root);
   this.root.hidden = true; this.app.classList.remove('has-split'); this.main.classList.remove('is-split-focused');
+  window.openghost?.size?.setSplit?.(false);
   this.syncToggle();
   this.currentChat = this.chat; this.sidePanels.layout(); this.changed();
   this.main.querySelector('.composer-input').focus({ preventScroll: true }); Notify.look();

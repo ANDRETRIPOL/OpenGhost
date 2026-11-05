@@ -113,6 +113,7 @@ contextBridge.exposeInMainWorld('openghost', {
  size: {
   get: () => ipcRenderer.invoke('size:get'),
   set: choice => ipcRenderer.invoke('size:set', choice),
+  setSplit: split => ipcRenderer.sendSync('size:split', !!split),
   onChange: callback => ipcRenderer.on('size:changed', (event, state) => callback(state)),
  },
  // On a Mac: whether the system lets the app into every folder without asking, and the system's page where that is set.
