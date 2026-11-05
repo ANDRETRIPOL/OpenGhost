@@ -14649,15 +14649,22 @@ button.attachment-text {
   --glass-backdrop: blur(5px) saturate(1.4) brightness(1.02);
 }
 
-.browser-tools:has(> [hidden]) {
+.browser-tools:not(:has(> :not([hidden]))) {
   display: none;
+}
+
+.browser-tools:has(> :not([hidden]) ~ :not([hidden])) {
+  width: 72px;
+  gap: 2px;
+  padding: 2px 7px;
 }
 
 .browser-tools > :not([disabled]):hover {
   --icon-button-bg: rgba(var(--fg-rgb), 0.1);
 }
 
-.browser-toggle[hidden] {
+.browser-toggle[hidden],
+.split-toggle[hidden] {
   display: none;
 }
 
@@ -17951,8 +17958,12 @@ html[data-theme="light"] .settings {
 }
 
 /* Where there is no browser's button (the quick chat), the routines' one takes its corner. */
-.main:has(> .browser-tools > [hidden]) .routines-pill {
+.main:not(:has(> .browser-tools > :not([hidden]))) .routines-pill {
   right: calc(var(--toggle-inset) + 4px);
+}
+
+.main:has(> .browser-tools > :not([hidden]) ~ :not([hidden])) > .routines-pill {
+  right: calc(var(--toggle-inset) + 4px + 72px + 8px);
 }
 
 .routines-pill[hidden] {
@@ -21781,6 +21792,8 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   background: transparent;
   border-radius: var(--chat-radius);
   --split-left: calc((100% - 14px) / 2);
+  perspective: 1600px;
+  perspective-origin: calc(var(--split-left) + 7px) 50%;
   transition: none;
 }
 .chat-split[hidden] { display: none; }
@@ -21792,6 +21805,8 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   width: var(--split-left);
   border-radius: var(--chat-radius) 26px 26px var(--chat-radius);
   min-width: var(--split-min, 400px);
+  transform-origin: 100% 50%;
+  backface-visibility: hidden;
   transition: none;
   overflow: clip;
 }
@@ -21799,8 +21814,160 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   left: calc(var(--split-left) + 14px);
   width: calc(100% - var(--split-left) - 14px);
   border-radius: 26px var(--chat-radius) var(--chat-radius) 26px;
+  transform-origin: 0% 50%;
 }
 .chat-split > .main.is-split-focused { box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.16), var(--card-lift); }
+
+/* Hinge crease shadow & specular highlight sweep during the iPhone Duo book-unfold motion. */
+.split-crease {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg,
+      rgba(0, 0, 0, 0.36) 0%,
+      rgba(255, 255, 255, 0.24) 6%,
+      rgba(255, 255, 255, 0.08) 18%,
+      transparent 48%);
+  mix-blend-mode: soft-light;
+}
+[data-theme="light"] .split-crease {
+  background:
+    linear-gradient(90deg,
+      rgba(15, 23, 42, 0.18) 0%,
+      rgba(255, 255, 255, 0.72) 7%,
+      rgba(255, 255, 255, 0.22) 20%,
+      transparent 52%);
+  mix-blend-mode: normal;
+}
+.split-crease.is-left {
+  background:
+    linear-gradient(270deg,
+      rgba(0, 0, 0, 0.26) 0%,
+      rgba(255, 255, 255, 0.16) 7%,
+      transparent 38%);
+}
+[data-theme="light"] .split-crease.is-left {
+  background:
+    linear-gradient(270deg,
+      rgba(15, 23, 42, 0.12) 0%,
+      rgba(255, 255, 255, 0.55) 7%,
+      transparent 38%);
+}
+
+/* Split View toggle button in the main chat's top-right .browser-tools capsule and row hover action. */
+.split-toggle {
+  display: grid;
+  place-items: center;
+  width: var(--icon-button-size, 26px);
+  height: var(--icon-button-size, 26px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--icon-button-radius, 50%);
+  background: var(--icon-button-bg, transparent);
+  color: rgba(var(--fg-rgb), var(--icon-opacity, 0.78));
+  cursor: pointer;
+  transition: var(--icon-button-transition, color 0.2s ease, background-color 0.2s ease), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.split-toggle:hover,
+.split-toggle:focus-visible {
+  color: rgba(var(--fg-rgb), var(--icon-hover-opacity, 1));
+}
+.split-toggle:active {
+  transform: scale(0.9);
+}
+.split-toggle .glyph {
+  width: 17px;
+  height: 17px;
+  overflow: visible;
+}
+.glyph-split .split-arrow {
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.split-toggle:hover .glyph-split .split-arrow,
+.chat-action.is-split-action:not(:disabled):hover .glyph-split .split-arrow,
+.row-menu-item.is-split:hover .glyph-split .split-arrow {
+  transform: translateX(4px);
+}
+.chat-action[hidden] {
+  display: none;
+}
+
+/* Frosted-glass drop preview on the right half of the workspace when dragging a chat from the sidebar. */
+.split-drop-zone {
+  position: absolute;
+  z-index: 25;
+  top: calc(var(--chat-gap) + 8px);
+  right: calc(var(--chat-gap) + 8px);
+  bottom: calc(var(--chat-gap) + 8px);
+  width: calc((100% - var(--sidebar-size) - var(--chat-gap) - 14px) / 2 - 8px);
+  min-width: 380px;
+  border-radius: 24px calc(var(--chat-radius) - 4px) calc(var(--chat-radius) - 4px) 24px;
+  background: linear-gradient(135deg, rgba(var(--selection-rgb), 0.12), rgba(var(--fg-rgb), 0.04));
+  box-shadow:
+    inset 0 0 0 1.5px rgba(var(--selection-rgb), 0.35),
+    0 24px 64px rgba(0, 0, 0, calc(0.24 * var(--shadow)));
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: perspective(1400px) rotateY(-12deg) scale(0.96);
+  transform-origin: 0% 50%;
+  transition:
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.24s ease,
+    box-shadow 0.24s ease;
+}
+.app.is-sidebar-collapsed .split-drop-zone {
+  width: calc((100% - var(--chat-gap) * 2 - 14px) / 2 - 8px);
+}
+.split-drop-zone[hidden] {
+  display: none;
+}
+.split-drop-zone.is-armed {
+  pointer-events: auto;
+  opacity: 0.78;
+  transform: perspective(1400px) rotateY(-4deg) scale(0.985);
+}
+.split-drop-zone.is-over {
+  pointer-events: auto;
+  opacity: 1;
+  transform: perspective(1400px) rotateY(0deg) scale(1);
+  background: linear-gradient(135deg, rgba(var(--selection-rgb), 0.2), rgba(var(--fg-rgb), 0.07));
+  box-shadow:
+    inset 0 0 0 2px rgba(var(--selection-rgb), 0.65),
+    0 28px 72px rgba(0, 0, 0, calc(0.32 * var(--shadow)));
+}
+.split-drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 26px;
+  border-radius: 18px;
+  background: rgba(var(--fg-rgb), 0.06);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.1);
+  color: var(--fg-primary);
+  font-size: 13.5px;
+  font-weight: 500;
+  pointer-events: none;
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.split-drop-zone.is-over .split-drop-card {
+  transform: scale(1.05);
+}
+.split-drop-icon .glyph {
+  width: 26px;
+  height: 26px;
+  color: rgb(var(--selection-rgb));
+}
+
 .split-divider {
   position: absolute; z-index: 20;
   top: 0; bottom: 0; left: calc(var(--split-left) - 7px); width: 28px;
@@ -21830,10 +21997,54 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   font-size: 12px; font-weight: 500; text-align: center; color: var(--fg-secondary);
   pointer-events: none;
 }
-.is-split-secondary > .routines-pill { right: 52px; }
-.is-split-secondary > .browser-tools { width: auto; min-width: 44px; gap: 4px; padding: 2px 8px; }
+.is-split-secondary > .routines-pill { right: calc(var(--toggle-inset) + 4px + 72px + 8px); }
 .is-split-secondary .split-close { width: 26px; height: 26px; }
-.chat-row.is-open-beside:not(.is-active) { box-shadow: inset 3px 0 0 rgba(var(--fg-rgb), 0.3); }
+.chat-row.is-open-beside:not(.is-active),
+.chat-row.is-split-active:not(.is-active) { box-shadow: inset 3px 0 0 rgba(var(--fg-rgb), 0.3); }
+
+/* Dual overlay browsers in Split View: each pane's browser opens as a floating window over its own chat card,
+   just like the narrow-window peek browser (below the 48px top bar so the globe toggle stays visible). */
+.browser.is-split-browser:not(.is-peek) {
+  z-index: 0 !important;
+  pointer-events: none;
+  transform: scale(0.97);
+}
+.browser.is-split-browser:not(.is-peek):not(.is-agent) .browser-view {
+  visibility: hidden !important;
+}
+.app.has-split .browser:not(.is-split-browser):not(.is-peek) {
+  z-index: 0 !important;
+  pointer-events: none;
+  transform: scale(0.97);
+}
+.app.has-split.is-browser-peek .browser:not(.is-split-browser) {
+  z-index: 5;
+  top: calc(var(--chat-gap) + 48px);
+  right: calc(var(--chat-gap) + var(--split-right, 400px) + 20px);
+  bottom: calc(var(--chat-gap) + 6px);
+  width: calc(var(--split-left, 400px) - 12px);
+  transform: none;
+  transition: none;
+}
+.app.has-split.is-split-browser-peek .browser.is-split-browser.is-peek {
+  z-index: 5;
+  top: calc(var(--chat-gap) + 48px);
+  right: calc(var(--chat-gap) + 6px);
+  bottom: calc(var(--chat-gap) + 6px);
+  width: calc(var(--split-right, 400px) - 12px);
+  transform: none;
+  transition: none;
+}
+.app.is-split-browser-peek .browser.is-split-browser.is-peek .browser-card {
+  box-shadow: var(--contour), 0 30px 80px rgba(0, 0, 0, calc(0.42 * var(--shadow))), 0 6px 18px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
+}
+.app.is-split-browser-peek .browser.is-split-browser.is-peek .browser-resize {
+  display: none;
+}
+.app.is-split-browser-peek .browser.is-split-browser.is-peek:not(.is-agent) .browser-view.is-active {
+  visibility: visible;
+}
+
 .chat-split .composer { --composer-side-gap: 16px; }
 .chat-split .composer-toolbar { gap: 4px; flex-wrap: wrap; row-gap: 6px; }
 .chat-split .composer-actions, .chat-split .composer-tools { gap: 4px; min-width: 0; }
@@ -21843,7 +22054,7 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .chat-split .composer-mode-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-split .composer-folder { max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: reduce) {
-  .chat-split, .split-divider::after { transition: none; }
+  .chat-split, .split-divider::after, .split-drop-zone { transition: none; }
 }
 .is-split-secondary > .top-tools[hidden] { display: none; }
 .is-split-secondary > .notes-pill { left: 12px; }

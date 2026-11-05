@@ -27,12 +27,15 @@ class SplitPane {
   this.miniButton = $('.mini-toggle');
   this.miniButton.innerHTML = `${Glyphs.ghost}<span class="mini-toggle-dot"></span>`;
   this.miniButton.addEventListener('click', () => { if (this.chat.active?.record) MiniChat.open({ settings: this.settings, source: this.chat, library: owner.library }); });
-  $('.browser-toggle').remove();
+  this.browserToggle = $('.browser-toggle');
   const close = this.close = Object.assign(document.createElement('button'), { type: 'button', className: 'split-close', innerHTML: Glyphs.close });
   close.setAttribute('aria-label', I18n.t('split.close'));
   close.title = I18n.t('split.close');
   $('.browser-tools').append(close);
   close.addEventListener('click', () => owner.close());
+  const crease = this.crease = Object.assign(document.createElement('div'), { className: 'split-crease' });
+  crease.setAttribute('aria-hidden', 'true');
+  main.append(crease);
   const name = this.name = Object.assign(document.createElement('div'), { className: 'split-pane-name' });
   main.append(name);
   owner.root.append(main);
@@ -84,7 +87,7 @@ class SplitPane {
    main.append(panel); return panel;
   };
   this.models = new ModelStage({ button: $('.composer-model'), root: clonePanel('.model-stage'), chat: this.chat, settings, input: this.input });
-  this.effort = new EffortSlider({ button: $('.composer-effort'), panel: clonePanel('.effort-panel'), settings });
+  this.effort = new EffortSlider({ button: $('.composer-effort'), panel: clonePanel('.effort-panel'), settings, chat: this.chat });
   this.notepad = new Notepad({ chat: this.chat, thread: $('.thread'), button: $('.notes-toggle') });
   if (Routines.available) {
    this.routines = new RoutinePanel({ chat: this.chat, settings, button: $('.routines-pill') });
@@ -93,6 +96,7 @@ class SplitPane {
     if (pill) this.routines.open(Routines.find(pill.dataset.routine) ? { show: pill.dataset.routine } : {});
    });
   }
+  this.ensureBrowser();
   this.input.addEventListener('input', () => { this.sync(); clearTimeout(this.timer); this.timer = setTimeout(() => this.keep(), 300); });
   this.input.addEventListener('keydown', event => {
    if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
@@ -101,6 +105,7 @@ class SplitPane {
    } else if (event.key === 'Enter') { event.preventDefault(); this.send(); }
   });
   this.sendButton.addEventListener('composer-send', () => this.send());
+  this.sendButton.addEventListener('composer-stop', () => { this.chat.stop(); this.sync(); });
   this.composer.addEventListener('mousedown', event => {
    if (event.target === this.composer || event.target.classList.contains('composer-toolbar')) { event.preventDefault(); this.input.focus(); }
   });
@@ -112,6 +117,18 @@ class SplitPane {
    }
   });
   window.addEventListener('pagehide', () => this.keep());
+ }
+
+ ensureBrowser() {
+  if (!this.browserToggle) return null;
+  const available = !window.openghost?.quick && (AgentTools.available || !!window.browserPanel);
+  this.browserToggle.hidden = !available;
+  if (available && !this.browser && typeof BrowserPanel === 'function') {
+   this.browser = new BrowserPanel({ app: this.owner.app, main: this.main, toggle: this.browserToggle, split: true });
+   this.chat.browser = this.browser;
+   if (this.owner.sidePanels) this.owner.sidePanels.splitBrowser = this.browser;
+  }
+  return this.browser;
  }
 
  keep() {
@@ -149,12 +166,11 @@ class SplitPane {
     else if (now.id) this.owner.library.draft(now.id).then(place);
    }
   }
+  this.ensureBrowser();
   const empty = !this.text.text().trim() && !this.attachments.count;
-  this.sendButton.toggleAttribute('disabled', empty);
+  this.sendButton.configure({ busy: chat.busy, empty, stopping: !!chat.active?.turn?.controller.signal.aborted });
   const suggesting = chat.busy && !empty;
   this.sendButton.parentElement.classList.toggle('is-suggesting', suggesting);
-  if (suggesting) this.sendButton.setAttribute('caption', I18n.t('composer.suggest'));
-  else this.sendButton.removeAttribute('caption');
   if (!empty && chat.prediction) chat.forget(chat.active, true);
   const predicted = empty ? chat.prediction : '';
   if (predicted !== this.field.dataset.predicted) {
@@ -168,7 +184,7 @@ class SplitPane {
    this.input.setAttribute('aria-placeholder', predicted || I18n.t('composer.placeholder'));
   }
   this.field.classList.toggle('has-value', this.input.value !== '');
-  this.folder.sync(); this.settings.show(chat.model); this.models?.sync(); this.effort?.lock(chat.busy);
+  this.folder.sync(); this.settings.show(chat.model); this.models?.sync(); this.effort?.follow(); this.effort?.lock(chat.busy);
   this.notepad?.sync(); this.routines?.sync(); this.plan.sync(); chat.syncAsk(); chat.syncForks();
   this.name.textContent = now?.record ? this.owner.library.titleOf(now.record) : I18n.t('chat.new');
   this.main.setAttribute('aria-label', this.name.textContent);
@@ -205,6 +221,57 @@ class SplitView {
   this.divider.setAttribute('aria-label', I18n.t('split.resize'));
   this.divider.setAttribute('aria-valuemin', '0'); this.divider.setAttribute('aria-valuemax', '100');
   this.root.append(this.divider); app.append(this.root);
+  const leftCrease = this.leftCrease = Object.assign(document.createElement('div'), { className: 'split-crease is-left' });
+  leftCrease.setAttribute('aria-hidden', 'true');
+  main.append(leftCrease);
+  const tools = main.querySelector('.browser-tools');
+  if (tools) {
+   const btn = this.splitToggle = this.toggleButton = Object.assign(document.createElement('button'), {
+    type: 'button',
+    className: 'split-toggle',
+    innerHTML: Glyphs.split,
+   });
+   btn.setAttribute('aria-label', I18n.t('split.open'));
+   btn.title = `${I18n.t('split.open')} (Ctrl+\\)`;
+   tools.prepend(btn);
+   btn.addEventListener('click', () => this.openBeside());
+  }
+  const drop = this.dropZone = Object.assign(document.createElement('div'), { className: 'split-drop-zone', hidden: true });
+  drop.setAttribute('aria-hidden', 'true');
+  drop.innerHTML = `<div class="split-drop-card"><span class="split-drop-icon">${Glyphs.split}</span><span class="split-drop-label">${I18n.t('split.open')}</span></div>`;
+  app.append(drop);
+  app.addEventListener('dragover', event => {
+   if (!this.dragChatId || !this.canFit()) return;
+   const workspace = this.opened ? this.root : this.main;
+   const rect = workspace.getBoundingClientRect();
+   if (event.clientX >= rect.left + rect.width * 0.35 && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    this.dropZone.classList.add('is-over');
+   } else {
+    this.dropZone.classList.remove('is-over');
+   }
+  });
+  app.addEventListener('dragleave', event => {
+   if (!this.dragChatId) return;
+   if (!event.relatedTarget || !this.app.contains(event.relatedTarget)) this.dropZone.classList.remove('is-over');
+  });
+  app.addEventListener('drop', event => {
+   if (!this.dragChatId) return;
+   const id = this.dragChatId;
+   const over = this.dropZone.classList.contains('is-over');
+   this.endDrag();
+   if (over && id) {
+    event.preventDefault();
+    this.open(id);
+   }
+  });
+  document.addEventListener('keydown', event => {
+   if (event.code !== 'Backslash' || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+   if (document.querySelector('dialog[open]')) return;
+   event.preventDefault();
+   this.toggle();
+  });
   main.addEventListener('pointerdown', () => this.focus(chat), true);
   main.addEventListener('focusin', () => this.focus(chat));
   this.divider.addEventListener('pointerdown', event => this.start(event));
@@ -221,11 +288,14 @@ class SplitView {
    if (this.layoutFrame) return;
    this.layoutFrame = requestAnimationFrame(() => {
     this.layoutFrame = 0;
+    this.syncToggle();
     if (this.opened) { this.sidePanels.layout(); this.layout(); }
    });
   }).observe(this.root);
+  window.addEventListener('resize', () => this.syncToggle());
   sidePanels.splitRoom = () => this.opened ? 2 * MIN + GAP : 0;
   Notify.watch(() => this.opened && this.pane?.chat.activeId ? [`chat:${this.pane.chat.activeId}`] : []);
+  this.syncToggle();
  }
 
  join(view) {
@@ -236,6 +306,66 @@ class SplitView {
  canFit() {
   return !!SplitSizing.fit(this.app.clientWidth - 2 * this.sidePanels.gap());
  }
+ syncToggle() {
+  if (!this.toggleButton) return;
+  this.toggleButton.hidden = this.opened || !this.canFit();
+  this.toggleButton.setAttribute('aria-label', I18n.t('split.open'));
+  this.toggleButton.title = `${I18n.t('split.open')} (Ctrl+\\)`;
+ }
+ beginDrag(id) {
+  if (!id || !this.canFit() || this.viewOfId(id)) return;
+  this.dragChatId = id;
+  this.dropZone.querySelector('.split-drop-label').textContent = I18n.t('split.open');
+  this.dropZone.hidden = false;
+  this.dropZone.classList.remove('is-over');
+  this.app.classList.add('is-split-dragging');
+ }
+ endDrag() {
+  this.dragChatId = '';
+  if (this.dropZone) {
+   this.dropZone.hidden = true;
+   this.dropZone.classList.remove('is-over');
+  }
+  this.app.classList.remove('is-split-dragging');
+ }
+ toggle() {
+  if (this.opened) this.close();
+  else this.openBeside();
+ }
+ openBeside() {
+  if (!this.canFit()) return Promise.resolve();
+  const candidates = [...(this.library.chats || [])]
+   .filter(item => item?.id && item.id !== this.chat.activeId && !this.viewOfId(item.id))
+   .sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  if (candidates.length) return this.open(candidates[0].id);
+  return this.openDraft(this.chat.folder);
+ }
+ ensureOpen() {
+  this.pane ||= new SplitPane(this, this.template);
+  this.pane.ensureBrowser();
+  if (this.opened) return false;
+  this.opened = true;
+  this.root.hidden = false;
+  this.root.prepend(this.main);
+  this.app.classList.add('has-split');
+  this.syncToggle();
+  this.sidePanels.layout();
+  this.layout();
+  return this.opened;
+ }
+ openDraft(folder = null) {
+  if (!this.canFit()) return Promise.resolve();
+  const openedNow = this.ensureOpen();
+  if (!this.opened) return Promise.resolve();
+  this.pane.chat.newChat(folder);
+  if (openedNow) this.animateUnfold();
+  else this.animateSwitch();
+  this.focus(this.pane.chat);
+  this.sync();
+  this.pane.input.focus({ preventScroll: true });
+  Notify.look();
+  return Promise.resolve();
+ }
  focus(view) {
   if (!view || (view !== this.chat && !this.opened)) return;
   const changed = this.currentChat !== view;
@@ -244,21 +374,78 @@ class SplitView {
   this.pane?.main.classList.toggle('is-split-focused', view === this.pane.chat);
   if (changed) this.changed();
  }
+ // iPhone Duo / Foldable inner display book-unfold motion:
+ // Both panes unfold in 3D from the center hinge seam with optical glass blur-to-clear crystallization
+ // and a specular light + shadow sweep across the fold crease.
+ animateUnfold() {
+  if (!motion() || !this.pane) return;
+  const left = this.main, right = this.pane.main;
+  const duration = 520;
+  const springEase = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  for (const el of [left, right, this.leftCrease, this.pane.crease, this.divider]) {
+   el?.getAnimations().forEach(a => a.cancel());
+  }
+  this.root.classList.add('is-unfolding');
+  left.animate([
+   { transform: 'perspective(1600px) rotateY(15deg) scale(0.968)', filter: 'brightness(0.91) saturate(1.08)', offset: 0 },
+   { transform: 'perspective(1600px) rotateY(3.5deg) scale(0.994)', filter: 'brightness(0.98) saturate(1.03)', offset: 0.28 },
+   { transform: 'none', filter: 'brightness(1.02) saturate(1.01)', offset: 0.52 },
+   { transform: 'none', filter: 'none', offset: 1 },
+  ], { duration, easing: springEase });
+  const rightAnim = right.animate([
+   { opacity: 0.16, transform: 'perspective(1600px) rotateY(-54deg) translateX(-18px) scale(0.925)', filter: 'blur(18px) brightness(0.7) saturate(1.4)', offset: 0 },
+   { opacity: 0.88, transform: 'perspective(1600px) rotateY(-14deg) translateX(-4px) scale(0.985)', filter: 'blur(7px) brightness(0.93) saturate(1.18)', offset: 0.28 },
+   { opacity: 1, transform: 'none', filter: 'blur(2px) brightness(1.03) saturate(1.05)', offset: 0.52 },
+   { opacity: 1, transform: 'none', filter: 'blur(0px) brightness(1) saturate(1)', offset: 1 },
+  ], { duration, easing: springEase });
+  rightAnim.finished.catch(() => {}).finally(() => this.root.classList.remove('is-unfolding'));
+  this.leftCrease?.animate([
+   { opacity: 0.95, transform: 'scaleX(1.25)', offset: 0 },
+   { opacity: 0.55, transform: 'scaleX(1)', offset: 0.45 },
+   { opacity: 0, transform: 'scaleX(0.6)', offset: 1 },
+  ], { duration, easing: 'ease-out' });
+  this.pane.crease?.animate([
+   { opacity: 1, transform: 'translateX(-14%) scaleX(1.15)', offset: 0 },
+   { opacity: 0.72, transform: 'translateX(12%) scaleX(1.05)', offset: 0.44 },
+   { opacity: 0, transform: 'translateX(46%) scaleX(0.85)', offset: 1 },
+  ], { duration: duration + 40, easing: springEase });
+  this.divider.animate([
+   { opacity: 0, transform: 'scaleY(0.25)' },
+   { opacity: 1, transform: 'none' },
+  ], { duration: 420, easing: 'cubic-bezier(0.34, 1.45, 0.64, 1)' });
+  const inner = [right.querySelector('.thread-view'), right.querySelector('.composer')].filter(Boolean);
+  inner.forEach((el, i) => {
+   el.getAnimations().forEach(a => a.cancel());
+   el.animate([
+    { opacity: 0.35, transform: 'translateY(10px) scale(0.986)' },
+    { opacity: 1, transform: 'none' },
+   ], { duration: 420, delay: i * 35, easing: springEase });
+  });
+ }
+ animateSwitch() {
+  if (!motion() || !this.pane) return;
+  const right = this.pane.main;
+  right.getAnimations().forEach(a => a.cancel());
+  right.animate([
+   { opacity: 0.68, transform: 'perspective(1600px) rotateY(-12deg) scale(0.985)', filter: 'blur(8px) brightness(0.92)', offset: 0 },
+   { opacity: 1, transform: 'none', filter: 'blur(1.5px) brightness(1.02)', offset: 0.48 },
+   { opacity: 1, transform: 'none', filter: 'blur(0px) brightness(1)', offset: 1 },
+  ], { duration: 300, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+  this.pane.crease?.animate([
+   { opacity: 0.65, transform: 'translateX(-10%)' },
+   { opacity: 0, transform: 'translateX(35%)' },
+  ], { duration: 320, easing: 'ease-out' });
+ }
  async open(id) {
   if (!this.library.chat(id)) return;
   const shown = this.viewOfId(id);
   if (shown) { this.focus(shown); shown.main.querySelector('.composer-input').focus(); return; }
   if (!this.canFit()) return;
-  this.pane ||= new SplitPane(this, this.template);
-  if (!this.opened) {
-   this.bones.veil(); this.pane.bones.veil();
-   this.opened = true; this.root.hidden = false; this.root.prepend(this.main); this.app.classList.add('has-split');
-   this.sidePanels.layout(); this.layout();
-   if (!this.opened) return;
-   if (motion()) this.root.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
-   setTimeout(() => { if (!this.dragging) { this.bones.unveil(); this.pane.bones.unveil(); } }, 260);
-  }
+  const openedNow = this.ensureOpen();
+  if (!this.opened) return;
   const token = this.opening = (this.opening || 0) + 1;
+  if (openedNow) this.animateUnfold();
+  else this.animateSwitch();
   await this.pane.chat.open(id);
   if (!this.opened || this.opening !== token) return;
   this.focus(this.pane.chat); this.sync(); this.pane.input.focus({ preventScroll: true }); Notify.look();
@@ -266,13 +453,20 @@ class SplitView {
  close() {
   if (!this.opened) return;
   this.opening = (this.opening || 0) + 1;
+  this.endDrag();
+  this.root.classList.remove('is-unfolding');
   this.pane.models.close();
   this.pane.notepad.close();
   this.pane.routines?.close();
+  if (this.pane.browser?.seen) {
+   if (this.pane.browser.drivers.size) this.pane.browser.setPeek(false);
+   else this.pane.browser.setOpen(false);
+  }
   for (const popover of this.pane.main.querySelectorAll(':popover-open')) popover.hidePopover();
   this.end(); this.pane.chat.newChat();
   this.opened = false; this.app.insertBefore(this.main, this.root);
   this.root.hidden = true; this.app.classList.remove('has-split'); this.main.classList.remove('is-split-focused');
+  this.syncToggle();
   this.currentChat = this.chat; this.sidePanels.layout(); this.changed();
   this.main.querySelector('.composer-input').focus({ preventScroll: true }); Notify.look();
  }
@@ -281,6 +475,7 @@ class SplitView {
    if (mini && this.viewOf(mini.origin)) mini.source = this.viewOf(mini.origin);
   }
   this.pane?.sync();
+  this.syncToggle();
   if (this.chat.active?.record) this.main.setAttribute('aria-label', this.library.titleOf(this.chat.active.record));
   if (this.opened && this.pane.chat.activeId && !this.library.chat(this.pane.chat.activeId)) this.close();
   for (const row of this.app.querySelectorAll('.chat-row[data-id]')) row.classList.toggle('is-open-beside', this.opened && row.dataset.id === this.pane?.chat.activeId);
@@ -291,6 +486,9 @@ class SplitView {
   const size = SplitSizing.fit(this.root.clientWidth, this.dragging ? this.dragWidth : room * this.ratio);
   if (!size) { this.close(); return; }
   this.root.style.setProperty('--split-left', `${size.left}px`);
+  this.root.style.setProperty('--split-right', `${size.right}px`);
+  this.app.style.setProperty('--split-left', `${size.left}px`);
+  this.app.style.setProperty('--split-right', `${size.right}px`);
   this.divider.setAttribute('aria-valuemin', String(Math.round(MIN / room * 100)));
   this.divider.setAttribute('aria-valuemax', String(Math.round((room - MIN) / room * 100)));
   this.divider.setAttribute('aria-valuenow', String(Math.round(size.left / room * 100)));

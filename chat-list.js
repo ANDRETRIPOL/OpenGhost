@@ -182,6 +182,8 @@ class ChatList {
   this.list.addEventListener('keydown', event => this.onKey(event));
   this.list.addEventListener('pointerover', event => this.hover(event.target.closest('.chat-row, .chats-folder-head, .chats-more')));
   this.list.addEventListener('pointerleave', () => this.hover(null));
+  this.list.addEventListener('dragstart', event => this.onDragStart(event));
+  this.list.addEventListener('dragend', () => this.onDragEnd());
   setInterval(() => this.clock(), CLOCK);
   this.render();
  }
@@ -278,24 +280,33 @@ class ChatList {
   const time = element('span', 'chat-time');
   const actions = element('span', 'chat-actions');
   const rename = action('chat-action is-rename', 'rename', Glyphs.pencil);
+  const split = action('chat-action is-split-action', 'split', Glyphs.split);
   const lock = action('chat-action is-lock', 'lock', Glyphs.padlock), pin = action('chat-action', 'pin', Glyphs.pin), remove = action('chat-action is-delete', 'delete', Glyphs.trash);
-  // The row shows the pin and the dots. Renaming, the password and deleting are lines of the dots' menu; their buttons
+  // The row shows the split button, the pin and the dots. Renaming, the password and deleting are lines of the dots' menu; their buttons
   // are kept off the page and only hold what the menu says of them (the padlock's words, what is not to be had now).
   const more = action('chat-action is-more', 'more', DOTS);
   label(rename, I18n.t('chat.rename'));
+  label(split, I18n.t('split.open'));
   label(remove, I18n.t('chat.delete'));
   label(more, I18n.t('chat.more'));
   more.setAttribute('aria-haspopup', 'menu');
-  actions.append(pin, more);
+  split.hidden = true;
+  actions.append(split, pin, more);
   line.append(time, said);
   body.append(title, line);
   meta.append(photo, actions);
   row.append(mark, body, meta);
-  return { row, mark, title, time, said, photo, shown: null, rename, lock, pin, remove, ghost: null, pinned: null, guarded: null, locked: null, veil: 0, confirm: false, timer: 0, editing: null };
+  return { row, mark, title, time, said, photo, shown: null, rename, split, lock, pin, remove, ghost: null, pinned: null, guarded: null, locked: null, veil: 0, confirm: false, timer: 0, editing: null };
  }
 
  paint(item, chat) {
   const active = chat.id === this.chat.activeId, routine = routineState(chat);
+  const splitShown = !!this.chat.workspace?.viewOfId(chat.id);
+  const canSplit = !!this.onSplit && !active && !splitShown;
+  item.split.hidden = !canSplit;
+  item.split.disabled = !!(this.chat.workspace && !this.chat.workspace.canFit());
+  item.row.draggable = !!chat.id && canSplit && !item.split.disabled;
+  item.row.classList.toggle('is-split-active', splitShown && !active);
   this.guard(item, chat);
   item.time.textContent = this.timeOf(chat);
   this.preview(item, chat);
@@ -712,6 +723,7 @@ class ChatList {
    else if (button.dataset.action === 'new-chat') this.newChat(group);
    else if (button.dataset.action === 'delete-folder') this.askDeleteFolder(group);
    else if (button.dataset.action === 'rename') this.rename(id);
+   else if (button.dataset.action === 'split') this.onSplit?.(id);
    else if (button.dataset.action === 'pin') this.togglePin(id);
    else if (button.dataset.action === 'delete') this.askDelete(id);
    else if (button.dataset.action === 'lock') this.onLock?.(id, button.closest('.chat-row'));
@@ -730,6 +742,24 @@ class ChatList {
   }
   const row = event.target.closest('.chat-row');
   if (row) this.chat.open(row.dataset.id);
+ }
+
+ onDragStart(event) {
+  const row = event.target.closest('.chat-row');
+  const id = row?.dataset.id;
+  if (!id || !this.onSplit || this.chat.activeId === id || this.chat.workspace?.viewOfId(id) || (this.chat.workspace && !this.chat.workspace.canFit())) {
+   event.preventDefault();
+   return;
+  }
+  event.dataTransfer?.setData('text/plain', id);
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  row.classList.add('is-dragging');
+  this.chat.workspace?.beginDrag?.(id);
+ }
+
+ onDragEnd() {
+  for (const item of this.rows.values()) item.row.classList.remove('is-dragging');
+  this.chat.workspace?.endDrag?.();
  }
 
  onKey(event) {

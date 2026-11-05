@@ -81,7 +81,7 @@ window.Glyphs = {
  terminal: svg('<rect x="36" y="40" width="48" height="40" rx="8"/><path d="m47 53 7 7-7 7M61 67h11"/>'),
  // A fork of a chat: a line that branches off another, a ring at each end.
  fork: svg('<circle cx="46" cy="39" r="5"/><circle cx="46" cy="81" r="5"/><circle cx="74" cy="46" r="5"/><path d="M46 44v32"/><path d="M74 51c0 13-28 9-28 22"/>', 'glyph-fork'),
- split: svg('<rect x="37" y="38" width="46" height="44" rx="8"/><path d="M60 38v44M68 60h8m-4-4 4 4-4 4"/>'),
+ split: svg('<rect x="37" y="38" width="46" height="44" rx="8"/><path d="M60 38v44"/><path class="split-arrow" d="M68 60h8m-4-4 4 4-4 4"/>', 'glyph-split'),
  close: thin('<path d="m7 7 10 10M17 7 7 17"/>'),
  copy: svg('<rect x="49" y="47" width="32" height="36" rx="6"/><path d="M71 47v-5a5 5 0 0 0-5-5H44a5 5 0 0 0-5 5v26a5 5 0 0 0 5 5h5"/>'),
  file: svg('<path d="M49 36h14l13 13v31a4 4 0 0 1-4 4H49a4 4 0 0 1-4-4V40a4 4 0 0 1 4-4z"/><path d="M62 36v14h14"/>'),

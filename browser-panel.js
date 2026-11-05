@@ -3,7 +3,11 @@
 
 const PARTITION = 'persist:browser';
 const STORE = 'openghost.browser';
+const SPLIT_STORE = 'openghost.browser.split';
 const ACCOUNTS = 'openghost.browser.accounts';
+const PANELS = new Set();
+const KEY_LINE = [];
+let keyHolding = null;
 const TABS_MAX = 12;
 // How long a new tab may take to start its page; longer than the agent waits for any page to load.
 const READY_WAIT = 45000;
@@ -65,10 +69,13 @@ const blank = url => !url || url === 'about:blank';
 const shortDate = time => new Date(time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
 class BrowserPanel {
- constructor({ app, main, toggle }) {
+ constructor({ app, main, toggle, split = false }) {
   this.app = app;
   this.main = main;
   this.toggle = toggle;
+  this.split = !!split;
+  this.storeKey = this.split ? SPLIT_STORE : STORE;
+  PANELS.add(this);
   this.tabs = [];
   // How wide each site needs to be, in its own pixels, for a page of it to be seen whole (fitPage).
   this.widths = new Map();
@@ -76,7 +83,7 @@ class BrowserPanel {
   this.open = false;
   // Whether the window has room for the panel beside the chat (side-panels.js); without it an open panel is out of sight
   // until its button brings it over the chat (`peek`). `onLayout`: the panel opened, closed or took another width.
-  this.docked = true;
+  this.docked = !this.split;
   this.peek = false;
   this.onLayout = null;
   // The chat's least room beside the panel (side-panels.js), WIDTH.chat when nothing tells it.
@@ -101,14 +108,13 @@ class BrowserPanel {
   this.cut = new Set();
   this.cancelled = new Set();
   this.running = new Map();
-  this.line = [];
-  this.holding = null;
+  this.line = KEY_LINE;
   this.typed = -Infinity;
   this.mine = null;
   this.mineAt = -Infinity;
   this.cursorAt = null;
   this.accounts = read(ACCOUNTS) || [];
-  const saved = read(STORE) || {};
+  const saved = read(this.storeKey) || {};
   this.width = saved.width || 0;
   this.build();
   for (const item of (saved.tabs || []).slice(0, TABS_MAX)) this.addTab(item.url || '', { title: item.title || '' });
@@ -117,10 +123,10 @@ class BrowserPanel {
   bridge?.onEvent(data => this.onEvent(data));
   toggle.addEventListener('browser-toggle', () => this.press());
   window.addEventListener('resize', () => this.fit());
-  if (saved.open) this.setOpen(true);
+  if (saved.open && !this.split) this.setOpen(true);
   const yieldKeys = event => {
    const target = event.target;
-   if (target instanceof Element && this.root.contains(target)) return;
+   if (target instanceof Element && [...PANELS].some(panel => panel.root.contains(target))) return;
    for (const tab of this.tabs) tab.view?.blur();
   };
   document.addEventListener('pointerdown', yieldKeys, true);
@@ -136,8 +142,11 @@ class BrowserPanel {
   this.render();
  }
 
+ get holding() { return keyHolding; }
+ set holding(value) { keyHolding = value; }
+
  build() {
-  const root = this.root = element('aside', 'browser');
+  const root = this.root = element('aside', this.split ? 'browser is-split-browser' : 'browser');
   root.setAttribute('aria-label', I18n.t('browser.label'));
   root.inert = true;
   root.innerHTML = `
@@ -270,6 +279,7 @@ class BrowserPanel {
  }
 
  fit(wanted = this.width) {
+  if (this.split) return;
   const gap = parseFloat(getComputedStyle(this.app).getPropertyValue('--chat-gap')) || 8;
   const side = this.app.classList.contains('is-sidebar-collapsed') ? 0 : document.querySelector('.sidebar')?.offsetWidth || 0;
   const room = innerWidth - side - gap * 3;
@@ -317,6 +327,7 @@ class BrowserPanel {
  }
 
  setDocked(docked) {
+  if (this.split) docked = false;
   if (this.docked === docked) return;
   this.docked = docked;
   this.peek = false;
@@ -334,10 +345,12 @@ class BrowserPanel {
  // What the user sees: the classes the layout reads, whether the panel can be reached, the globe. Over the chat it
  // comes in from the right, and goes back there before it is out of sight.
  show() {
-  const seen = this.seen, over = seen && !this.docked, root = this.root, was = this.app.classList.contains('is-browser-peek');
+  const peekClass = this.split ? 'is-split-browser-peek' : 'is-browser-peek';
+  const seen = this.seen, over = seen && !this.docked, root = this.root, was = this.app.classList.contains(peekClass);
   const apply = () => {
-   this.app.classList.toggle('is-browser-open', this.open && this.docked);
-   this.app.classList.toggle('is-browser-peek', this.seen && !this.docked);
+   if (!this.split) this.app.classList.toggle('is-browser-open', this.open && this.docked);
+   this.app.classList.toggle(peekClass, this.seen && !this.docked);
+   root.classList.toggle('is-peek', this.seen && !this.docked);
   };
   root.inert = !seen;
   this.toggle.toggleAttribute('open', seen);
@@ -540,7 +553,7 @@ class BrowserPanel {
  }
 
  save() {
-  write(STORE, {
+  write(this.storeKey, {
    open: this.open,
    width: this.width,
    tabs: this.tabs.filter(tab => !blank(tab.url)).map(tab => ({ url: tab.url, title: tab.title })),
@@ -549,7 +562,8 @@ class BrowserPanel {
  }
 
  report() {
-  bridge?.shown({ open: this.seen, id: this.active?.id || 0 });
+  const ids = [...PANELS].filter(panel => panel.seen && panel.active?.id).map(panel => panel.active.id);
+  bridge?.shown({ open: [...PANELS].some(panel => panel.seen), id: (this.seen && this.active?.id) || ids[0] || 0, ids });
  }
 
  onEvent(data) {
@@ -986,5 +1000,8 @@ class BrowserPanel {
  }
 }
 
+BrowserPanel.cancel = id => {
+ for (const panel of PANELS) panel.cancel(id);
+};
 window.BrowserPanel = BrowserPanel;
 })();

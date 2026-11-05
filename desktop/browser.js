@@ -544,7 +544,7 @@ async function pointer(found, x, y) {
  const { guest, host } = found;
  if (host.isDestroyed()) return;
  host.send('browser:event', { type: 'pointer', id: guest.id, x, y });
- if (shown.open && shown.id === guest.id) await sleep(WAIT.pointer);
+ if (shown.open && (shown.id === guest.id || shown.ids?.includes(guest.id))) await sleep(WAIT.pointer);
 }
 
 async function mouse(guest, x, y, count = 1) {
@@ -923,7 +923,7 @@ function run(name, args, host, signal, files = null) {
 }
 
 function setShown(value) {
- shown = { open: !!value?.open, id: Number(value?.id) || 0 };
+ shown = { open: !!value?.open, id: Number(value?.id) || 0, ids: Array.isArray(value?.ids) ? value.ids.map(Number).filter(Boolean) : [] };
 }
 
 module.exports = { PARTITION, setup, guard, adopt, run, setShown };

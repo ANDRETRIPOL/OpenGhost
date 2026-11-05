@@ -57,12 +57,20 @@ class SidePanels {
   // A press beside a panel that is over the chat puts it away; its own button does that itself.
   document.addEventListener('pointerdown', event => {
    const path = event.composedPath();
+   const splitBrowser = this.splitBrowser;
+   const hasSplit = this.app.classList.contains('has-split');
    if (this.peek && !path.includes(sidebar) && !path.includes(toggle)) this.setPeek(false);
-   if (browser?.peek && !path.includes(browser.root) && !path.includes(browser.toggle)) browser.setPeek(false);
+   if (browser?.peek && !path.includes(browser.root) && !path.includes(browser.toggle)) {
+    if (!hasSplit || path.includes(this.main) || path.includes(sidebar)) browser.setPeek(false);
+   }
+   if (splitBrowser?.peek && !path.includes(splitBrowser.root) && !path.includes(splitBrowser.toggle)) {
+    if (!hasSplit || path.includes(splitBrowser.main) || path.includes(sidebar)) splitBrowser.setPeek(false);
+   }
   }, true);
   document.addEventListener('keydown', event => {
    if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('dialog[open]')) return;
    if (this.peek) this.setPeek(false);
+   else if (this.splitBrowser?.peek && (this.splitBrowser.root.contains(document.activeElement) || this.splitBrowser.main?.contains(document.activeElement) || !browser?.peek)) this.splitBrowser.setPeek(false);
    else if (browser?.peek) browser.setPeek(false);
   });
   this.layout();
@@ -126,14 +134,15 @@ class SidePanels {
  // browser at the width the browser would have.
  layout() {
   const width = innerWidth, gap = this.gap(), side = this.side(), browser = this.browser, least = this.least();
+  const splitOpen = (this.splitRoom?.() || 0) > 0;
   this.app.style.setProperty('--sidebar-size', `${side}px`);
-  let dockBrowser = true, room = width - side;
+  let dockBrowser = !splitOpen, room = width - side;
   if (browser) {
-   dockBrowser = width - 3 * gap - browser.least >= least;
+   dockBrowser = !splitOpen && width - 3 * gap - browser.least >= least;
    browser.setDocked(dockBrowser);
    // An open browser keeps its room even while out of sight: the sidebar does not come back in its place as the
-   // window narrows, only once the browser is closed.
-   if (browser.open) room -= 2 * gap + browser.natural(width - side - 3 * gap);
+   // window narrows, only once the browser is closed. In split view both browsers open over their chats instead.
+   if (browser.open && !splitOpen) room -= 2 * gap + browser.natural(width - side - 3 * gap);
    else room -= gap;
   } else room -= gap;
   this.docked = room >= least;

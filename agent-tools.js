@@ -259,7 +259,8 @@ const RISKY_CLICK = /\b(buy|purchase|order|checkout|check out|pay|payment|subscr
 const MAIN = {};
 const seen = new Map();
 const browserPages = new Map();
-const refsOf = apart => seen.get(apart || MAIN) || {};
+const keyOf = (apart, panel) => apart || (panel && panel !== window.browserPanel ? panel : MAIN);
+const refsOf = (apart, panel) => seen.get(keyOf(apart, panel)) || {};
 
 const READ_GIT = new Set(['status', 'log', 'diff', 'show', 'rev-parse', 'ls-files', 'blame', 'shortlog', 'describe', 'grep', 'help', 'version']);
 const LIST_GIT = { branch: /^(-a|-r|-v|-vv|--list|--all|--show-current|--no-color)$/, remote: /^(-v|--verbose)$/, tag: /^(-l|--list)$/ };
@@ -750,13 +751,13 @@ function host(url) {
  try { return new URL(/^[a-z]+:\/\//i.test(url) ? url : `https://${url}`).host.replace(/^www\./, ''); } catch { return String(url); }
 }
 
-function browserApproval(name, args, ask, apart, cwd) {
+function browserApproval(name, args, ask, apart, cwd, panel = null) {
  if (name === 'browser_upload') return true; // Full access returned false before this policy; ASK/AUTO approve external transfer.
  if (name === 'browser_screenshot' && args.save_to !== undefined) return ask || !inside(cwd, args.save_to);
  if (BROWSER_FREE.has(name)) return false;
  if (name === 'browser_tabs') return ask && args.action === 'new' && !!args.url;
  if (ask) return true;
- const target = refsOf(apart)[args.ref] || '';
+ const target = refsOf(apart, panel)[args.ref] || '';
  if (name === 'browser_click') return /^(button|link|clickable|menuitem|option)\b/.test(target) && RISKY_CLICK.test(target);
  return false;
 }
@@ -773,10 +774,10 @@ function attachedFile(attached, cwd, path) {
 // The pictures a show_pictures call asks for, as objects whatever came.
 const pictureList = args => (Array.isArray(args?.pictures) ? args.pictures : []).filter(item => item && typeof item === 'object');
 
-function needsApproval(name, args, { mode, cwd, attached = [], apart = null }) {
+function needsApproval(name, args, { mode, cwd, attached = [], apart = null, panel = null }) {
  if (mode === 'full') return false;
  const ask = mode !== 'auto';
- if (name.startsWith('browser_')) return browserApproval(name, args, ask, apart, cwd);
+ if (name.startsWith('browser_')) return browserApproval(name, args, ask, apart, cwd, panel);
  const videos = Array.isArray(attached) ? attached : attached.videos || [], pdfs = Array.isArray(attached) ? [] : attached.pdfs || [];
  switch (name) {
   case 'read_file':
@@ -802,7 +803,7 @@ function needsApproval(name, args, { mode, cwd, attached = [], apart = null }) {
 // An ASK exception is a tool kind, never a change of mode. Shell and git match the exact request and working folder;
 // file writes stay in the project (or at the one outside file). Sensitive browser actions still ask every time.
 const ALWAYS_READ = new Set(['read_file', 'list_files', 'pdf_pages', 'web_search', 'fetch_url', 'find_media', 'show_pictures']);
-function approvalRule(name, args, { cwd = '', apart = null } = {}) {
+function approvalRule(name, args, { cwd = '', apart = null, panel = null } = {}) {
  const rule = (scope = '', hint = 'kind') => ({ key: JSON.stringify([name, scope]), hint: I18n.t(`approve.always.${hint}`) });
  const pathScope = shown => {
   const full = resolve(cwd, shown);
@@ -840,12 +841,12 @@ function approvalRule(name, args, { cwd = '', apart = null } = {}) {
  if (name === 'browser_navigate') return web(args.url) ? rule('web') : null;
  if (name === 'browser_tabs') return args.action === 'new' && web(args.url) ? rule('new-web') : null;
  if (name === 'browser_click') {
-  const target = refsOf(apart)[args.ref] || '';
+  const target = refsOf(apart, panel)[args.ref] || '';
   return /^(link|button|clickable|menuitem|option)\b/.test(target) && !RISKY_CLICK.test(target) ? rule('ordinary', 'browser') : null;
  }
  if (name === 'browser_type') return args.submit ? null : rule('without-submit', 'browser');
  if (name === 'browser_press') return /^(escape|esc|tab|arrow(up|down|left|right)|page(up|down)|home|end)$/i.test(String(args.key || '')) ? rule(String(args.key).toLowerCase(), 'browser') : null;
- if (name === 'browser_select') return RISKY_CLICK.test(`${refsOf(apart)[args.ref] || ''} ${args.option || ''}`) ? null : rule('', 'browser');
+ if (name === 'browser_select') return RISKY_CLICK.test(`${refsOf(apart, panel)[args.ref] || ''} ${args.option || ''}`) ? null : rule('', 'browser');
  return null;
 }
 
@@ -858,8 +859,8 @@ function relative(cwd, path) {
 // What the card asking for approval shows: a headline in plain words (the agent's own sentence for commands and
 // file changes), what the step does (`effect`, worked out by the app), the places it touches, and the technical
 // details for whoever wants them.
-function describe(name, args, cwd, apart = null) {
- const refs = refsOf(apart);
+function describe(name, args, cwd, apart = null, panel = null) {
+ const refs = refsOf(apart, panel);
  const purpose = typeof args.description === 'string' ? args.description.trim() : '';
  const file = { kind: 'file', label: String(args.path || '').split(/[\\/]/).filter(Boolean).pop() || String(args.path || ''), title: relative(cwd, args.path || '.') };
  const site = url => ({ kind: 'site', label: host(url), title: url });
@@ -889,7 +890,7 @@ function describe(name, args, cwd, apart = null) {
    return { kind: online ? 'web' : 'file', title: I18n.t('approve.showPictures'), effect: online ? 'online' : 'read', places, quote: items.map(item => `“${String(item.caption || '')}”`).join(', ') };
   }
   case 'browser_upload': {
-   const page = browserPages.get(apart || MAIN)?.page || '';
+   const page = browserPages.get(keyOf(apart, panel))?.page || '';
    const places = (Array.isArray(args.paths) ? args.paths : []).map(given => ({ kind: 'file', label: String(given).split(/[\\/]/).pop(), title: relative(cwd, given) }));
    if (page) places.push(site(page));
    return { kind: 'web', title: purpose || I18n.t('approve.upload'), effect: 'online', places, quote: refs[args.ref] || '' };
@@ -1164,18 +1165,19 @@ function frames(result) {
  return { text: lines.join('\n'), images: result.frames.map(frame => ({ label: `Frame at ${seconds(frame.time)}`, url: frame.url })) };
 }
 
-async function browser(name, args, id, cwd, apart) {
- const panel = window.browserPanel;
- if (!panel) return 'Error: the built-in browser is only available in the desktop app';
- const context = browserPages.get(apart || MAIN);
+async function browser(name, args, id, cwd, apart, panel = null) {
+ const targetPanel = panel || window.browserPanel;
+ if (!targetPanel) return 'Error: the built-in browser is only available in the desktop app';
+ const key = keyOf(apart, targetPanel);
+ const context = browserPages.get(key);
  // These fields come from the app's snapshot, never from model- or page-supplied upload arguments.
  const request = name === 'browser_upload' ? { ...args, _page: context?.page || '', _document: context?.document || '' } : args;
- const result = await panel.run(name, request, { id, cwd, apart });
+ const result = await targetPanel.run(name, request, { id, cwd, apart });
  if (!result || result.error) return `Error: ${result?.error || 'the browser did not answer'}`;
- if (result.refs) { seen.set(apart || MAIN, result.refs);browserPages.set(apart || MAIN, { page: result.page || '', document: result.document || '' }); }
+ if (result.refs) { seen.set(key, result.refs); browserPages.set(key, { page: result.page || '', document: result.document || '' }); }
  if (result.image) return { text: result.text, images: [{ label: 'Screenshot of the built-in browser', url: result.image }] };
  if (result.html !== undefined) return page({ url: result.url, status: 200, type: 'text/html', text: result.html }, args.start);
- const tabs = name === 'browser_tabs' ? '' : panel.tabsLine(apart);
+ const tabs = name === 'browser_tabs' ? '' : targetPanel.tabsLine(apart);
  return tabs ? `${tabs}\n${result.text}` : result.text;
 }
 
@@ -1214,9 +1216,9 @@ window.AgentTools = {
  },
  ports: () => bridge?.ports ? bridge.ports().catch(() => []) : Promise.resolve([]),
  // `apart`: the agent works in a browser tab of its own (a mini chat's).
- async run(name, args, { id, cwd, apart = null }) {
+ async run(name, args, { id, cwd, apart = null, panel = null }) {
   if (!bridge) return 'Error: tools are only available in the desktop app';
-  if (name.startsWith('browser_')) return browser(name, args, id, cwd, apart);
+  if (name.startsWith('browser_')) return browser(name, args, id, cwd, apart, panel);
   if (name === 'web_search') return search(args.query, id, cwd);
   if (name === 'find_media') return media(args, id, cwd);
   const result = await bridge.run(id, name, args, cwd);
@@ -1225,7 +1227,8 @@ window.AgentTools = {
  cancel(id) {
   bridge?.cancel(id);
   // A browser step still waiting for its turn at the keyboard does not start.
-  window.browserPanel?.cancel(id);
+  if (window.BrowserPanel?.cancel) window.BrowserPanel.cancel(id);
+  else window.browserPanel?.cancel(id);
  },
  // One way to write a file's place, so that two agents naming the same file are seen to.
  place(cwd, path) {

@@ -1193,6 +1193,10 @@ class Chat {
   return this.workspace ? this.workspace.viewOf(conv) : this.active === conv ? this : null;
  }
 
+ browserOf(conv = this.active) {
+  return conv?.turn?.browser || this.viewOf(conv)?.browser || this.browser || window.browserPanel;
+ }
+
  // Holds the end of the chat in view. A card taller than the room over the composer (postStats) holds its own top in view
  // instead, clear of the buttons over the chat.
  pin() {
@@ -1600,7 +1604,7 @@ class Chat {
   const out = [], state = `${TOOL_NOTES.state}\n${AgentPrompt.state({ mode: this.settings.mode })}`;
   if (state !== told(TOOL_NOTES.state)) out.push({ role: 'user', content: state });
   // A browser that holds nothing gets no note, unless an earlier note says it held something.
-  const held = window.browserPanel?.context(this.seat(conv)) || '', before = told(TOOL_NOTES.browser);
+  const held = this.browserOf(conv)?.context(this.seat(conv)) || '', before = told(TOOL_NOTES.browser);
   const browser = held || before ? `${TOOL_NOTES.browser}\n${held || TOOL_NOTES.browserEmpty}` : '';
   if (browser && browser !== before) out.push({ role: 'user', content: browser });
   // The user's notepad, the same way: an empty one gets no note, unless an earlier note says it held something.
@@ -1646,7 +1650,7 @@ class Chat {
  // The agent that works in a tab of the browser of its own, apart from the one on screen: a chat's agent works in the tab
  // on screen, unless the agent of another chat is at work there (BrowserPanel.seatOf).
  seat(conv) {
-  return window.browserPanel?.seatOf(conv) || null;
+  return this.browserOf(conv)?.seatOf(conv) || null;
  }
 
  // What this conversation's agent is doing, in the user's own words: the latest thing they asked of it.
@@ -1836,15 +1840,16 @@ class Chat {
   const refused = shared && this.sharedRefusal(conv, cwd, shared);
   if (refused) return refused;
   let apart = this.seat(conv);
-  let asks = AgentTools.needsApproval(name, args, { mode: this.settings.mode, cwd, attached: this.attachedFiles(conv), apart });
+  const browserPanel = this.browserOf(conv);
+  let asks = AgentTools.needsApproval(name, args, { mode: this.settings.mode, cwd, attached: this.attachedFiles(conv), apart, panel: browserPanel });
   if (asks && this.settings.mode === 'ask') {
-   const rule = AgentTools.approvalRule?.(name, args, { cwd, apart });
+   const rule = AgentTools.approvalRule?.(name, args, { cwd, apart, panel: browserPanel });
    // Missing, locked or unreadable storage never grants access. Read on every step so a reset applies at once.
    if (rule && this.library.permissions) asks = !(await this.library.permissions(conv.id).catch(() => [])).includes(rule.key);
   }
   if (asks) {
    if (turn.queue.length) return TOOL_NOTES.message;
-   const answer = await this.approve(conv, turn, view, { name, args, cwd, apart });
+   const answer = await this.approve(conv, turn, view, { name, args, cwd, apart, panel: browserPanel });
    if (answer !== 'allow') return answer === 'deny' ? TOOL_NOTES.declined : answer;
   }
   if (turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
@@ -1853,7 +1858,7 @@ class Chat {
   this.showGhost(turn.next || view);
   // What the step does, in the line beside the ghost; the next step's words take its place (agent-line.js).
   AgentLine.show((turn.next || view).status, AgentLine.deed(name, args, cwd, apart));
-  const panel = name.startsWith('browser_') ? window.browserPanel : null;
+  const panel = name.startsWith('browser_') ? browserPanel : null;
   // While the user has the browser the agent waits for it: the note to answer with if the wait ended some other way
   // than by Hand back, '' once the browser is the agent's again.
   const yielded = async () => {
@@ -1869,6 +1874,7 @@ class Chat {
   let handed = '';
   if (panel) {
    // Where it works is settled at its first step in the browser: another chat's agent may have begun there meanwhile.
+   turn.browser = panel;
    apart = this.seat(conv);
    panel.drive(conv, true, !!apart);
    if (panel.userHolds(apart)) {
@@ -1884,7 +1890,7 @@ class Chat {
   try {
    if (shared) return await this.runShared(conv, turn, view, { name, args, id, cwd, apart, shared, stopped });
    if (!handed) {
-    const done = await Promise.race([AgentTools.run(name, args, { id, cwd, apart }), stopped]);
+    const done = await Promise.race([AgentTools.run(name, args, { id, cwd, apart, panel }), stopped]);
     // A change made to a file is shown a moment under the ghost's line, then folds away (agent-line.js).
     if (name === 'edit_file' && typeof done === 'string' && done.startsWith('Edited ')) this.glanceEdit(turn.next || view, args);
     // Take control in the middle of the step: the step was cut, and the agent waits for the browser as above.
@@ -1893,7 +1899,7 @@ class Chat {
     if (note) return note;
     handed = TOOL_NOTES.cutShort;
    }
-   const now = await Promise.race([AgentTools.run('browser_snapshot', {}, { id, cwd, apart }), stopped]);
+   const now = await Promise.race([AgentTools.run('browser_snapshot', {}, { id, cwd, apart, panel }), stopped]);
    return now === TOOL_NOTES.cancelled ? now : `${handed}\n\n${now}`;
   } catch (error) {
    return `Error: ${error.message}`;
@@ -1945,7 +1951,7 @@ class Chat {
  // A picture from the built-in browser, for show_pictures: of an element, of a part of the screen or of all of it.
  // Only looking: nothing on the page is touched, and the user may hold the browser meanwhile.
  async browserPicture(conv, turn, item, { cwd, apart }) {
-  const panel = window.browserPanel;
+  const panel = this.browserOf(conv);
   if (!panel || !panel.current(apart)) return { error: PICTURES.noBrowser };
   const args = { chat: conv.id, sealed: this.library.isProtected(conv.id) };
   for (const key of ['ref', 'x', 'y', 'width', 'height']) if (item[key] !== undefined && item[key] !== null && item[key] !== '') args[key] = item[key];
@@ -2002,8 +2008,8 @@ class Chat {
  async approve(conv, turn, view, request) {
   this.dismissGhost(view);
   if (turn.next) this.dismissGhost(turn.next);
-  const about = AgentTools.describe(request.name, request.args, request.cwd, request.apart);
-  const rule = this.settings.mode === 'ask' ? AgentTools.approvalRule?.(request.name, request.args, { cwd: request.cwd, apart: request.apart }) : null;
+  const about = AgentTools.describe(request.name, request.args, request.cwd, request.apart, request.panel);
+  const rule = this.settings.mode === 'ask' ? AgentTools.approvalRule?.(request.name, request.args, { cwd: request.cwd, apart: request.apart, panel: request.panel }) : null;
   const always = rule && this.library.allowPermission ? { hint: rule.hint, save: async () => {
    const saved = await this.library.allowPermission(conv.id, rule.key, turn.controller.signal);
    if (!saved) throw new Error('The permission could not be saved');
@@ -2072,7 +2078,7 @@ class Chat {
    this.library.update(conv.id, { model: turn.switch });
    this.settings.setModel(turn.switch);
   }
-  window.browserPanel?.drive(conv, false);
+  (turn.browser || this.browserOf(conv))?.drive(conv, false);
   if (!entry.steps.length) drop(conv.messages, entry);
   this.postPills(conv, turn, view.el);
   if (turn.next) collapse(turn.next.el);
