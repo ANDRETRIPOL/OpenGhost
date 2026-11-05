@@ -38,7 +38,7 @@ new ThreadBones({ app, main, thread });
 ThreadWindow.watch(thread);
 const composerScrollbar = new Scrollbar(composerInput, document.querySelector('.composer-scrollbar'));
 const threadScrollbar = new Scrollbar(thread, document.querySelector('.thread-scrollbar'));
-new Scrollbar(document.querySelector('.chats-scroll'), document.querySelector('.chats-scrollbar'));
+const chatsScrollbar = new Scrollbar(document.querySelector('.chats-scroll'), document.querySelector('.chats-scrollbar'), { autoHide: true });
 const composerText = new ComposerText(composerInput, document.querySelector('.composer-mirror'));
 LinkChip.watch(document.querySelector('.composer-mirror'));
 LinkChip.watch(thread);

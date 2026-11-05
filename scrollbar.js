@@ -9,6 +9,7 @@ const SQUISH_DURATION = 280;
 const GESTURE_GAP = 200;
 const ARRIVAL_WINDOW = 400;
 const SIZE_SPRING = [260, 32];
+const AUTO_HIDE_DELAY = 1000;
 
 const clampSquish = value => Math.min(MAX_SQUISH, Math.max(0, value));
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -18,9 +19,11 @@ const squishAt = (edge, now) => {
 };
 
 class Scrollbar {
- constructor(viewport,track){
+ constructor(viewport,track,{autoHide=false}={}){
   this.viewport=viewport;this.track=track;this.thumb=track.querySelector('.scrollbar-thumb');
   this.target=null;this.size=[0,0];this.visible=false;this.raf=0;this.last=0;this.drag=null;
+  this.autoHide=autoHide===true;this.hideTimer=0;
+  track.classList.toggle('is-auto-hide',this.autoHide);
   this.scrollTop=viewport.scrollTop;
   this.edges={top:{wheel:-Infinity,force:0,start:-Infinity,amp:0},bottom:{wheel:-Infinity,force:0,start:-Infinity,amp:0}};
   this.tick=this.tick.bind(this);
@@ -35,6 +38,10 @@ class Scrollbar {
   track.addEventListener('pointermove',e=>this.onPointerMove(e));
   track.addEventListener('pointerup',e=>this.onPointerUp(e));
   track.addEventListener('pointercancel',e=>this.onPointerUp(e));
+  if(this.autoHide){
+   track.addEventListener('wheel',e=>this.onTrackWheel(e),{passive:false});
+   track.addEventListener('lostpointercapture',e=>this.onPointerUp(e));
+  }
   this.update();
  }
  observe(el){this.resize.observe(el)}
@@ -47,8 +54,20 @@ class Scrollbar {
   if(scrollable&&!this.visible)this.size=[h,0];
   this.visible=scrollable;
   this.track.classList.toggle('is-scrollable',scrollable);
+  if(!scrollable)this.hide();
   this.render();
   if(this.size[0]!==h)this.wake();
+ }
+ activity(){
+  if(!this.autoHide||!this.visible)return;
+  clearTimeout(this.hideTimer);this.hideTimer=0;
+  this.track.classList.add('is-scroll-active');
+  if(!this.drag)this.hideTimer=setTimeout(()=>{this.hide();this.update()},AUTO_HIDE_DELAY);
+ }
+ hide(){
+  if(!this.autoHide)return;
+  clearTimeout(this.hideTimer);this.hideTimer=0;
+  this.track.classList.remove('is-scroll-active');
  }
  thumbTop(){const {trackH,ratio}=this.target;return PAD+(trackH-this.size[0])*ratio}
  render(now=performance.now()){
@@ -64,16 +83,25 @@ class Scrollbar {
   if(max>1&&top>=max-1&&prev<max-1&&now-this.edges.bottom.wheel<ARRIVAL_WINDOW)this.bump(this.edges.bottom,now,true);
   else if(max>1&&top<=0&&prev>0&&now-this.edges.top.wheel<ARRIVAL_WINDOW)this.bump(this.edges.top,now,true);
   this.update();
+  if(top!==prev)this.activity();
  }
  onWheel(e){
   const v=this.viewport,max=v.scrollHeight-v.clientHeight;
   if(max<=1||!e.deltaY)return;
+  this.activity();
   const down=e.deltaY>0,edge=this.edges[down?'bottom':'top'],now=performance.now();
   const fresh=now-edge.wheel>GESTURE_GAP;
   edge.wheel=now;
   edge.force=Math.max(fresh?0:edge.force,Math.abs(e.deltaY)*(e.deltaMode===1?16:1));
   if(down?v.scrollTop<max-1:v.scrollTop>0)return;
   this.bump(edge,now,fresh);
+ }
+ onTrackWheel(e){
+  if(!this.autoHide||!this.visible||!e.deltaY)return;
+  e.preventDefault();
+  this.onWheel(e);
+  const unit=e.deltaMode===1?16:e.deltaMode===2?this.viewport.clientHeight:1;
+  this.viewport.scrollBy({top:e.deltaY*unit,behavior:'auto'});
  }
  bump(edge,now,fresh){
   if(reducedMotion())return;
@@ -88,6 +116,7 @@ class Scrollbar {
  onPointerDown(e){
   if(!this.visible||e.button!==0)return;
   if(e.target!==this.thumb){
+   this.activity();
    const y=e.clientY-this.track.getBoundingClientRect().top;
    this.viewport.scrollBy({top:(y<this.thumbTop()?-1:1)*this.viewport.clientHeight*.9,behavior:'smooth'});
    return;
@@ -95,6 +124,7 @@ class Scrollbar {
   this.drag={y:e.clientY,scroll:this.viewport.scrollTop};
   this.track.setPointerCapture(e.pointerId);
   this.track.classList.add('is-dragging');
+  this.activity();
  }
  onPointerMove(e){
   if(!this.drag||!this.visible)return;
@@ -106,6 +136,7 @@ class Scrollbar {
   this.drag=null;
   if(this.track.hasPointerCapture(e.pointerId))this.track.releasePointerCapture(e.pointerId);
   this.track.classList.remove('is-dragging');
+  this.activity();
  }
  wake(){if(this.raf)return;this.last=performance.now();this.raf=requestAnimationFrame(this.tick)}
  tick(now){

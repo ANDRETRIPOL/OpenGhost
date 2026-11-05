@@ -9794,6 +9794,18 @@ h6.md-h {
   pointer-events: auto;
 }
 
+/* Keep overflow geometry and edge fades even while the opted-in indicator is idle. */
+.scrollbar.is-auto-hide.is-scrollable:not(.is-scroll-active):not(.is-dragging) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollbar.is-auto-hide {
+    transition: none;
+  }
+}
+
 .scrollbar-thumb {
   position: absolute;
   top: 0;
@@ -20619,7 +20631,7 @@ html:not([data-theme="light"]) .skill-page-key {
   z-index: 2;
   top: calc(var(--chat-gap) + 12px);
   bottom: 12px;
-  left: calc(var(--sidebar-size) - 9px);
+  left: calc(var(--sidebar-size) - 3px);
   width: 12px;
   cursor: col-resize;
 }
@@ -20632,8 +20644,9 @@ html:not([data-theme="light"]) .skill-page-key {
 .sidebar-resize::after {
   content: "";
   position: absolute;
+  pointer-events: none;
   top: 50%;
-  left: 3.5px;
+  left: -2.5px;
   width: 3px;
   height: 36px;
   margin-top: -18px;
@@ -20657,7 +20670,7 @@ html:not([data-theme="light"]) .skill-page-key {
 }
 
 .app.is-sidebar-resizing.is-sidebar-collapsed .sidebar-resize {
-  left: calc(var(--chat-gap) - 9px);
+  left: calc(var(--chat-gap) - 3px);
 }
 
 .app.is-sidebar-collapsed .sidebar-resize::after {
