@@ -28,14 +28,11 @@ class SplitPane {
   this.miniButton.innerHTML = `${Glyphs.ghost}<span class="mini-toggle-dot"></span>`;
   this.miniButton.addEventListener('click', () => { if (this.chat.active?.record) MiniChat.open({ settings: this.settings, source: this.chat, library: owner.library }); });
   this.browserToggle = $('.browser-toggle');
-  const close = this.close = Object.assign(document.createElement('button'), { type: 'button', className: 'split-close', innerHTML: Glyphs.close });
-  close.setAttribute('aria-label', I18n.t('split.close'));
+  const close = this.close = Object.assign(document.createElement('close-button'), { className: 'split-close' });
+  close.setAttribute('label', I18n.t('split.close'));
   close.title = I18n.t('split.close');
   $('.browser-tools').append(close);
-  close.addEventListener('click', () => owner.close());
-  const crease = this.crease = Object.assign(document.createElement('div'), { className: 'split-crease' });
-  crease.setAttribute('aria-hidden', 'true');
-  main.append(crease);
+  close.addEventListener('dismiss', () => owner.close());
   const name = this.name = Object.assign(document.createElement('div'), { className: 'split-pane-name' });
   main.append(name);
   owner.root.append(main);
@@ -75,15 +72,18 @@ class SplitPane {
    zone: $('.drop-zone'), input: this.input, onChange: () => this.sync(), onText: (text, undo) => this.text.place(text, undo),
    isActive: event => owner.opened && !this.chat.active?.locked && !base.dialog.open && !!event && main.contains(event.target),
   });
-  new AddMenu({ button: $('.composer-add'), host: main, anchor: '--split-add', attachments: this.attachments, chat: this.chat, input: this.input });
+  this.addMenu = new AddMenu({ button: $('.composer-add'), host: main, anchor: '--split-add', attachments: this.attachments, chat: this.chat, input: this.input });
   if (AgentTools.available) {
    $('.composer-mode').hidden = false;
-   new ModePicker({ button: $('.composer-mode'), host: main, anchor: '--split-mode', settings, onChange: () => this.chat.onModeChange() });
+   this.modePicker = new ModePicker({ button: $('.composer-mode'), host: main, anchor: '--split-mode', settings, onChange: () => this.chat.onModeChange() });
   }
   const clonePanel = selector => {
    const panel = document.querySelector(selector).cloneNode(true);
    panel.removeAttribute('style');
    for (const el of panel.querySelectorAll('[id]')) el.removeAttribute('id');
+   for (const el of panel.querySelectorAll('.effort-veil, .effort-shell, .effort-morph, .effort-title, .effort-paint, .effort-ghost, .effort-tick')) el.remove();
+   const thumb = panel.querySelector('.effort-thumb');
+   if (thumb) thumb.replaceWith(Object.assign(document.createElement('span'), { className: 'effort-thumb glass-lens' }));
    main.append(panel); return panel;
   };
   this.models = new ModelStage({ button: $('.composer-model'), root: clonePanel('.model-stage'), chat: this.chat, settings, input: this.input });
@@ -189,6 +189,8 @@ class SplitPane {
   this.name.textContent = now?.record ? this.owner.library.titleOf(now.record) : I18n.t('chat.new');
   this.main.setAttribute('aria-label', this.name.textContent);
   this.name.hidden = !this.plan.root.hidden;
+  this.close.setAttribute('label', I18n.t('split.close'));
+  this.close.title = I18n.t('split.close');
   this.signalMini();
  }
 
@@ -221,9 +223,6 @@ class SplitView {
   this.divider.setAttribute('aria-label', I18n.t('split.resize'));
   this.divider.setAttribute('aria-valuemin', '0'); this.divider.setAttribute('aria-valuemax', '100');
   this.root.append(this.divider); app.append(this.root);
-  const leftCrease = this.leftCrease = Object.assign(document.createElement('div'), { className: 'split-crease is-left' });
-  leftCrease.setAttribute('aria-hidden', 'true');
-  main.append(leftCrease);
   const tools = main.querySelector('.browser-tools');
   if (tools) {
    const btn = this.splitToggle = this.toggleButton = Object.assign(document.createElement('button'), {
@@ -289,7 +288,7 @@ class SplitView {
    this.layoutFrame = requestAnimationFrame(() => {
     this.layoutFrame = 0;
     this.syncToggle();
-    if (this.opened) { this.sidePanels.layout(); this.layout(); }
+    if (this.opened) { this.layout(); this.sidePanels.layout(); }
    });
   }).observe(this.root);
   window.addEventListener('resize', () => this.syncToggle());
@@ -360,6 +359,7 @@ class SplitView {
   this.syncToggle();
   this.sidePanels.layout();
   this.layout();
+  this.sidePanels.layout();
   return this.opened;
  }
  openDraft(folder = null) {
@@ -367,7 +367,7 @@ class SplitView {
   const openedNow = this.ensureOpen();
   if (!this.opened) return Promise.resolve();
   this.pane.chat.newChat(folder);
-  if (openedNow) this.animateUnfold();
+  if (openedNow) this.animateOpen();
   else this.animateSwitch();
   this.focus(this.pane.chat);
   this.sync();
@@ -383,67 +383,28 @@ class SplitView {
   this.pane?.main.classList.toggle('is-split-focused', view === this.pane.chat);
   if (changed) this.changed();
  }
- // iPhone Duo / Foldable inner display book-unfold motion:
- // Both panes unfold in 3D from the center hinge seam with optical glass blur-to-clear crystallization
- // and a specular light + shadow sweep across the fold crease.
- animateUnfold() {
+ animateOpen() {
   if (!motion() || !this.pane) return;
-  const left = this.main, right = this.pane.main;
-  const duration = 520;
-  const springEase = 'cubic-bezier(0.22, 1, 0.36, 1)';
-  for (const el of [left, right, this.leftCrease, this.pane.crease, this.divider]) {
-   el?.getAnimations().forEach(a => a.cancel());
-  }
-  this.root.classList.add('is-unfolding');
-  left.animate([
-   { transform: 'perspective(1600px) rotateY(15deg) scale(0.968)', filter: 'brightness(0.91) saturate(1.08)', offset: 0 },
-   { transform: 'perspective(1600px) rotateY(3.5deg) scale(0.994)', filter: 'brightness(0.98) saturate(1.03)', offset: 0.28 },
-   { transform: 'none', filter: 'brightness(1.02) saturate(1.01)', offset: 0.52 },
-   { transform: 'none', filter: 'none', offset: 1 },
-  ], { duration, easing: springEase });
-  const rightAnim = right.animate([
-   { opacity: 0.16, transform: 'perspective(1600px) rotateY(-54deg) translateX(-18px) scale(0.925)', filter: 'blur(18px) brightness(0.7) saturate(1.4)', offset: 0 },
-   { opacity: 0.88, transform: 'perspective(1600px) rotateY(-14deg) translateX(-4px) scale(0.985)', filter: 'blur(7px) brightness(0.93) saturate(1.18)', offset: 0.28 },
-   { opacity: 1, transform: 'none', filter: 'blur(2px) brightness(1.03) saturate(1.05)', offset: 0.52 },
-   { opacity: 1, transform: 'none', filter: 'blur(0px) brightness(1) saturate(1)', offset: 1 },
-  ], { duration, easing: springEase });
-  rightAnim.finished.catch(() => {}).finally(() => this.root.classList.remove('is-unfolding'));
-  this.leftCrease?.animate([
-   { opacity: 0.95, transform: 'scaleX(1.25)', offset: 0 },
-   { opacity: 0.55, transform: 'scaleX(1)', offset: 0.45 },
-   { opacity: 0, transform: 'scaleX(0.6)', offset: 1 },
-  ], { duration, easing: 'ease-out' });
-  this.pane.crease?.animate([
-   { opacity: 1, transform: 'translateX(-14%) scaleX(1.15)', offset: 0 },
-   { opacity: 0.72, transform: 'translateX(12%) scaleX(1.05)', offset: 0.44 },
-   { opacity: 0, transform: 'translateX(46%) scaleX(0.85)', offset: 1 },
-  ], { duration: duration + 40, easing: springEase });
-  this.divider.animate([
-   { opacity: 0, transform: 'scaleY(0.25)' },
+  const right = this.pane.main;
+  const ease = 'cubic-bezier(0.32, 0.72, 0, 1)';
+  for (const el of [right, this.divider]) el?.getAnimations().forEach(a => a.cancel());
+  right.animate([
+   { opacity: 0, transform: 'translateX(20px) scale(0.985)' },
    { opacity: 1, transform: 'none' },
-  ], { duration: 420, easing: 'cubic-bezier(0.34, 1.45, 0.64, 1)' });
-  const inner = [right.querySelector('.thread-view'), right.querySelector('.composer')].filter(Boolean);
-  inner.forEach((el, i) => {
-   el.getAnimations().forEach(a => a.cancel());
-   el.animate([
-    { opacity: 0.35, transform: 'translateY(10px) scale(0.986)' },
-    { opacity: 1, transform: 'none' },
-   ], { duration: 420, delay: i * 35, easing: springEase });
-  });
+  ], { duration: 300, easing: ease });
+  this.divider.animate([
+   { opacity: 0, transform: 'scaleY(0.5)' },
+   { opacity: 1, transform: 'none' },
+  ], { duration: 260, easing: ease });
  }
  animateSwitch() {
   if (!motion() || !this.pane) return;
   const right = this.pane.main;
   right.getAnimations().forEach(a => a.cancel());
   right.animate([
-   { opacity: 0.68, transform: 'perspective(1600px) rotateY(-12deg) scale(0.985)', filter: 'blur(8px) brightness(0.92)', offset: 0 },
-   { opacity: 1, transform: 'none', filter: 'blur(1.5px) brightness(1.02)', offset: 0.48 },
-   { opacity: 1, transform: 'none', filter: 'blur(0px) brightness(1)', offset: 1 },
-  ], { duration: 300, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
-  this.pane.crease?.animate([
-   { opacity: 0.65, transform: 'translateX(-10%)' },
-   { opacity: 0, transform: 'translateX(35%)' },
-  ], { duration: 320, easing: 'ease-out' });
+   { opacity: 0.72, transform: 'translateY(6px)' },
+   { opacity: 1, transform: 'none' },
+  ], { duration: 220, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
  }
  async open(id) {
   if (!this.library.chat(id)) return;
@@ -453,7 +414,7 @@ class SplitView {
   const openedNow = this.ensureOpen();
   if (!this.opened) return;
   const token = this.opening = (this.opening || 0) + 1;
-  if (openedNow) this.animateUnfold();
+  if (openedNow) this.animateOpen();
   else this.animateSwitch();
   await this.pane.chat.open(id);
   if (!this.opened || this.opening !== token) return;
@@ -463,8 +424,10 @@ class SplitView {
   if (!this.opened) return;
   this.opening = (this.opening || 0) + 1;
   this.endDrag();
-  this.root.classList.remove('is-unfolding');
   this.pane.models.close();
+  this.pane.effort?.close();
+  this.pane.addMenu?.dock.close();
+  this.pane.modePicker?.dock.close();
   this.pane.notepad.close();
   this.pane.routines?.close();
   if (this.pane.browser?.seen) {
@@ -492,16 +455,18 @@ class SplitView {
  }
  layout() {
   if (!this.opened || !this.pane) return;
+  if (this.root.clientWidth < 2 * MIN + GAP && this.sidePanels?.docked) this.sidePanels.layout();
   const room = this.root.clientWidth - GAP;
   const size = SplitSizing.fit(this.root.clientWidth, this.dragging ? this.dragWidth : room * this.ratio);
   if (!size) { this.close(); return; }
-  this.root.style.setProperty('--split-left', `${size.left}px`);
-  this.root.style.setProperty('--split-right', `${size.right}px`);
-  this.app.style.setProperty('--split-left', `${size.left}px`);
-  this.app.style.setProperty('--split-right', `${size.right}px`);
+  const left = Math.round(size.left), right = room - left;
+  this.root.style.setProperty('--split-left', `${left}px`);
+  this.root.style.setProperty('--split-right', `${right}px`);
+  this.app.style.setProperty('--split-left', `${left}px`);
+  this.app.style.setProperty('--split-right', `${right}px`);
   this.divider.setAttribute('aria-valuemin', String(Math.round(MIN / room * 100)));
   this.divider.setAttribute('aria-valuemax', String(Math.round((room - MIN) / room * 100)));
-  this.divider.setAttribute('aria-valuenow', String(Math.round(size.left / room * 100)));
+  this.divider.setAttribute('aria-valuenow', String(Math.round(left / room * 100)));
   this.pane.plan?.fit();
  }
  start(event) {
@@ -516,7 +481,7 @@ class SplitView {
    if (event && event.pointerId !== this.pointerId) return;
    const room = this.root.clientWidth - GAP, size = SplitSizing.fit(this.root.clientWidth, this.dragWidth);
    if (size) this.ratio = size.left / room;
-   this.end(); this.layout();
+   this.end(); this.layout(); this.sidePanels.layout();
   };
   const cancel = () => { this.dragWidth = (this.root.clientWidth - GAP) * this.ratio; finish(); };
   const escape = event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } };

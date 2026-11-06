@@ -25,6 +25,7 @@ class ModePicker {
   this.onChange = onChange;
   this.shown = null;
   button.removeAttribute('popovertarget');
+  button.style.setProperty('anchor-name', anchor);
   button.innerHTML = `<span class="composer-mode-icons">${MODES.map(icon).join('')}</span><span class="composer-mode-label"></span>`;
   this.icons = button.querySelector('.composer-mode-icons');
   this.label = button.querySelector('.composer-mode-label');

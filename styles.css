@@ -21792,21 +21792,17 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   background: transparent;
   border-radius: var(--chat-radius);
   --split-left: calc((100% - 14px) / 2);
-  perspective: 1600px;
-  perspective-origin: calc(var(--split-left) + 7px) 50%;
   transition: none;
 }
 .chat-split[hidden] { display: none; }
 .app.is-sidebar-collapsed .chat-split { left: var(--chat-gap); }
 .app.is-browser-open .chat-split { right: calc(var(--chat-gap) * 2 + var(--browser-width, 520px)); }
 .app.has-split .chat-split > .main {
-  --composer-side-gap: 16px;
+  --composer-side-gap: 10px;
   top: 0; bottom: 0; left: 0; right: auto;
   width: var(--split-left);
   border-radius: var(--chat-radius) 26px 26px var(--chat-radius);
-  min-width: var(--split-min, 400px);
-  transform-origin: 100% 50%;
-  backface-visibility: hidden;
+  min-width: var(--split-min, 470px);
   transition: none;
   overflow: clip;
 }
@@ -21814,48 +21810,21 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   left: calc(var(--split-left) + 14px);
   width: calc(100% - var(--split-left) - 14px);
   border-radius: 26px var(--chat-radius) var(--chat-radius) 26px;
-  transform-origin: 0% 50%;
 }
-.chat-split > .main.is-split-focused { box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.16), var(--card-lift); }
+.chat-split > .main.is-split-focused { box-shadow: var(--contour), var(--card-lift); }
 
-/* Hinge crease shadow & specular highlight sweep during the iPhone Duo book-unfold motion. */
-.split-crease {
-  position: absolute;
-  inset: 0;
-  z-index: 18;
-  pointer-events: none;
-  opacity: 0;
-  border-radius: inherit;
-  background:
-    linear-gradient(90deg,
-      rgba(0, 0, 0, 0.36) 0%,
-      rgba(255, 255, 255, 0.24) 6%,
-      rgba(255, 255, 255, 0.08) 18%,
-      transparent 48%);
-  mix-blend-mode: soft-light;
+/* Each pane scopes its own popover anchors so menus and the effort slider stay in their own chat. */
+.is-split-secondary .composer-add {
+  anchor-name: --split-add;
 }
-[data-theme="light"] .split-crease {
-  background:
-    linear-gradient(90deg,
-      rgba(15, 23, 42, 0.18) 0%,
-      rgba(255, 255, 255, 0.72) 7%,
-      rgba(255, 255, 255, 0.22) 20%,
-      transparent 52%);
-  mix-blend-mode: normal;
+.is-split-secondary .composer-mode {
+  anchor-name: --split-mode;
 }
-.split-crease.is-left {
-  background:
-    linear-gradient(270deg,
-      rgba(0, 0, 0, 0.26) 0%,
-      rgba(255, 255, 255, 0.16) 7%,
-      transparent 38%);
+.is-split-secondary .composer-effort {
+  anchor-name: --split-effort;
 }
-[data-theme="light"] .split-crease.is-left {
-  background:
-    linear-gradient(270deg,
-      rgba(15, 23, 42, 0.12) 0%,
-      rgba(255, 255, 255, 0.55) 7%,
-      transparent 38%);
+.is-split-secondary .effort-panel {
+  position-anchor: --split-effort;
 }
 
 /* Split View toggle button in the main chat's top-right .browser-tools capsule and row hover action. */
@@ -21916,11 +21885,10 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   place-items: center;
   pointer-events: none;
   opacity: 0;
-  transform: perspective(1400px) rotateY(-12deg) scale(0.96);
-  transform-origin: 0% 50%;
+  transform: scale(0.98);
   transition:
-    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.24s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.32s cubic-bezier(0.32, 0.72, 0, 1),
     background 0.24s ease,
     box-shadow 0.24s ease;
 }
@@ -21933,12 +21901,12 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .split-drop-zone.is-armed {
   pointer-events: auto;
   opacity: 0.78;
-  transform: perspective(1400px) rotateY(-4deg) scale(0.985);
+  transform: scale(0.99);
 }
 .split-drop-zone.is-over {
   pointer-events: auto;
   opacity: 1;
-  transform: perspective(1400px) rotateY(0deg) scale(1);
+  transform: none;
   background: linear-gradient(135deg, rgba(var(--selection-rgb), 0.2), rgba(var(--fg-rgb), 0.07));
   box-shadow:
     inset 0 0 0 2px rgba(var(--selection-rgb), 0.65),
@@ -21983,14 +21951,6 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .split-divider:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -4px; border-radius: 14px; }
 .is-split-resizing { cursor: col-resize; user-select: none; }
 .is-split-resizing .chat-split > .main { pointer-events: none; }
-.split-close {
-  display: grid; place-items: center; width: 32px; height: 32px;
-  padding: 0; border: 0; background: transparent; border-radius: 50%;
-  color: var(--fg-secondary); cursor: pointer;
-}
-.split-close:hover { background: rgba(var(--fg-rgb), 0.09); color: var(--fg-primary); }
-.split-close:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.split-close .glyph { width: 18px; height: 18px; }
 .split-pane-name {
   position: absolute; z-index: 4; top: 18px; left: 95px; right: 95px;
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
@@ -21998,31 +21958,28 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   pointer-events: none;
 }
 .is-split-secondary > .routines-pill { right: calc(var(--toggle-inset) + 4px + 72px + 8px); }
-.is-split-secondary .split-close { width: 26px; height: 26px; }
 .chat-row.is-open-beside:not(.is-active),
 .chat-row.is-split-active:not(.is-active) { box-shadow: inset 3px 0 0 rgba(var(--fg-rgb), 0.3); }
 
-/* Dual overlay browsers in Split View: each pane's browser opens as a floating window over its own chat card,
-   just like the narrow-window peek browser (below the 48px top bar so the globe toggle stays visible). */
-.browser.is-split-browser:not(.is-peek) {
+/* In Split View each pane's browser uses the existing .is-browser-peek mode over its own chat card,
+   keeping a 96px strip of the chat in sight on the left and hiding completely when closed so it never bleeds into the split gap. */
+.browser.is-split-browser:not(.is-peek),
+.app.has-split .browser:not(.is-split-browser):not(.is-peek) {
   z-index: 0 !important;
+  opacity: 0;
   pointer-events: none;
   transform: scale(0.97);
 }
 .browser.is-split-browser:not(.is-peek):not(.is-agent) .browser-view {
   visibility: hidden !important;
 }
-.app.has-split .browser:not(.is-split-browser):not(.is-peek) {
-  z-index: 0 !important;
-  pointer-events: none;
-  transform: scale(0.97);
-}
 .app.has-split.is-browser-peek .browser:not(.is-split-browser) {
   z-index: 5;
   top: calc(var(--chat-gap) + 48px);
-  right: calc(var(--chat-gap) + var(--split-right, 400px) + 20px);
+  right: calc(var(--chat-gap) + var(--split-right, 470px) + 20px);
   bottom: calc(var(--chat-gap) + 6px);
-  width: calc(var(--split-left, 400px) - 12px);
+  width: var(--browser-peek-width, var(--browser-width, 520px));
+  opacity: 1;
   transform: none;
   transition: none;
 }
@@ -22031,7 +21988,8 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   top: calc(var(--chat-gap) + 48px);
   right: calc(var(--chat-gap) + 6px);
   bottom: calc(var(--chat-gap) + 6px);
-  width: calc(var(--split-right, 400px) - 12px);
+  width: var(--split-browser-peek-width, var(--browser-peek-width, 520px));
+  opacity: 1;
   transform: none;
   transition: none;
 }
@@ -22045,14 +22003,9 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   visibility: visible;
 }
 
-.chat-split .composer { --composer-side-gap: 16px; }
-.chat-split .composer-toolbar { gap: 4px; flex-wrap: wrap; row-gap: 6px; }
-.chat-split .composer-actions, .chat-split .composer-tools { gap: 4px; min-width: 0; }
-.chat-split .composer-tools { flex: 0 0 auto; }
-.chat-split .composer-actions { flex: 0 0 auto; margin-left: auto; }
-.chat-split .composer-model { min-width: 0; max-width: 150px; }
-.chat-split .composer-mode-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-split .composer-folder { max-width: calc(100% - 32px); }
+.chat-split .composer { --composer-side-gap: 10px; }
+.chat-split .composer-toolbar { gap: 4px; }
+.chat-split .composer-folder { max-width: calc(100% - 20px); }
 @media (prefers-reduced-motion: reduce) {
   .chat-split, .split-divider::after, .split-drop-zone { transition: none; }
 }

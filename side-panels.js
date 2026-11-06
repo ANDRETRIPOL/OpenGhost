@@ -150,8 +150,16 @@ class SidePanels {
   if (browser) {
    browser.fit();
    // Over the chat the browser keeps a strip of the chat in sight.
-   const most = width - 2 * gap - PEEK.inset - PEEK.keep;
-   this.app.style.setProperty('--browser-peek-width', `${Math.round(Math.max(Math.min(browser.least, most), Math.min(browser.natural(width - 3 * gap), most)))}px`);
+   const peekWidth = (panel, cardWidth) => {
+    const most = cardWidth - PEEK.inset - PEEK.keep;
+    return Math.round(Math.max(Math.min(panel.least, most), Math.min(panel.natural(cardWidth - gap), most)));
+   };
+   const leftCard = splitOpen ? (this.main?.clientWidth || (width - 2 * gap - 14) / 2) : (width - 2 * gap);
+   this.app.style.setProperty('--browser-peek-width', `${peekWidth(browser, leftCard)}px`);
+   if (this.splitBrowser) {
+    const rightCard = splitOpen ? (this.splitBrowser.main?.clientWidth || (width - 2 * gap - 14) / 2) : (width - 2 * gap);
+    this.app.style.setProperty('--split-browser-peek-width', `${peekWidth(this.splitBrowser, rightCard)}px`);
+   }
   }
   this.app.style.setProperty('--sidebar-peek-width', `${Math.round(Math.min(side, width - 2 * gap - PEEK.inset - PEEK.keep))}px`);
  }

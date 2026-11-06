@@ -13,7 +13,9 @@ const BASE = { width: 1920, height: 1080 };
 const FIT = { min: 1, max: 2.5, step: 0.05 };
 const SIZES = [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 // The window can't be made smaller than this, in the page's own points, so a larger app never gets a cramped window.
-const SMALLEST = { width: 760, height: 540 };
+// At 500pt a single chat keeps its full minimum width after the left sidebar has automatically stepped out; in Split View
+// the window minimum doubles to 1000pt so the sidebar steps out first and both chat panes keep their full minimum width.
+const SMALLEST = { width: 500, height: 540 };
 const TITLE_BAR = 36;
 
 const file = () => path.join(app.getPath('userData'), 'size.json');
@@ -37,11 +39,13 @@ const zoomOf = win => choice === 'auto' ? fit(displayOf(win)) : choice;
 const titleBar = win => Math.round(TITLE_BAR * (win && !win.isDestroyed() ? win.webContents.getZoomFactor() : 1));
 const state = win => ({ choice, zoom: win.webContents.getZoomFactor(), fit: fit(displayOf(win)), sizes: SIZES });
 
-// In Split View the window's minimum width is twice the single-window minimum width (760 * 2 = 1520 in page points).
+// In Split View the window's minimum width is twice the single-window minimum width (500 * 2 = 1000 in page points),
+// always capped to fit within the current display's work area.
 function minimum(zoom = 1, room = BASE, split = false) {
- const singleWidth = Math.min(Math.round(SMALLEST.width * zoom), Math.round(room.width * 0.9));
+ const maxW = Math.round(room.width * 0.92);
+ const singleWidth = Math.min(Math.round(SMALLEST.width * zoom), maxW);
  return {
-  width: split ? singleWidth * 2 : singleWidth,
+  width: split ? Math.min(singleWidth * 2, maxW) : singleWidth,
   height: Math.min(Math.round(SMALLEST.height * zoom), Math.round(room.height * 0.9)),
  };
 }
@@ -52,17 +56,15 @@ function apply(win) {
  if (Math.abs(contents.getZoomFactor() - zoom) > 0.001) contents.setZoomFactor(zoom);
  const display = displayOf(win), room = display.workAreaSize;
  const min = minimum(zoom, room, !!win.__split);
+ const bounds = !win.isMaximized() && !win.isFullScreen() ? win.getBounds() : null;
  win.setMinimumSize(min.width, min.height);
- if (win.__split && !win.isMaximized() && !win.isFullScreen()) {
-  const bounds = win.getBounds();
-  if (bounds.width < min.width || bounds.height < min.height) {
-   const area = display.workArea;
-   const width = Math.max(bounds.width, min.width);
-   const height = Math.max(bounds.height, min.height);
-   const x = Math.max(area.x, Math.min(bounds.x, area.x + area.width - width));
-   const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - height));
-   win.setBounds({ x, y, width, height });
-  }
+ if (bounds && (bounds.width < min.width || bounds.height < min.height || (win.__split && bounds.x + Math.max(bounds.width, min.width) > display.workArea.x + display.workArea.width))) {
+  const area = display.workArea;
+  const width = Math.min(area.width, Math.max(bounds.width, min.width));
+  const height = Math.min(area.height, Math.max(bounds.height, min.height));
+  const x = Math.max(area.x, Math.min(bounds.x, area.x + area.width - width));
+  const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - height));
+  win.setBounds({ x, y, width, height });
  }
  // The buttons of the Windows title bar grow with the page's own title bar, which is drawn at the app's size.
  if (process.platform === 'win32') try { win.setTitleBarOverlay({ height: titleBar(win) }); } catch {}

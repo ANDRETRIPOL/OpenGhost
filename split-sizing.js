@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 
-const GAP = 14, MIN = 400;
+const GAP = 14, MIN = 470;
 const SplitSizing = Object.freeze({
  GAP, MIN,
  // An undersized window cannot display two panes. Never relax the per-pane minimum.

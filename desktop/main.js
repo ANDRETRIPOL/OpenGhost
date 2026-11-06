@@ -136,7 +136,7 @@ function createWindow(unseen = false) {
  const win = new BrowserWindow({
   width: size.width,
   height: size.height,
-  minWidth: 760,
+  minWidth: 500,
   minHeight: 540,
   show: false,
   title: 'OpenGhost',

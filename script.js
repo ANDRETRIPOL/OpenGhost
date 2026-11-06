@@ -131,7 +131,7 @@ const browserToggle = document.querySelector('.browser-toggle');
 let browserPanel = null;
 if (AgentTools.available) {
   modeButton.hidden = false;
-  new ModePicker({ button: modeButton, settings, onChange: () => chat.onModeChange() });
+  window.modePicker = new ModePicker({ button: modeButton, host: main, settings, onChange: () => chat.onModeChange() });
   // The quick chat's window has no built-in browser.
   if (!window.openghost?.quick) {
     browserToggle.hidden = false;
@@ -184,7 +184,7 @@ new SelectionMenu({
     if (source.active?.record) MiniChat.open({ settings: source.settings, source, library, quote: text });
   },
 });
-new AddMenu({ button: document.querySelector('.composer-add'), attachments, chat, input: composerInput });
+window.addMenu = new AddMenu({ button: document.querySelector('.composer-add'), host: main, attachments, chat, input: composerInput });
 settings.show(chat.model);
 modelStage = new ModelStage({
   button: document.querySelector('.composer-model'),

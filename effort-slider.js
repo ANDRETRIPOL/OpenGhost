@@ -57,7 +57,7 @@ class EffortSlider {
    onOpened: () => this.onOpened(),
    onClosed: () => this.onClosed(),
   });
-  this.stage = new EffortStage(panel, { onDismiss: () => this.close(), lens: () => this.thumb.getBoundingClientRect(), room: () => this.button.closest('.mini')?.getBoundingClientRect() || null });
+  this.stage = new EffortStage(panel, { onDismiss: () => this.close(), lens: () => this.thumb.getBoundingClientRect(), room: () => this.button.closest('.mini, .main')?.getBoundingClientRect() || null });
   this.ticks = [];
   this.fillTicks();
   const saved = this.efforts.indexOf(config.effort);
