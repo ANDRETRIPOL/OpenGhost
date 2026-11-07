@@ -1728,10 +1728,11 @@ textarea,
 }
 
 .thread-list {
+  --thread-side-gap: max(var(--composer-side-gap), calc(var(--scrollbar-hit-width) + 6px));
   display: flex;
   flex-direction: column;
   gap: 28px;
-  width: min(var(--composer-max-width), 100% - 2 * var(--composer-side-gap));
+  width: min(var(--composer-max-width), 100% - 2 * var(--thread-side-gap));
   margin: 0 auto;
   padding: 56px 0 0;
 }
@@ -1782,8 +1783,9 @@ textarea,
   pointer-events: none;
 }
 
+/* Both edge veils must paint above the indicator, not only the later ::after veil. */
 .thread-scrollbar {
-  z-index: 2;
+  z-index: 1;
   top: 12px;
   right: 2px;
   bottom: calc(var(--composer-space, 140px) + 4px);
@@ -21959,7 +21961,10 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 }
 .is-split-secondary > .routines-pill { right: calc(var(--toggle-inset) + 4px + 72px + 8px); }
 .chat-row.is-open-beside:not(.is-active),
-.chat-row.is-split-active:not(.is-active) { box-shadow: inset 3px 0 0 rgba(var(--fg-rgb), 0.3); }
+.chat-row.is-split-active:not(.is-active) {
+  background: rgba(var(--fg-rgb), 0.055);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.12);
+}
 
 /* In Split View each pane's browser uses the existing .is-browser-peek mode over its own chat card,
    keeping a 96px strip of the chat in sight on the left and hiding completely when closed so it never bleeds into the split gap. */
@@ -22003,11 +22008,18 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   visibility: visible;
 }
 
+/* The split action is a third button: reserve its space before the text can reach behind it. */
+.chat-row:has(.chat-action.is-split-action:not([hidden])) { --chat-actions-width: 78px; }
+.chat-row:is(:hover, :focus-within, .is-confirming, .is-carding) .chat-meta {
+  min-width: var(--chat-actions-width, 52px);
+}
+
 /* A saved pair is only a workspace group. Each row retains its own actions and status. */
 .chat-pair {
   position: relative;
-  margin: 4px 0 12px;
-  padding: 4px;
+  margin: 4px 0 8px;
+  padding: 6px;
+  overflow: clip;
   border-radius: 16px;
   box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.12);
   transition: background-color 220ms ease, box-shadow 220ms ease;
@@ -22016,7 +22028,10 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .chat-pair-head { display: flex; align-items: center; justify-content: space-between; min-height: 28px; padding: 0 4px 2px 8px; }
 .chat-pair-label { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 500; color: var(--fg-secondary); }
 .chat-pair-label .glyph { width: 14px; height: 14px; }
-.chat-pair > .chat-row { margin-left: 0; margin-right: 0; }
+.chat-pair > .chat-row { margin: 0; border-radius: 10px; }
+.chat-pair > .chat-row + .chat-row { margin-top: 2px; }
+.chat-pair > .chat-row.is-active { box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.06); }
+.chat-pair > .chat-row:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-ring); }
 @media (prefers-reduced-motion: reduce) { .chat-pair { transition: none; } }
 
 .chat-split .composer { --composer-side-gap: 10px; }

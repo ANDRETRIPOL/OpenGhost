@@ -431,7 +431,61 @@ class ChatList {
   }
  }
 
+ // A pair is one entry for ordering and trimming, but keeps both original conversation rows.
+ pairChats(pairs, match) {
+  this.pairItems = new Map();
+  const members = new Set();
+  for (const pair of pairs) {
+   const chats = [this.library.chat(pair.left), this.library.chat(pair.right)];
+   if (chats.some(chat => !chat)) continue;
+   // A pinned member keeps the pair among pinned chats; otherwise the left chat owns its usual section.
+   const anchor = chats.find(chat => chat.pinned) || chats[0];
+   this.pairItems.set(anchor.id, { pair, chats });
+   for (const chat of chats) members.add(chat.id);
+  }
+  return this.library.chats.flatMap(chat => {
+   const entry = this.pairItems.get(chat.id);
+   if (entry) return entry.chats.some(match) ? [{ ...chat, updated: Math.max(...entry.chats.map(one => Number(one.updated) || 0)) }] : [];
+   return !members.has(chat.id) && match(chat) ? [chat] : [];
+  });
+ }
+
+ pairItem({ pair, chats }, anchor, seen) {
+  this.pairGroups ||= new Map();
+  let group = this.pairGroups.get(pair.left);
+  if (!group) {
+   group = element('section', 'chat-pair');
+   group.setAttribute('role', 'group');
+   const head = element('div', 'chat-pair-head');
+   const name = element('span', 'chat-pair-label');
+   name.innerHTML = `${Glyphs.split}<span></span>`;
+   const close = document.createElement('close-button');
+   close.className = 'chat-pair-close';
+   close.addEventListener('dismiss', () => this.chat.workspace?.unpair(pair.left));
+   head.append(name, close); group.append(head);
+   this.pairGroups.set(pair.left, group);
+  }
+  group.dataset.id = anchor.id;
+  group.setAttribute('aria-label', I18n.t('split.label'));
+  group.querySelector('.chat-pair-label span').textContent = I18n.t('split.label');
+  group.querySelector('.chat-pair-close').setAttribute('label', I18n.t('split.close'));
+  group.classList.toggle('is-active', this.chat.workspace?.opened && this.chat.workspace.chat.activeId === pair.left && this.chat.workspace.pane?.chat.activeId === pair.right);
+  if (!group.isConnected) this.list.append(group);
+  place(group, [group.firstElementChild, ...chats.map(chat => this.rowItem(chat, seen))]);
+  return group;
+ }
+
+ isShown(chat) {
+  const chats = this.pairItems?.get(chat.id)?.chats || [chat];
+  return chats.some(one => one.id === this.chat.activeId || this.chat.workspace?.viewOfId?.(one.id));
+ }
+
  item(chat, seen) {
+  const pair = this.pairItems?.get(chat.id);
+  return pair ? this.pairItem(pair, chat, seen) : this.rowItem(chat, seen);
+ }
+
+ rowItem(chat, seen) {
   let item = this.rows.get(chat.id);
   if (!item) {
    item = this.row(chat);
@@ -450,8 +504,7 @@ class ChatList {
   const match = chat => !query || (this.library.titleOf(chat) || '').toLowerCase().includes(query);
   const recent = (a, b) => b.updated - a.updated;
   const pairs = this.chat.workspace?.loaded ? this.chat.workspace.pairs.prune(id => lib.chat(id)) : [];
-  const paired = new Set(pairs.flatMap(pair => [pair.left, pair.right]));
-  const live = lib.chats.filter(chat => match(chat) && !paired.has(chat.id));
+  const live = this.pairChats(pairs, match);
   const pinned = this.tree(live.filter(chat => chat.pinned));
   // A routine's own chats stand in the routines' group, the one that runs soonest first.
   const soon = chat => Math.min(...(window.Routines?.of(chat.id) || []).filter(item => Routines.live(item)).map(item => item.next), Infinity);
@@ -466,30 +519,6 @@ class ChatList {
   const draft = !query && this.chat.isDraft ? this.chat.folder || HOME : null;
   const order = [this.glide];
   this.pairGroups ||= new Map();
-  for (const pair of pairs) {
-   const chats = [lib.chat(pair.left), lib.chat(pair.right)];
-   if (!chats.some(match)) continue;
-   let group = this.pairGroups.get(pair.left);
-   if (!group) {
-    group = element('section', 'chat-pair');
-    group.setAttribute('role', 'group');
-    const head = element('div', 'chat-pair-head');
-    const name = element('span', 'chat-pair-label');
-    name.innerHTML = `${Glyphs.split}<span></span>`;
-    const close = document.createElement('close-button');
-    close.className = 'chat-pair-close';
-    close.addEventListener('dismiss', () => this.chat.workspace?.unpair(pair.left));
-    head.append(name, close); group.append(head);
-    this.pairGroups.set(pair.left, group);
-   }
-   group.setAttribute('aria-label', I18n.t('split.label'));
-   group.querySelector('.chat-pair-label span').textContent = I18n.t('split.label');
-   group.querySelector('.chat-pair-close').setAttribute('label', I18n.t('split.close'));
-   group.classList.toggle('is-active', this.chat.workspace?.opened && this.chat.workspace.chat.activeId === pair.left && this.chat.workspace.pane?.chat.activeId === pair.right);
-   if (!group.isConnected) this.list.append(group);
-   place(group, [group.firstElementChild, ...chats.map(chat => this.item(chat, seen))]);
-   order.push(group);
-  }
   for (const id of this.pairGroups.keys()) if (!pairs.some(pair => pair.left === id)) this.pairGroups.delete(id);
   if (pinned.length) order.push(this.pinnedHead, ...pinned.map(chat => this.item(chat, seen)));
   if (this.onSkills && !query) order.push(this.skillsRow());
@@ -638,7 +667,7 @@ class ChatList {
   let shown = chats;
   if (!open) {
    shown = this.heads(chats, SHOWN);
-   const active = chats.find(chat => chat.id === this.chat.activeId);
+   const active = chats.find(chat => this.isShown(chat));
    if (active && !shown.includes(active)) shown.push(...this.family(chats, active).filter(chat => !shown.includes(chat)));
   }
   const row = group.moreRow ||= this.moreRow(group);
@@ -672,9 +701,9 @@ class ChatList {
    return;
   }
   this.opened.delete(group);
-  const rows = [...group.inner.querySelectorAll('.chat-row:not(.is-draft)')], depth = row => this.depths.get(row.dataset.id) || 0;
+  const rows = [...group.inner.children].filter(row => row.matches('.chat-row:not(.is-draft), .chat-pair')), depth = row => this.depths.get(row.dataset.id) || 0;
   const keep = new Set(this.heads(rows, SHOWN, depth));
-  const active = rows.find(row => row.dataset.id === this.chat.activeId);
+  const active = rows.find(row => this.isShown({ id: row.dataset.id }));
   if (active) for (const row of this.family(rows, active, depth)) keep.add(row);
   const going = rows.filter(row => !keep.has(row));
   if (reducedMotion() || !going.length) { this.render(); return; }
@@ -945,6 +974,12 @@ class ChatList {
    moving = spring(g.o, target ? 1 : 0, FADE_SPRING, dt) || moving;
   }
   const style = this.glide.style;
+  if (target) {
+   const rect = target.getBoundingClientRect(), frame = this.list.getBoundingClientRect();
+   style.left = `${(rect.left - frame.left).toFixed(2)}px`;
+   style.right = 'auto';
+   style.width = `${rect.width.toFixed(2)}px`;
+  }
   style.transform = `translateY(${g.y[0].toFixed(2)}px)`;
   style.height = `${Math.max(0, g.h[0]).toFixed(2)}px`;
   style.opacity = Math.min(1, Math.max(0, g.o[0])).toFixed(3);
