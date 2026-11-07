@@ -10,7 +10,7 @@ const STRINGS = {
   'search.none': 'No chats found',
   'split.open': 'Open beside',
   'split.close': 'Close side chat',
-  'split.label': 'Two chats',
+  'split.label': 'Split View',
   'split.resize': 'Resize chats',
   'chat.new': 'New chat',
   'chats.label': 'Chats',

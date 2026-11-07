@@ -8,7 +8,7 @@
  'search.none': 'Чаты не найдены',
  'split.open': 'Открыть рядом',
  'split.close': 'Закрыть второй чат',
- 'split.label': 'Два чата',
+ 'split.label': 'Split View',
  'split.resize': 'Изменить ширину чатов',
  'chat.new': 'Новый чат',
  'chats.label': 'Чаты',

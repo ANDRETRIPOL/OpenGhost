@@ -7,7 +7,7 @@
  'search.none': 'Aucun chat trouvé',
  'split.open': 'Ouvrir à côté',
  'split.close': 'Fermer le chat latéral',
- 'split.label': 'Deux chats',
+ 'split.label': 'Split View',
  'split.resize': 'Redimensionner les chats',
  'chat.new': 'Nouveau chat',
  'chats.label': 'Chats',

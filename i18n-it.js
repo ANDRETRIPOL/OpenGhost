@@ -7,7 +7,7 @@
  'search.none': 'Nessuna chat trovata',
  'split.open': 'Apri accanto',
  'split.close': 'Chiudi chat laterale',
- 'split.label': 'Due chat',
+ 'split.label': 'Split View',
  'split.resize': 'Ridimensiona le chat',
  'chat.new': 'Nuova chat',
  'chats.label': 'Chat',
