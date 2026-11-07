@@ -11,7 +11,7 @@ const report={output,baseline,checks:[],errors:[],warnings:[],screenshots:[],pix
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function finish(error){
  if(ended)return;ended=true;if(error)report.error=String(error.stack||error);
- if(error&&win)try{report.state=await win.webContents.executeJavaScript(`(()=>{const r=chatList.rows.get(window.ids?.newer);return r?{classes:r.row.className,hovered:r.row.matches(':hover'),meta:getComputedStyle(r.row.querySelector('.chat-meta')).minWidth,body:r.row.querySelector('.chat-body').getBoundingClientRect().toJSON(),split:r.split.getBoundingClientRect().toJSON()}:null})()`);const p=path.join(output,'failure.png');fs.writeFileSync(p,(await win.webContents.capturePage()).toPNG());report.screenshots.push(p)}catch{}
+ if(error&&win)try{report.selectionState=await win.webContents.executeJavaScript(`(()=>({main:chat.activeId,right:splitView.pane?.chat.activeId,list:chatList.chat.activeId,focused:splitView.currentChat.activeId,rows:[ids.a,ids.b].map(id=>{const e=chatList.rows.get(id).row,s=getComputedStyle(e);return{id,classes:e.className,focusVisible:e.matches(':focus-visible'),background:s.backgroundColor,shadow:s.boxShadow}})}))()`);report.state=await win.webContents.executeJavaScript(`(()=>{const r=chatList.rows.get(window.ids?.newer);return r?{classes:r.row.className,hovered:r.row.matches(':hover'),meta:getComputedStyle(r.row.querySelector('.chat-meta')).minWidth,body:r.row.querySelector('.chat-body').getBoundingClientRect().toJSON(),split:r.split.getBoundingClientRect().toJSON()}:null})()`);const p=path.join(output,'failure.png');fs.writeFileSync(p,(await win.webContents.capturePage()).toPNG());report.screenshots.push(p)}catch{}
  fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(report,null,2));
  console.log(JSON.stringify({output,checks:report.checks.length,failed:report.checks.filter(c=>!c.pass).map(c=>c.name),error:report.error||null}));app.exit(error?1:0);
 }
@@ -45,7 +45,13 @@ app.whenReady().then(async()=>{
   await check(theme+': the hover highlight fits the nested active row',`(()=>{const a=chatList.rows.get(ids.a).row.getBoundingClientRect(),g=chatList.glide.getBoundingClientRect();return Math.abs(a.left-g.left)<.8&&Math.abs(a.right-g.right)<.8&&Math.abs(a.top-g.top)<1&&Math.abs(a.height-g.height)<1})()`);
   await check(theme+': active row stays fully inside its pair frame',`(()=>{const r=chatList.rows.get(ids.a).row.getBoundingClientRect(),p=document.querySelector('.chat-pair').getBoundingClientRect();return r.left>=p.left+4&&r.right<=p.right-4})()`);
   await check(theme+': the secondary chat has no left bracket',`!getComputedStyle(chatList.rows.get(ids.b).row).boxShadow.includes('3px 0px')`);
-  await hover(`chatList.rows.get(ids.newer).row`);
+  await click(`chatList.rows.get(ids.b).row`);await hover(`chatList.rows.get(ids.newer).row`);
+  await check(theme+': selecting right leaves the other row undecorated',`(()=>{const e=chatList.rows.get(ids.a).row,s=getComputedStyle(e);return !e.classList.contains('is-active')&&s.backgroundColor==='rgba(0, 0, 0, 0)'&&s.boxShadow==='none'})()`);
+  await check(theme+': the focused right chat keeps ordinary selection',`chatList.rows.get(ids.b).row.classList.contains('is-active')&&getComputedStyle(chatList.rows.get(ids.b).row).backgroundColor!=='rgba(0, 0, 0, 0)'`);
+  await click(`chatList.rows.get(ids.a).row`);await hover(`chatList.rows.get(ids.newer).row`);
+  await check(theme+': selecting left leaves the secondary row undecorated',`(()=>{const e=chatList.rows.get(ids.b).row,s=getComputedStyle(e);return !e.classList.contains('is-active')&&s.backgroundColor==='rgba(0, 0, 0, 0)'&&s.boxShadow==='none'})()`);
+  await check(theme+': active pair does not shade its transparent rows',`getComputedStyle(document.querySelector('.chat-pair')).backgroundColor==='rgba(0, 0, 0, 0)'`);
+  await check(theme+': ordinary primary chat selection is preserved',`chatList.rows.get(ids.a).row.classList.contains('is-active')&&getComputedStyle(chatList.rows.get(ids.a).row).backgroundColor!=='rgba(0, 0, 0, 0)'`);
   await check(theme+': text never reaches behind the split button',`(()=>{const r=chatList.rows.get(ids.newer),b=r.row.querySelector('.chat-body').getBoundingClientRect(),a=r.split.getBoundingClientRect();return !r.split.hidden&&b.right<=a.left-2})()`);
   await shot('sidebar-'+theme);
  }

@@ -48,6 +48,8 @@ check('Thread content reserves at least the full scrollbar hit width plus a gap'
 check('The thread indicator is below both edge veils',/\.thread-scrollbar\s*\{\s*z-index:\s*1;/.test(css)&&/\.thread-view::after\s*\{/.test(css));
 check('Eligible split rows reserve space for all three action buttons',css.includes('--chat-actions-width: 78px')&&css.includes('min-width: var(--chat-actions-width, 52px)'));
 check('The old heavy left bracket is absent',!css.includes('box-shadow: inset 3px 0 0 rgba(var(--fg-rgb), 0.3)'));
+check('Secondary pane rows have no separate persistent selection decoration',!css.includes('.chat-row.is-open-beside:not(.is-active)')&&!css.includes('.chat-row.is-split-active:not(.is-active)'));
+check('The active pair frame never adds a background behind ordinary rows',!(/\.chat-pair\.is-active\s*\{([^}]*)\}/.exec(css)?.[1]||'').includes('background'));
 check('Nested active row paint is contained in the pair frame',/\.chat-pair\s*\{[^}]*overflow:\s*clip;/.test(css)&&css.includes('.chat-pair > .chat-row:focus-visible'));
 check('Hover highlights follow both left position and width of their target',source.includes('style.left = `${(rect.left - frame.left).toFixed(2)}px`')&&source.includes('style.width = `${rect.width.toFixed(2)}px`'));
 console.log('\n'+count+' checks passed');
