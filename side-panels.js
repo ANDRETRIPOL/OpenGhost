@@ -57,7 +57,7 @@ class SidePanels {
   // A press beside a panel that is over the chat puts it away; its own button does that itself.
   document.addEventListener('pointerdown', event => {
    const path = event.composedPath();
-   const splitBrowser = this.splitBrowser;
+   const browser = this.browser, splitBrowser = this.splitBrowser;
    const hasSplit = this.app.classList.contains('has-split');
    if (this.peek && !path.includes(sidebar) && !path.includes(toggle)) this.setPeek(false);
    if (browser?.peek && !path.includes(browser.root) && !path.includes(browser.toggle)) {
@@ -69,6 +69,7 @@ class SidePanels {
   }, true);
   document.addEventListener('keydown', event => {
    if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('dialog[open]')) return;
+   const browser = this.browser;
    if (this.peek) this.setPeek(false);
    else if (this.splitBrowser?.peek && (this.splitBrowser.root.contains(document.activeElement) || this.splitBrowser.main?.contains(document.activeElement) || !browser?.peek)) this.splitBrowser.setPeek(false);
    else if (browser?.peek) browser.setPeek(false);

@@ -211,8 +211,8 @@ class SplitPane {
 }
 
 class SplitView {
- constructor({ app, main, chat, settings, library, bones, changed, notes, sidePanels, template }) {
-  Object.assign(this, { app, main, chat, settings, library, bones, changed, notes, sidePanels, template });
+ constructor({ app, main, chat, settings, library, bones, changed, notes, sidePanels, template, onBrowsers }) {
+  Object.assign(this, { app, main, chat, settings, library, bones, changed, notes, sidePanels, template, onBrowsers });
   this.views = new Set(); this.join(chat); this.currentChat = chat; this.ratio = 0.5; this.opened = false;
   this.pairs = new SplitPairs(); this.navigation = 0; this.switching = false; this.loaded = false;
   library.ready.then(() => { this.loaded = true; this.pairs.prune(id => library.chat(id)); this.changed(); });
@@ -311,9 +311,15 @@ class SplitView {
  }
  async select(id) {
   if (!this.library.chat(id)) return;
-  const shown = this.viewOfId(id);
-  if (shown) { this.focus(shown); return; }
   const token = ++this.navigation, pair = this.pairs.find(id);
+  // Reselecting a visible chat is a new navigation intent too. Cancel stale screen loads, never agent turns.
+  this.opening = (this.opening || 0) + 1;
+  for (const view of this.views) {
+   ++view.opening;
+   if (!view.active?.list?.classList?.contains?.('is-settling')) view.showWait(false);
+  }
+  const shown = this.viewOfId(id);
+  if (shown) { this.switching = false; this.focus(shown); this.remember(); return; }
   this.switching = true;
   this.close({ forget: false, animate: false });
   const left = pair && this.canFit() ? pair.left : id;
@@ -539,8 +545,25 @@ class SplitView {
   if (animate) this.animateMain(before);
   this.main.querySelector('.composer-input').focus({ preventScroll: true }); Notify.look();
  }
+ syncBrowsers() {
+  const left = this.sidePanels.browser, right = this.pane?.browser;
+  if (!left || !right) return;
+  const wanted = view => view.active?.turn?.browser || MiniChat.all().find(mini => mini.origin === view.active && mini.chat.busy)?.chat.browserOf();
+  const main = wanted(this.chat), side = this.opened ? wanted(this.pane.chat) : null;
+  if (main !== right && !(side === left && !main)) return;
+  this.chat.browser = this.sidePanels.browser = right;
+  this.pane.chat.browser = this.pane.browser = this.sidePanels.splitBrowser = left;
+  left.onLayout = null; left.chatRoom = null;
+  right.onLayout = () => this.sidePanels.layout(); right.chatRoom = () => this.sidePanels.least();
+  this.onBrowsers?.(right);
+  this.app.classList.remove('is-browser-open', 'is-browser-peek', 'is-split-browser-peek');
+  left.bind({ main: this.pane.main, toggle: this.pane.browserToggle, split: true });
+  right.bind({ main: this.main, toggle: this.main.querySelector('.browser-toggle'), split: false });
+  this.sidePanels.layout();
+ }
  sync() {
   this.remember();
+  this.syncBrowsers();
   for (const mini of MiniChat.all()) {
    const source = this.viewOf(mini.origin);
    if (source) mini.bindSource(source);

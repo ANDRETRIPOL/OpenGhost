@@ -268,7 +268,7 @@ class QuickChat {
   if (AgentTools.available) {
    const mode = $('.composer-mode');
    mode.hidden = false;
-   this.mode = new ModePicker({ button: mode, host: dialog, anchor: '--mini-mode', settings, onChange: () => this.chat.onModeChange() });
+   this.mode = new ModePicker({ button: mode, host: dialog, anchor: '--mini-mode', settings, chat: this.chat });
   }
   // The model and the effort are this chat's own. Their stages open in this window, which is the card's size, and so
   // keep to the card.
@@ -509,6 +509,7 @@ class QuickChat {
   this.expandButton.title = busy ? I18n.t('quick.expand.wait') : '';
   if (!has) this.disarm();
   settings.show(chat.model);
+  this.mode?.sync();
   this.effort.follow();
   this.models.sync();
   this.effort.lock(busy);

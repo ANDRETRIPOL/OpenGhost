@@ -121,7 +121,8 @@ class BrowserPanel {
   this.select(this.tabs[saved.active] || this.tabs[0] || null, { lazy: true });
   this.fit();
   bridge?.onEvent(data => this.onEvent(data));
-  toggle.addEventListener('browser-toggle', () => this.press());
+  this.onToggle = () => this.press();
+  toggle.addEventListener('browser-toggle', this.onToggle);
   window.addEventListener('resize', () => this.fit());
   if (saved.open && !this.split) this.setOpen(true);
   const yieldKeys = event => {
@@ -140,6 +141,21 @@ class BrowserPanel {
    this.mineAt = performance.now();
   }, true);
   this.render();
+ }
+
+ // Move the panel's controls, never its live webviews or agent/document ownership.
+ bind({ main, toggle, split }) {
+  if (this.main === main && this.toggle === toggle && this.split === split) return;
+  this.toggle.removeEventListener('browser-toggle', this.onToggle);
+  this.toggle.toggleAttribute('open', false);
+  this.root.getAnimations().forEach(animation => animation.cancel());
+  Object.assign(this, { main, toggle, split, storeKey: split ? SPLIT_STORE : STORE, docked: !split, peek: false });
+  this.root.classList.toggle('is-split-browser', split);
+  this.root.classList.remove('is-peek');
+  toggle.addEventListener('browser-toggle', this.onToggle);
+  this.sync();
+  this.show();
+  this.save();
  }
 
  get holding() { return keyHolding; }

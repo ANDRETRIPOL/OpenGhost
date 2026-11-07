@@ -60,6 +60,35 @@ async function main(){
  const edits=[],input={selectionStart:2,selectionEnd:4},editor=Object.assign(Object.create(c.ComposerText.prototype),{input,apply:(...args)=>edits.push(args)});
  c.document.activeElement={};c.document.execCommand=(...args)=>edits.push(['native',...args]);editor.insertText('RIGHT');check('A hidden field edit cannot reach another focused composer',edits.length===1&&edits[0].join(',')==='RIGHT,2,4');
  c.document.activeElement=input;editor.insertText('OWN');check('Focused composer keeps native editing and undo',edits[1].join(',')==='native,insertText,false,OWN');
+ for(const file of ['split-sizing.js','split-view.js']){vm.runInContext(read(file),c);Object.assign(c,c.window)}
+ const navNodes=new Map(['a','b','c'].map(id=>[id,{id,record:{id},messages:[],ready:null,turn:{controller:new AbortController()},list:{classList:{contains:()=>false}}}]));
+ const navLibrary={chat:id=>navNodes.get(id)?.record||null};
+ const navView=active=>Object.assign(Object.create(c.Chat.prototype),{active,opening:0,conversations:navNodes,library:navLibrary,waiting:false,activate(one){this.active=one},onChange(){},showWait(on){this.waiting=on}});
+ const nv=navView(navNodes.get('b')),ns=navView({id:null,list:{classList:{contains:()=>false}}});
+ const nw=Object.assign(Object.create(c.SplitView.prototype),{chat:nv,pane:{chat:ns},views:new Set([nv,ns]),library:navLibrary,opened:false,navigation:0,opening:0,switching:false,currentChat:nv,pairs:{find:()=>null},canFit:()=>true,focus(view){this.currentChat=view},changed(){},remember(){},close(){this.opening++;ns.opening++;this.opened=false;this.switching=false}});nv.workspace=ns.workspace=nw;
+ const navTurn=navNodes.get('b').turn;
+ await Promise.all([nw.select('c'),nw.select('a'),nw.select('b')]);
+ check('The last selected visible chat wins over older queued loads',nv.active.id==='b');
+ check('Cancelling stale UI loads never aborts a running conversation',navNodes.get('b').turn===navTurn&&!navTurn.controller.signal.aborted);
+ nw.opened=true;nv.active=navNodes.get('a');ns.active=navNodes.get('b');nw.switching=true;const epochs={main:nv.opening,side:ns.opening,split:nw.opening};nv.waiting=ns.waiting=true;await nw.select('b');
+ check('Focusing a visible pane invalidates pending loads in both panes',nv.opening>epochs.main&&ns.opening>epochs.side&&nw.opening>epochs.split&&nw.currentChat===ns);
+ check('Cancelling a pending read clears its wait UI and switching state',!nv.waiting&&!ns.waiting&&!nw.switching);
+ nw.opened=false;nv.active=navNodes.get('a');nv.active.list.classList.contains=()=>true;nv.waiting=true;await nw.select('a');
+ check('A current chat still settling its own content keeps its wait UI',nv.waiting);nv.active.list.classList.contains=()=>false;
+ nv.active=navNodes.get('b');let releaseSlow;navNodes.get('c').ready=new Promise(resolve=>releaseSlow=resolve);const staleRead=nw.select('c');nv.waiting=true;await nw.select('b');releaseSlow();await staleRead;
+ check('A cancelled slow read cannot replace the reselected current chat',nv.active.id==='b'&&!nv.waiting);
+ const bindingCalls=[],panel=(name)=>({name,bind(options){bindingCalls.push({name,...options});Object.assign(this,options)}}),pl=panel('A'),pr=panel('B'),mainToggle={},sideToggle={};
+ const paneChat={active:{turn:{browser:pr}}},mainChat={active:{turn:{browser:pr}}},sideHost={},mainHost={querySelector:()=>mainToggle};
+ const swap=Object.assign(Object.create(c.SplitView.prototype),{chat:mainChat,pane:{chat:paneChat,browser:pr,main:sideHost,browserToggle:sideToggle},opened:false,main:mainHost,app:{classList:{remove(){}}},sidePanels:{browser:pl,splitBrowser:pr,layout(){},least:()=>470},onBrowsers(p){this.exposed=p}});
+ const oldAll=Mini.all;Mini.all=()=>[];swap.syncBrowsers();
+ check('Moving a running right chat swaps pane bindings, not its browser',mainChat.browser===pr&&swap.pane.browser===pl&&swap.sidePanels.browser===pr&&swap.exposed===pr);
+ check('Moved browser keeps the original turn and receives the main globe',mainChat.active.turn.browser===pr&&bindingCalls[1].toggle===mainToggle&&!bindingCalls[1].split&&bindingCalls[0].toggle===sideToggle&&bindingCalls[0].split);
+ const bindingCount=bindingCalls.length;swap.syncBrowsers();check('Stable browser ownership does not rebind or duplicate listeners',bindingCalls.length===bindingCount);
+ mainChat.active={turn:{browser:pl}};paneChat.active={turn:{browser:pr}};swap.opened=true;swap.syncBrowsers();
+ check('Restoring both original agents restores their browser presentation',mainChat.browser===pl&&paneChat.browser===pr&&swap.sidePanels.splitBrowser===pr);
+ mainChat.active={};swap.opened=false;Mini.all=()=>[{origin:mainChat.active,chat:{busy:true,browserOf:()=>pr}}];swap.syncBrowsers();
+ check('A working mini keeps its browser reachable after its parent moves',mainChat.browser===pr&&swap.pane.browser===pl);Mini.all=oldAll;
+ check('Quick mode picker targets its own conversation',read('quick-chat.js').includes("anchor: '--mini-mode', settings, chat: this.chat")&&read('quick-chat.js').includes('this.mode?.sync()'));
  console.log('\n'+count+' checks passed');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});
