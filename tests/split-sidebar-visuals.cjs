@@ -46,6 +46,8 @@ check('Trimming never splits out the secondary conversation',!trimmed.some(r=>r.
 const css=read('styles.css'),source=read('chat-list.js');
 check('Thread content reserves at least the full scrollbar hit width plus a gap',css.includes('--thread-side-gap: max(var(--composer-side-gap), calc(var(--scrollbar-hit-width) + 6px))')&&css.includes('100% - 2 * var(--thread-side-gap)'));
 check('The thread indicator is below both edge veils',/\.thread-scrollbar\s*\{\s*z-index:\s*1;/.test(css)&&/\.thread-view::after\s*\{/.test(css));
+const captionMask=/\.is-split-secondary > \.thread-view > \.thread\s*\{([^}]*)\}/.exec(css)?.[1]||'';
+check('The pane caption clears reply text without masking its sibling scrollbar',captionMask.includes('scroll-padding-top: 56px')&&captionMask.includes('transparent 38px, #000 56px'));
 check('Eligible split rows reserve space for all three action buttons',css.includes('--chat-actions-width: 78px')&&css.includes('min-width: var(--chat-actions-width, 52px)'));
 check('The old heavy left bracket is absent',!css.includes('box-shadow: inset 3px 0 0 rgba(var(--fg-rgb), 0.3)'));
 check('Secondary pane rows have no separate persistent selection decoration',!css.includes('.chat-row.is-open-beside:not(.is-active)')&&!css.includes('.chat-row.is-split-active:not(.is-active)'));
