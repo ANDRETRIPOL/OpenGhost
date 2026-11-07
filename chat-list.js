@@ -431,26 +431,39 @@ class ChatList {
   }
  }
 
- // A pair is one entry for ordering and trimming, but keeps both original conversation rows.
+ // A pair is one entry for ordering and trimming, with each parent's existing fork tree kept under it.
+ // This is only workspace presentation: fork creation, saved parent links and folders stay unchanged.
  pairChats(pairs, match) {
   this.pairItems = new Map();
-  const members = new Set();
-  for (const pair of pairs) {
-   const chats = [this.library.chat(pair.left), this.library.chat(pair.right)];
-   if (chats.some(chat => !chat)) continue;
-   // A pinned member keeps the pair among pinned chats; otherwise the left chat owns its usual section.
-   const anchor = chats.find(chat => chat.pinned) || chats[0];
-   this.pairItems.set(anchor.id, { pair, chats });
-   for (const chat of chats) members.add(chat.id);
+  const members = new Set(), valid = pairs.map(pair => ({ pair, chats: [this.library.chat(pair.left), this.library.chat(pair.right)] })).filter(entry => entry.chats.every(Boolean));
+  const roots = new Set(valid.flatMap(entry => entry.chats.map(chat => chat.id))), children = new Map();
+  for (const chat of this.library.chats) {
+   if (chat.fork && chat.fork !== chat.id && !roots.has(chat.id)) children.set(chat.fork, [...(children.get(chat.fork) || []), chat]);
+  }
+  const branch = root => {
+   const rows = [], visited = new Set(), pending = [root];
+   while (pending.length) {
+    const chat = pending.pop();
+    if (visited.has(chat.id)) continue;
+    visited.add(chat.id); rows.push(chat);
+    pending.push(...(children.get(chat.id) || []));
+   }
+   return this.tree(rows);
+  };
+  for (const { pair, chats } of valid) {
+   // A chat in another pair starts its own group, never a duplicate nested inside this one.
+   const rows = chats.flatMap(branch), anchor = chats.find(chat => chat.pinned) || chats[0];
+   this.pairItems.set(anchor.id, { pair, chats, rows });
+   for (const chat of rows) members.add(chat.id);
   }
   return this.library.chats.flatMap(chat => {
    const entry = this.pairItems.get(chat.id);
-   if (entry) return entry.chats.some(match) ? [{ ...chat, updated: Math.max(...entry.chats.map(one => Number(one.updated) || 0)) }] : [];
+   if (entry) return entry.rows.some(match) ? [{ ...chat, pinned: entry.rows.some(one => one.pinned), updated: Math.max(...entry.rows.map(one => Number(one.updated) || 0)) }] : [];
    return !members.has(chat.id) && match(chat) ? [chat] : [];
   });
  }
 
- pairItem({ pair, chats }, anchor, seen) {
+ pairItem({ pair, chats, rows = chats }, anchor, seen) {
   this.pairGroups ||= new Map();
   let group = this.pairGroups.get(pair.left);
   if (!group) {
@@ -471,12 +484,12 @@ class ChatList {
   group.querySelector('.chat-pair-close').setAttribute('label', I18n.t('split.close'));
   group.classList.toggle('is-active', this.chat.workspace?.opened && this.chat.workspace.chat.activeId === pair.left && this.chat.workspace.pane?.chat.activeId === pair.right);
   if (!group.isConnected) this.list.append(group);
-  place(group, [group.firstElementChild, ...chats.map(chat => this.rowItem(chat, seen))]);
+  place(group, [group.firstElementChild, ...rows.map(chat => this.rowItem(chat, seen))]);
   return group;
  }
 
  isShown(chat) {
-  const chats = this.pairItems?.get(chat.id)?.chats || [chat];
+  const pair = this.pairItems?.get(chat.id), chats = pair?.rows || pair?.chats || [chat];
   return chats.some(one => one.id === this.chat.activeId || this.chat.workspace?.viewOfId?.(one.id));
  }
 

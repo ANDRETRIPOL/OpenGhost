@@ -21,6 +21,7 @@
     "test:split-ui": "electron tests/split-isolation-ui.cjs",
     "test:split-layout-ui": "electron tests/split-view.cjs",
     "test:split-visuals-ui": "electron tests/split-sidebar-scroll-ui.cjs",
+    "test:split-interactions-ui": "electron tests/split-interactions-ui.cjs",
     "test:post152-visual-ui": "electron tests/post152-visual-ui.cjs",
     "test:post152-background-ui": "electron tests/post152-background-ui.cjs",
     "test:post152-ownership-ui": "electron tests/post152-ownership-ui.cjs",

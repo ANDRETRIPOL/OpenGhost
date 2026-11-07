@@ -24,7 +24,7 @@ app.whenReady().then(async()=>{
  const js=async s=>{report.lastScript=s;new vm.Script(s);return win.webContents.executeJavaScript(s)};
  const wait=async(s,ms=15000)=>{const end=Date.now()+ms;while(Date.now()<end){if(await js(s))return;await pause(30)}throw Error('Not ready: '+s)};
  const check=async(name,s)=>{const pass=!!(typeof s==='string'?await js(s):s);report.checks.push({name,pass});if(!baseline)assert.ok(pass,name)};
- const settle=async()=>{await pause(70);await js(`Promise.race([Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))),new Promise(r=>setTimeout(r,1800))]).then(()=>null)`);await pause(100)};
+ const settle=async()=>{await pause(70);await js(`Promise.race([Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))),new Promise(r=>setTimeout(r,1800))]).then(()=>null)`);await wait(`!Theme.moving`);await pause(100)};
  const shot=async name=>{await settle();const p=path.join(output,name+'.png');fs.writeFileSync(p,(await win.webContents.capturePage()).toPNG());report.screenshots.push(p)};
  const cdp=(method,params)=>win.webContents.debugger.sendCommand(method,params);
  const hover=async expression=>{await settle();await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',x:1,y:1});await pause(40);const p=await js(`(()=>{const e=${expression};e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);await cdp('Input.dispatchMouseEvent',{type:'mouseMoved',...p});await settle()};
@@ -45,7 +45,7 @@ app.whenReady().then(async()=>{
  await check('The pair does not precede pinned chats or Skills',`(()=>{const p=document.querySelector('.chat-pair'),s=chatList.skillsGroup.section,r=chatList.rows.get(ids.pinned).row;return !!(s.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING)&&!!(r.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING)})()`);
  await check('A newer ordinary chat sorts before an older pair',`(()=>{const p=document.querySelector('.chat-pair'),r=chatList.rows.get(ids.newer).row;return r.parentElement===p.parentElement&&!!(r.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING)})()`);
  for(const theme of ['light','dark']){
-  await js(`Theme.set('${theme}');void 0`);await settle();await hover(`chatList.rows.get(ids.a).row`);
+  await js(`Theme.set('${theme}').then(()=>null)`);await settle();await hover(`chatList.rows.get(ids.a).row`);
   await check(theme+': the hover highlight fits the nested active row',`(()=>{const a=chatList.rows.get(ids.a).row.getBoundingClientRect(),g=chatList.glide.getBoundingClientRect();return Math.abs(a.left-g.left)<.8&&Math.abs(a.right-g.right)<.8&&Math.abs(a.top-g.top)<1&&Math.abs(a.height-g.height)<1})()`);
   await check(theme+': active row stays fully inside its pair frame',`(()=>{const r=chatList.rows.get(ids.a).row.getBoundingClientRect(),p=document.querySelector('.chat-pair').getBoundingClientRect();return r.left>=p.left+4&&r.right<=p.right-4})()`);
   await check(theme+': the secondary chat has no left bracket',`!getComputedStyle(chatList.rows.get(ids.b).row).boxShadow.includes('3px 0px')`);
@@ -82,7 +82,7 @@ app.whenReady().then(async()=>{
  }
  win.webContents.setZoomFactor(1);win.setContentSize(1100,850);await settle();
  async function fade(theme,edge){
-  await js(`Theme.set('${theme}');thread.scrollTop=${edge==='top'?'0':'thread.scrollHeight'};void 0`);await settle();await pause(200);
+  await js(`Theme.set('${theme}').then(()=>null)`);await js(`thread.scrollTop=${edge==='top'?'0':'thread.scrollHeight'};void 0`);await settle();await pause(200);
   const box=await js(`(()=>{const t=main.querySelector('.thread-scrollbar .scrollbar-thumb'),r=t.getBoundingClientRect();window.oldThumb={background:t.style.background,width:t.style.width,transition:t.style.transition};t.style.transition='none';t.style.background='rgb(255, 0, 0)';t.style.width='6px';return {height:r.height}})()`);await pause(100);
   const geometry=await js(`(()=>{const t=main.querySelector('.thread-scrollbar .scrollbar-thumb').getBoundingClientRect();return{x:t.x+t.width/2,top:t.top,bottom:t.bottom,dpr:devicePixelRatio,bg:getComputedStyle(main).backgroundColor}})()`);
   const native=await win.webContents.capturePage(),size=native.getSize(),pixels=native.toBitmap();
