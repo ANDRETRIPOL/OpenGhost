@@ -105,7 +105,7 @@ app.whenReady().then(async () => {
   await wait(`typeof chat!=='undefined'&&!!chatList&&!!library.home`); await js(`library.ready.then(()=>null)`); await wait(`!document.documentElement.classList.contains('is-splash')`);
   await js(`(()=>{const tour=document.querySelector('.tour');[...tour?.querySelectorAll('button')||[]].find(b=>/skip|пропуст|ignorer|salta/i.test(b.textContent))?.click()})()`);
   await wait(`!document.querySelector('.tour')`);
-  await js(`(()=>{localStorage.setItem('openghost.lang','ru');settings.models=[{id:'recovery-ui',api:'recovery-ui',provider:'custom',name:'Локальная проверка',context:128000,efforts:['low','high'],defaultEffort:'high',thinking:'levels',tools:true,vision:true}];settings.model='recovery-ui';settings.shown='';settings.keys.custom='fixture-only';settings.hand.custom.address=${JSON.stringify(report.address)};Providers.complete=async()=>'';Providers.predict=async()=>'';ModePicker.prototype.set.call({settings},'full');composerSend.addEventListener('composer-send',()=>{window.checkedTurn=chat.active.turn;window.checkedTurnId=checkedTurn?.id||''});syncAll()})()`);
+  await js(`(()=>{localStorage.setItem('openghost.lang','ru');settings.models=[{id:'recovery-ui',api:'recovery-ui',provider:'custom',name:'Локальная проверка',context:128000,efforts:['low','high'],defaultEffort:'high',thinking:'levels',tools:true,vision:true}];settings.model='recovery-ui';settings.shown='';settings.keys.custom='fixture-only';settings.hand.custom.address=${JSON.stringify(report.address)};Providers.complete=async()=>'';Providers.predict=async()=>'';modePicker.set('full');composerSend.addEventListener('composer-send',()=>{window.checkedTurn=chat.active.turn;window.checkedTurnId=checkedTurn?.id||''});syncAll()})()`);
  };
  await ready(); check('The test controls the main window, not hidden Quick', await js(`!window.openghost.quick`)); await js(`Theme.set('light')`);
  win.webContents.debugger.attach('1.3'); await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
@@ -114,7 +114,7 @@ app.whenReady().then(async () => {
  async function start(name, title) {
   assert.ok(!await js(`chat.busy`), 'Previous scenario is finished');
   scenario = { name, calls: 0, requests: [] };
-  await js(`(async()=>{const item=library.create({folder:{path:${JSON.stringify(workspace)}},text:${JSON.stringify(title)},attachments:[]});library.update(item.id,{model:'recovery-ui',effort:'high',title:${JSON.stringify(title)},named:true});window.reviewId=item.id;window.checkedTurn=null;window.checkedTurnId='';await chat.open(item.id);composerText.place('Выполни локальную проверку восстановления ответа');syncComposer()})()`);
+  await js(`(async()=>{const item=library.create({folder:{path:${JSON.stringify(workspace)}},text:${JSON.stringify(title)},attachments:[]});library.update(item.id,{model:'recovery-ui',effort:'high',mode:'full',title:${JSON.stringify(title)},named:true});window.reviewId=item.id;window.checkedTurn=null;window.checkedTurnId='';await chat.open(item.id);composerText.place('Выполни локальную проверку восстановления ответа');syncComposer()})()`);
   await wait(`!composerSend.hasAttribute('disabled')&&!composerSend.raf&&!settings.dialog.open`);
   await js(`Promise.race([Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity&&a.playState==='running').map(a=>a.finished.catch(()=>{}))),new Promise(resolve=>setTimeout(resolve,1300))]).then(()=>null)`);
   await pause(150); await click('composerSend.button');

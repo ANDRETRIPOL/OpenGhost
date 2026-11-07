@@ -32,7 +32,7 @@ app.whenReady().then(async()=>{
  await js(`window.fixtureBodies={};library.chats=['left','right','third'].map((id,i)=>({id,title:['Проект приложения','Обсуждение дизайна','План выпуска'][i],folder:'',space:id,created:Date.now(),updated:Date.now()}));
  library.conversation=async id=>({messages:[{role:'user',content:'Что обсудим в чате '+id+'?',text:'Что обсудим в чате '+id+'?'},{role:'assistant',content:'## '+library.chat(id).title+'\\n\\nЭто отдельный разговор. У него свои сообщения, черновик и текущая задача.'}],tokens:120});
  settings.resolve=id=>id||'fixture';settings.find=id=>({id:id||'fixture',name:'DeepSeek-V4.1-Flash',provider:'deepseek',efforts:['low','high'],context:128000});settings.configFor=id=>({id:id||'fixture',name:'DeepSeek-V4.1-Flash',model:'fixture',provider:'deepseek',ready:true,tools:false,vision:true,effort:'high',efforts:['low','high']});
- AgentTools.available=true;settings.setMode('full');modeButton.hidden=false;window.fixtureMode=window.modePicker=new ModePicker({button:modeButton,host:main,settings,onChange:()=>chat.onModeChange()});
+ AgentTools.available=true;settings.setMode('full');modeButton.hidden=false;window.fixtureMode=window.modePicker=new ModePicker({button:modeButton,host:main,settings,chat});
  window.turns=[];Chat.prototype.drive=async function(conv,turn){turns.push({id:conv.id,turn});};
  chatList.render();void 0`);
  await js(`browserPanel=window.browserPanel=new BrowserPanel({app,main,toggle:browserToggle});browserToggle.hidden=false;sidePanels.browser=browserPanel;browserPanel.onLayout=()=>sidePanels.layout();browserPanel.chatRoom=()=>sidePanels.least();void 0`);
@@ -42,11 +42,11 @@ app.whenReady().then(async()=>{
  await js(`chatList.menu.close(true)`);
  await js(`{const row=chatList.rows.get('right').row;chatList.menu.open('right',row,row.querySelector('.is-more'))}`);await pause(180);
  check('Open beside is present in the real row menu',await js(`!!chatList.menu.root.querySelector('.is-split')`));
- await js(`chatList.menu.choose(chatList.menu.root.querySelector('.is-split'))`);await pause(750);
+ await js(`chatList.menu.choose(chatList.menu.root.querySelector('.is-split'))`);for(let i=0;i<50&&await js(`!splitView.opened||!!splitView.motionFlights?.length`);i++)await pause(100);
  check('Both chats are visible with separate views',await js(`splitView.opened&&chat.activeId==='left'&&splitView.pane.chat.activeId==='right'&&chat.active.list.parentElement===thread&&splitView.pane.chat.active.list.parentElement===splitView.pane.chat.thread`));
  check('Views share conversation identities and running turns',await js(`chat.conversations===splitView.pane.chat.conversations&&chat.nodes===splitView.pane.chat.nodes`));
  report.geometry=await js(`(()=>{const a=main.getBoundingClientRect(),b=splitView.pane.main.getBoundingClientRect();return {left:{x:a.x,width:a.width,height:a.height},right:{x:b.x,width:b.width,height:b.height},gap:b.left-a.right,radius:getComputedStyle(main).borderRadius}})()`);
- check('Gap separates rounded cards without reducing their minimum width',report.geometry.gap===14&&report.geometry.left.width>=470&&report.geometry.right.width>=470);
+ check('Gap separates rounded cards without reducing their minimum width',Math.abs(report.geometry.gap-14)<.01&&report.geometry.left.width>=470&&report.geometry.right.width>=470);
  check('Chat gap reveals the same application backdrop as beside the browser',await js(`getComputedStyle(splitView.root).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(splitView.root,'::before').content==='none'`));
  check('No empty control is drawn underneath Notes',await js(`splitView.pane.miniTool.hidden&&getComputedStyle(splitView.pane.miniTool).display==='none'&&splitView.pane.miniTool.offsetWidth===0`));
  check('Only chats outside both visible panes offer Open beside',await js(`(async()=>!(await chatList.menu.items('left')).some(item=>item.name==='split')&&!(await chatList.menu.items('right')).some(item=>item.name==='split')&&(await chatList.menu.items('third')).some(item=>item.name==='split'))()`));
@@ -163,8 +163,8 @@ app.whenReady().then(async()=>{
  await js(`window.approval=splitView.pane.chat.approve(chat.active,turns[0].turn,turns[0].turn.part.view,{name:'read_file',args:{path:'fixture.txt'},cwd:'C:/fixture',apart:false});void 0`);await pause(150);
  check('Approval appears in the pane currently showing its conversation',await js(`composer.classList.contains('is-approving')&&!splitView.pane.composer.classList.contains('is-approving')`));
  await js(`[...turns[0].turn.approvals][0].card.settle('deny');approval.then(()=>null)`);await pause(400);
- await js(`splitView.pane.settings.setMode('full')`);
- check('Permissions retain the existing shared application setting',await js(`settings.mode===splitView.pane.settings.mode&&settings.mode==='full'`));
+ await js(`chat.setMode('ask');splitView.pane.chat.setMode('full')`);
+ check('Permission modes belong to individual conversations',await js(`chat.mode==='ask'&&splitView.pane.chat.mode==='full'`));
  await js(`splitView.pane.input.focus()`);await key('Escape');
  check('Escape in one pane stops only its own agent',await js(`turns[1].turn.controller.signal.aborted&&!turns[0].turn.controller.signal.aborted`));
  await js(`library.chats.push({id:'race',title:'Одновременное открытие',folder:'',space:'race'});window.releaseLoad=null;const oldRead=library.conversation;library.conversation=id=>id==='race'?new Promise(resolve=>releaseLoad=resolve):oldRead(id);window.openSide=splitView.open('race');window.openMain=chat.open('race');releaseLoad({messages:[],tokens:0});Promise.all([openSide,openMain]).then(()=>null)`);
@@ -175,7 +175,8 @@ app.whenReady().then(async()=>{
  check('Single chat window narrowed below ~730px automatically collapses the left sidebar',await js(`app.classList.contains('is-sidebar-collapsed')&&!sidePanels.docked&&main.clientWidth>=470`));
  win.setSize(1400,900);win.webContents.setZoomFactor(1);await pause(400);
  check('Top-right split toggle button reappears when the window fits two panes',await js(`!splitView.splitToggle.hidden`));
- await js(`splitView.splitToggle.click()`);await pause(450);
+ await js(`splitView.splitToggle.click()`);for(let i=0;i<50&&await js(`!splitView.opened||!!splitView.motionFlights?.length`);i++)await pause(100);
+ report.reopened=await js(`({opened:splitView.opened,left:main.getBoundingClientRect().width,right:splitView.pane.main.getBoundingClientRect().width,active:chat.activeId,secondary:splitView.pane.chat.activeId,loading:splitView.switching,mainOpening:chat.opening,sideOpening:splitView.pane.chat.opening,turnAborted:turns[0].turn.controller.signal.aborted})`);
  check('Widening the window and clicking the split toggle opens two valid panes again',await js(`splitView.opened&&main.getBoundingClientRect().width>=470&&splitView.pane.main.getBoundingClientRect().width>=470&&!turns[0].turn.controller.signal.aborted`));
  const Size=require('../desktop/size');
  check('Split view doubles the application window minimum width across zoom levels (500 -> 1000)',Size.minimum(1,{width:1920,height:1080},false).width===500&&Size.minimum(1,{width:1920,height:1080},true).width===1000&&Size.minimum(1.25,{width:2560,height:1440},true).width===Size.minimum(1.25,{width:2560,height:1440},false).width*2&&Size.minimum(1.5,{width:1280,height:720},true).width<=Math.round(1280*0.92));

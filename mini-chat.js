@@ -14,7 +14,7 @@ const SIZE = { width: 330, height: 490, minWidth: 280, minHeight: 340, edge: 10,
 const BONES = { fade: 240, lines: 12, widths: [100, 94, 98, 89, 96, 91], last: 58 };
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const stored = () => { try { return JSON.parse(localStorage.getItem(FRAME) || 'null') || {}; } catch { return {}; } };
+const stored = (key = FRAME) => { try { return JSON.parse(localStorage.getItem(key) || 'null') || {}; } catch { return {}; } };
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -65,18 +65,22 @@ const TEMPLATE = `
 // Closed while its agent is at work, it is only put out of sight: the agent goes on, and the ghost at the top of the chat
 // brings the mini chat back, with whatever was written meanwhile.
 class MiniChat {
+ static all() { return [...new Set([...MiniChat.visible, ...MiniChat.away.values()])]; }
+
  static open(options) {
-  const origin = options.source.active, now = MiniChat.current, away = MiniChat.away.get(origin);
-  if (now?.origin === origin && !now.closing) {
-   if (options.quote) now.quote(options.quote);
-   else now.input.focus();
-   return now;
+  const origin = options.source.active, workspace = options.source.workspace;
+  const existing = MiniChat.all().find(mini => mini.origin === origin && !mini.destroyed);
+  // Two visible parents may each have a mini. A replacement in the same pane still puts its old mini away.
+  for (const mini of MiniChat.visible) {
+   if (mini === existing) continue;
+   const other = workspace?.opened && workspace.viewOf(mini.origin);
+   if (!other || other === options.source) mini.close();
   }
-  now?.close();
-  if (away) return away.show(options.quote);
-  MiniChat.current = new MiniChat(options);
+  if (existing) { existing.bindSource(options.source); return existing.show(options.quote); }
+  const mini = new MiniChat(options);
+  MiniChat.visible.add(mini); MiniChat.current = mini;
   MiniChat.signal();
-  return MiniChat.current;
+  return mini;
  }
 
  // The mini chat put out of sight for the chat on screen, and what it is doing: working, waiting for the user's answer
@@ -95,8 +99,9 @@ class MiniChat {
  // A mini chat belongs to one chat. The one on screen closes when another chat comes there, and stops when its chat is
  // locked. One out of sight goes on while its agent works; done, it waits only while its chat is on screen.
  static check() {
-  const now = MiniChat.current;
-  if (now && (now.source.active !== now.origin || now.origin.locked)) now.close({ stop: !!now.origin.locked });
+  for (const mini of [...MiniChat.visible]) {
+   if (mini.source.active !== mini.origin || mini.origin.locked) mini.close({ stop: !!mini.origin.locked });
+  }
   for (const mini of [...MiniChat.away.values()]) {
    const gone = !mini.source.library.chat(mini.origin.id);
    if (gone || mini.origin.locked || (!mini.chat.busy && mini.source.active !== mini.origin)) mini.destroy();
@@ -142,10 +147,11 @@ class MiniChat {
     this.sync();
    },
   });
+  this.chat.browser = source.browserOf(origin);
   // Until its messages are read the mini chat shows neither them nor the words of an empty one.
   this.main.classList.add('is-loading');
   // A mini chat closed a moment ago may still be saving its last words: this one opens once they are on disk.
-  Promise.resolve(MiniChat.settling).then(() => this.chat.start()).catch(() => {}).then(() => {
+  Promise.resolve(MiniChat.settling.get(origin.id)).then(() => this.chat.start()).catch(() => {}).then(() => {
    this.main.classList.remove('is-loading');
    this.sync();
   });
@@ -162,11 +168,11 @@ class MiniChat {
    isActive: event => this.open && (!event || dialog.contains(event.target)),
   });
   // The mini chat's plus and mode have their own menus, inside it.
-  this.addMenu = new AddMenu({ button: $('.composer-add'), host: dialog, attachments: this.attachments, input: this.input, anchor: '--mini-add' });
+  this.addMenu = new AddMenu({ button: $('.composer-add'), host: dialog, attachments: this.attachments, input: this.input, anchor: `--mini-add-${origin.id}` });
   if (AgentTools.available) {
    const mode = $('.composer-mode');
    mode.hidden = false;
-   this.mode = new ModePicker({ button: mode, host: dialog, anchor: '--mini-mode', settings, onChange: () => this.chat.onModeChange() });
+   this.mode = new ModePicker({ button: mode, host: dialog, anchor: `--mini-mode-${origin.id}`, settings, chat: this.chat });
   }
   this.input.addEventListener('input', () => this.sync());
   this.input.addEventListener('keydown', event => this.onKey(event));
@@ -189,8 +195,12 @@ class MiniChat {
    if (this.chat.busy) this.chat.stop();
    else this.close();
   });
-  this.room = document.querySelector('.main');
-  this.frame = stored();
+  this.room = source.main;
+  this.frameKey = `${FRAME}.${origin.id}`;
+  const ownFrame = stored(this.frameKey);
+  this.frame = Object.keys(ownFrame).length ? ownFrame : source.workspace?.opened ? {} : stored();
+  dialog.addEventListener('pointerdown', () => { MiniChat.current = this; this.source.workspace?.focus(this.source); }, true);
+  dialog.addEventListener('focusin', () => { MiniChat.current = this; this.source.workspace?.focus(this.source); });
   this.place = () => this.apply(this.target());
   this.place();
   this.follow = new ResizeObserver(this.place);
@@ -208,6 +218,17 @@ class MiniChat {
   else this.input.focus();
   this.sync();
   window.Notify?.look();
+ }
+
+ bindSource(source) {
+  this.source = source;
+  if (this.room !== source.main) {
+   this.follow?.unobserve(this.room);
+   this.room = source.main;
+   this.follow?.observe(this.room);
+   if (this.open) this.place();
+  }
+  if (!this.chat.busy) this.chat.browser = source.browserOf(this.origin);
  }
 
  get open() {
@@ -392,7 +413,7 @@ class MiniChat {
  }
 
  keep() {
-  try { localStorage.setItem(FRAME, JSON.stringify(this.frame)); } catch {}
+  try { localStorage.setItem(this.frameKey, JSON.stringify(this.frame)); } catch {}
  }
 
  quote(text) {
@@ -401,6 +422,7 @@ class MiniChat {
  }
 
  sync() {
+  this.mode?.sync();
   MiniChat.signal();
   this.send.configure({ busy: this.chat.busy, empty: !this.text.text().trim() && !this.attachments?.count, stopping: !!this.chat.active?.turn?.controller.signal.aborted });
   this.field.classList.toggle('has-value', this.input.value !== '');
@@ -469,26 +491,29 @@ class MiniChat {
   const end = () => {
    if (keep) this.park();
    else this.destroy();
-   if (back) document.querySelector('.main .composer-input')?.focus({ preventScroll: true });
+   if (back && (document.activeElement === document.body || this.dialog.contains(document.activeElement))) this.source.main.querySelector('.composer-input')?.focus({ preventScroll: true });
   };
   if (reducedMotion()) { end(); return; }
   this.dialog.classList.add('is-closing');
-  setTimeout(end, CLOSE_TIME);
+  this.closeTimer = setTimeout(end, CLOSE_TIME);
  }
 
  park() {
   this.closing = false;
   if (this.open) this.dialog.hidePopover();
   this.dialog.classList.remove('is-closing');
-  if (MiniChat.current === this) MiniChat.current = null;
+  MiniChat.visible.delete(this);
+  if (MiniChat.current === this) MiniChat.current = [...MiniChat.visible].findLast(mini => !mini.closing) || null;
   MiniChat.away.set(this.origin, this);
   MiniChat.signal();
  }
 
  show(quote = '') {
+  clearTimeout(this.closeTimer); this.closing = false;
+  this.dialog.classList.remove('is-closing');
   MiniChat.away.delete(this.origin);
-  MiniChat.current = this;
-  this.dialog.showPopover();
+  MiniChat.visible.add(this); MiniChat.current = this;
+  if (!this.open) this.dialog.showPopover();
   this.place();
   if (quote) this.quote(quote);
   else this.input.focus();
@@ -502,8 +527,11 @@ class MiniChat {
   this.destroyed = true;
   this.chat.stop();
   // The tab its agent worked in stays in the browser, the user's own from here on.
-  if (this.chat.active) window.browserPanel?.vacate(this.chat.active);
-  MiniChat.settling = this.chat.idle();
+  if (this.chat.active) this.chat.browserOf(this.chat.active)?.vacate(this.chat.active);
+  const settling = this.chat.idle();
+  MiniChat.settling.set(this.origin.id, settling);
+  settling.finally(() => { if (MiniChat.settling.get(this.origin.id) === settling) MiniChat.settling.delete(this.origin.id); });
+  clearTimeout(this.closeTimer);
   clearTimeout(this.disarmTimer);
   this.text.destroy();
   this.addMenu.destroy();
@@ -519,7 +547,8 @@ class MiniChat {
    if (menu.matches(':popover-open')) menu.hidePopover();
    document.body.append(menu);
   }
-  if (MiniChat.current === this) MiniChat.current = null;
+  MiniChat.visible.delete(this);
+  if (MiniChat.current === this) MiniChat.current = [...MiniChat.visible].findLast(mini => !mini.closing) || null;
   if (MiniChat.away.get(this.origin) === this) MiniChat.away.delete(this.origin);
   this.dialog.remove();
   MiniChat.signal();
@@ -527,5 +556,7 @@ class MiniChat {
 }
 
 MiniChat.away = new Map();
+MiniChat.visible = new Set();
+MiniChat.settling = new Map();
 window.MiniChat = MiniChat;
 })();

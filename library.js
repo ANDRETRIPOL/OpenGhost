@@ -320,14 +320,14 @@ class Library {
   return this.queue(id, async () => {
    const data = await this.store.read(`mini/${id}`).catch(() => null);
    const body = data?.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
-   return { messages: Array.isArray(body?.messages) ? body.messages : [], tokens: Number(body?.tokens) || 0, seen: Number(body?.seen) || 0, ...(typeof body?.effort === 'string' ? { effort: body.effort } : {}) };
+   return { messages: Array.isArray(body?.messages) ? body.messages : [], tokens: Number(body?.tokens) || 0, seen: Number(body?.seen) || 0, ...(typeof body?.effort === 'string' ? { effort: body.effort } : {}), ...(['ask', 'auto', 'full'].includes(body?.mode) ? { mode: body.mode } : {}) };
   }).then(body => body || { messages: [], tokens: 0, seen: 0 });
  }
 
- saveSide(id, { messages, tokens = 0, seen = 0, effort = '' }) {
+ saveSide(id, { messages, tokens = 0, seen = 0, effort = '', mode = '' }) {
   const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
   if (!chat || (chat.lock && !key)) return Promise.resolve();
-  const body = { messages, tokens, seen, ...(effort ? { effort } : {}) };
+  const body = { messages, tokens, seen, ...(effort ? { effort } : {}), ...(['ask', 'auto', 'full'].includes(mode) ? { mode } : {}) };
   return this.queue(id, async () => this.store.write(`mini/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
  }
 

@@ -108,14 +108,14 @@ chatList = new ChatList({
   onNewFolder: async () => {
     const folder = await library.pick();
     if (!folder) return;
-    const target = splitView?.currentChat || chat;
-    target.newChat(folder);
-    target.main.querySelector('.composer-input').focus();
+    if (splitView) splitView.newChat(folder);
+    else chat.newChat(folder);
+    composerInput.focus();
   },
   onNewChat: (folder) => {
-    const target = splitView?.currentChat || chat;
-    target.newChat(folder);
-    target.main.querySelector('.composer-input').focus();
+    if (splitView) splitView.newChat(folder);
+    else chat.newChat(folder);
+    composerInput.focus();
   },
   onLock: (id, row, from) => lockCard.open(id, row, from),
   onNewRoutine: MAIN_WINDOW && Routines.available ? head => routineMaker?.open({ anchor: head }) : null,
@@ -131,7 +131,7 @@ const browserToggle = document.querySelector('.browser-toggle');
 let browserPanel = null;
 if (AgentTools.available) {
   modeButton.hidden = false;
-  window.modePicker = new ModePicker({ button: modeButton, host: main, settings, onChange: () => chat.onModeChange() });
+  window.modePicker = new ModePicker({ button: modeButton, host: main, settings, chat });
   // The quick chat's window has no built-in browser.
   if (!window.openghost?.quick) {
     browserToggle.hidden = false;
@@ -235,9 +235,9 @@ async function createRoutine({ text, rule, model, effort }) {
 document.querySelector('.sidebar-settings').addEventListener('settings-open', () => settings.open());
 
 document.querySelector('.sidebar-new-chat').addEventListener('add', () => {
-  const target = splitView?.currentChat || chat;
-  target.newChat();
-  target.main.querySelector('.composer-input').focus();
+  if (splitView) splitView.newChat();
+  else chat.newChat();
+  composerInput.focus();
 });
 
 function setSidebarCollapsed(collapsed) {
@@ -373,6 +373,7 @@ function syncAll() {
   const folder = focused.active?.record ? focused.cwd(focused.active) : '';
   if (folder !== Skills.folder) { Skills.folder = folder; if (folder) Skills.refresh(folder); }
   folderPill.sync();
+  splitView?.remember();
   chatList.render();
   lockScreen.sync();
   chat.syncAsk();
@@ -388,6 +389,7 @@ function syncAll() {
   planIsland?.sync();
   sidePanels?.sync(focused.activeId);
   splitView?.sync();
+  ModePicker.sync();
   MiniChat.check();
 }
 
@@ -463,19 +465,20 @@ syncComposer();
 // Notifications (notify.js): in the app's window the chat on screen and the mini chat open over it are what the user
 // sees; a notification pressed opens its chat, and for a reply of a mini chat, the mini chat too.
 if (!window.openghost?.quick) {
-  Notify.watch(() => [chat.activeId && `chat:${chat.activeId}`, MiniChat.current?.open && MiniChat.current.origin && `mini:${MiniChat.current.origin.id}`]);
+  Notify.watch(() => [chat.activeId && `chat:${chat.activeId}`, ...[...MiniChat.visible].filter(mini => mini.open).map(mini => `mini:${mini.origin.id}`)]);
   window.openghost?.notify?.onOpen(async key => {
     const kind = key.slice(0, key.indexOf(':')), id = key.slice(key.indexOf(':') + 1);
     if (!library.chat(id)) return;
     if (settings.dialog.open) settings.dialog.close();
     await chat.open(id);
-    if (kind === 'mini' && chat.activeId === id) MiniChat.open({ settings, source: chat, library });
+    const source = splitView?.viewOfId(id) || chat;
+    if (kind === 'mini' && source.activeId === id) MiniChat.open({ settings: source.settings, source, library });
     Notify.look();
   });
 }
 
 // The language can't change while an agent is at work in this window: the page is read anew for it.
-LanguageSettings.busy = () => [chat, MiniChat.current?.chat, ...[...MiniChat.away.values()].map(mini => mini.chat)]
+LanguageSettings.busy = () => [chat, ...MiniChat.all().map(mini => mini.chat)]
   .some(one => one && [...one.conversations.values()].some(conv => conv.turn));
 // While an agent works here, the window is not slowed down out of sight (desktop/main.js).
 if (!window.openghost?.quick && window.openghost?.working) {

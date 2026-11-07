@@ -121,7 +121,7 @@ function place(parent, children) {
  children.forEach((child, k) => {
   const at = parent.children[k] || null;
   if (at === child) return;
-  if (child.isConnected && parent.moveBefore) parent.moveBefore(child, at);
+  if (child.isConnected && parent.isConnected && parent.moveBefore) parent.moveBefore(child, at);
   else parent.insertBefore(child, at);
  });
 }
@@ -192,12 +192,12 @@ class ChatList {
   const item = this.rows.get(id);
   if (!item) return null;
   let reset = false;
-  if (this.chat.settings?.mode === 'ask' && this.library.resetPermissions && this.library.permissions && !this.library.isLocked(id)) {
+  if ((this.chat.modeOf?.({ record: this.library.chat(id) }) || this.chat.settings?.mode) === 'ask' && this.library.resetPermissions && this.library.permissions && !this.library.isLocked(id)) {
    try { reset = (await this.library.permissions(id)).length > 0; } catch {}
   }
   // The mode, lock or row can change while the permission file is read.
   if (this.rows.get(id) !== item) return null;
-  reset = reset && this.chat.settings?.mode === 'ask' && !this.library.isLocked(id);
+  reset = reset && (this.chat.modeOf?.({ record: this.library.chat(id) }) || this.chat.settings?.mode) === 'ask' && !this.library.isLocked(id);
   return [
    { name: 'rename', label: I18n.t('chat.rename'), icon: Glyphs.pencil, disabled: item.rename.disabled },
    ...(this.onSplit && this.chat.activeId !== id && !this.chat.workspace?.viewOfId(id) ? [{ name: 'split', label: I18n.t('split.open'), icon: Glyphs.split, disabled: this.chat.workspace && !this.chat.workspace.canFit() }] : []),
@@ -449,7 +449,9 @@ class ChatList {
   // A locked chat's title is sealed, so a search never finds it.
   const match = chat => !query || (this.library.titleOf(chat) || '').toLowerCase().includes(query);
   const recent = (a, b) => b.updated - a.updated;
-  const live = lib.chats.filter(match);
+  const pairs = this.chat.workspace?.loaded ? this.chat.workspace.pairs.prune(id => lib.chat(id)) : [];
+  const paired = new Set(pairs.flatMap(pair => [pair.left, pair.right]));
+  const live = lib.chats.filter(chat => match(chat) && !paired.has(chat.id));
   const pinned = this.tree(live.filter(chat => chat.pinned));
   // A routine's own chats stand in the routines' group, the one that runs soonest first.
   const soon = chat => Math.min(...(window.Routines?.of(chat.id) || []).filter(item => Routines.live(item)).map(item => item.next), Infinity);
@@ -463,6 +465,32 @@ class ChatList {
   // The stand-in row of a new chat stands where its first message will put it: in its folder, or among the chats.
   const draft = !query && this.chat.isDraft ? this.chat.folder || HOME : null;
   const order = [this.glide];
+  this.pairGroups ||= new Map();
+  for (const pair of pairs) {
+   const chats = [lib.chat(pair.left), lib.chat(pair.right)];
+   if (!chats.some(match)) continue;
+   let group = this.pairGroups.get(pair.left);
+   if (!group) {
+    group = element('section', 'chat-pair');
+    group.setAttribute('role', 'group');
+    const head = element('div', 'chat-pair-head');
+    const name = element('span', 'chat-pair-label');
+    name.innerHTML = `${Glyphs.split}<span></span>`;
+    const close = document.createElement('close-button');
+    close.className = 'chat-pair-close';
+    close.addEventListener('dismiss', () => this.chat.workspace?.unpair(pair.left));
+    head.append(name, close); group.append(head);
+    this.pairGroups.set(pair.left, group);
+   }
+   group.setAttribute('aria-label', I18n.t('split.label'));
+   group.querySelector('.chat-pair-label span').textContent = I18n.t('split.label');
+   group.querySelector('.chat-pair-close').setAttribute('label', I18n.t('split.close'));
+   group.classList.toggle('is-active', this.chat.workspace?.opened && this.chat.workspace.chat.activeId === pair.left && this.chat.workspace.pane?.chat.activeId === pair.right);
+   if (!group.isConnected) this.list.append(group);
+   place(group, [group.firstElementChild, ...chats.map(chat => this.item(chat, seen))]);
+   order.push(group);
+  }
+  for (const id of this.pairGroups.keys()) if (!pairs.some(pair => pair.left === id)) this.pairGroups.delete(id);
   if (pinned.length) order.push(this.pinnedHead, ...pinned.map(chat => this.item(chat, seen)));
   if (this.onSkills && !query) order.push(this.skillsRow());
   if (this.onNewRoutine && (!query || routines.length)) order.push(this.routinesGroup(routines, !!query, seen));

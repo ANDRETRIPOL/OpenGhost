@@ -18,10 +18,11 @@ const icon = mode => `<span class="mode-icon" data-mode="${mode.id}">${Glyphs[mo
 const pickers = new Set();
 
 class ModePicker {
- constructor({ button, host = document.body, anchor = '--mode', settings, onChange }) {
+ constructor({ button, host = document.body, anchor = '--mode', settings, chat = null, onChange }) {
   pickers.add(this);
   this.button = button;
   this.settings = settings;
+  this.chat = chat;
   this.onChange = onChange;
   this.shown = null;
   button.removeAttribute('popovertarget');
@@ -37,7 +38,7 @@ class ModePicker {
    choice: true,
    source: () => this.icons,
    items: MODES.map(mode => ({ id: mode.id, glyph: Glyphs[mode.icon], name: I18n.t(`mode.${mode.id}`), hint: I18n.t(`mode.${mode.id}.hint`), tone: mode.tone || '' })),
-   onOpen: () => this.dock.setCurrent(this.settings.mode),
+   onOpen: () => this.dock.setCurrent(this.mode),
    onToggle: open => {
     button.setAttribute('aria-expanded', String(open));
     if (open) button.classList.add('is-away');
@@ -49,12 +50,17 @@ class ModePicker {
   this.sync();
  }
 
+ get mode() { return this.chat ? this.chat.mode : this.settings.mode; }
+
  set(mode) {
-  if (mode === this.settings.mode) return;
-  this.settings.setMode(mode);
+  if (mode === this.mode) return;
+  if (this.chat) { if (!this.chat.setMode(mode)) return; }
+  else this.settings.setMode(mode);
   for (const picker of pickers) picker.sync();
-  for (const picker of pickers) picker.onChange?.(mode);
+  this.onChange?.(mode);
  }
+
+ static sync() { for (const picker of pickers) picker.sync(); }
 
  // The button is back, and the mode's icon settles in it with a small bounce.
  home() {
@@ -68,7 +74,7 @@ class ModePicker {
  }
 
  sync() {
-  const mode = this.settings.mode;
+  const mode = this.mode;
   if (mode === this.shown) return;
   const first = this.shown === null, from = this.button.offsetWidth;
   this.shown = mode;

@@ -791,6 +791,23 @@ class Chat {
   return !!this.active?.turn;
  }
 
+ get mode() { return this.modeOf(this.active); }
+
+ modeOf(conv) {
+  const mode = conv?.record?.mode || conv?.mode || this.settings.mode;
+  return ['ask', 'auto', 'full'].includes(mode) ? mode : 'ask';
+ }
+
+ setMode(mode) {
+  const conv = this.active;
+  if (!conv || conv.locked || !['ask', 'auto', 'full'].includes(mode)) return false;
+  conv.mode = mode;
+  if (conv.record) this.library.update(conv.id, { mode });
+  this.onModeChange(conv);
+  this.onChange();
+  return true;
+ }
+
  get model() {
   return this.modelOf(this.active);
  }
@@ -936,20 +953,24 @@ class Chat {
  }
 
  newDraft(list) {
-  return this.draft = new Conversation(null, list);
+  const draft = this.draft = new Conversation(null, list);
+  draft.mode = this.modeOf(draft);
+  draft.model = this.settings.resolve();
+  return draft;
  }
 
  newChat(folder = null) {
   const draft = this.draft || this.newDraft();
   draft.folder = folder;
-  draft.model = '';
+  draft.model = this.settings.resolve();
   draft.effort = '';
   this.opening++;
   this.activate(draft);
   this.onChange();
  }
 
- open(id) {
+ open(id, { pane = false } = {}) {
+  if (this.workspace && !pane) return this.workspace.select(id);
   const shown = this.workspace?.viewOfId(id);
   if (shown && shown !== this) { this.workspace.focus(shown); return Promise.resolve(); }
   if (this.active?.id === id) return Promise.resolve();
@@ -1022,6 +1043,7 @@ class Chat {
 
  // A chat's messages come with the notes kept beside it; a mini chat has none of its own.
  load(conv) {
+  conv.mode = this.modeOf(conv);
   return Promise.all([this.library.conversation(conv.id), this.library.notes?.(conv.id), this.library.record?.(conv.id)]).then(([{ messages, tokens }, pad, brief]) => {
    conv.messages = messages;
    conv.tokens = tokens;
@@ -1226,7 +1248,7 @@ class Chat {
   }
   if (!conv.record) {
    conv.record = this.library.create({ folder: conv.folder, text, attachments });
-   this.library.update(conv.id, { model: this.modelOf(conv), effort: config.effort });
+   this.library.update(conv.id, { model: this.modelOf(conv), effort: config.effort, mode: this.modeOf(conv) });
    this.conversations.set(conv.id, conv);
    if (this.library.notes) conv.pad = { items: [], next: 1 };
    this.draft = null;
@@ -1264,12 +1286,11 @@ class Chat {
   conv.ask?.settle(TOOL_NOTES.cancelled);
  }
 
- onModeChange() {
-  const mode = this.settings.mode;
-  for (const conv of this.conversations.values()) {
-   for (const pending of conv.turn?.approvals || []) {
-    if (!AgentTools.needsApproval(pending.name, pending.args, { mode, cwd: pending.cwd, attached: this.attachedFiles(conv), apart: pending.apart })) pending.card.settle('allow');
-   }
+ onModeChange(conv = this.active) {
+  if (!conv) return;
+  const mode = this.modeOf(conv);
+  for (const pending of conv.turn?.approvals || []) {
+   if (!AgentTools.needsApproval(pending.name, pending.args, { mode, cwd: pending.cwd, attached: this.attachedFiles(conv), apart: pending.apart, panel: pending.panel })) pending.card.settle('allow');
   }
  }
 
@@ -1407,7 +1428,7 @@ class Chat {
 
  begin(conv, config) {
   const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  return conv.turn = { id, controller: new AbortController(), config, part: null, parts: [], next: null, queue: [], pills: [], approvals: new Set(), tool: '', text: false, writing: false, retryBudget: { used: 0 }, reconnecting: false };
+  return conv.turn = { id, controller: new AbortController(), config, browser: this.browserOf(conv), part: null, parts: [], next: null, queue: [], pills: [], approvals: new Set(), tool: '', text: false, writing: false, retryBudget: { used: 0 }, reconnecting: false };
  }
 
  run(conv, prompt, config, bubble) {
@@ -1601,7 +1622,7 @@ class Chat {
  notes(conv, messages) {
   if (!this.agent(conv)) return [];
   const told = head => messages.findLast(message => message.role === 'user' && typeof message.content === 'string' && message.content.startsWith(head))?.content || '';
-  const out = [], state = `${TOOL_NOTES.state}\n${AgentPrompt.state({ mode: this.settings.mode })}`;
+  const out = [], state = `${TOOL_NOTES.state}\n${AgentPrompt.state({ mode: this.modeOf(conv) })}`;
   if (state !== told(TOOL_NOTES.state)) out.push({ role: 'user', content: state });
   // A browser that holds nothing gets no note, unless an earlier note says it held something.
   const held = this.browserOf(conv)?.context(this.seat(conv)) || '', before = told(TOOL_NOTES.browser);
@@ -1841,8 +1862,8 @@ class Chat {
   if (refused) return refused;
   let apart = this.seat(conv);
   const browserPanel = this.browserOf(conv);
-  let asks = AgentTools.needsApproval(name, args, { mode: this.settings.mode, cwd, attached: this.attachedFiles(conv), apart, panel: browserPanel });
-  if (asks && this.settings.mode === 'ask') {
+  let asks = AgentTools.needsApproval(name, args, { mode: this.modeOf(conv), cwd, attached: this.attachedFiles(conv), apart, panel: browserPanel });
+  if (asks && this.modeOf(conv) === 'ask') {
    const rule = AgentTools.approvalRule?.(name, args, { cwd, apart, panel: browserPanel });
    // Missing, locked or unreadable storage never grants access. Read on every step so a reset applies at once.
    if (rule && this.library.permissions) asks = !(await this.library.permissions(conv.id).catch(() => [])).includes(rule.key);
@@ -2009,7 +2030,7 @@ class Chat {
   this.dismissGhost(view);
   if (turn.next) this.dismissGhost(turn.next);
   const about = AgentTools.describe(request.name, request.args, request.cwd, request.apart, request.panel);
-  const rule = this.settings.mode === 'ask' ? AgentTools.approvalRule?.(request.name, request.args, { cwd: request.cwd, apart: request.apart, panel: request.panel }) : null;
+  const rule = this.modeOf(conv) === 'ask' ? AgentTools.approvalRule?.(request.name, request.args, { cwd: request.cwd, apart: request.apart, panel: request.panel }) : null;
   const always = rule && this.library.allowPermission ? { hint: rule.hint, save: async () => {
    const saved = await this.library.allowPermission(conv.id, rule.key, turn.controller.signal);
    if (!saved) throw new Error('The permission could not be saved');
@@ -3495,7 +3516,7 @@ function movedNotice() {
 class SideChat extends Chat {
  constructor({ library, origin, model, effort = '', ...options }) {
   const state = { seen: 0 };
-  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model, effort: effort || origin.record.effort || origin.effort || '' };
+  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model, effort: effort || origin.record.effort || origin.effort || '', mode: origin.record.mode || origin.mode || options.settings.mode };
   if (library.isHome(origin.record)) record.space = origin.record.space;
   if (origin.record.session) record.session = origin.record.session;
   super({ ...options, library: {
@@ -3503,8 +3524,8 @@ class SideChat extends Chat {
    chats: [record],
    chat: id => id === record.id ? record : null,
    update: (id, changes) => id === record.id ? Object.assign(record, changes) : null,
-   conversation: id => library.side(id).then(body => { state.seen = body.seen; if (body.effort) record.effort = body.effort; return body; }),
-   saveMessages: (id, messages, tokens) => library.saveSide(id, { messages, tokens, seen: state.seen, effort: record.effort }),
+   conversation: id => library.side(id).then(body => { state.seen = body.seen; if (body.effort) record.effort = body.effort; if (body.mode) record.mode = body.mode; return body; }),
+   saveMessages: (id, messages, tokens) => library.saveSide(id, { messages, tokens, seen: state.seen, effort: record.effort, mode: record.mode }),
    clear: id => library.clearSide(id),
    isProtected: () => false,
    // The chat the mini chat is opened over may be protected, and then so is what is said here.
@@ -3524,6 +3545,13 @@ class SideChat extends Chat {
   this.origin = origin;
   this.waiting = null;
   this.driving = null;
+ }
+
+ setMode(value) {
+  if (!super.setMode(value)) return false;
+  const conv = this.active;
+  if (conv?.record) this.library.saveMessages(conv.id, conv.messages, conv.tokens);
+  return true;
  }
 
  setEffort(value) {

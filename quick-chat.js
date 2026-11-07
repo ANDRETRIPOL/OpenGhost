@@ -15,9 +15,9 @@ if (!quick) return;
 if (!bridge.quick) {
  // The main window's part.
  const open = chat.open.bind(chat);
- chat.open = async id => {
+ chat.open = async (id, options) => {
   if (library.chat(id)?.quick && await quick.claim(id).catch(() => false)) return;
-  return open(id);
+  return open(id, options);
  };
  // A chat sent on from the quick window: the list is read anew, and the chat as the disk has it.
  quick.onOpen(async id => {

@@ -37,10 +37,9 @@ class SplitPane {
   main.append(name);
   owner.root.append(main);
   const base = owner.settings, settings = this.settings = Object.create(base);
-  Object.assign(settings, { shown: '', model: base.model, effort: base.effort, efforts: base.efforts.slice(), onEfforts: null, onModels: null });
-  // Permissions keep the app's existing shared mode; the pane only owns its model/effort controls.
-  Object.defineProperty(settings, 'mode', { get: () => base.mode, set: value => { base.mode = value; } });
-  settings.setMode = value => base.setMode(value);
+  Object.assign(settings, { shown: '', effort: base.effort, efforts: base.efforts.slice(), onEfforts: null, onModels: null });
+  // View-only model controls; permission decisions belong to the conversation, never to this pane.
+  settings.setModel = value => base.setModel(value);
   settings.open = (...args) => base.open(...args);
   settings.freshen = () => base.freshen();
   const previousModels = base.onModels;
@@ -75,7 +74,7 @@ class SplitPane {
   this.addMenu = new AddMenu({ button: $('.composer-add'), host: main, anchor: '--split-add', attachments: this.attachments, chat: this.chat, input: this.input });
   if (AgentTools.available) {
    $('.composer-mode').hidden = false;
-   this.modePicker = new ModePicker({ button: $('.composer-mode'), host: main, anchor: '--split-mode', settings, onChange: () => this.chat.onModeChange() });
+   this.modePicker = new ModePicker({ button: $('.composer-mode'), host: main, anchor: '--split-mode', settings, chat: this.chat });
   }
   const clonePanel = selector => {
    const panel = document.querySelector(selector).cloneNode(true);
@@ -145,7 +144,7 @@ class SplitPane {
  }
 
  sync() {
-  if (!this.chat || !this.attachments) return;
+  if (!this.chat || !this.attachments || !this.owner.opened) return;
   const chat = this.chat, now = chat.active && !chat.active.locked ? chat.active : null;
   this.lock.sync();
   this.main.classList.toggle('is-empty', !chat.active?.locked && !chat.active?.list.childElementCount);
@@ -215,6 +214,8 @@ class SplitView {
  constructor({ app, main, chat, settings, library, bones, changed, notes, sidePanels, template }) {
   Object.assign(this, { app, main, chat, settings, library, bones, changed, notes, sidePanels, template });
   this.views = new Set(); this.join(chat); this.currentChat = chat; this.ratio = 0.5; this.opened = false;
+  this.pairs = new SplitPairs(); this.navigation = 0; this.switching = false; this.loaded = false;
+  library.ready.then(() => { this.loaded = true; this.pairs.prune(id => library.chat(id)); this.changed(); });
   this.root = Object.assign(document.createElement('section'), { className: 'chat-split', hidden: true });
   this.root.style.setProperty('--split-min', `${MIN}px`);
   this.root.setAttribute('aria-label', I18n.t('split.label'));
@@ -274,14 +275,15 @@ class SplitView {
   main.addEventListener('pointerdown', () => this.focus(chat), true);
   main.addEventListener('focusin', () => this.focus(chat));
   this.divider.addEventListener('pointerdown', event => this.start(event));
-  this.divider.addEventListener('dblclick', () => { this.ratio = 0.5; this.layout(); });
+  this.divider.addEventListener('dblclick', () => { this.ratio = 0.5; this.layout(); this.remember(); });
   this.divider.addEventListener('keydown', event => {
    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
    event.preventDefault();
    if (event.key === 'End') this.ratio = 1;
    else if (event.key === 'Home') this.ratio = 0;
    else this.ratio += event.key === 'ArrowLeft' ? -0.05 : 0.05;
-   this.layout();
+   this.ratio = Math.max(0, Math.min(1, this.ratio));
+   this.layout(); this.remember();
   });
   new ResizeObserver(() => {
    if (this.layoutFrame) return;
@@ -300,8 +302,48 @@ class SplitView {
  join(view) {
   view.workspace = this; view.conversations = this.chat.conversations; view.nodes = this.chat.nodes; this.views.add(view);
  }
- viewOf(conv) { return [...this.views].find(view => view.active === conv) || null; }
- viewOfId(id) { return id ? [...this.views].find(view => view.activeId === id) || null : null; }
+ viewOf(conv) { return [...this.views].find(view => (view === this.chat || this.opened) && view.active === conv) || null; }
+ viewOfId(id) { return id ? [...this.views].find(view => (view === this.chat || this.opened) && view.activeId === id) || null : null; }
+ remember() {
+  if (!this.opened || this.switching) return;
+  const left = this.chat.activeId, right = this.pane?.chat.activeId;
+  if (left && right && this.library.chat(left) && this.library.chat(right)) this.pairs.set(left, right, this.ratio);
+ }
+ async select(id) {
+  if (!this.library.chat(id)) return;
+  const shown = this.viewOfId(id);
+  if (shown) { this.focus(shown); return; }
+  const token = ++this.navigation, pair = this.pairs.find(id);
+  this.switching = true;
+  this.close({ forget: false, animate: false });
+  const left = pair && this.canFit() ? pair.left : id;
+  await this.chat.open(left, { pane: true });
+  if (token !== this.navigation) return;
+  // A running quick window may retain ownership instead of opening here. Do not pair its neighbour with a stranger.
+  if (this.chat.activeId !== left) { this.switching = false; this.changed(); return; }
+  if (pair && this.canFit()) {
+   this.ratio = pair.ratio;
+   await this.open(pair.right, { restoring: true });
+   if (token !== this.navigation) return;
+   this.focus(this.viewOfId(id));
+  }
+  this.switching = false;
+  this.changed();
+ }
+ newChat(folder = null) {
+  ++this.navigation;
+  this.switching = true;
+  this.close({ forget: false, animate: false });
+  this.chat.newChat(folder);
+  this.switching = false;
+  this.focus(this.chat); this.changed();
+ }
+ unpair(id) {
+  const pair = this.pairs.find(id);
+  if (!pair) return;
+  if (this.opened && [this.chat.activeId, this.pane?.chat.activeId].includes(id)) this.close();
+  else { this.pairs.remove(id); this.changed(); }
+ }
  canFit() {
   const canGrow = typeof window.openghost?.size?.setSplit === 'function';
   const width = canGrow && !this.opened
@@ -347,8 +389,12 @@ class SplitView {
   this.pane ||= new SplitPane(this, this.template);
   this.pane.ensureBrowser();
   if (this.opened) return false;
+  this.cancelMotion();
+  this.beforeOpen = this.main.getBoundingClientRect();
+  if (motion()) this.bones.veil();
   window.openghost?.size?.setSplit?.(true);
   if (!SplitSizing.fit(this.app.clientWidth - 2 * this.sidePanels.gap())) {
+   this.cancelMotion();
    window.openghost?.size?.setSplit?.(false);
    return false;
   }
@@ -383,19 +429,52 @@ class SplitView {
   this.pane?.main.classList.toggle('is-split-focused', view === this.pane.chat);
   if (changed) this.changed();
  }
+ cancelMotion() {
+  cancelAnimationFrame(this.motionFrame);
+  this.motionFrame = 0;
+  for (const animation of this.motionFlights || []) animation.cancel();
+  this.motionFlights = [];
+  this.main.style.zIndex = '';
+  this.bones.unveil();
+ }
+ animateMain(before) {
+  if (!motion() || !before) { this.cancelMotion(); return; }
+  const after = this.main.getBoundingClientRect();
+  if (Math.abs(before.width - after.width) < 1 && Math.abs(before.left - after.left) < 1) { this.cancelMotion(); return; }
+  this.bones.veil();
+  this.main.style.zIndex = '3';
+  const animation = this.main.animate([
+   { width: `${before.width}px`, transform: `translateX(${before.left - after.left}px)` },
+   { width: `${after.width}px`, transform: 'none' },
+  ], { duration: 420, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
+  this.motionFlights = [animation];
+  animation.pause();
+  // Paint the prepared layout at the starting geometry before the animation clock starts.
+  this.motionFrame = requestAnimationFrame(() => {
+   this.motionFrame = requestAnimationFrame(() => {
+    this.motionFrame = 0;
+    for (const flight of this.motionFlights) flight.play();
+   });
+  });
+  animation.finished.then(() => {
+   if (this.motionFlights?.includes(animation)) this.cancelMotion();
+  }, () => {});
+ }
  animateOpen() {
+  this.animateMain(this.beforeOpen);
   if (!motion() || !this.pane) return;
-  const right = this.pane.main;
-  const ease = 'cubic-bezier(0.32, 0.72, 0, 1)';
-  for (const el of [right, this.divider]) el?.getAnimations().forEach(a => a.cancel());
-  right.animate([
-   { opacity: 0, transform: 'translateX(20px) scale(0.985)' },
+  const timing = { duration: 420, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
+  this.motionFlights.push(this.pane.main.animate([
+   { opacity: 0, transform: 'translateX(28px)' },
    { opacity: 1, transform: 'none' },
-  ], { duration: 300, easing: ease });
-  this.divider.animate([
+  ], timing), this.divider.animate([
    { opacity: 0, transform: 'scaleY(0.5)' },
    { opacity: 1, transform: 'none' },
-  ], { duration: 260, easing: ease });
+  ], timing));
+  if (this.motionFrame) for (const flight of this.motionFlights) flight.pause();
+  const last = this.motionFlights.at(-1);
+  // The left geometry can stay unchanged at a size limit; the right fade must still clean up.
+  last.finished.then(() => { if (this.motionFlights.includes(last)) this.cancelMotion(); }, () => {});
  }
  animateSwitch() {
   if (!motion() || !this.pane) return;
@@ -406,23 +485,39 @@ class SplitView {
    { opacity: 1, transform: 'none' },
   ], { duration: 220, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
  }
- async open(id) {
+ async open(id, { restoring = false } = {}) {
   if (!this.library.chat(id)) return;
+  if (this.library.chat(id).quick && await window.openghost?.quickChat?.claim(id).catch(() => false)) return;
+  if (!restoring) ++this.navigation;
   const shown = this.viewOfId(id);
   if (shown) { this.focus(shown); shown.main.querySelector('.composer-input').focus(); return; }
   if (!this.canFit()) return;
+  this.switching = true;
+  this.pane ||= new SplitPane(this, this.template);
+  const token = this.opening = (this.opening || 0) + 1;
+  // Load and render the other history before starting the geometry transition.
+  // Its file read and DOM construction must not consume the animation's first frames.
+  try { await this.pane.chat.open(id, { pane: true }); }
+  finally { if (this.opening === token) this.switching = false; }
+  if (this.opening !== token || this.pane.chat.activeId !== id) return;
   const openedNow = this.ensureOpen();
   if (!this.opened) return;
-  const token = this.opening = (this.opening || 0) + 1;
+  this.remember();
+  this.focus(this.pane.chat); this.changed(); this.pane.input.focus({ preventScroll: true }); Notify.look();
   if (openedNow) this.animateOpen();
   else this.animateSwitch();
-  await this.pane.chat.open(id);
-  if (!this.opened || this.opening !== token) return;
-  this.focus(this.pane.chat); this.sync(); this.pane.input.focus({ preventScroll: true }); Notify.look();
  }
- close() {
-  if (!this.opened) return;
+ close({ forget = true, animate = true } = {}) {
   this.opening = (this.opening || 0) + 1;
+  if (!this.opened) {
+   if (this.pane) { ++this.pane.chat.opening; if (this.pane.chat.activeId) this.pane.chat.newChat(); }
+   this.switching = false;
+   return;
+  }
+  if (forget) { ++this.navigation; this.pairs.remove(this.chat.activeId); }
+  const before = this.main.getBoundingClientRect();
+  this.cancelMotion();
+  this.switching = true;
   this.endDrag();
   this.pane.models.close();
   this.pane.effort?.close();
@@ -440,12 +535,15 @@ class SplitView {
   this.root.hidden = true; this.app.classList.remove('has-split'); this.main.classList.remove('is-split-focused');
   window.openghost?.size?.setSplit?.(false);
   this.syncToggle();
-  this.currentChat = this.chat; this.sidePanels.layout(); this.changed();
+  this.currentChat = this.chat; this.sidePanels.layout(); this.switching = false; this.changed();
+  if (animate) this.animateMain(before);
   this.main.querySelector('.composer-input').focus({ preventScroll: true }); Notify.look();
  }
  sync() {
-  for (const mini of [MiniChat.current, ...MiniChat.away.values()]) {
-   if (mini && this.viewOf(mini.origin)) mini.source = this.viewOf(mini.origin);
+  this.remember();
+  for (const mini of MiniChat.all()) {
+   const source = this.viewOf(mini.origin);
+   if (source) mini.bindSource(source);
   }
   this.pane?.sync();
   this.syncToggle();
@@ -458,7 +556,7 @@ class SplitView {
   if (this.root.clientWidth < 2 * MIN + GAP && this.sidePanels?.docked) this.sidePanels.layout();
   const room = this.root.clientWidth - GAP;
   const size = SplitSizing.fit(this.root.clientWidth, this.dragging ? this.dragWidth : room * this.ratio);
-  if (!size) { this.close(); return; }
+  if (!size) { this.close({ forget: false }); return; }
   const left = Math.round(size.left), right = room - left;
   this.root.style.setProperty('--split-left', `${left}px`);
   this.root.style.setProperty('--split-right', `${right}px`);
@@ -471,6 +569,7 @@ class SplitView {
  }
  start(event) {
   if (event.button !== 0 || !this.opened) return;
+  this.cancelMotion();
   event.preventDefault(); this.dragging = true; this.dragWidth = this.main.getBoundingClientRect().width;
   this.bones.veil(); this.pane.bones.veil(); this.app.classList.add('is-split-resizing');
   this.pointerId = event.pointerId;
@@ -481,7 +580,7 @@ class SplitView {
    if (event && event.pointerId !== this.pointerId) return;
    const room = this.root.clientWidth - GAP, size = SplitSizing.fit(this.root.clientWidth, this.dragWidth);
    if (size) this.ratio = size.left / room;
-   this.end(); this.layout(); this.sidePanels.layout();
+   this.end(); this.layout(); this.sidePanels.layout(); this.remember();
   };
   const cancel = () => { this.dragWidth = (this.root.clientWidth - GAP) * this.ratio; finish(); };
   const escape = event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } };

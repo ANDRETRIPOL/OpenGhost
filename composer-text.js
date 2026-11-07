@@ -181,7 +181,7 @@ class ComposerText {
   for (const link of this.links) if (link.kind === 'quote' && link.from === at) at = link.to + (this.value[link.to] === ' ' ? 1 : 0);
   input.setSelectionRange(at, at);
   this.incoming = [{ ...token, offset: 0 }];
-  document.execCommand('insertText', false, `${token.piece} `);
+  this.insertText(`${token.piece} `);
   this.incoming = null;
   input.setSelectionRange(input.value.length, input.value.length);
  }
@@ -247,7 +247,7 @@ class ComposerText {
   const { out, tokens, ends } = this.chipped(text);
   this.input.setSelectionRange(from, to);
   this.incoming = tokens;
-  document.execCommand('insertText', false, ends && to === this.input.value.length ? `${out} ` : out);
+  this.insertText(ends && to === this.input.value.length ? `${out} ` : out);
   this.incoming = null;
  }
 
@@ -264,6 +264,12 @@ class ComposerText {
   this.apply(out, from, to);
   this.incoming = null;
   this.placed = { from: from + shift, to: from + shift + out.length, before, value: this.value, undo };
+ }
+
+ // A hidden or inert pane cannot take focus. Never send its edit into the other pane's active field.
+ insertText(text) {
+  if (document.activeElement === this.input) document.execCommand('insertText', false, text);
+  else this.apply(text, this.input.selectionStart, this.input.selectionEnd);
  }
 
  // Puts `text` in place of from…to and lets the field catch up as with any edit, knowing exactly what changed.
