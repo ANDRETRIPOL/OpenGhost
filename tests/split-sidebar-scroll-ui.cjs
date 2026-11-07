@@ -37,6 +37,10 @@ app.whenReady().then(async()=>{
  await wait(`splitView.opened&&!splitView.motionFlights.length`);await settle();
  await check('Full real client uses only its isolated profile',win.webContents.getURL().endsWith('/index.html')&&app.getPath('userData').startsWith(output));
  const groupCheck=`document.querySelector('.chat-pair')?.parentElement===chatList.homeGroup.inner`;
+ const navigationOrder=`(()=>{const nodes=[chatList.skillsGroup.section,chatList.routinesGroupEl.section,chatList.pinnedHead,chatList.rows.get(ids.pinned).row,chatList.homeGroup.section];return nodes.every(n=>n.isConnected)&&nodes.slice(1).every((n,i)=>!!(nodes[i].compareDocumentPosition(n)&Node.DOCUMENT_POSITION_FOLLOWING))})()`;
+ await check('Skills, Routines, Pinned and Chats appear in the requested order',navigationOrder);
+ await click(`chatList.rows.get(ids.pinned).pin`);await check('Unpinning the last chat removes only the empty pinned section',`!chatList.pinnedHead.isConnected&&chatList.routinesGroupEl.section.nextElementSibling===chatList.homeGroup.section`);
+ await click(`chatList.rows.get(ids.pinned).pin`);await check('Repinning restores the section below Routines and above Chats',navigationOrder);
  await check('A home pair stays inside the ordinary Chats section',groupCheck);
  await check('The pair does not precede pinned chats or Skills',`(()=>{const p=document.querySelector('.chat-pair'),s=chatList.skillsGroup.section,r=chatList.rows.get(ids.pinned).row;return !!(s.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING)&&!!(r.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING)})()`);
  await check('A newer ordinary chat sorts before an older pair',`(()=>{const p=document.querySelector('.chat-pair'),r=chatList.rows.get(ids.newer).row;return r.parentElement===p.parentElement&&!!(r.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING)})()`);
@@ -54,6 +58,7 @@ app.whenReady().then(async()=>{
   await check(theme+': ordinary primary chat selection is preserved',`chatList.rows.get(ids.a).row.classList.contains('is-active')&&getComputedStyle(chatList.rows.get(ids.a).row).backgroundColor!=='rgba(0, 0, 0, 0)'`);
   await check(theme+': text never reaches behind the split button',`(()=>{const r=chatList.rows.get(ids.newer),b=r.row.querySelector('.chat-body').getBoundingClientRect(),a=r.split.getBoundingClientRect();return !r.split.hidden&&b.right<=a.left-2})()`);
   await shot('sidebar-'+theme);
+  const sidebarRect=await js(`(()=>{const r=sidebar.getBoundingClientRect();return{x:Math.floor(r.x),y:Math.floor(r.y),width:Math.ceil(r.width),height:Math.ceil(r.height)}})()`),sidebarFile=path.join(output,'sidebar-order-'+theme+'.png');fs.writeFileSync(sidebarFile,(await win.webContents.capturePage(sidebarRect)).toPNG());report.screenshots.push(sidebarFile);
  }
  await js(`(()=>{Theme.set('light');const c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d');g.fillStyle='#5379a5';g.fillRect(0,0,16,16);library.update(ids.newer,{preview:{text:'Проверочная строка с фотографией',photo:c.toDataURL()}});syncAll()})()`);await hover(`chatList.rows.get(ids.newer).row`);
  await check('Rows with a photo also reserve all three buttons without text overlap',`(()=>{const r=chatList.rows.get(ids.newer),b=r.row.querySelector('.chat-body').getBoundingClientRect(),a=r.split.getBoundingClientRect();return r.row.classList.contains('has-photo')&&b.right<=a.left-2})()`);
@@ -61,6 +66,7 @@ app.whenReady().then(async()=>{
  await check('Search keeps both members of a matching pair without duplicates',`document.querySelectorAll('.chat-pair .chat-row').length===2&&document.querySelectorAll('.chat-row[data-id="'+ids.a+'"]').length===1&&document.querySelectorAll('.chat-row[data-id="'+ids.b+'"]').length===1`);
  await js(`chatList.setQuery('');void 0`);await settle();await click(`chatList.rows.get(ids.b).pin`);
  await check('Pinning a member places the pair in the normal pinned section',`(()=>{const p=document.querySelector('.chat-pair');return p.parentElement===chatList.list&&chatList.pinnedHead.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING})()`);
+ await check('A pinned split pair stays below Routines and above ordinary Chats',`(()=>{const p=document.querySelector('.chat-pair'),r=chatList.routinesGroupEl.section,h=chatList.pinnedHead,c=chatList.homeGroup.section;return !!(r.compareDocumentPosition(h)&Node.DOCUMENT_POSITION_FOLLOWING)&&!!(h.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING)&&!!(p.compareDocumentPosition(c)&Node.DOCUMENT_POSITION_FOLLOWING)})()`);await shot('pinned-pair-light');
  await click(`chatList.rows.get(ids.b).pin`);await js(`chat.open(ids.c).then(()=>splitView.open(ids.d)).then(()=>null)`);await settle();
  await check('A folder pair stays in its normal folder',`(()=>{const p=[...document.querySelectorAll('.chat-pair')].find(e=>e.querySelector('[data-id="'+ids.c+'"]'));return p?.closest('.chats-folder')?.__group?.path===${JSON.stringify(project)}})()`);
  await check('Pairing never rewrites chat folders or pinned flags',`library.isHome(library.chat(ids.a))&&library.isHome(library.chat(ids.b))&&library.chat(ids.c).folder===${JSON.stringify(project)}&&!library.chat(ids.b).pinned`);

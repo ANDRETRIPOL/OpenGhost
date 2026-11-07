@@ -520,9 +520,9 @@ class ChatList {
   const order = [this.glide];
   this.pairGroups ||= new Map();
   for (const id of this.pairGroups.keys()) if (!pairs.some(pair => pair.left === id)) this.pairGroups.delete(id);
-  if (pinned.length) order.push(this.pinnedHead, ...pinned.map(chat => this.item(chat, seen)));
   if (this.onSkills && !query) order.push(this.skillsRow());
   if (this.onNewRoutine && (!query || routines.length)) order.push(this.routinesGroup(routines, !!query, seen));
+  if (pinned.length) order.push(this.pinnedHead, ...pinned.map(chat => this.item(chat, seen)));
   if (!query || loose.length || I18n.t('chats.home').toLowerCase().includes(query)) order.push(this.home(loose, !!query, seen, draft === HOME));
   order.push(this.foldersHead);
   for (const { folder, chats } of folders) order.push(this.folder(folder, chats, !!query, seen, !!draft?.path && key(draft.path) === key(folder.path)));

@@ -54,4 +54,16 @@ check('Secondary pane rows have no separate persistent selection decoration',!cs
 check('The active pair frame never adds a background behind ordinary rows',!(/\.chat-pair\.is-active\s*\{([^}]*)\}/.exec(css)?.[1]||'').includes('background'));
 check('Nested active row paint is contained in the pair frame',/\.chat-pair\s*\{[^}]*overflow:\s*clip;/.test(css)&&css.includes('.chat-pair > .chat-row:focus-visible'));
 check('Hover highlights follow both left position and width of their target',source.includes('style.left = `${(rect.left - frame.left).toFixed(2)}px`')&&source.includes('style.width = `${rect.width.toFixed(2)}px`'));
+// Exercise the real render ordering without a browser; row construction and geometry are irrelevant here.
+const renderRows=[{id:'pin',title:'Pinned fixture',pinned:true,updated:2},{id:'plain',title:'Plain fixture',space:'plain',updated:1}];
+const renderNodes=new Map(),container={children:[],isConnected:false,insertBefore(child,at){child.remove();const i=at?this.children.indexOf(at):this.children.length;this.children.splice(i,0,child);child.parentElement=this}};
+const node=name=>{if(!renderNodes.has(name))renderNodes.set(name,{name,isConnected:false,remove(){if(this.parentElement){const p=this.parentElement;p.children.splice(p.children.indexOf(this),1);this.parentElement=null}}});return renderNodes.get(name)};
+const rendered=Object.assign(Object.create(ChatList.prototype),{library:{folders:[],titleOf:r=>r.title,isHome:r=>!!r.space},chat:{isDraft:false},query:'',rows:new Map(),groups:new Map(),list:container,glide:node('glide'),pinnedHead:node('pinned'),foldersHead:node('folders'),hint:node('hint'),draft:{fresh:false},onSkills:true,onNewRoutine:true,measure:()=>new Map(),flip(){},pairChats:(_p,match)=>renderRows.filter(match),tree:rows=>rows,skillsRow:()=>node('skills'),routinesGroup:()=>node('routines'),home:()=>node('chats'),item:(r,seen)=>{seen.add(r.id);return node(r.id)}});
+const sectionOrder=()=>container.children.map(n=>n.name).join(',');rendered.render();
+check('Pinned chats render below Skills and Routines and above Chats',sectionOrder()==='glide,skills,routines,pinned,pin,chats,folders,hint');
+renderRows[0].pinned=false;rendered.render();check('Removing the last pin removes the heading without changing section order',sectionOrder()==='glide,skills,routines,chats,folders,hint');
+renderRows[0].pinned=true;rendered.render();check('Pinning again restores the same middle section',sectionOrder()==='glide,skills,routines,pinned,pin,chats,folders,hint');
+rendered.onNewRoutine=false;rendered.render();check('With Routines disabled pinned chats still stay below Skills',sectionOrder()==='glide,skills,pinned,pin,chats,folders,hint');
+rendered.onSkills=false;rendered.render();check('Without Skills or Routines pinned chats still precede ordinary Chats',sectionOrder()==='glide,pinned,pin,chats,folders,hint');
+rendered.onSkills=rendered.onNewRoutine=true;rendered.query='Pinned fixture';rendered.render();check('Search keeps matching pinned chats without empty navigation sections',sectionOrder()==='glide,pinned,pin,folders');
 console.log('\n'+count+' checks passed');
