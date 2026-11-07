@@ -7,7 +7,7 @@ const output=fs.mkdtempSync(path.join(os.tmpdir(),'og-split-view-'));
 app.setPath('userData',path.join(output,'profile'));
 process.stdout?.on('error',()=>{});process.stderr?.on('error',()=>{});
 const report={checks:[],errors:[],output};let ended=false;
-const finish=error=>{if(ended)return;ended=true;if(error)report.error=String(error.stack||error);fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(report,null,2));app.exit(error?1:0);};
+const finish=error=>{if(ended)return;ended=true;if(error)report.error=String(error.stack||error);fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({output,checks:report.checks.length,error:report.error||null}));app.exit(error?1:0);};
 process.on('uncaughtException',finish);process.on('unhandledRejection',finish);
 setTimeout(()=>finish(Error('Split view test timeout')),90000);
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));

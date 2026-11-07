@@ -9,7 +9,7 @@ const root=path.resolve(__dirname,'..'),output=fs.mkdtempSync(path.join(os.tmpdi
 app.setPath('userData',path.join(output,'profile'));app.on('window-all-closed',()=>{});
 process.stdout?.on('error',()=>{});process.stderr?.on('error',()=>{});
 const report={checks:[],errors:[],output};let finished=false;
-function finish(error){if(finished)return;finished=true;if(error)report.error=String(error.stack||error);fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(report,null,2));app.exit(error?1:0);}
+function finish(error){if(finished)return;finished=true;if(error)report.error=String(error.stack||error);fs.writeFileSync(path.join(output,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({output,checks:report.checks.length,error:report.error||null}));app.exit(error?1:0);}
 process.on('uncaughtException',finish);process.on('unhandledRejection',finish);
 setTimeout(()=>finish(Error('Lock transition test timeout')),60000);
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
