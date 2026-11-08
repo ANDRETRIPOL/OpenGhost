@@ -2374,7 +2374,7 @@ ghost-thinking {
 .message-tools {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
   min-height: 28px;
   margin: 8px 0 0;
   opacity: 0;
@@ -2385,12 +2385,18 @@ ghost-thinking {
 .message-tools:empty { display: none; }
 
 .message-time {
+  display: inline-flex;
+  align-items: center;
   min-width: 0;
+  height: 28px;
   overflow: hidden;
   color: var(--fg-secondary);
-  font-size: var(--small-font-size);
-  line-height: 1.5;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: 0;
   white-space: nowrap;
   text-overflow: ellipsis;
   user-select: none;
