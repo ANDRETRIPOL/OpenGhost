@@ -16,9 +16,6 @@ const UNKNOWN = { context: 272000, efforts: ['low', 'medium', 'high'] };
 // With names alone to go by: which of them are chat models. The rest of what a key lists draws, speaks, listens or
 // counts, and can't hold a chat.
 const NAMED = { chat: /^(gpt-\d|o\d|chatgpt-|ft:)/, other: /audio|realtime|image|tts|transcribe|search|embedding|moderation|instruct/ };
-// The models that turned down a word about thinking, remembered while the app runs: they are asked without one.
-const plain = new Set();
-
 const error = (message, status = 0, code = '') => Object.assign(new Error(message), { status, code });
 
 // No model is named in this file. OpenAI serves its own Codex a catalogue of the models an account can use, each with
@@ -72,7 +69,7 @@ async function catalog(who, headers, codexUrl) {
 
 // A model only its name is known of: one the catalogue does not hold, or one the user wrote in by hand.
 const title = id => id.replace(/^gpt/, 'GPT').replace(/-([a-z])/g, (match, letter) => `-${letter.toUpperCase()}`);
-const byName = id => ({ ...describe('openai')({ slug: id, display_name: /^ft:/.test(id) ? id : title(id) }), ...(plain.has(id) ? { efforts: ['none'], defaultEffort: 'none' } : {}) });
+const byName = id => describe('openai')({ slug: id, display_name: /^ft:/.test(id) ? id : title(id) });
 const chats = list => list.filter(item => NAMED.chat.test(item.id) && !NAMED.other.test(item.id)).sort((a, b) => (b.created || 0) - (a.created || 0));
 
 // A key gets every chat model it may use: first the ones the catalogue describes, in the catalogue's order, then the
@@ -128,13 +125,30 @@ function keep(item) {
 }
 
 async function failure(response) {
- let detail = '', code = '';
+ let detail = '', code = '', param = '';
  try {
   const body = await response.json();
   detail = body.error?.message || body.detail?.message || (typeof body.detail === 'string' ? body.detail : '') || body.message || '';
   code = body.error?.code || body.error?.type || body.detail?.code || '';
+  const field = body.error?.param ?? body.detail?.param;
+  if (typeof field === 'string') param = field;
  } catch {}
- return error(detail || `OpenAI returned error ${response.status}`, response.status, code);
+ return Object.assign(error(detail || `OpenAI returned error ${response.status}`, response.status, code), { param });
+}
+
+// Only an explicit unsupported parameter permits request-local compatibility. A rejected effort value is an error,
+// never evidence that this model (or another connection with the same name) has no reasoning controls.
+function omitUnsupported(body, problem) {
+ if (problem.status !== 400 || !['unsupported_parameter', 'unknown_parameter'].includes(problem.code)) return false;
+ if (problem.param === 'reasoning' && body.reasoning) {
+  delete body.reasoning;
+  delete body.include;
+ } else if (problem.param === 'reasoning.summary' && body.reasoning?.summary !== undefined) {
+  delete body.reasoning.summary;
+ } else if (/^include(?:\[\d+\])?$/.test(problem.param) && body.include) {
+  delete body.include;
+ } else return false; // In particular, never remove the selected reasoning.effort.
+ return true;
 }
 
 async function* events(body) {
@@ -181,9 +195,6 @@ async function stream(request, context) {
   include: ['reasoning.encrypted_content'],
   reasoning: effort && effort !== 'none' ? { effort, summary: 'auto' } : { effort: 'none' },
  };
- // A model that does not think takes no word about thinking.
- const unthinking = () => { delete body.include; delete body.reasoning; };
- if (plain.has(api)) unthinking();
  if (tools?.length) {
   body.tools = tools.map(tool => ({ type: 'function', name: tool.function.name, description: tool.function.description, parameters: tool.function.parameters, strict: false }));
   body.tool_choice = 'auto';
@@ -203,20 +214,14 @@ async function stream(request, context) {
    throw error('network', 0, 'network');
   }
  };
- let response = await post(), stale = false;
- if (!response.ok) {
+ let response = await post();
+ while (!response.ok) {
   const problem = await failure(response);
-  // An older model, one the catalogue does not describe, turns down the word about thinking every request carries: it
-  // is asked again without it, and the list of models is read anew so the app shows it as a model that does not think.
-  if (!(request.provider !== 'chatgpt' && body.reasoning && problem.status === 400 && /reasoning|encrypted_content/i.test(problem.message))) throw problem;
-  plain.add(api);
-  unthinking();
-  stale = true;
+  if (request.provider === 'chatgpt' || !omitUnsupported(body, problem)) throw problem;
+  // Each pass removes a rejected parameter once. Nothing is learned across requests, models or accounts.
   response = await post();
-  if (!response.ok) throw await failure(response);
  }
  const result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null, native: { provider: 'openai', items: [] } };
- if (stale) result.stale = true;
  let textItem = '';
  const say = delta => { result.content += delta; onEvent({ type: 'content', delta }); };
  for await (const event of events(response.body)) {
