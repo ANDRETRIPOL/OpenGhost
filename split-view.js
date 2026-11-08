@@ -80,7 +80,7 @@ class SplitPane {
    const panel = document.querySelector(selector).cloneNode(true);
    panel.removeAttribute('style');
    for (const el of panel.querySelectorAll('[id]')) el.removeAttribute('id');
-   for (const el of panel.querySelectorAll('.effort-veil, .effort-shell, .effort-morph, .effort-title, .effort-paint, .effort-ghost, .effort-tick')) el.remove();
+   for (const el of panel.querySelectorAll('.effort-veil, .effort-shell, .effort-morph, .effort-title, .effort-paint, .effort-ghost, .effort-tick, .effort-fast')) el.remove();
    const thumb = panel.querySelector('.effort-thumb');
    if (thumb) thumb.replaceWith(Object.assign(document.createElement('span'), { className: 'effort-thumb glass-lens' }));
    main.append(panel); return panel;

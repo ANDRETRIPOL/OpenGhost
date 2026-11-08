@@ -51,6 +51,12 @@ function register(fromApp) {
    return { error: { status: error.status || 0, code: error.code || '', message: error.message } };
   }
  });
+ // A selected model's service tiers, without generating tokens or enumerating the whole catalogue's endpoints.
+ ipcMain.handle('llm:speed', async (event, provider, key, model) => {
+  if (!fromApp(event) || !PROVIDERS.has(provider) || typeof model !== 'string' || !model || model.length > 512 || typeof engine(provider)?.speed !== 'function') return { fast: false };
+  try { return await engine(provider).speed({ key: typeof key === 'string' ? key : '', model }); }
+  catch (error) { return { error: { status: error.status || 0, message: error.message } }; }
+ });
  // What a provider tells of the account behind a key, where it tells anything.
  ipcMain.handle('llm:account', async (event, provider, key) => {
   if (!fromApp(event) || typeof engine(provider)?.account !== 'function') return null;

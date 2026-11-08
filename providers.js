@@ -104,7 +104,7 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, onAc
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
   provider: config.provider, key: config.key, address: config.address, window: config.window, model: config.model, effort: config.effort, vision: config.vision,
-  thinking: config.thinking, output: config.output, messages, tools, maxTokens, session, once, aside,
+  thinking: config.thinking, output: config.output, fast: config.fast === true, fastBeta: config.fastBeta || '', speed: config.speed || 'standard', messages, tools, maxTokens, session, once, aside,
  };
  return new Promise((resolve, reject) => {
   const partial = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
@@ -182,7 +182,7 @@ function sideComplete(config, { messages, signal, maxTokens, ...live }) {
  // A model that always thinks spends its room on thinking first, so it gets room for both. So does a service's model:
  // its "none" is only offered, and one that turns it down is asked again with nothing said and thinks as it likes.
  const room = config.provider === 'anthropic' || config.provider === 'custom' || !efforts.includes('none') ? Math.max(maxTokens, 2048) : maxTokens;
- return viaMain({ ...config, effort }, { messages, signal, maxTokens: room, once: true, ...live });
+ return viaMain({ ...config, effort, speed: 'standard' }, { messages, signal, maxTokens: room, once: true, ...live });
 }
 
 // A prediction of the user's next message (predictions.js): the chat's own request with a word from the app at its end,
@@ -241,5 +241,12 @@ async function account(provider, key) {
  return reply?.account || null;
 }
 
-window.Providers = { stream, complete, predict, models, account, retry, NAMES, NEED, available: !!bridge };
+async function speed({ provider, key, model }) {
+ if (!bridge?.speed) return { fast: false };
+ const reply = await bridge.speed(provider, key, model);
+ if (reply?.error) throw new ProviderError(reply.error.message, reply.error.status);
+ return { fast: reply?.fast === true };
+}
+
+window.Providers = { stream, complete, predict, models, account, speed, retry, NAMES, NEED, available: !!bridge };
 })();

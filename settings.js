@@ -397,6 +397,10 @@ class Settings {
    ready: !!model && this.connected(provider),
    effort,
    efforts,
+   fast: model?.fast === true,
+   fastBeta: model?.fastBeta || '',
+   fastLookup: model?.fastLookup === true && typeof model.fast !== 'boolean',
+   speed: 'standard',
    vision: model?.vision !== false,
    // A model that calls no tools is talked to as a plain chat.
    tools: model?.tools !== false,

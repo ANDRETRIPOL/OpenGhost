@@ -26,7 +26,7 @@ async function main() {
   vm.runInContext(read(file), c); for (const name of ['ChatLock', 'AgentPlan', 'PlanProof']) if (c.window[name]) c[name] = c.window[name];
  }
  const models = [
-  { id: 'gpt', provider: 'chatgpt', api: 'gpt-fixture', efforts: ['low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' },
+  { id: 'gpt', provider: 'chatgpt', api: 'gpt-fixture', efforts: ['low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium', fast: true },
   { id: 'claude', provider: 'anthropic', api: 'claude-fixture', efforts: ['low', 'medium', 'high', 'max'], defaultEffort: 'high' },
   { id: 'deepseek', provider: 'deepseek', api: 'deepseek-fixture', efforts: ['low', 'high', 'max'], defaultEffort: 'high' },
  ];
@@ -164,7 +164,45 @@ async function main() {
  slider.locked = true; slider.moveTo(0);
  check('Locked slider input cannot change the chat', a.record.effort === 'xhigh' && writes === 1);
  check('The shared legacy storage key was never rewritten', sharedEffortWrites === 0 && kept.get('deepseek.effort') === 'xhigh');
- await lib.persist(); clearTimeout(restarted.timer);
+ // Speed is a per-conversation opt-in, not a new effort level or a shared provider default.
+ chat.active = a; chat.setModel('gpt');
+ const initialEffort = chat.effort;
+ check('Legacy chats start at standard speed', chat.speed === 'standard');
+ check('A supported chat accepts Fast', chat.setSpeed('fast') && a.record.speed === 'fast');
+ check('Fast never changes the selected effort', chat.effort === initialEffort);
+ check('Another chat does not inherit Fast', chat.config(b).speed === 'standard');
+ chat.active = b; chat.setSpeed('fast'); chat.active = a;
+ const speedTurn = chat.begin(a, chat.config(a)); chat.active = b; chat.setSpeed('standard');
+ check('Another chat cannot mutate a captured Fast turn', speedTurn.config.speed === 'fast' && chat.config(b).speed === 'standard');
+ chat.active = a;
+ check('A running chat cannot change speed', !chat.setSpeed('standard') && a.record.speed === 'fast');a.turn = null;
+ a.locked = true;check('A locked chat cannot change speed', !chat.setSpeed('standard'));a.locked = false;
+ check('Invalid speed choices are refused', !chat.setSpeed('ultrafast') && a.record.speed === 'fast');
+ chat.setModel('deepseek');
+ check('An unsupported model cannot activate Fast', !chat.setSpeed('fast') && chat.speed === 'standard');
+ check('A model switch does not overwrite the saved speed preference', a.record.speed === 'fast');
+ chat.setModel('gpt');check('Returning to a supported model restores the opted-in speed', chat.speed === 'fast');
+ chat.newChat();check('A new chat starts at Standard, not the previous Fast', chat.speed === 'standard');
+ chat.setSpeed('fast');chat.send('Fast fixture message');const fastDraftId = chat.activeId;
+ check('The first send stores a draft’s Fast choice', chat.active.record.speed === 'fast');
+ const speedFork = await lib.fork('a', { messages: [], tokens: 0 });
+ check('A fork inherits its source speed', speedFork.speed === 'fast');
+ chat.active = conv(speedFork);chat.setSpeed('standard');
+ check('A fork’s later speed changes do not touch its parent', speedFork.speed === 'standard' && a.record.speed === 'fast');
+ await lib.saveSide('a', { messages: [{ role: 'user', content: 'speed fixture' }], speed: 'fast', effort: 'medium' });
+ c.window.Chat.prototype.activate = function (one) { this.active = one; };c.window.Chat.prototype.restore = function () {};
+ const fastSide = new c.window.SideChat({ library: lib, origin: a, model: 'gpt', main: new Node(), thread: new Node(), bottom: new Node(), settings: s, onChange() {} });await fastSide.open('a');
+ c.window.Chat.prototype.activate = beforeActivate;c.window.Chat.prototype.restore = beforeRestore;
+ check('SideChat restores its own saved Fast preference', fastSide.speed === 'fast');
+ fastSide.setSpeed('standard');await Promise.all([...lib.writes.values()]);
+ check('Mini speed changes save only the mini preference', (await lib.side('a')).speed === 'standard' && a.record.speed === 'fast');
+ check('Password protection seals mini speed metadata', await lib.protect('a', 'speed fixture password') && !!disk.get('mini/a').sealed);
+ await lib.unlock('a', 'speed fixture password');
+ check('Unlock preserves independent main and mini speeds', lib.chat('a').speed === 'fast' && (await lib.side('a')).speed === 'standard');
+ await lib.unprotect('a');await lib.persist();
+ const speedReload = new c.window.Library(store, () => {});await speedReload.ready;
+ check('Saved Fast and Standard choices survive a fresh library', speedReload.chat('a').speed === 'fast' && speedReload.chat(speedFork.id).speed === 'standard' && speedReload.chat(fastDraftId).speed === 'fast');
+ clearTimeout(speedReload.timer);clearTimeout(restarted.timer);
  console.log(`\n${count} checks passed`);
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

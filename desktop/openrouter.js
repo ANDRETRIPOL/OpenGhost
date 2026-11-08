@@ -99,6 +99,8 @@ function described(list) {
    vision: input.includes('image'),
    // A model that calls no tools is talked to as a plain chat.
    tools: !params || params.includes('tools'),
+   // Resolve only a selected model's endpoints; the catalogue's `endpoints` are API paths, not service tiers.
+   fastLookup: true,
    ...effortsOf(model),
   };
  });
@@ -128,6 +130,23 @@ async function account({ key }, { apiUrl = API_URL } = {}) {
  const data = (await response.json()).data || {};
  const number = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
  return { free: data.is_free_tier === true, left: number(data.limit_remaining), spent: number(data.usage) };
+}
+
+// Model endpoint checks are lazy, shared between panes and short-lived. A failed lookup is not remembered.
+const speedChecks = new Map();
+async function speed({ key, model }, { apiUrl = API_URL } = {}) {
+ const id = `${apiUrl}\n${key}\n${model}`, had = speedChecks.get(id);
+ if (had && had.until > Date.now()) return had.job;
+ const job = (async () => {
+  const slug = String(model).split('/').map(encodeURIComponent).join('/');
+  const response = await fetch(`${apiUrl}/models/${slug}/endpoints`, { headers: headers(key), signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw await failure(response);
+  const endpoints = (await response.json()).data?.endpoints;
+  return { fast: Array.isArray(endpoints) && endpoints.some(item => item && ['priority', 'fast'].includes(item.service_tier) && (item.status === undefined || item.status === 0)) };
+ })();
+ if (speedChecks.size >= 128) speedChecks.delete(speedChecks.keys().next().value);
+ speedChecks.set(id, { job, until: Date.now() + 300000 });
+ try { return await job; } catch (cause) { if (speedChecks.get(id)?.job === job) speedChecks.delete(id); throw cause; }
 }
 
 const text = content => typeof content === 'string' ? content : (content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
@@ -182,6 +201,7 @@ function build(request, extras = { marks: true, thinking: true }) {
   stream: true,
   ...(extras.thinking ? thinking(request) : {}),
  };
+ if (request.fast === true && ['standard', 'fast'].includes(request.speed)) body.service_tier = request.speed === 'fast' ? 'priority' : 'default';
  // The mark at the end of the request: OpenRouter puts it on the last block and moves it on as the chat grows.
  // A request beside the chat (`aside`) reads the chat's cache and leaves no mark at its own end.
  if (marks && !request.aside) body.cache_control = CACHE;
@@ -269,13 +289,15 @@ async function stream(request, { signal, onEvent = () => {}, apiUrl = API_URL } 
  // The request goes with the extras the model is not known to turn down. Turned down for one of them before anything
  // was answered, it goes again without that one; the extra dropped last before it went through is the one the model
  // doesn't take.
- const model = request.model, extras = { marks: !refused.marks.has(model), thinking: !refused.thinking.has(model) };
+ const strictSpeed = request.fast === true && ['standard', 'fast'].includes(request.speed);
+ const model = request.model, extras = { marks: !refused.marks.has(model), thinking: strictSpeed || !refused.thinking.has(model) };
  let response, dropped = '';
  for (;;) {
   const body = build(request, extras);
   response = await post(request, body, { signal, apiUrl });
   if (response.ok) break;
   const problem = await failure(response);
+  if (strictSpeed) throw problem; // A tier refusal must not disable reasoning or change the selected speed.
   const asked = { marks: !!body.cache_control, thinking: !!body.reasoning };
   const extra = problem.status !== 400 ? '' : ['marks', 'thinking'].find(name => asked[name] && NAMED[name].test(problem.message)) || '';
   if (!extra) throw problem;
@@ -290,6 +312,7 @@ async function stream(request, { signal, onEvent = () => {}, apiUrl = API_URL } 
   for await (const event of events(response.body)) {
    if (event === STREAM_DONE) { ended = true; break; }
    if (typeof event.model === 'string' && event.model) answered = event.model;
+   if (typeof event.service_tier === 'string') result.serviceTier = event.service_tier;
    // A model can fail mid-answer: the stream then carries the error instead of an HTTP status.
    if (event.error) throw error(event.error.message || 'OpenRouter stopped the answer', Number(event.error.code) || 0, String(event.error.code || ''));
    if (event.usage) {
@@ -340,4 +363,4 @@ async function stream(request, { signal, onEvent = () => {}, apiUrl = API_URL } 
  return result;
 }
 
-module.exports = { models, account, stream, convert, build, described };
+module.exports = { models, account, speed, stream, convert, build, described };

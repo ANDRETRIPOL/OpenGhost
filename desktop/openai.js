@@ -38,6 +38,7 @@ const describe = provider => entry => {
   output: Number(entry.max_output_tokens) || Number(entry.max_completion_tokens) || 0,
   vision: !Array.isArray(entry.input_modalities) || entry.input_modalities.includes('image'),
   efforts,
+  fast: (Array.isArray(entry.service_tiers) && entry.service_tiers.some(tier => ['priority', 'fast'].includes(typeof tier === 'string' ? tier : tier?.id))) || (Array.isArray(entry.additional_speed_tiers) && entry.additional_speed_tiers.includes('fast')),
   defaultEffort: efforts.includes(entry.default_reasoning_level) ? entry.default_reasoning_level : efforts.includes('medium') ? 'medium' : efforts[0],
  };
 };
@@ -175,10 +176,12 @@ async function* events(body) {
  }
 }
 
-async function target({ provider, key, session }, { chatgpt, version, apiUrl = API_URL, codexUrl = CODEX_URL }) {
+async function target({ provider, key, session, model, fast, speed }, { chatgpt, version, apiUrl = API_URL, codexUrl = CODEX_URL }) {
  if (provider !== 'chatgpt') return { url: `${apiUrl}/responses`, headers: { Authorization: `Bearer ${key}` } };
  const headers = signed(await chatgpt(), version);
  if (session) headers['session-id'] = session;
+ // The subscription backend routes before reading inference parameters. This is a routing hint, not a client identity.
+ if (typeof model === 'string' && /^[A-Za-z0-9._:/\[\]-]+$/.test(model)) headers['x-codex-routing-hint'] = `model=${model}${fast === true && speed === 'fast' ? ';tier=priority' : ''}`;
  return { url: `${codexUrl}/responses`, headers };
 }
 
@@ -195,6 +198,7 @@ async function stream(request, context) {
   include: ['reasoning.encrypted_content'],
   reasoning: effort && effort !== 'none' ? { effort, summary: 'auto' } : { effort: 'none' },
  };
+ if (request.fast === true && ['standard', 'fast'].includes(request.speed)) body.service_tier = request.speed === 'fast' ? 'priority' : 'default';
  if (tools?.length) {
   body.tools = tools.map(tool => ({ type: 'function', name: tool.function.name, description: tool.function.description, parameters: tool.function.parameters, strict: false }));
   body.tool_choice = 'auto';
@@ -241,6 +245,7 @@ async function stream(request, context) {
    if (item?.type === 'function_call') result.toolCalls.push({ id: item.call_id, type: 'function', function: { name: item.name, arguments: item.arguments } });
   } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
    const done = event.response || {};
+   if (typeof done.service_tier === 'string') result.serviceTier = done.service_tier;
    const usage = done.usage || {};
    const details = usage.input_tokens_details || {};
    result.usage = { prompt_tokens: usage.input_tokens || 0, completion_tokens: usage.output_tokens || 0, total_tokens: usage.total_tokens || 0, cached_tokens: details.cached_tokens || 0, written_tokens: details.cache_write_tokens || 0 };

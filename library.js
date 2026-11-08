@@ -320,14 +320,14 @@ class Library {
   return this.queue(id, async () => {
    const data = await this.store.read(`mini/${id}`).catch(() => null);
    const body = data?.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
-   return { messages: Array.isArray(body?.messages) ? body.messages : [], tokens: Number(body?.tokens) || 0, seen: Number(body?.seen) || 0, ...(typeof body?.effort === 'string' ? { effort: body.effort } : {}), ...(['ask', 'auto', 'full'].includes(body?.mode) ? { mode: body.mode } : {}) };
+   return { messages: Array.isArray(body?.messages) ? body.messages : [], tokens: Number(body?.tokens) || 0, seen: Number(body?.seen) || 0, ...(typeof body?.effort === 'string' ? { effort: body.effort } : {}), ...(['standard', 'fast'].includes(body?.speed) ? { speed: body.speed } : {}), ...(['ask', 'auto', 'full'].includes(body?.mode) ? { mode: body.mode } : {}) };
   }).then(body => body || { messages: [], tokens: 0, seen: 0 });
  }
 
- saveSide(id, { messages, tokens = 0, seen = 0, effort = '', mode = '' }) {
+ saveSide(id, { messages, tokens = 0, seen = 0, effort = '', speed = '', mode = '' }) {
   const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
   if (!chat || (chat.lock && !key)) return Promise.resolve();
-  const body = { messages, tokens, seen, ...(effort ? { effort } : {}), ...(['ask', 'auto', 'full'].includes(mode) ? { mode } : {}) };
+  const body = { messages, tokens, seen, ...(effort ? { effort } : {}), ...(['standard', 'fast'].includes(speed) ? { speed } : {}), ...(['ask', 'auto', 'full'].includes(mode) ? { mode } : {}) };
   return this.queue(id, async () => this.store.write(`mini/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
  }
 
@@ -438,6 +438,7 @@ class Library {
   if (chat.space) copy.space = chat.space;
   if (chat.model) copy.model = chat.model;
   if (chat.effort) copy.effort = chat.effort;
+  if (['standard', 'fast'].includes(chat.speed)) copy.speed = chat.speed;
   const [notes, side, brief] = await Promise.all([this.notes(id), this.side(id), this.record(id)]);
   const seal = async body => key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body };
   // The fork keeps copies of the pictures the agent showed, under its own name, so deleting the chat it came from
@@ -452,7 +453,7 @@ class Library {
   await this.queue(copy.id, async () => {
    await this.store.write(`chats/${copy.id}`, await seal({ messages, tokens }));
    if (notes.items.length) await this.store.write(`notes/${copy.id}`, await seal({ items: notes.items, next: notes.next }));
-   if (mini.length) await this.store.write(`mini/${copy.id}`, await seal({ messages: mini, tokens: side.tokens, seen: side.seen, ...(side.effort ? { effort: side.effort } : {}) }));
+   if (mini.length || side.speed) await this.store.write(`mini/${copy.id}`, await seal({ messages: mini, tokens: side.tokens, seen: side.seen, ...(side.effort ? { effort: side.effort } : {}), ...(side.speed ? { speed: side.speed } : {}) }));
    if (brief) await this.store.write(`record/${copy.id}`, await seal({ text: brief }));
   });
   if (key) {

@@ -73,6 +73,26 @@ class EffortSlider {
   this.last = 0;
   this.tick = this.tick.bind(this);
 
+  const fast = this.fastButton = document.createElement('button');
+  fast.type = 'button';
+  fast.className = 'effort-fast';
+  fast.hidden = true;
+  fast.innerHTML = window.Glyphs?.bolt || '';
+  fast.setAttribute('aria-pressed', 'false');
+  panel.insertBefore(fast, this.slider);
+  fast.addEventListener('click', () => {
+   if (this.locked || !this.configuration().fast) return;
+   const value = this.configuration().speed === 'fast' ? 'standard' : 'fast';
+   if (this.chat?.setSpeed(value)) this.syncSpeed();
+  });
+  window.addEventListener('model-speed-change', () => this.follow());
+  panel.addEventListener('focusout', event => {
+   if (panel.contains(event.relatedTarget)) return;
+   requestAnimationFrame(() => {
+    if (this.opened && !panel.contains(document.activeElement)) this.close();
+   });
+  });
+
   button.addEventListener('effort-toggle', e => this.toggle(e.detail.keyboard));
   this.slider.addEventListener('pointerdown', e => this.onDown(e));
   this.slider.addEventListener('pointermove', e => this.onMove(e));
@@ -95,6 +115,40 @@ class EffortSlider {
   button.setCount(this.efforts.length);
   const prior = settings.onEfforts;
   settings.onEfforts = efforts => { prior?.(efforts); this.setEfforts(this.configuration().efforts || efforts); this.follow(); };
+  this.syncSpeed(config);
+ }
+
+ syncSpeed(config = this.configuration()) {
+  if (!this.fastButton) return;
+  const supported = config.fast === true && typeof this.chat?.setSpeed === 'function';
+  const changed = supported !== this.fastSupported;
+  this.fastSupported = supported;
+  this.fastButton.hidden = !supported;
+  this.fastButton.disabled = !!this.locked;
+  const on = supported && config.speed === 'fast';
+  this.fastButton.setAttribute('aria-pressed', String(on));
+  const action = I18n.t(on ? 'effort.fast.disable' : 'effort.fast.enable');
+  const cost = I18n.t(config.provider === 'chatgpt' ? 'effort.fast.chatgpt' : 'effort.fast.cost');
+  this.fastButton.setAttribute('aria-label', action);
+  this.fastButton.title = `${action}\n${cost}`;
+  this.panel.classList.toggle('has-fast', supported);
+  this.panel.classList.toggle('fast-only', supported && this.efforts.length < 2);
+  this.button.toggleAttribute('hidden', this.efforts.length < 2 && !supported);
+  this.button.style.minWidth = supported && this.efforts.length < 2 ? '34px' : '';
+  this.button.setAttribute('data-speed', on ? 'fast' : 'standard');
+  const name = EffortStage.nameOf(config.effort);
+  this.button.setAttribute('label', I18n.t(on ? 'effort.current.fast' : 'effort.current', { name }));
+  if (changed && this.opened) this.relayout();
+  const model = this.settings.find?.(config.id);
+  if (config.fastLookup && model && window.Providers?.speed && this.speedModel !== model) {
+   this.speedModel = model;
+   const key = config.key;
+   window.Providers.speed(config).then(info => {
+    if (this.settings.find(config.id) !== model || this.settings.configFor(config.id).key !== key) return;
+    model.fast = info.fast === true;
+    window.dispatchEvent(new CustomEvent('model-speed-change', { detail: { id: config.id } }));
+   }).catch(() => {}); // Unknown is hidden until a fresh catalogue can confirm it; inference failures never change this.
+  }
  }
 
  configuration() {
@@ -116,6 +170,7 @@ class EffortSlider {
   if (scope !== this.scope) { if (this.opened) this.close(); this.scope = scope; }
   const config = this.configuration();
   this.setEfforts(config.efforts);
+  this.syncSpeed(config);
   const index = this.efforts.indexOf(config.effort);
   if (index < 0 || this.opened) return;
   this.value = this.goal = this.pos = index;
@@ -129,6 +184,7 @@ class EffortSlider {
   this.locked = locked;
   this.button.toggleAttribute('disabled', locked);
   this.button.title = locked ? I18n.t('effort.locked') : '';
+  if (this.fastButton) this.fastButton.disabled = locked;
   if (locked) this.close();
  }
 
@@ -154,7 +210,7 @@ class EffortSlider {
   this.button.hideSegments(true);
   this.stage.open({ index: this.value, levels: this.efforts });
   this.morph.to(1);
-  this.slider.focus({ preventScroll: true });
+  (this.efforts.length < 2 && this.fastSupported ? this.fastButton : this.slider).focus({ preventScroll: true });
  }
 
  close(focusButton = false) {
@@ -197,6 +253,10 @@ class EffortSlider {
 
  onMorph(m) {
   this.lens = m;
+  if (this.fastButton) {
+   this.panel.style.setProperty('--fast-reveal', smoothstep(0.82, 0.98, m).toFixed(3));
+   this.fastButton.style.pointerEvents = m >= 0.96 ? '' : 'none';
+  }
   this.thumb.style.opacity = smoothstep(LENS_REVEAL.from, LENS_REVEAL.fade, m).toFixed(3);
   this.paint.fade(smoothstep(...(this.opened ? PAINT_ARRIVE : PAINT_FADE), m));
   this.render();
@@ -241,8 +301,9 @@ class EffortSlider {
   const same = next.length === this.efforts.length && next.every((level, i) => level === this.efforts[i]);
   if (same) return;
   this.efforts = next;
-  this.button.toggleAttribute('hidden', next.length < 2);
-  if (next.length < 2 && this.opened) this.close();
+  const speedAvailable = this.configuration().fast === true && typeof this.chat?.setSpeed === 'function';
+  this.button.toggleAttribute('hidden', next.length < 2 && !speedAvailable);
+  if (next.length < 2 && !speedAvailable && this.opened) this.close();
   this.button.setCount(next.length);
   this.morph.setLevels(next.length);
   this.fillTicks();
@@ -331,7 +392,7 @@ class EffortSlider {
   const to = step ? clamp(this.value + step, 0, this.max) : { Home: 0, End: this.max }[e.key];
   if (to !== undefined) { e.preventDefault(); if (!this.drag) this.moveTo(to); }
   else if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); this.close(true); }
-  else if (e.key === 'Tab') this.close();
+  else if (e.key === 'Tab' && !this.fastSupported) this.close();
  }
 
  commit(i, remember = true) {
@@ -346,6 +407,7 @@ class EffortSlider {
   this.slider.setAttribute('aria-valuenow', String(i));
   this.slider.setAttribute('aria-valuetext', name);
   this.button.setAttribute('label', I18n.t('effort.current', { name }));
+  this.syncSpeed();
   return true;
  }
 

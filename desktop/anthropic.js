@@ -9,14 +9,21 @@ const NO_VISION = '[A picture was here, but the selected model can\'t see pictur
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const MAX_OUTPUT = 64000;
+// The Models API does not report Fast support yet. Keep this exception limited to the documented model versions.
+const FAST_BETA = 'fast-mode-2026-02-01';
+function fastOf(model, now = Date.now()) {
+ const version = /^claude-opus-(5-5|5|4-8)(?:-\d{8})?$/.exec(model.id || '')?.[1];
+ if (!version || (version === '4-8' && now >= Date.parse('2026-11-30T00:00:00Z'))) return { fast: false };
+ return { fast: true, fastBeta: version === '5-5' ? '' : FAST_BETA };
+}
 const BUDGET = { low: 4096, high: 16000 };
 // With a policy decline the server hands the turn to another model instead of stopping, where the model takes this.
 const FALLBACK = { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' };
 const FINISH = { end_turn: 'stop', tool_use: 'tool_calls', max_tokens: 'length', refusal: 'content_filter', pause_turn: 'stop', stop_sequence: 'stop' };
 
-// No model is named in this file. Which models there are, and what each can do, is the Models API's to say. The two
-// things it doesn't say are found out by asking: whether a model hands a declined turn to another one (`fallbacks`), and
-// whether it can answer without thinking (`quiet`). A model that turns one of them down is remembered while the app runs.
+// Models, windows and thinking capabilities come from the Models API. Fast is the documented-version exception
+// above because that capability is not reported there yet. The optional fallback/quiet compatibility below is learned
+// from standard-speed requests; a Fast refusal must never change thinking capabilities.
 const refuses = { fallbacks: new Set(), quiet: new Set() };
 
 // Retries of a dropped connection are the app's own, with one pause for every provider. What stays here is the second
@@ -48,6 +55,7 @@ function describe(model) {
   efforts,
   defaultEffort: efforts.includes('high') ? 'high' : efforts[efforts.length - 1],
   thinking,
+  ...fastOf(model),
  };
 }
 
@@ -161,6 +169,7 @@ function build(request, quiet = true) {
   messages: history,
   ...thinking(request, quiet),
  };
+ if (request.fast === true && request.speed === 'fast') params.speed = 'fast';
  if (system.length) params.system = system.map((part, k) => ({ type: 'text', text: part, ...(!once && (k === 0 || k === system.length - 1) ? { cache_control: CACHE } : {}) }));
  // The mark at the end of the request: the API puts it on the last block and moves it on as the chat grows.
  if (!once && !aside) params.cache_control = CACHE;
@@ -178,7 +187,8 @@ async function stream(request, { signal, onEvent = () => {}, baseURL }) {
  let content = '', blocks = 0, began = false;
  const send = ({ fallbacks, quiet }) => {
   const params = build(request, quiet);
-  const live = fallbacks ? api.beta.messages.stream({ ...params, ...FALLBACK }, { signal }) : api.messages.stream(params, { signal });
+  const betas = [...(fallbacks ? FALLBACK.betas : []), ...(params.speed === 'fast' && request.fastBeta ? [request.fastBeta] : [])];
+  const live = betas.length ? api.beta.messages.stream({ ...params, ...(fallbacks ? { fallbacks: FALLBACK.fallbacks } : {}), betas: [...new Set(betas)] }, { signal }) : api.messages.stream(params, { signal });
   live.on('streamEvent', event => {
    began = true;
    if (event.type === 'content_block_start' && ['tool_use', 'thinking', 'redacted_thinking'].includes(event.content_block?.type)
@@ -203,7 +213,11 @@ async function stream(request, { signal, onEvent = () => {}, baseURL }) {
    message = await send(extras);
    break;
   } catch (cause) {
-   const extra = began || !declined(cause) ? '' : extras.fallbacks ? 'fallbacks' : extras.quiet && asksQuiet ? 'quiet' : '';
+   const fastRequest = request.fast === true && request.speed === 'fast';
+   const detail = cause.error?.error?.message || cause.message || '';
+   const extra = began || !declined(cause) ? '' : fastRequest
+    ? (extras.fallbacks && /fallback/i.test(detail) && !/speed|fast/i.test(detail) ? 'fallbacks' : '')
+    : extras.fallbacks ? 'fallbacks' : extras.quiet && asksQuiet ? 'quiet' : '';
    if (!extra) throw problem(cause);
    extras[extra] = false;
    dropped = extra;
@@ -221,10 +235,11 @@ async function stream(request, { signal, onEvent = () => {}, baseURL }) {
   toolCalls: kept.filter(block => block.type === 'tool_use').map(block => ({ id: block.id, type: 'function', function: { name: block.name, arguments: JSON.stringify(block.input ?? {}) } })),
   finishReason: FINISH[message.stop_reason] || message.stop_reason || 'stop',
   usage: { prompt_tokens: prompt, completion_tokens: usage.output_tokens || 0, total_tokens: prompt + (usage.output_tokens || 0), cached_tokens: usage.cache_read_input_tokens || 0, written_tokens: usage.cache_creation_input_tokens || 0 },
+  ...(typeof usage.speed === 'string' ? { speed: usage.speed } : {}),
   native: { provider: 'anthropic', content: kept.filter(block => block.type !== 'fallback') },
   // The model turned out unable to answer without thinking: its list of effort levels is to be read again.
   ...(dropped === 'quiet' ? { stale: true } : {}),
  };
 }
 
-module.exports = { models, stream, convert, build, describe };
+module.exports = { models, stream, convert, build, describe, fastOf };

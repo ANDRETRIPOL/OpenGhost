@@ -712,6 +712,7 @@ class Conversation {
   this.folder = null;
   this.model = '';
   this.effort = '';
+  this.speed = 'standard';
   this.messages = [];
   this.tokens = 0;
   // How many messages the latest request held, the system prompt's included (see Chat.seam).
@@ -820,7 +821,23 @@ class Chat {
  config(conv) {
   // Existing chats without the field keep their pre-update preference until it is migrated by load().
   const preferred = conv?.record?.effort || conv?.effort || (conv?.record ? this.settings.legacyEffort : '') || '';
-  return this.settings.configFor(this.modelOf(conv), preferred);
+  const config = this.settings.configFor(this.modelOf(conv), preferred);
+  const wanted = conv?.record?.speed || conv?.speed || 'standard';
+  return { ...config, speed: config.fast && wanted === 'fast' ? 'fast' : 'standard' };
+ }
+
+ get speed() { return this.config(this.active).speed; }
+
+ setSpeed(value) {
+  const conv = this.active;
+  if (!conv || conv.turn || conv.locked || !['standard', 'fast'].includes(value)) return false;
+  if (value === 'fast' && !this.config(conv).fast) return false;
+  if (conv.record) {
+   if (conv.record.speed === value) return true;
+   this.library.update(conv.id, { speed: value });
+  } else conv.speed = value;
+  this.onChange();
+  return true;
  }
 
  get effort() {
@@ -965,6 +982,7 @@ class Chat {
   draft.folder = folder;
   draft.model = this.settings.resolve();
   draft.effort = '';
+  draft.speed = 'standard';
   this.opening++;
   this.activate(draft);
   this.onChange();
@@ -1249,7 +1267,7 @@ class Chat {
   }
   if (!conv.record) {
    conv.record = this.library.create({ folder: conv.folder, text, attachments });
-   this.library.update(conv.id, { model: this.modelOf(conv), effort: config.effort, mode: this.modeOf(conv) });
+   this.library.update(conv.id, { model: this.modelOf(conv), effort: config.effort, speed: config.speed, mode: this.modeOf(conv) });
    this.conversations.set(conv.id, conv);
    if (this.library.notes) conv.pad = { items: [], next: 1 };
    this.draft = null;
@@ -3531,7 +3549,7 @@ function movedNotice() {
 class SideChat extends Chat {
  constructor({ library, origin, model, effort = '', ...options }) {
   const state = { seen: 0 };
-  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model, effort: effort || origin.record.effort || origin.effort || '', mode: origin.record.mode || origin.mode || options.settings.mode };
+  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model, effort: effort || origin.record.effort || origin.effort || '', speed: origin.record.speed || origin.speed || 'standard', mode: origin.record.mode || origin.mode || options.settings.mode };
   if (library.isHome(origin.record)) record.space = origin.record.space;
   if (origin.record.session) record.session = origin.record.session;
   super({ ...options, library: {
@@ -3539,8 +3557,8 @@ class SideChat extends Chat {
    chats: [record],
    chat: id => id === record.id ? record : null,
    update: (id, changes) => id === record.id ? Object.assign(record, changes) : null,
-   conversation: id => library.side(id).then(body => { state.seen = body.seen; if (body.effort) record.effort = body.effort; if (body.mode) record.mode = body.mode; return body; }),
-   saveMessages: (id, messages, tokens) => library.saveSide(id, { messages, tokens, seen: state.seen, effort: record.effort, mode: record.mode }),
+   conversation: id => library.side(id).then(body => { state.seen = body.seen; if (body.effort) record.effort = body.effort; if (body.speed) record.speed = body.speed; if (body.mode) record.mode = body.mode; return body; }),
+   saveMessages: (id, messages, tokens) => library.saveSide(id, { messages, tokens, seen: state.seen, effort: record.effort, speed: record.speed, mode: record.mode }),
    clear: id => library.clearSide(id),
    isProtected: () => false,
    // The chat the mini chat is opened over may be protected, and then so is what is said here.
@@ -3578,6 +3596,13 @@ class SideChat extends Chat {
 
  get hasMessages() {
   return !!this.active?.record && this.active.messages.some(entry => entry.role === 'user');
+ }
+
+ setSpeed(value) {
+  if (!super.setSpeed(value)) return false;
+  const conv = this.active;
+  if (conv?.record) this.library.saveMessages(conv.id, conv.messages, conv.tokens);
+  return true;
  }
 
  // A mini chat is forked along with its chat, not on its own.
