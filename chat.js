@@ -728,6 +728,7 @@ class Conversation {
   this.scrollTop = 0;
   this.unread = false;
   this.ready = null;
+  window.MessageDates?.watch(this.list);
  }
 
  get id() {
@@ -1256,7 +1257,7 @@ class Chat {
    this.library.update(conv.id, { updated: Date.now(), ...(!conv.record.effort ? { effort: config.effort } : {}) });
   }
   for (const actions of conv.list.querySelectorAll('.message-actions')) actions.remove();
-  const prompt = { text, attachments };
+  const prompt = { text, attachments, at: window.MessageDates?.now() ?? Date.now() };
   this.follow = true;
   if (conv.turn) {
    this.interject(conv, prompt);
@@ -1433,7 +1434,7 @@ class Chat {
 
  run(conv, prompt, config, bubble) {
   const turn = this.begin(conv, config);
-  const entry = { role: 'user', text: prompt.text, attachments: prompt.attachments.map(slim), content: prompt.text };
+  const entry = { role: 'user', text: prompt.text, attachments: prompt.attachments.map(slim), content: prompt.text, at: prompt.at ?? Date.now() };
   conv.messages.push(entry);
   if (bubble) this.nodes.set(entry, bubble);
   this.openPart(conv, turn);
@@ -2059,7 +2060,7 @@ class Chat {
   this.closePart(conv, old);
   this.postPills(conv, turn, old.view.el);
   for (const { prompt, bubble } of queued) {
-   const entry = { role: 'user', text: prompt.text };
+   const entry = { role: 'user', text: prompt.text, at: prompt.at ?? Date.now() };
    await this.compose(conv, entry, prompt);
    conv.messages.push(entry);
    this.nodes.set(entry, bubble);
@@ -2073,9 +2074,10 @@ class Chat {
   view ||= this.assistantMessage(conv);
   if (!view.el.isConnected) conv.list.append(view.el);
   // Each part of a reply notes the model that wrote it, for the chat's stats and for a model that later takes over.
-  const entry = { role: 'assistant', content: '', steps: [], turn: turn.id, model: turn.config.id };
+  const entry = { role: 'assistant', content: '', steps: [], turn: turn.id, model: turn.config.id, at: window.MessageDates?.now() ?? Date.now() };
   conv.messages.push(entry);
   view.el.__entry = entry;
+  window.MessageDates?.mark(view.el, entry.at);
   turn.part = { view, entry };
   turn.parts.push(turn.part);
  }
@@ -2085,7 +2087,8 @@ class Chat {
   if (!entry.steps.length && !entry.content) drop(conv.messages, entry);
   view.stream.finish().then(() => {
    view.el.classList.remove('is-streaming');
-   if (!entry.content.trim()) collapse(view.el);
+   if (entry.content.trim()) view.showTools?.(entry.at);
+   else collapse(view.el);
   });
  }
 
@@ -2104,7 +2107,7 @@ class Chat {
   this.postPills(conv, turn, view.el);
   if (turn.next) collapse(turn.next.el);
   const queued = turn.queue.splice(0).map(({ prompt, bubble }) => {
-   const item = { role: 'user', text: prompt.text, attachments: prompt.attachments.map(slim), content: prompt.text };
+   const item = { role: 'user', text: prompt.text, attachments: prompt.attachments.map(slim), content: prompt.text, at: prompt.at ?? Date.now() };
    conv.messages.push(item);
    this.nodes.set(item, bubble);
    QueuedRing.lift(bubble);
@@ -2136,11 +2139,12 @@ class Chat {
   else noted = false;
   const last = text ? view : turn.parts.findLast(item => item.entry.content.trim() && item.view.el.isConnected)?.view;
   if (last) {
-   const tools = this.toolbar(), box = last === view && view.el.querySelector('.message-error, .message-note');
+   const tools = last.el.querySelector('.message-tools') || this.toolbar(true, last.el.__entry?.at), box = last === view && view.el.querySelector('.message-error, .message-note');
    if (box) box.before(tools);
    else last.el.append(tools);
   }
   if (!text && !noted) collapse(view.el);
+  window.MessageDates?.sync(conv.list);
   this.viewOf(conv)?.followBottom();
   // A protected chat left while it was replying locks fully once the reply is saved.
   if (conv.locked && !conv.turn) this.seal(conv);
@@ -2534,8 +2538,9 @@ class Chat {
   while (conv.turn) await new Promise(resolve => setTimeout(resolve, 1500));
   if (!this.library.chat(item.chat) || conv.locked) return;
   const config = this.routineConfig(conv, item);
-  const entry = { role: 'user', text: item.text, attachments: [], content: ROUTINE.run(item, at), routine: { id: item.id, at } };
+  const entry = { role: 'user', text: item.text, attachments: [], content: ROUTINE.run(item, at), routine: { id: item.id, at }, at: window.MessageDates?.now() ?? Date.now() };
   const el = RoutinePill.build({ kind: 'ran', routine: item.id, at, text: item.text });
+  window.MessageDates?.mark(el, entry.at);
   this.attach(conv);
   conv.list.append(el);
   this.nodes.set(entry, el);
@@ -3122,6 +3127,7 @@ class Chat {
    this.nodes.set(entry, el);
   }
   this.syncPills(conv);
+  window.MessageDates?.sync(conv.list);
   MessageFold.settle(conv.list);
   settle(conv.list);
  }
@@ -3137,7 +3143,11 @@ class Chat {
  // to be drawn.
  entryView(entry, last, later = false) {
   // A routine's run is the app's message, not the user's: it stands as the routine's pill.
-  if (entry.role === 'user' && entry.routine) return RoutinePill.build({ kind: 'ran', routine: entry.routine.id, at: entry.routine.at, text: entry.text });
+  if (entry.role === 'user' && entry.routine) {
+   const el = RoutinePill.build({ kind: 'ran', routine: entry.routine.id, at: entry.routine.at, text: entry.text });
+   window.MessageDates?.mark(el, entry.at ?? entry.routine.at);
+   return el;
+  }
   if (entry.role === 'user') return this.userMessage(this.promptOf(entry));
   if (entry.role === 'compact') return this.compactNotice(false, null, entry.count);
   if (entry.role === 'fork') return this.forkNotice(entry);
@@ -3161,7 +3171,7 @@ class Chat {
   const attachments = (entry.attachments || []).map(item => ({
    ...item, info: FileKinds.describe(item.name), url: item.image ? urls[k++] || '' : item.video?.poster || '', duration: item.video?.duration || 0,
   }));
-  return { text: entry.text || '', attachments };
+  return { text: entry.text || '', attachments, at: entry.at };
  }
 
  restoredMessage(entry, last = true, later = false) {
@@ -3184,16 +3194,20 @@ class Chat {
    };
   } else StreamView.render(content, entry.content);
   el.__entry = entry;
-  if (last) el.append(this.toolbar());
+  window.MessageDates?.mark(el, entry.at);
+  el.append(this.toolbar(true, entry.at));
   return el;
  }
 
  // Under a message: Copy, and in a chat of the app's window, Fork from here. `copy`: whether there are words to copy.
- toolbar(copy = true) {
+ toolbar(copy = true, at = null) {
   const tools = document.createElement('div');
   tools.className = 'message-tools';
-  tools.innerHTML = (copy ? `<button class="md-copy message-copy" type="button" aria-label="${I18n.t('message.copy')}">${Markdown.COPY_ICON}</button>` : '')
+  const buttons = (copy ? `<button class="md-copy message-copy" type="button" aria-label="${I18n.t('message.copy')}">${Markdown.COPY_ICON}</button>` : '')
    + (this.forkable ? `<button class="md-copy message-fork" type="button" aria-label="${I18n.t('message.fork')}" title="${I18n.t('message.fork')}">${Glyphs.fork}</button>` : '');
+  tools.innerHTML = buttons ? `<span class="message-tool-actions">${buttons}</span>` : '';
+  const time = window.MessageDates?.time(at);
+  if (time) tools.prepend(time);
   return tools;
  }
 
@@ -3394,7 +3408,7 @@ class Chat {
   return button;
  }
 
- userMessage({ text, attachments }) {
+ userMessage({ text, attachments, at }) {
   const el = document.createElement('div');
   el.className = 'message is-user';
   // A video sent the moment it was added may still be having its frame taken: the attachments come in once it is there.
@@ -3422,10 +3436,9 @@ class Chat {
    MessageFold.watch(bubble);
    el.append(bubble);
   }
-  if (text) {
-   el.append(this.toolbar());
-   el.__entry = { content: text };
-  } else if (this.forkable) el.append(this.toolbar(false));
+  el.append(this.toolbar(!!text, at));
+  el.__entry = { content: text, at };
+  window.MessageDates?.mark(el, at);
   return el;
  }
 
@@ -3477,7 +3490,9 @@ class Chat {
   el.className = 'message is-assistant is-streaming';
   el.innerHTML = '<div class="message-status"><ghost-thinking></ghost-thinking></div><div class="message-content markdown"></div>';
   const content = el.querySelector('.message-content');
-  return { el, status: el.querySelector('.message-status'), content, stream: new StreamView(content, { onChange: () => { this.viewOf(conv)?.followBottom(); } }) };
+  return { el, status: el.querySelector('.message-status'), content, stream: new StreamView(content, { onChange: () => { this.viewOf(conv)?.followBottom(); } }),
+   showTools: at => { if (!el.querySelector('.message-tools')) el.append(this.toolbar(true, at)); },
+  };
  }
 }
 

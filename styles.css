@@ -2373,9 +2373,61 @@ ghost-thinking {
 
 .message-tools {
   display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+  margin: 8px 0 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.message-tools:empty { display: none; }
+
+.message-time {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-secondary);
+  font-size: var(--small-font-size);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.message-tool-actions {
+  display: flex;
+  flex: none;
   gap: 2px;
-  margin: 10px 0 0 -6px;
-  animation: message-tools-in 0.45s var(--motion-easing) both;
+}
+
+.message:hover > .message-tools,
+.message:has(:focus-visible) > .message-tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .message-tools { opacity: 1; pointer-events: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-tools { transition: none; }
+}
+
+.thread-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 12px;
+  color: var(--fg-secondary);
+  font-size: var(--small-font-size);
+  font-weight: 500;
+  line-height: 1.5;
+  user-select: none;
+  pointer-events: none;
 }
 
 .message-note + .message-tools {
@@ -2386,20 +2438,12 @@ ghost-thinking {
   margin-top: 6px;
 }
 
-.message.is-user .message-tools {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin: 0;
-  padding-top: 2px;
-  opacity: 0;
-  animation: none;
-  transition: opacity 0.2s ease;
-}
+.message.is-assistant .message-tools { margin-left: -6px; }
+.message.is-assistant .message-time { order: 1; }
 
-.message.is-user:hover .message-tools,
-.message.is-user .message-tools:has(:focus-visible, .is-copied) {
-  opacity: 1;
+.message.is-user .message-tools {
+  align-self: flex-end;
+  margin: 0;
 }
 
 /* A message still waiting for its turn is not in the chat yet: nothing can be forked from it. */
