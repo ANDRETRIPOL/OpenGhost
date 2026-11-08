@@ -10670,18 +10670,22 @@ h6.md-h {
 /* Fast is a separate opt-in in the same control layer; it never becomes an effort stop. */
 .effort-panel.has-fast {
   width: min(304px, calc(100vw - 24px));
+  padding-left: 26px;
 }
 
 .effort-panel.has-fast:popover-open {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
 }
 
 .effort-panel.has-fast .effort-slider {
   flex: 1;
   min-width: 0;
 }
+
+/* Move only the bolt toward the track; retain the track's position and separate hit targets. */
+.effort-panel.has-fast .effort-track { left: 18px; }
 
 .effort-fast {
   position: relative;
@@ -10698,20 +10702,18 @@ h6.md-h {
   color: color-mix(in srgb, var(--fg-secondary), rgb(var(--composer-on-accent-rgb)) calc(var(--paint, 0) * 100%));
   opacity: var(--fast-reveal, 0);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s;
 }
 
 .effort-fast[hidden] { display: none; }
 .effort-fast .glyph { width: 18px; height: 18px; }
-.effort-fast:hover { background: color-mix(in srgb, rgba(var(--fg-rgb), 0.06), rgba(var(--composer-on-accent-rgb), 0.08) calc(var(--paint, 0) * 100%)); }
 .effort-fast[aria-pressed="true"] {
-  background: color-mix(in srgb, rgba(var(--fg-rgb), 0.1), rgba(var(--composer-on-accent-rgb), 0.14) calc(var(--paint, 0) * 100%));
   color: color-mix(in srgb, var(--fg-primary), rgb(var(--composer-on-accent-rgb)) calc(var(--paint, 0) * 100%));
 }
 .effort-fast[aria-pressed="true"] .glyph { fill: currentColor; }
 .effort-fast:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .effort-fast:disabled { cursor: default; }
-.effort-panel.fast-only { width: 64px; justify-content: center; }
+.effort-panel.fast-only { width: 64px; padding-inline: 14px; justify-content: center; }
 .effort-panel.fast-only .effort-slider,
 .effort-panel.fast-only .effort-title { display: none; }
 @media (prefers-reduced-motion: reduce) { .effort-fast { transition: none; } }
