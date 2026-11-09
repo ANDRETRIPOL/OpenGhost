@@ -203,6 +203,36 @@ async function main() {
  const speedReload = new c.window.Library(store, () => {});await speedReload.ready;
  check('Saved Fast and Standard choices survive a fresh library', speedReload.chat('a').speed === 'fast' && speedReload.chat(speedFork.id).speed === 'standard' && speedReload.chat(fastDraftId).speed === 'fast');
  clearTimeout(speedReload.timer);clearTimeout(restarted.timer);
+ // Dynamic geometry uses the actual slider methods, independently of storage or the selected effort.
+ const geometryWrites = [], resizer = Object.create(c.window.EffortSlider.prototype);
+ Object.assign(resizer, { fastSupported: true, efforts: ['none', 'low', 'medium', 'high'], pos: 0, panel: { style: { setProperty: (key, value) => geometryWrites.push([key, value]) } } });
+ resizer.updateCompact();check('The approved minimum starts at full capsule size', resizer.compact === 0);
+ for (const [pos, expected] of [[.25,.1563],[.5,.5],[.75,.8438],[1,1],[2,1],[3,1]]) {
+  resizer.pos = pos;resizer.updateCompact();check('Capsule follows the continuous lens position '+pos, resizer.compact === expected);
+ }
+ const geometryCount = geometryWrites.length;
+ check('A settled capsule does not rewrite layout on every frame', !resizer.updateCompact() && geometryWrites.length === geometryCount);
+ for (const [pos, expected] of [[.75,.8438],[.5,.5],[.25,.1563],[0,0]]) {
+  resizer.pos = pos;resizer.updateCompact();check('Reversing midway restores the capsule at '+pos, resizer.compact === expected);
+ }
+ for (let levels = 2; levels <= 10; levels++) {
+  resizer.efforts = Array(levels).fill('level');let safe = true;
+  for (let n = 0; n <= 300; n++) {resizer.pos = (levels-1)*n/300;resizer.updateCompact();const q=resizer.compact,t=resizer.pos/(levels-1);if(18-14*q+(192-18*q)*t-18 < -.001)safe=false;}
+  check(levels+' levels keep the moving lens clear of the bolt',safe);
+ }
+ resizer.fastSupported=false;resizer.updateCompact();check('Models without Fast keep their original geometry',resizer.compact===0);
+ resizer.fastSupported=true;resizer.efforts=['none'];resizer.pos=0;resizer.updateCompact();check('Fast-only controls do not compress a nonexistent track',resizer.compact===0);
+ resizer.efforts=['none','low','medium','high'];
+ for (const layout of [{left:100,slider:232,inset:18,track:192,scale:1},{left:132,slider:200,inset:4,track:174,scale:1.5}]) {
+  resizer.slider={offsetWidth:layout.slider,getBoundingClientRect:()=>({left:layout.left,width:layout.slider*layout.scale})};resizer.geo={left:layout.inset,width:layout.track};resizer.drag={offset:6};
+  for(const pos of [0,1,2,3]){const clientX=layout.left+(layout.inset+layout.track*pos/3+6)*layout.scale;check('Pixel grab stays attached at '+layout.track+'px / level '+pos,Math.abs(resizer.pointerPos({clientX})-pos)<1e-9);}
+ }
+ vm.runInContext(read('effort-paint.js'),c);
+ const puffA={x:40,y:12,r:14,phase:[1,2,3]},puffB={x:280,y:36,r:15,phase:[4,5,6]},puffs=[puffA,puffB],paint=Object.create(c.window.EffortPaint.prototype);
+ Object.assign(paint,{puffs,geo:{end:288,height:48}});paint.layoutCloud({end:320,height:48});
+ check('Resizing keeps existing paint shapes rather than regenerating them',paint.puffs===puffs&&paint.puffs[0]===puffA&&paint.puffs[1]===puffB);
+ check('Paint positions follow the new width without resetting phase or radius',Math.abs(puffA.x-36)<1e-9&&Math.abs(puffB.x-252)<1e-9&&puffA.r===14&&puffB.phase[1]===5);
+ paint.geo={end:320,height:48};paint.layoutCloud({end:288,height:48});check('Expanding back restores paint positions without flicker',Math.abs(puffA.x-40)<1e-9&&Math.abs(puffB.x-280)<1e-9);
  console.log(`\n${count} checks passed`);
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -10669,7 +10669,7 @@ h6.md-h {
 
 /* Fast is a separate opt-in in the same control layer; it never becomes an effort stop. */
 .effort-panel.has-fast {
-  width: min(286px, calc(100vw - 24px));
+  width: min(calc(286px - 32px * var(--effort-compact, 0)), calc(100vw - 24px));
   padding-left: 8px;
 }
 
@@ -10684,8 +10684,8 @@ h6.md-h {
   min-width: 0;
 }
 
-/* Keep the track length and separate hit targets while trimming the leading cap. */
-.effort-panel.has-fast .effort-track { left: 18px; }
+/* The lens needs its full leading clearance only at the minimum; hit targets remain separate. */
+.effort-panel.has-fast .effort-track { left: calc(18px - 14px * var(--effort-compact, 0)); }
 
 .effort-fast {
   position: relative;
@@ -10699,7 +10699,7 @@ h6.md-h {
   border: 0;
   border-radius: 12px;
   background: transparent;
-  color: color-mix(in srgb, var(--fg-secondary), rgb(var(--composer-on-accent-rgb)) calc(var(--paint, 0) * 100%));
+  color: color-mix(in srgb, rgb(var(--composer-accent-rgb)), rgb(var(--composer-on-accent-rgb)) calc(var(--paint, 0) * 100%));
   opacity: var(--fast-reveal, 0);
   cursor: pointer;
   transition: color 0.15s;
@@ -10707,9 +10707,6 @@ h6.md-h {
 
 .effort-fast[hidden] { display: none; }
 .effort-fast .glyph { width: 18px; height: 18px; }
-.effort-fast[aria-pressed="true"] {
-  color: color-mix(in srgb, var(--fg-primary), rgb(var(--composer-on-accent-rgb)) calc(var(--paint, 0) * 100%));
-}
 .effort-fast[aria-pressed="true"] .glyph { fill: currentColor; }
 .effort-fast:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .effort-fast:disabled { cursor: default; }

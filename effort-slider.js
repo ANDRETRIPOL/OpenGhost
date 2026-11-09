@@ -159,6 +159,19 @@ class EffortSlider {
   return this.opened;
  }
 
+ measureGeometry() {
+  return { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
+ }
+
+ // Use the lens's spring position, never the selected stop, so a hand can reverse the resize midway.
+ updateCompact() {
+  const amount = this.fastSupported && this.max > 0 ? Number(smoothstep(0, 1, this.pos).toFixed(4)) : 0;
+  if (amount === this.compact) return false;
+  this.compact = amount;
+  this.panel.style.setProperty('--effort-compact', String(amount));
+  return true;
+ }
+
  toggle(keyboard) {
   if (this.opened) this.close(keyboard);
   else if (!this.locked) this.open();
@@ -192,8 +205,9 @@ class EffortSlider {
   this.opened = true;
   if (!this.panel.matches(':popover-open')) {
    this.panel.showPopover();
-   this.geo = { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
    this.pos = this.goal = this.value;
+   this.updateCompact();
+   this.geo = this.measureGeometry();
    this.vel = 0;
    this.stretch = [0, 0];
    this.press = [0, 0];
@@ -235,7 +249,7 @@ class EffortSlider {
   if (!this.opened || !this.panel.matches(':popover-open')) return;
   if (!this.morph.settled) { this.relayoutPending = true; return; }
   this.relayoutPending = false;
-  this.geo = { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
+  this.geo = this.measureGeometry();
   this.morph.measure(this.value);
   this.paint.layout(this.paintBox());
   this.render();
@@ -314,7 +328,7 @@ class EffortSlider {
   this.button.setLevel(index, true);
   this.commit(index, false);
   if (this.opened && this.panel.matches(':popover-open')) {
-   this.geo = { left: this.track.offsetLeft, width: this.track.offsetWidth, origin: this.slider.getBoundingClientRect().left };
+   this.geo = this.measureGeometry();
    this.morph.measure(this.value);
    this.paint.layout(this.paintBox());
    this.stage.show({ index, levels: next, dir: 1 });
@@ -338,7 +352,7 @@ class EffortSlider {
 
  pointerPos(e) {
   const rect = this.slider.getBoundingClientRect(), scale = rect.width / this.slider.offsetWidth || 1;
-  return ((e.clientX - rect.left) / scale - this.geo.left) / this.geo.width * (this.max || 1);
+  return ((e.clientX - rect.left) / scale - this.geo.left - (this.drag?.offset || 0)) / this.geo.width * (this.max || 1);
  }
 
  shape(raw) {
@@ -355,15 +369,16 @@ class EffortSlider {
   this.slider.setPointerCapture(e.pointerId);
   const raw = this.pointerPos(e);
   const onThumb = Math.abs(raw - this.pos) / (this.max || 1) * this.geo.width <= LENS.width / 2 + GRAB_SLOP;
-  this.drag = { id: e.pointerId, offset: onThumb ? raw - this.pos : 0 };
+  this.drag = { id: e.pointerId, x: e.clientX, offset: onThumb ? (raw - this.pos) / (this.max || 1) * this.geo.width : 0 };
   this.panel.classList.add('is-dragging');
-  this.goal = this.shape(raw - this.drag.offset);
+  this.goal = this.shape(this.pointerPos(e));
   this.wake();
  }
 
  onMove(e) {
   if (!this.drag || e.pointerId !== this.drag.id) return;
-  this.goal = this.shape(this.pointerPos(e) - this.drag.offset);
+  this.drag.x = e.clientX;
+  this.goal = this.shape(this.pointerPos(e));
   this.syncPaint();
   this.wake();
  }
@@ -464,6 +479,10 @@ class EffortSlider {
 
  render() {
   if (!this.geo) return;
+  if (this.updateCompact()) {
+   this.geo = this.measureGeometry();
+   if (this.drag) { this.goal = this.shape(this.pointerPos({ clientX: this.drag.x })); this.syncPaint(); }
+  }
   const appear = LENS_REVEAL.scale + (1 - LENS_REVEAL.scale) * backOut(clamp((this.lens - LENS_REVEAL.from) / (1 - LENS_REVEAL.from), 0, 1));
   const x = this.snap(this.x(this.pos)), grow = (1 + PRESS_GROW * clamp(this.press[0], 0, 1.2)) * appear, stretch = this.stretch[0];
   this.thumb.style.transform = `translate(${x - LENS.width / 2}px, ${-LENS.height / 2}px) scale(${grow * (1 + stretch)}, ${grow * (1 - 0.35 * stretch)})`;

@@ -87,6 +87,7 @@ class EffortPaint {
  }
 
  layout({ width, height, lensRight }) {
+  const previous = this.geo;
   const gx = lensRight + GHOST.gap + GHOST.width / 2;
   const end = gx + GHOST.width / 2 + GHOST.margin;
   this.geo = { width, height, gx, end };
@@ -95,11 +96,16 @@ class EffortPaint {
   Object.assign(this.root.style, { left: `${box.x}px`, top: `${box.y}px`, width: `${box.width}px`, height: `${box.height}px` });
   for (const name of ['x', 'y', 'width', 'height']) this.filter.setAttribute(name, box[name]);
   Object.assign(this.holder.style, { left: `${gx}px`, top: `${height / 2}px`, width: `${GHOST.width}px`, height: `${GHOST.width * GHOST.aspect}px` });
-  this.layoutCloud();
+  this.layoutCloud(previous);
  }
 
- layoutCloud() {
+ layoutCloud(previous) {
   const { height: H, end } = this.geo, R = H / 2;
+  // Resizing the capsule must not replace the animated paint with new random shapes every frame.
+  if (previous?.end > 0 && previous.height > 0 && this.puffs.length) {
+   for (const puff of this.puffs) { puff.x *= end / previous.end; puff.y *= H / previous.height; }
+   return;
+  }
   const { top, bottom, ends } = CLOUD, count = Math.max(3, Math.round((end - 2 * R) / CLOUD.spacing));
   const spots = [];
   for (let i = 0; i < count; i++) {
