@@ -49,6 +49,11 @@ async function main() {
   }
   check('Packaged main window is reachable', !!run);
   await send('Runtime.enable');
+  await send('Page.bringToFront');
+  await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  report.viewport = await run('({width:innerWidth,height:innerHeight,canSplit:splitView.canFit()})');
+  check('The test viewport fits two chat panes', report.viewport.canSplit);
   const until = async expression => { const end = Date.now() + 30000; while (Date.now() < end) { if (await run(expression)) return; await sleep(80); } throw Error('Not ready: ' + expression); };
   const shot = async name => { const result = await send('Page.captureScreenshot', { format: 'png' }); assert.ok(result.result?.data); const file = path.join(output, name + '.png'); fs.writeFileSync(file, Buffer.from(result.result.data, 'base64')); report.screenshots.push(file); };
   const click = async expression => {
