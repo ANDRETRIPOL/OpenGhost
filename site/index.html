@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.5.2</span>
+      <span class="ver" data-version>v1.5.3</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.2.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.3.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.5.2</h3>
+        <h3 class="h3" data-news-title>What's new in 1.5.3</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.5.2';
+const FALLBACK = '1.5.3';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,18 +1470,18 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'Save browser screenshots as PNG files and attach local files on websites. No extra approval prompts in Full access.',
-    'Remember ASK approvals for the current chat and reset them from its menu.',
-    'Each chat keeps its own reasoning effort.',
-    'Continue after temporary disconnects, with better recovery after failed compaction.',
-    'End a running task, preview photos before sending and see charts between tool calls. Smoother browser tabs, plan and password panels.',
+    'Split View: two chats side by side, saved pairs, an adjustable divider and a mini chat for each pane.',
+    'Independent conversations, settings, private records and browser ownership. Agents keep working in the background.',
+    'Optional Fast for supported models, with higher allowance use or cost. Fast through ChatGPT is experimental: the request is verified, but server-side application and acceleration are not confirmed.',
+    'Provider errors no longer silently downgrade reasoning effort. The effort capsule resizes smoothly and the Fast bolt has clearer states.',
+    'Message times and day separators, actions on hover, a new notification sound, better sidebar grouping and full 40,000-character record access for automatic record keeping.',
   ],
   ru: [
-    'Скриншоты браузера сохраняются в PNG, локальные файлы можно прикреплять на сайтах. В Full access без лишних разрешений.',
-    'Разрешения ASK можно запомнить для текущего чата и сбросить из его меню.',
-    'У каждого чата свой уровень рассуждения модели.',
-    'Продолжение после временного обрыва и более надёжное восстановление после ошибки компакта.',
-    'Остановка задачи, просмотр фото до отправки и графики между действиями агента. Плавнее работают вкладки, план и карточка пароля.',
+    'Split View: два чата рядом, сохранённые пары, регулируемый разделитель и отдельный мини-чат у каждой панели.',
+    'Независимые переписки, настройки, личные записи и управление браузером. Агенты продолжают работу в фоне.',
+    'Fast для поддерживаемых моделей с повышенным расходом лимита или стоимостью. Через ChatGPT режим экспериментальный: отправка проверена, применение сервером и ускорение не подтверждены.',
+    'Ошибки провайдера больше не понижают уровень рассуждения незаметно. Капсула effort плавно меняет размер, состояния молнии Fast стали понятнее.',
+    'Время сообщений и разделители дней, действия при наведении, новый звук, улучшенная группировка чатов и доступ ко всем 40 000 символов записи для автоматического сохранения фактов.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };
@@ -1489,8 +1489,9 @@ let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://g
 // A release as GitHub gives it: from its API, or from release.json, which the site's workflow writes on every release.
 function readRelease(data) {
   const version = String(data?.tag_name || '').replace(/^v/i, '');
-  if (!/^\d+\.\d+/.test(version)) return null;
-  const list = Array.isArray(data.assets) ? data.assets : [];
+  if (data?.draft || !/^\d+\.\d+\.\d+$/.test(version)) return null;
+  const list = (Array.isArray(data.assets) ? data.assets : []).filter(a => a?.state === 'uploaded');
+  if (![/\.exe$/i, /\.dmg$/i, /\.(AppImage|tar\.gz|deb)$/i].every(test => list.some(a => test.test(a.name)))) return null;
   const find = (test, prefer) => list.filter(a => test.test(a.name)).sort((a, b) => prefer.test(b.name) - prefer.test(a.name))[0];
   const asset = a => a && { name: a.name, url: a.browser_download_url, size: a.size };
   const guess = assetsFor(version);
@@ -1507,12 +1508,22 @@ function readRelease(data) {
   };
 }
 
+function pickRelease(data) {
+  const releases = (Array.isArray(data) ? data : [data]).map(readRelease).filter(Boolean);
+  releases.sort((a, b) => {
+    const x = a.version.split('.').map(Number), y = b.version.split('.').map(Number);
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return y[i] - x[i];
+    return 0;
+  });
+  return releases[0] || null;
+}
+
 async function loadRelease() {
-  for (const source of [`https://api.github.com/repos/${REPO}/releases/latest`, 'release.json']) {
+  for (const source of [`https://api.github.com/repos/${REPO}/releases?per_page=20`, 'release.json']) {
     try {
       const response = await fetch(source, { cache: 'no-store', headers: source.startsWith('http') ? { Accept: 'application/vnd.github+json' } : {} });
       if (!response.ok) continue;
-      const found = readRelease(await response.json());
+      const found = pickRelease(await response.json());
       if (found) { release = found; break; }
     } catch {}
   }

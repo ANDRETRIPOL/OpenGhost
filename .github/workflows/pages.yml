@@ -38,8 +38,8 @@ jobs:
           grep -q 'src="demo.js"' _site/app/index.html
           # Inside the page the message field must not take the focus by itself: it would scroll the website to the demo.
           sed -i 's/ autofocus>/>/' _site/app/index.html
-          # The latest release: version, files and notes. The page also asks GitHub itself and falls back to this.
-          gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > _site/release.json || echo '{}' > _site/release.json
+          # Include beta releases: GitHub's /latest endpoint excludes all of our current releases.
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=20" --jq '[.[] | select(.draft == false and (.tag_name | test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$")))] | sort_by(.tag_name | ltrimstr("v") | split(".") | map(tonumber)) | last // {}' > _site/release.json || echo '{}' > _site/release.json
           touch _site/.nojekyll
 
       - name: Check the site

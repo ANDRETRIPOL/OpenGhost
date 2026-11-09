@@ -6,20 +6,22 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.5.2 beta**
+**v1.5.3 beta**
 
-[Windows version 1.5.2](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.2/OpenGhost-1.5.2-Setup.exe)
+[Windows version 1.5.3](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.3/OpenGhost-1.5.3-Setup.exe)
 
-[Linux version 1.5.2](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.2/OpenGhost-1.5.2-linux.tar.gz)
+[Linux version 1.5.3](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.3/OpenGhost-1.5.3-linux.tar.gz)
 
-[macOS version 1.5.2](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.2/OpenGhost-1.5.2-mac.dmg)
+[macOS version 1.5.3](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.3/OpenGhost-1.5.3-mac.dmg)
 
 What's new:
-- Save browser screenshots as PNG files and attach local files on websites, without extra approval prompts in Full access.
-- Remember ASK approvals for a type of action in the current chat, and reset them from its menu.
-- Each chat keeps its own reasoning effort.
-- Continue from completed work after a temporary disconnect, with better recovery after failed compaction and clearer permanent API errors.
-- End a running task from the composer, preview photos before sending, and see finished charts between tool calls. Browser tabs, plan and password panels are smoother too.
+- Split View keeps two chats side by side, with saved pairs and an adjustable divider.
+- Each pane can have its own mini chat. Conversations, model settings, private records and browser ownership stay independent, and agents keep working in the background.
+- Optional Fast controls for supported GPT, Claude and OpenRouter models, saved per chat. Fast can use more of your allowance or cost more. **Fast through ChatGPT is experimental: sending the request is verified, but server-side application and actual acceleration are not confirmed.**
+- Provider errors no longer silently downgrade the selected reasoning effort. The effort capsule resizes smoothly, with clearer Fast bolt states.
+- Message times and day separators, compact actions on hover, and a new notification sound.
+- Better sidebar grouping for pairs and forks, with an automatically hiding scrollbar.
+- Automatic record keeping can read the full 40,000-character private chat record.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 

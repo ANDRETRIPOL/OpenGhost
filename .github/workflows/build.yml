@@ -24,15 +24,11 @@ jobs:
         run: npm run dist:mac
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - name: Screenshot
-        continue-on-error: true
+      - name: Verify and test the packaged app
         run: |
           app=$(find dist -name 'OpenGhost.app' -type d | head -1)
-          open "$app"
-          sleep 15
-          osascript -e 'tell application "OpenGhost" to activate' || true
-          sleep 2
-          screencapture -x "$RUNNER_TEMP/openghost-mac.png"
+          node .github/checks/verify-package.js "$app/Contents/Resources/app.asar"
+          APP_EXEC="$app/Contents/MacOS/OpenGhost" OUT="$RUNNER_TEMP/mac-smoke" node .github/checks/release-smoke.js
       - uses: actions/upload-artifact@v4
         with:
           name: OpenGhost-mac
@@ -41,8 +37,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mac-screenshot
-          path: ${{ runner.temp }}/openghost-mac.png
+          name: mac-smoke
+          path: |
+            ${{ runner.temp }}/mac-smoke/*.png
+            ${{ runner.temp }}/mac-smoke/report.json
+            ${{ runner.temp }}/mac-smoke/app.log
+            dist/package-verification.json
           if-no-files-found: ignore
 
   linux:
@@ -56,12 +56,11 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run dist:linux
-      - name: Screenshot
-        continue-on-error: true
+      - name: Verify and test the packaged app
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb imagemagick > /dev/null
-          dir=$(find dist -maxdepth 1 -name 'linux-unpacked' -type d | head -1)
-          xvfb-run -a -s '-screen 0 1280x840x24' bash -c "'$dir/openghost' --no-sandbox & sleep 15; import -window root '$RUNNER_TEMP/openghost-linux.png'"
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          node .github/checks/verify-package.js dist/linux-unpacked/resources/app.asar
+          APP_EXEC="$PWD/dist/linux-unpacked/openghost" OUT="$RUNNER_TEMP/linux-smoke" xvfb-run -a -s '-screen 0 1440x900x24' node .github/checks/release-smoke.js
       - uses: actions/upload-artifact@v4
         with:
           name: OpenGhost-linux
@@ -70,6 +69,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: linux-screenshot
-          path: ${{ runner.temp }}/openghost-linux.png
+          name: linux-smoke
+          path: |
+            ${{ runner.temp }}/linux-smoke/*.png
+            ${{ runner.temp }}/linux-smoke/report.json
+            ${{ runner.temp }}/linux-smoke/app.log
+            dist/package-verification.json
           if-no-files-found: ignore
