@@ -10669,8 +10669,8 @@ h6.md-h {
 
 /* Fast is a separate opt-in in the same control layer; it never becomes an effort stop. */
 .effort-panel.has-fast {
-  width: min(304px, calc(100vw - 24px));
-  padding-left: 26px;
+  width: min(286px, calc(100vw - 24px));
+  padding-left: 8px;
 }
 
 .effort-panel.has-fast:popover-open {
@@ -10684,7 +10684,7 @@ h6.md-h {
   min-width: 0;
 }
 
-/* Move only the bolt toward the track; retain the track's position and separate hit targets. */
+/* Keep the track length and separate hit targets while trimming the leading cap. */
 .effort-panel.has-fast .effort-track { left: 18px; }
 
 .effort-fast {
