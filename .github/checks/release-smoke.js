@@ -66,7 +66,7 @@ async function main() {
   await run("document.querySelector('.tour-skip')?.click();void 0");
   await until("!document.querySelector('.tour')");
   report.about = await run('openghost.about()');
-  check('The packaged app reports the release version', report.about.version === '1.5.3');
+  check('The packaged app reports the release version', report.about.version === require('../../package.json').version);
   check('The UI is loaded from the packaged ASAR', report.page.includes('app.asar'));
   check('Desktop preload and storage IPC are available', await run("!!openghost.llm && !!ChatStore && chat instanceof Chat"));
   await run(`(async()=>{library.home.path=${JSON.stringify(workspace)};settings.models=[{id:'openai:release-fixture',api:'gpt-release-fixture',provider:'openai',name:'Release test model (no requests)',fast:true,context:128000,efforts:['low','medium','high'],defaultEffort:'high',tools:false,vision:true}];settings.model='openai:release-fixture';settings.keys.openai='test-only-not-a-key';settings.connected=()=>true;window.releaseIds=[];for(const title of ['Release test A','Release test B']){const r=library.create({folder:{path:${JSON.stringify(workspace)},name:'Release test'},text:title,attachments:[]});releaseIds.push(r.id);library.update(r.id,{title,named:true,model:'openai:release-fixture',mode:'ask',effort:'high'});await ChatStore.write('chats/'+r.id,{messages:[{role:'user',text:title,content:title,at:Date.now(),attachments:[]},{role:'assistant',content:'Packaged application smoke test. No model request was sent.',at:Date.now()}],tokens:100})}await library.persist();await chat.open(releaseIds[0]);await Theme.set('light');syncAll()})()`);

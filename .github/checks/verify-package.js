@@ -15,7 +15,8 @@ for (const name of files) {
   checked.push({ name, size: actual.length, sha256: digest(actual) });
 }
 const pkg = JSON.parse(asar.extractFile(archive, 'package.json'));
-assert.equal(pkg.version, '1.5.3');
+// The version the repository is at now, not a number written here: a release changes it in one place.
+assert.equal(pkg.version, require(path.join(root, 'package.json')).version);
 const entries = asar.listPackage(archive).map(name => name.replace(/\\/g, '/').replace(/^\//, ''));
 assert.ok(!entries.some(name => /^(tests|site|images|\.github)\//.test(name)), 'Development files must not ship');
 assert.ok(!entries.some(name => /^(profile|store|session|\.env)(\/|$)/.test(name)), 'No user data in the package');
