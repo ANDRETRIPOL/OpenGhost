@@ -279,7 +279,7 @@ class Library {
 
  // A password change or save already in flight finishes before the final deletion of every chat file.
  removeFiles(id) {
-  return this.queue(id, () => Promise.all(['chats', 'mini', 'notes', 'record', 'drafts', 'permissions'].map(kind => this.store.remove(`${kind}/${id}`))));
+  return this.queue(id, () => Promise.all(['chats', 'mini', 'notes', 'record', 'drafts', 'permissions', 'helpers'].map(kind => this.store.remove(`${kind}/${id}`))));
  }
 
  forget(id) {
@@ -350,6 +350,28 @@ class Library {
   if (!chat || (chat.lock && !key)) return Promise.resolve();
   const body = { items, next };
   return this.queue(id, async () => this.store.write(`notes/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body }));
+ }
+
+ // The helpers of a chat's agent (helpers.js): their parts, how far each got and their conversations, so their work
+ // outlasts End and a restart of the app. Kept beside the chat and sealed with its key when it has a password; none
+ // left removes the file. A fork does not take them: they are the work of the chat they came from.
+ helpers(id) {
+  return this.queue(id, async () => {
+   const data = await this.store.read(`helpers/${id}`).catch(() => null);
+   if (!data || (data.sealed && !this.keys.has(id))) return [];
+   const body = data.sealed ? await ChatLock.open(this.keys.get(id), data.sealed) : data;
+   return Array.isArray(body?.items) ? body.items : [];
+  }).then(items => items || []);
+ }
+
+ saveHelpers(id, items) {
+  return this.queue(id, async () => {
+   const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
+   if (!chat || (chat.lock && !key)) return;
+   if (!items.length) { await this.store.remove(`helpers/${id}`); return; }
+   const body = { items };
+   await this.store.write(`helpers/${id}`, key ? { version: 1, sealed: await ChatLock.seal(key, body) } : { version: 1, ...body });
+  });
  }
 
  // This chat's private record: facts the agent keeps for itself, apart from the project folder so no other chat can
@@ -481,7 +503,7 @@ class Library {
  // Prepare every file before changing the password. Keep originals so a failed write can be rolled back.
  async passwordFiles(id, key, loaded) {
   const files = [];
-  for (const kind of ['chats', 'mini', 'notes', 'drafts', 'record', 'permissions']) {
+  for (const kind of ['chats', 'mini', 'notes', 'drafts', 'record', 'permissions', 'helpers']) {
    const name = `${kind}/${id}`, before = await this.store.read(name);
    if (kind !== 'chats' && (!before || !!before.sealed === !!key)) continue;
    const body = kind === 'chats' && loaded ? loaded : before?.sealed ? await ChatLock.open(this.keys.get(id), before.sealed) : before || { messages: [], tokens: 0 };

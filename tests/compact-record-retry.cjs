@@ -134,7 +134,7 @@ async function main() {
  // Real OpenAI parser + real renderer retry code, only the network is artificial.
  for (const mode of ['error-before-token', 'clean-eof-after-text', 'tool-then-error']) {
   let posts = 0;
-  const oc = { module: { exports: {} }, exports: {}, require, TextDecoder,
+  const oc = { module: { exports: {} }, exports: {}, require, TextDecoder, AbortController, setTimeout, clearTimeout,
    fetch: async () => { posts++; return { ok: true, body: (async function* () {
     if (mode === 'clean-eof-after-text') { yield Buffer.from('data: {"type":"response.output_text.delta","item_id":"m","delta":"HALF"}\n\n'); return; }
     if (mode === 'tool-then-error') yield Buffer.from('data: {"type":"response.output_item.done","item":{"type":"function_call","call_id":"t","name":"read_file","arguments":"{}"}}\n\ndata: {"type":"error","error":{"message":"temporary","status":503}}\n\n');
@@ -264,7 +264,7 @@ async function main() {
  }
  // OpenAI's actual outgoing request includes and caps the requested output budget.
  let requestBody;
- const outgoing = { module: { exports: {} }, exports: {}, require, TextDecoder, fetch: async (_url, init) => { requestBody = JSON.parse(init.body); return { ok: true, body: (async function* () { yield Buffer.from('data: {"type":"response.completed","response":{"usage":{}}}\n\n'); })() }; } };
+ const outgoing = { module: { exports: {} }, exports: {}, require, TextDecoder, AbortController, setTimeout, clearTimeout, fetch: async (_url, init) => { requestBody = JSON.parse(init.body); return { ok: true, body: (async function* () { yield Buffer.from('data: {"type":"response.completed","response":{"usage":{}}}\n\n'); })() }; } };
  vm.createContext(outgoing); vm.runInContext(read('desktop/openai.js'), outgoing);
  await outgoing.module.exports.stream({ provider: 'openai', model: 'fixture', messages: [], maxTokens: 15000, output: 10000 }, {});
  check('OpenAI request sends max_output_tokens capped by model output', requestBody.max_output_tokens, 10000);

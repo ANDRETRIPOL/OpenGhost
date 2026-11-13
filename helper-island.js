@@ -22,6 +22,12 @@ const AWAY = { duration: 240, easing: 'ease-in', fill: 'forwards' };
 const LEAST = 300;
 const STACK = 3;
 const TICK = '<svg class="helper-tick" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.5"/><path d="M4.8 8.2l2.1 2.1 4.3-4.6"/></svg>';
+// A ring drawn as the plan's capsule draws its own (plan-island.js), a size up to hold a number: it fills as the helpers
+// finish, and the number inside is how many are still at work. Its middle is the middle of the capsule's round end.
+const RING = (() => {
+ const size = 20, stroke = 2.2, middle = size / 2, r = middle - stroke / 2 - 0.4, cap = stroke / (2 * Math.PI * r);
+ return `<svg class="helper-ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="helper-ring-track" cx="${middle}" cy="${middle}" r="${r}" stroke-width="${stroke}"/><circle class="helper-ring-arc" cx="${middle}" cy="${middle}" r="${r}" stroke-width="${stroke}" pathLength="1" stroke-dashoffset="${-cap / 2}" style="--helper-cap: ${cap}" transform="rotate(-90 ${middle} ${middle})"/></svg>`;
+})();
 const CUT = '<svg class="helper-cut" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.9"/><path d="M5.2 8h5.6"/></svg>';
 const SEND = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3.5M4 7.5l4-4 4 4"/></svg>';
 
@@ -49,8 +55,12 @@ class HelperIsland {
   this.cap.type = 'button';
   this.cap.setAttribute('aria-expanded', 'false');
   this.stack = element('span', 'helper-stack');
+  this.sign = element('span', 'helper-sign');
+  this.sign.innerHTML = RING;
   this.number = element('span', 'helper-number');
-  this.cap.append(this.stack, this.number);
+  this.end = element('span', 'helper-end');
+  this.sign.append(this.number, this.end);
+  this.cap.append(this.sign, this.stack);
   this.sheet = element('div', 'helper-sheet');
   this.sheet.setAttribute('role', 'dialog');
   this.head = element('button', 'helper-head');
@@ -140,12 +150,17 @@ class HelperIsland {
    this.stackKey = key;
    this.stack.replaceChildren(...shown.map(helper => { const g = ghost(helper.tone); g.classList.toggle('is-resting', helper.state !== 'working'); return g; }));
   }
-  // All at an end: the tick only when every one finished its work; one stopped or failed, a plain mark, never the tick.
+  // At work: the ring, filled by the share that has finished, round the number still at work. All at an end: the tick
+  // only when every one finished its work; one stopped or failed, a plain mark, never the tick.
   const all = !at.length, done = all && this.helpers.every(helper => helper.state === 'done');
   this.root.classList.toggle('is-finished', all);
   this.root.classList.toggle('is-cut', all && !done);
-  this.number.innerHTML = all ? (done ? TICK : CUT) : '';
-  if (!all) this.number.textContent = String(at.length);
+  this.sign.style.setProperty('--helper-share', String((this.helpers.length - at.length) / this.helpers.length));
+  this.sign.classList.toggle('is-none', at.length === this.helpers.length);
+  const mark = all ? (done ? 'tick' : 'cut') : '';
+  if (this.end.dataset.mark !== mark) { this.end.dataset.mark = mark; this.end.innerHTML = all ? (done ? TICK : CUT) : ''; }
+  const count = all ? '' : String(at.length);
+  if (this.number.textContent !== count) this.number.textContent = count;
   const label = done ? I18n.t('helpers.allDone') : all ? I18n.t('helpers.allStopped') : I18n.t('helpers.atWork', { count: at.length });
   this.cap.setAttribute('aria-label', `${I18n.t('helpers.title')}: ${label}`);
   this.title.textContent = I18n.t('helpers.title');

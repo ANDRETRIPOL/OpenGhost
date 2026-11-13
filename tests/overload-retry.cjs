@@ -32,7 +32,7 @@ function renderer(run, { manual = false, real = false, deepseek = {} } = {}) {
 }
 function integrated(first, { provider = 'openai', prefixes = [], forever = false, real = false, result = success, status = 200 } = {}) {
  let posts = 0; const bodies = [];
- const engine = { module: { exports: {} }, exports: {}, require, TextDecoder, fetch: async (_url, init) => {
+ const engine = { module: { exports: {} }, exports: {}, require, TextDecoder, AbortController, setTimeout, clearTimeout, fetch: async (_url, init) => {
   posts++; bodies.push(JSON.parse(init.body));
   if (status !== 200 && (posts === 1 || forever)) return { ok: false, status, json: async () => ({ error: first }) };
   const packets = posts === 1 || forever ? [...prefixes, first.type === 'error' || first.type === 'response.failed' ? first : failed(first)] : result;

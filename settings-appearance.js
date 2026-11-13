@@ -58,6 +58,7 @@ class AppearanceSettings {
   document.addEventListener('pointerout', event => { if (!event.relatedTarget) this.hold(null); });
   this.paint();
   if (window.Look) new LookSettings(root);
+  if (window.Backdrops) new PictureSettings(root);
   if (window.openghost?.size) new SizeSettings(root, window.openghost.size);
  }
 
@@ -188,6 +189,95 @@ class LookSettings {
   const all = [...box.querySelectorAll('.look-swatch')], at = all.findIndex(swatch => swatch.dataset.id === Look.get(part));
   const next = all[(at + step + all.length) % all.length];
   Look.set(part, next.dataset.id);
+  next.focus();
+ }
+}
+
+// Settings → Appearance, under the colours: pictures of the user's own under the chat (backdrops.js). Each is a small
+// square, as a chat's photo is in the list of chats; none, the chat's ground alone. Like the colours, the pick is the
+// theme's on screen. A picture is taken out with the cross on its corner; the plus adds more, several at once.
+const PLUS_SMALL = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>';
+const CROSS = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg>';
+const SAID = 4200;
+
+class PictureSettings {
+ constructor(root) {
+  root.insertAdjacentHTML('beforeend', `
+   <div class="settings-row look-row picture-row">
+    <div class="look-head">
+     <span class="settings-label" id="look-picture">${escapeHtml(I18n.t('settings.look.picture'))}</span>
+     <span class="look-note"><span class="look-theme"></span><span class="look-name"></span></span>
+    </div>
+    <div class="picture-tiles" role="radiogroup" aria-labelledby="look-picture"></div>
+    <p class="settings-hint picture-said" aria-live="polite"></p>
+    <input class="picture-file" type="file" accept="image/*" multiple hidden>
+   </div>`);
+  const row = this.row = root.querySelector('.picture-row');
+  this.box = row.querySelector('.picture-tiles');
+  this.file = row.querySelector('.picture-file');
+  this.said = row.querySelector('.picture-said');
+  this.box.addEventListener('click', event => {
+   if (event.target.closest('.picture-remove')) { Backdrops.remove(event.target.closest('.picture-item').dataset.id); return; }
+   if (event.target.closest('.picture-add')) { this.file.click(); return; }
+   const tile = event.target.closest('.picture-tile');
+   if (tile) Backdrops.pick(tile.dataset.id);
+  });
+  this.box.addEventListener('keydown', event => this.onKey(event));
+  this.file.addEventListener('change', () => this.add());
+  Backdrops.onChange(() => this.render());
+  Backdrops.ready()?.then(() => this.render());
+  this.render();
+ }
+
+ render() {
+  const items = Backdrops.items, now = Backdrops.get(), key = items.map(item => item.id).join(',');
+  if (this.box.dataset.key !== key) {
+   this.box.dataset.key = key;
+   const none = `<button type="button" class="picture-tile is-none" role="radio" data-id="" aria-label="${escapeHtml(I18n.t('look.picture.none'))}" title="${escapeHtml(I18n.t('look.picture.none'))}"></button>`;
+   const own = items.map(item => `
+    <span class="picture-item" data-id="${escapeHtml(item.id)}">
+     <button type="button" class="picture-tile" role="radio" data-id="${escapeHtml(item.id)}" aria-label="${escapeHtml(I18n.t('look.picture.own'))}" style="background-image: url(&quot;${item.thumb}&quot;)"></button>
+     <button type="button" class="picture-remove" aria-label="${escapeHtml(I18n.t('look.picture.remove'))}" title="${escapeHtml(I18n.t('look.picture.remove'))}">${CROSS}</button>
+    </span>`).join('');
+   const add = `<button type="button" class="picture-add" aria-label="${escapeHtml(I18n.t('look.picture.add'))}" title="${escapeHtml(I18n.t('look.picture.add'))}">${PLUS_SMALL}</button>`;
+   this.box.innerHTML = none + own + add;
+  }
+  const full = items.length >= Backdrops.LIMIT.most;
+  this.box.querySelector('.picture-add').hidden = full;
+  for (const tile of this.box.querySelectorAll('.picture-tile')) {
+   const on = tile.dataset.id === now;
+   tile.setAttribute('aria-checked', String(on));
+   tile.tabIndex = on ? 0 : -1;
+  }
+  this.row.querySelector('.look-theme').textContent = I18n.t(`settings.look.${Backdrops.theme}`);
+  this.row.querySelector('.look-name').textContent = I18n.t(now ? 'look.picture.own' : 'look.picture.none');
+ }
+
+ async add() {
+  const files = [...this.file.files];
+  this.file.value = '';
+  if (!files.length) return;
+  const { added, bad, left } = await Backdrops.add(files);
+  const words = [bad ? I18n.t('look.picture.bad', { count: bad }) : '', left ? I18n.t('look.picture.full', { most: Backdrops.LIMIT.most }) : ''].filter(Boolean).join(' ');
+  this.say(words);
+  return added;
+ }
+
+ // A word under the row for a moment: what could not be added.
+ say(text) {
+  clearTimeout(this.saidTimer);
+  this.said.textContent = text;
+  this.said.classList.toggle('is-on', !!text);
+  if (text) this.saidTimer = setTimeout(() => this.said.classList.remove('is-on'), SAID);
+ }
+
+ onKey(event) {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+  if (!step || !event.target.closest('.picture-tile')) return;
+  event.preventDefault();
+  const all = [...this.box.querySelectorAll('.picture-tile')], at = all.findIndex(tile => tile.dataset.id === Backdrops.get());
+  const next = all[(at + step + all.length) % all.length];
+  Backdrops.pick(next.dataset.id);
   next.focus();
  }
 }

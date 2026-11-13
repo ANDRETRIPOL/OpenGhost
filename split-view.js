@@ -117,7 +117,7 @@ class SplitPane {
   main.addEventListener('pointerdown', () => owner.focus(this.chat), true);
   main.addEventListener('focusin', () => owner.focus(this.chat));
   main.addEventListener('keydown', event => {
-   if (event.key === 'Escape' && !event.defaultPrevented && this.chat.busy && !document.querySelector(':popover-open, dialog[open]')) {
+   if (event.key === 'Escape' && !event.defaultPrevented && this.chat.working && !document.querySelector(':popover-open, dialog[open]')) {
     event.preventDefault(); this.chat.stop();
    }
   });
@@ -173,7 +173,7 @@ class SplitPane {
   }
   this.ensureBrowser();
   const empty = !this.text.text().trim() && !this.attachments.count;
-  this.sendButton.configure({ busy: chat.busy, empty, stopping: !!chat.active?.turn?.controller.signal.aborted });
+  this.sendButton.configure({ busy: chat.working, suggest: chat.busy, empty, stopping: !!chat.active?.turn?.controller.signal.aborted });
   const suggesting = chat.busy && !empty;
   this.sendButton.parentElement.classList.toggle('is-suggesting', suggesting);
   // Words in the field hide the prediction; wiped out, it is back (it goes for good when a message is sent).

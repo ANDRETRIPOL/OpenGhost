@@ -163,12 +163,15 @@ function omitUnsupported(body, problem) {
  return true;
 }
 
-async function* events(body) {
+// `alive` hears every piece the connection brings, signs of life included, which carry no event.
+async function* events(body, alive = () => {}) {
  const decoder = new TextDecoder();
  let buffer = '';
  const dataOf = block => block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+ alive();
  try {
   for await (const chunk of body) {
+   alive();
    buffer = (buffer + decoder.decode(chunk, { stream: true })).replace(/\r\n/g, '\n');
    let at;
    while ((at = buffer.indexOf('\n\n')) >= 0) {
@@ -196,9 +199,35 @@ async function target({ provider, key, session, model, fast, speed }, { chatgpt,
  return { url: `${codexUrl}/responses`, headers };
 }
 
+// How long a stream may bring nothing at all before its connection counts as lost. ChatGPT's backend sends a sign of
+// life every 5 s while it has nothing else to send (an SSE comment), measured over 2,245 events of 25 answers in a row:
+// the longest silence was 5.6 s, a model thinking at length included. Thirty seconds of nothing is six of them missed.
+// For an API key the app has no measure of its own and takes the one OpenAI's Codex takes for any stream: five minutes.
+const QUIET = { chatgpt: 30000, other: 300000 };
+
 async function stream(request, context) {
+ const { signal: outer } = context;
+ // The request stops when the chat stops it, or when its stream falls silent for too long (see QUIET).
+ const own = new AbortController(), relay = () => own.abort(), signal = own.signal;
+ if (outer?.aborted) own.abort();
+ else outer?.addEventListener('abort', relay, { once: true });
+ const quiet = request.provider === 'chatgpt' ? QUIET.chatgpt : QUIET.other;
+ let timer = 0, lost = false;
+ const alive = () => { clearTimeout(timer); timer = setTimeout(() => { lost = true; own.abort(); }, quiet); };
+ try {
+  return await answer(request, { ...context, signal, alive });
+ } catch (cause) {
+  if (lost && !outer?.aborted) throw error(`OpenAI sent nothing for ${quiet / 1000} s: the connection was lost`, 0, 'network');
+  throw cause;
+ } finally {
+  clearTimeout(timer);
+  outer?.removeEventListener('abort', relay);
+ }
+}
+
+async function answer(request, context) {
  const { model: api, effort, vision = true, messages, tools } = request;
- const { signal, onEvent = () => {} } = context;
+ const { signal, alive, onEvent = () => {} } = context;
  const { instructions, input } = convert(messages, vision);
  const body = {
   model: api,
@@ -239,7 +268,7 @@ async function stream(request, context) {
  const result = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null, native: { provider: 'openai', items: [] } };
  let textItem = '';
  const say = delta => { result.content += delta; onEvent({ type: 'content', delta }); };
- for await (const event of events(response.body)) {
+ for await (const event of events(response.body, alive)) {
   if ((event.type === 'response.output_item.added' || event.type === 'response.output_item.done') && ['function_call', 'reasoning'].includes(event.item?.type)
    || event.type === 'response.function_call_arguments.delta') onEvent({ type: 'activity' });
   if (event.type === 'response.output_text.delta') {

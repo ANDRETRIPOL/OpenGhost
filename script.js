@@ -297,8 +297,9 @@ composer.addEventListener('mousedown', (event) => {
 
 function syncComposer() {
   const empty = !composerText.text().trim() && !attachments.count;
-  composerSend.configure({ busy: chat.busy, empty, stopping: !!chat.active?.turn?.controller.signal.aborted });
-  // An empty field offers End while work runs; words or attachments still send a suggestion.
+  // An empty field offers End while work runs, the helpers' too; words or attachments send a suggestion while the agent
+  // itself works, and a plain message while only its helpers do.
+  composerSend.configure({ busy: chat.working, suggest: chat.busy, empty, stopping: !!chat.active?.turn?.controller.signal.aborted });
   const suggesting = chat.busy && !empty;
   composerActions.classList.toggle('is-suggesting', suggesting);
   // The likely next message waits in the empty field as grey words (predictions.js). Words in the field hide it, and it
@@ -461,7 +462,7 @@ composerInput.addEventListener('keydown', (event) => {
 // Escape stops the agent from anywhere in the window, not only from the message field. An open menu or dialog, and
 // fields that use Escape themselves (renaming, search, the address bar), get it first.
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || !chat.busy) return;
+  if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || !chat.working) return;
   if (splitView?.opened && splitView.currentChat !== chat) return;
   if (document.querySelector(':popover-open:not(.mini), dialog[open]')) return;
   event.preventDefault();
@@ -488,9 +489,9 @@ if (!window.openghost?.quick) {
   });
 }
 
-// The language can't change while an agent is at work in this window: the page is read anew for it.
+// The language can't change while an agent, or a helper of one, is at work in this window: the page is read anew for it.
 LanguageSettings.busy = () => [chat, ...MiniChat.all().map(mini => mini.chat)]
-  .some(one => one && [...one.conversations.values()].some(conv => conv.turn));
+  .some(one => one && [...one.conversations.values()].some(conv => conv.turn || window.Helpers?.working(conv).length));
 // While an agent works here, the window is not slowed down out of sight (desktop/main.js).
 if (!window.openghost?.quick && window.openghost?.working) {
   let working = false;

@@ -2,6 +2,8 @@
 'use strict';
 
 const FOLLOW_DISTANCE = 48;
+// The least time between two thoughts beside the ghost while the model thinks (Chat.think), in ms.
+const THINK = 2500;
 const FOLLOW_SPRING = [130, 23];
 const BOTTOM_SHOW = 120;
 const JUMP = { base: 420, perPixel: 0.05, max: 950 };
@@ -1308,10 +1310,15 @@ class Chat {
   conv.ask?.settle(TOOL_NOTES.cancelled);
  }
 
+ // The steps that wait for the user's OK in a chat: its agent's, and its helpers' while the agent itself is not at work.
+ pending(conv) {
+  return [...(conv?.turn?.approvals || []), ...(conv?.helperApprovals || [])];
+ }
+
  onModeChange(conv = this.active) {
   if (!conv) return;
   const mode = this.modeOf(conv);
-  for (const pending of conv.turn?.approvals || []) {
+  for (const pending of this.pending(conv)) {
    if (!AgentTools.needsApproval(pending.name, pending.args, { mode, cwd: pending.cwd, attached: this.attachedFiles(conv), apart: pending.apart, panel: pending.panel })) pending.card.settle('allow');
   }
  }
@@ -1512,6 +1519,8 @@ class Chat {
   turn.queue.push({ prompt, bubble });
   QueuedRing.put(bubble, { edit: () => this.withdraw(conv, bubble, true), remove: () => this.withdraw(conv, bubble) });
   this.dismissGhost(turn.part.view);
+  // The ghost waits under the message now, and still says what the agent does: the message is read once that is done.
+  if (turn.deed && !turn.writing) this.say(turn, turn.next, turn.deed);
   for (const pending of turn.approvals) pending.card.settle(TOOL_NOTES.message);
   conv.ask?.settle(ASK.message);
   turn.release?.('message');
@@ -1773,6 +1782,9 @@ class Chat {
     signal: turn.controller.signal,
     session: this.session(conv),
     retryBudget: turn.retryBudget ||= { used: 0 },
+    // The model thinks before it acts: said beside the ghost, where the last step's words would stay otherwise, with
+    // what it thinks about (agent-line.js).
+    onReasoning: (delta, stream) => this.think(turn, view, stream.reasoning),
     onContent: (delta, stream) => {
      if (!stream.content.trim()) return;
      turn.text = true;
@@ -1801,6 +1813,10 @@ class Chat {
    throw error;
   } finally {
    turn.writing = false;
+   // Its thinking is over: a thought still waiting its turn is not shown any more.
+   clearTimeout(turn.thoughtTimer);
+   turn.thoughtTimer = 0;
+   turn.thinkingNext = null;
   }
   // Some compatible services deliver text in the terminal packet only. Keep that text visible too, including
   // native figures before a tool call; streaming deltas remain the normal path.
@@ -1898,9 +1914,8 @@ class Chat {
   if (turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
   if (name === 'skill') return this.useSkill(conv, turn, view, args);
   if (name === 'show_pictures') return this.usePictures(conv, turn, view, args, { cwd, apart });
-  this.showGhost(turn.next || view);
   // What the step does, in the line beside the ghost; the next step's words take its place (agent-line.js).
-  AgentLine.show((turn.next || view).status, AgentLine.deed(name, args, cwd, apart));
+  this.say(turn, view, AgentLine.deed(name, args, cwd, apart));
   const panel = name.startsWith('browser_') ? browserPanel : null;
   // While the user has the browser the agent waits for it: the note to answer with if the wait ended some other way
   // than by Hand back, '' once the browser is the agent's again.
@@ -2052,7 +2067,7 @@ class Chat {
   const host = this.main.querySelector('.composer');
   if (!host) return;
   const ask = this.active?.ask || null;
-  const cards = ask ? [] : [...(this.active?.turn?.approvals || [])].map(pending => pending.card);
+  const cards = ask ? [] : this.pending(this.active).map(pending => pending.card);
   if (ask || this.deck) {
    this.deck ||= new AskDeck(host);
    if (ask) this.deck.show(ask);
@@ -2086,6 +2101,8 @@ class Chat {
   if (deck) (this.viewOf(conv) || this).syncAsk();
   this.onPlan?.(conv);
   this.viewOf(conv)?.followBottom();
+  // A step asked about by a helper that is then stopped needs no answer any more (helpers.js).
+  request.signal?.addEventListener('abort', () => card.settle('deny'), { once: true });
   const answer = await card.answer;
   turn.approvals.delete(pending);
   this.onPlan?.(conv);
@@ -3345,6 +3362,44 @@ class Chat {
   } finally {
    this.forking = false;
   }
+ }
+
+ // What the agent does now, in the line beside its ghost: under the reply, or under the user's message that waits for
+ // it. Kept with the turn, so the line goes along when the ghost moves under a message the user sends meanwhile.
+ say(turn, view, words) {
+  const place = turn.next || view;
+  this.showGhost(place);
+  if (!words) return;
+  turn.deed = words;
+  AgentLine.show(place.status, words);
+ }
+
+ // What the model thinks about, from its thinking so far (agent-line.js), in the line beside the ghost where a step's
+ // words stand: a new thought rolls in at a calm pace, at most one every THINK ms, so a model that thinks aloud does not
+ // make the line flicker; the latest one waits its turn. Until there is a thought to tell, the line stays as it is.
+ think(turn, view, text) {
+  if (turn.writing || turn.controller.signal.aborted) return;
+  const about = AgentLine.thought(text);
+  if (!about) return;
+  const shown = turn.deed?.thought ? turn.deed.verb : null;
+  if (shown === about) return;
+  const words = { verb: about, what: '', thought: true };
+  const wait = shown === null ? 0 : (turn.thoughtAt || 0) + THINK - Date.now();
+  turn.thinkingNext = words;
+  if (wait > 0) {
+   turn.thoughtTimer ||= setTimeout(() => {
+    turn.thoughtTimer = 0;
+    const next = turn.thinkingNext;
+    if (!next || turn.writing || !turn.deed?.thought) return;
+    turn.thinkingNext = null;
+    turn.thoughtAt = Date.now();
+    this.say(turn, view, next);
+   }, wait);
+   return;
+  }
+  turn.thoughtAt = Date.now();
+  this.say(turn, view, turn.thinkingNext);
+  turn.thinkingNext = null;
  }
 
  showGhost(view) {

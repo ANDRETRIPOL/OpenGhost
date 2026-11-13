@@ -1694,6 +1694,52 @@ textarea,
   background: linear-gradient(transparent, var(--chat-bg) 70%);
 }
 
+/* A picture of the user's own under the chat (backdrops.js): behind a veil of the chat's ground, so the words read on
+   any photo. It comes out of the ground (the veil thins) and goes back into it (the veil closes) when it changes. The
+   fades at the top and the bottom of the thread fade the messages themselves then, so no band of plain ground lies
+   over the picture. */
+@property --chat-picture-veil {
+  syntax: '<percentage>';
+  inherits: true;
+  initial-value: 100%;
+}
+
+html[data-picture="shown"] {
+  --chat-picture-veil: 70%;
+}
+
+html[data-picture="shown"][data-theme="light"] {
+  --chat-picture-veil: 62%;
+}
+
+html[data-picture] .main {
+  background:
+    linear-gradient(color-mix(in srgb, var(--chat-bg) var(--chat-picture-veil), transparent), color-mix(in srgb, var(--chat-bg) var(--chat-picture-veil), transparent)),
+    var(--chat-picture) center / cover no-repeat,
+    var(--chat-bg);
+  transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing), --chat-picture-veil 0.36s ease;
+}
+
+html[data-picture="shown"] .main {
+  transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing), --chat-picture-veil 0.8s var(--motion-easing);
+}
+
+html[data-picture] .thread-view::before,
+html[data-picture] .thread-view::after {
+  display: none;
+}
+
+html[data-picture] .thread {
+  -webkit-mask-image: linear-gradient(transparent, #000 calc(var(--composer-bottom-gap) + 12px), #000 calc(100% - var(--composer-bottom-gap) - 12px), transparent);
+  mask-image: linear-gradient(transparent, #000 calc(var(--composer-bottom-gap) + 12px), #000 calc(100% - var(--composer-bottom-gap) - 12px), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-picture] .main {
+    transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing);
+  }
+}
+
 /* The room the composer takes (composer-space.js). It changes on every frame while the composer grows by a line, and
    a property that passes down would have every message of the chat styled anew each time: this one stays where it is
    set, and only what stands clear of the composer takes it from its parent. */
@@ -13641,6 +13687,132 @@ h6.md-h {
   box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.12), 0 0 0 2px var(--chat-bg), 0 0 0 4px rgb(var(--composer-accent-rgb)), 0 0 0 6px var(--focus-ring);
 }
 
+/* Settings → Appearance → Chat picture (settings-appearance.js, backdrops.js): each picture a small square, as a chat's
+   photo is in the list of chats; first the chat's ground alone, last the plus that adds more. The one picked wears the
+   ring the picked colour wears; a picture's cross shows on its corner while the pointer is on it. */
+.picture-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 10px;
+  padding: 4px;
+  margin: 0 -4px;
+}
+
+.picture-item {
+  position: relative;
+  flex: none;
+  display: flex;
+}
+
+.picture-tile,
+.picture-add {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  outline: none;
+  background: center / cover no-repeat;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 0.5px rgba(var(--fg-rgb), 0.16), 0 0 0 0 transparent, 0 0 0 0 transparent;
+  transition: transform 0.3s var(--motion-easing), box-shadow 0.3s var(--motion-easing);
+}
+
+/* The chat's ground alone: its own colour, crossed by a fine line. */
+.picture-tile.is-none {
+  background: linear-gradient(to top right, transparent calc(50% - 0.6px), rgba(var(--fg-rgb), 0.22) calc(50% - 0.6px), rgba(var(--fg-rgb), 0.22) calc(50% + 0.6px), transparent calc(50% + 0.6px)), var(--chat-bg);
+}
+
+.picture-add {
+  display: grid;
+  place-items: center;
+  background: rgba(var(--fg-rgb), 0.05);
+  color: var(--fg-secondary);
+}
+
+.picture-add[hidden] {
+  display: none;
+}
+
+.picture-add svg {
+  width: 16px;
+  height: 16px;
+}
+
+.picture-tile:hover,
+.picture-add:hover {
+  transform: translateY(-2px);
+}
+
+.picture-add:hover {
+  color: var(--fg-primary);
+}
+
+.picture-tile:active,
+.picture-add:active {
+  transform: scale(0.94);
+}
+
+.picture-tile[aria-checked="true"] {
+  box-shadow: inset 0 0 0 0.5px rgba(var(--fg-rgb), 0.16), 0 0 0 2px var(--chat-bg), 0 0 0 4px rgb(var(--composer-accent-rgb));
+}
+
+.picture-tile:focus-visible,
+.picture-add:focus-visible {
+  box-shadow: inset 0 0 0 0.5px rgba(var(--fg-rgb), 0.16), 0 0 0 2px var(--chat-bg), 0 0 0 4px var(--focus-ring);
+}
+
+.picture-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  outline: none;
+  background: rgba(20, 20, 20, 0.86);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.6);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: opacity 0.18s ease, transform 0.25s var(--motion-easing);
+}
+
+.picture-remove svg {
+  width: 10px;
+  height: 10px;
+}
+
+.picture-item:hover .picture-remove,
+.picture-item:focus-within .picture-remove {
+  opacity: 1;
+  transform: none;
+}
+
+.picture-remove:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.picture-said {
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.25s ease, height 0.25s ease, margin 0.25s ease;
+}
+
+.picture-said.is-on {
+  height: auto;
+  margin-top: 2px;
+  opacity: 1;
+}
+
 /* Settings → Appearance → Size (settings-appearance.js): Fit screen, then a step down, the size, a step up. */
 .size-row {
   margin-top: 26px;
@@ -22517,9 +22689,9 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .helper-cap {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   height: 30px;
-  padding: 0 12px 0 9px;
+  padding: 0 11px 0 5px;
   border: 0;
   border-radius: inherit;
   outline: none;
@@ -22566,11 +22738,63 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   opacity: 0.4;
 }
 
-.helper-number {
+/* The plan's ring, round the number of helpers at work (helper-island.js); all at an end, the tick or the plain mark
+   stands in its place. */
+.helper-sign {
   display: grid;
-  min-width: 8px;
+  flex: none;
+  width: 20px;
+  height: 20px;
   place-items: center;
+}
+
+.helper-sign > * {
+  grid-area: 1 / 1;
+}
+
+.helper-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.2);
+}
+
+.helper-ring-arc {
+  fill: none;
+  stroke: #fff;
+  stroke-linecap: round;
+  stroke-dasharray: max(0, var(--helper-share, 0) - var(--helper-cap, 0)) 1;
+  transition: stroke-dasharray 0.6s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
+}
+
+/* None finished yet: no arc, not even the dot of its round ends. */
+.helper-sign.is-none .helper-ring-arc {
+  opacity: 0;
+}
+
+/* Centred on the digit's own height (cap to baseline), not on the line the font would give it. */
+.helper-number {
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
+  text-box: trim-both cap alphabetic;
+}
+
+.helper-number:empty,
+.helper-end:empty {
+  display: none;
+}
+
+.helper-island.is-finished .helper-ring {
+  display: none;
+}
+
+.helper-end {
+  display: grid;
+}
+
+.helper-end > svg {
+  width: 20px;
+  height: 20px;
 }
 
 .helper-tick {

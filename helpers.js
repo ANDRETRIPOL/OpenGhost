@@ -7,8 +7,16 @@
 // helpers of their own. A helper starts knowing nothing but its task. Its steps are its own: they go to the model in a
 // conversation of its own, never into the chat; what it changes is guarded like the files of any other agent at work
 // in the folder (Desk), it works in a browser tab of its own, and what it asks to be allowed is asked in the chat's
-// own card. Its last answer is its report, read by the chat's agent with wait_agent. The user sees the helpers in the
-// island beside the plan's (helper-island.js), can write to one and can stop one.
+// own card. Its last answer is its report. The user sees the helpers in the island beside the plan's
+// (helper-island.js), can write to one and can stop one.
+//
+// Helpers work in the background, as long as their work takes: the chat's own turn may end while they go on, and the
+// user talks to the chat's agent meanwhile as at any other time. Their reports reach the agent by themselves: in a
+// note at its next step, in the answer to wait_agent when it waits for them, and, when its turn has ended, in a turn
+// the app starts for it once they have all finished. Only the user stops them all: End stops the chat's agent and its
+// helpers together. A helper that was stopped, or was at work when the app closed, keeps its conversation, kept on
+// the disk with the chat: the agent sends it on from where it stopped (send_message) once the user wants the work to
+// go on.
 //
 // Only the chats with an island of helpers have them: the main window's chat and the second pane of Split View. The
 // mini chat and the quick chat have no room for them, and their agents never get the tools.
@@ -16,23 +24,27 @@
 const { Desk, TOOL_NOTES, assistantStep, imageStep, estimate, spend, sharedKinds, CONTEXT, COMPACT, compactRoom } = Chat.internals;
 
 // most: helpers at work at once. wait: how long wait_agent waits by default, and at most, in seconds. log: the deeds of a
-// helper kept to be shown. room: the share of the window a helper fills before it is asked to finish, and the share
-// at which it is stopped. nudges: how often a turn that wants to end with helpers at work is sent back to wait.
-// compact: the share of its model's window a helper's conversation fills before it is summed up, as a chat's is; full:
-// the share at which a helper whose summary failed is asked to finish, cut: what one of its steps keeps in the summary.
-const HELPERS = { most: 3, wait: 600, longest: 1800, log: 6, compact: 0.82, full: 0.94, nudges: 3, title: 40, cut: 2400 };
+// helper kept to be shown. compact: the share of its model's window a helper's conversation fills before it is summed
+// up, as a chat's is; full: the share at which a helper whose summary failed is asked to finish, cut: what one of its
+// steps keeps in the summary. save: how long after a change the helpers are written to the disk, in ms.
+const HELPERS = { most: 3, wait: 600, longest: 1800, log: 6, compact: 0.82, full: 0.94, title: 40, cut: 2400, save: 800, think: 2500 };
 // Calm tones a helper's ghost is drawn in, one each, in the order they start.
 const TONES = ['120, 178, 255', '186, 150, 255', '110, 214, 168', '240, 188, 110'];
 const OWN = new Set(['spawn_agent', 'wait_agent', 'send_message', 'interrupt_agent', 'list_agents']);
 const KEPT = new Set([...OWN, 'ask_user', 'plan', 'notepad', 'routine', 'memory', 'record', 'show_pictures']);
+// Who stopped a helper: the user (End, or its Stop in the island), the agent (interrupt_agent), or the app closing.
+// Only a helper that finished by itself, or that the agent stopped, starts a turn of the agent's: one the user stopped
+// waits for the user's next word.
+const BY_USER = new Set(['user', 'restart']);
 
 const NOTE = {
  role: (task, title) => `This message comes from the app, not from the user. You are a helper of the main agent of this chat: it gave you one part of the user's task, named “${title}”, and works on other parts meanwhile, as other helpers may. Everyone works in the same folder at the same time, so change only the files your part needs, and leave the others' files to them. You cannot ask the user anything and nobody sees your work while you do it: when something only the user can decide comes up, take the safest reasonable choice, or stop there, and say so in your report. Check your work as the instructions say before you call it done. When you are done, end your turn with your report to the main agent: what you did, which files you changed, how you checked it and what you saw, and what is left or uncertain. Short and plain. Your report goes to the main agent, not to the user.\n\nYour part of the task:\n${task}`,
  fromAgent: text => `A message from the main agent:\n${text}`,
  fromUser: text => `This message comes from the app: the user wrote to you directly, in the window where they watch the helpers. Take it into account from now on:\n${text}`,
  finish: 'This note comes from the app: your conversation is nearly as long as this model can hold. Finish now: end your turn with your report of what is done and what is left.',
- still: list => `This note comes from the app, not from the user: your helpers are still at work: ${list}. Wait for them with wait_agent and look at their work before you end your turn, or stop the ones you no longer need with interrupt_agent.`,
- unread: list => `This note comes from the app, not from the user: these helpers have finished and you have not read their reports yet: ${list}. Read them with wait_agent before you end your turn.`,
+ // A helper sent on again after it was stopped: its conversation is as it was.
+ resumed: by => `This note comes from the app: you were stopped before you finished, ${by === 'restart' ? 'when the app was closed' : by === 'agent' ? 'by the main agent' : 'by the user'}. Your conversation above is as you left it; the files are as they are now, and others may have changed some since. Go on with your part from where you stopped: look again at what you were doing, without starting over and without redoing what is done.`,
+ reports: (text, still) => `This note comes from the app, not from the user: news of your helpers.\n\n${text}${still ? `\n\nStill at work:\n${still}` : ''}\n\nRead this before you go on. Look at what they made yourself before you build on it or tell the user: their work is yours to answer for.`,
  ultra: 'This note comes from the app, not from the user: the user chose the highest effort, Ultra. Hand work out to helpers whenever parts of the task can go on at the same time, or whenever a helper would make the result better: this is what Ultra is for. A small or single-file task still stays with you.',
  notUltra: 'This note comes from the app, not from the user: the effort is no longer Ultra. Decide about helpers as the instructions say.',
 };
@@ -45,6 +57,8 @@ const changed = conv => window.dispatchEvent(new CustomEvent('helpers-change', {
 // The helpers of a chat, in the order they started.
 const listOf = conv => conv?.helpers ? [...conv.helpers.values()] : [];
 const working = conv => listOf(conv).filter(helper => helper.state === 'working');
+// Finished, stopped or failed, and the agent has not been told yet.
+const unread = conv => listOf(conv).filter(helper => helper.state !== 'working' && !helper.reported);
 
 // A helper's name as the agent writes it may differ in case and spaces from how it was started.
 function find(conv, name) {
@@ -75,11 +89,39 @@ function line(helper) {
  return `- “${helper.title}”: ${helper.state === 'done' ? 'done' : helper.state === 'stopped' ? 'stopped' : 'failed'} after ${time}.`;
 }
 
+// What the agent is told of a helper that is no longer at work; from then on it counts as read.
 function report(helper) {
  helper.reported = true;
- const head = helper.state === 'done' ? `Helper “${helper.title}” finished. Its report:` : helper.state === 'stopped' ? `Helper “${helper.title}” was stopped${helper.stoppedBy === 'user' ? ' by the user' : ''} before it finished.${helper.final ? ' What it said last:' : ''}` : `Helper “${helper.title}” could not go on: ${helper.error || 'its model failed'}.${helper.final ? ' What it said last:' : ''}`;
  const files = helper.files.size ? `\nFiles it changed: ${[...helper.files].join(', ')}.` : '';
- return `${head}${helper.final ? `\n${helper.final.trim()}` : ''}${files}`;
+ if (helper.state === 'done') return `Helper “${helper.title}” finished. Its report:${helper.final ? `\n${helper.final.trim()}` : ' (it said nothing)'}${files}`;
+ const said = helper.final ? `\nWhat it said last:\n${helper.final.trim()}` : '';
+ const did = helper.log.length ? `\nIts last steps: ${helper.log.map(item => `${item.verb}${item.what ? ` ${item.what}` : ''}`).join('; ')}.` : '';
+ if (helper.state === 'failed') return `Helper “${helper.title}” could not go on: ${helper.error || 'its model failed'}.${said}${did}${files}`;
+ const by = helper.stoppedBy === 'user' ? ' by the user' : helper.stoppedBy === 'restart' ? ' when the app was closed' : helper.stoppedBy === 'agent' ? ' by you' : '';
+ return `Helper “${helper.title}” was stopped${by} before it finished. Its conversation is kept: when the work should go on (the user asks for it, or your task needs it), send it a message with send_message and it goes on from where it stopped, without starting over. Don't send it on against the user's wish: they may have stopped it on purpose.${said}${did}${files}`;
+}
+
+// A helper as it is kept on the disk: its conversation without the pictures it looked at, which are big and can't be
+// looked at again anyway.
+const SEEN = '[A picture the helper looked at was here.]';
+const flat = content => Array.isArray(content) ? content.map(part => part.type === 'image_url' ? { type: 'text', text: SEEN } : part) : content;
+function stored(helper) {
+ return {
+  id: helper.id, title: helper.title, task: helper.task, tone: helper.tone, state: helper.state, stoppedBy: helper.stoppedBy, started: helper.started, ended: helper.ended,
+  final: helper.final, error: helper.error, reported: helper.reported, spent: !!helper.spent, files: [...helper.files], log: helper.log, compacted: helper.compacted || 0,
+  messages: helper.messages.map(message => Array.isArray(message.content) ? { ...message, content: flat(message.content) } : message),
+ };
+}
+
+// A helper read back from the disk: one that was at work when the app closed is stopped now, and goes on when sent on.
+function restored(item) {
+ const stopped = item.state === 'working';
+ return {
+  id: item.id, title: item.title, task: item.task, tone: item.tone || TONES[0], conv: null, state: stopped ? 'stopped' : item.state, stoppedBy: stopped ? 'restart' : item.stoppedBy || '',
+  started: item.started || Date.now(), ended: item.ended || Date.now(), deed: null, log: Array.isArray(item.log) ? item.log : [], files: new Set(item.files || []),
+  final: item.final || '', error: item.error || '', reported: stopped ? false : !!item.reported, spent: !!item.spent, inbox: [], messages: Array.isArray(item.messages) ? item.messages : [],
+  warned: false, compacted: item.compacted || 0,
+ };
 }
 
 const proto = Chat.prototype;
@@ -104,15 +146,20 @@ proto.useTool = function (conv, turn, view, call) {
  if (!this.helpersOn || conv.helperOf) return 'Error: helpers are not available here.';
  // What the step does, in the line beside the agent's ghost, as for its other steps (agent-line.js).
  const deed = AgentLine.deed(name, args, this.cwd(conv));
- if (deed && view) {
-  this.showGhost(turn.next || view);
-  AgentLine.show((turn.next || view).status, deed);
- }
+ if (deed && view) this.say(turn, view, deed);
  if (name === 'spawn_agent') return this.spawnHelper(conv, turn, args);
  if (name === 'wait_agent') return this.waitHelpers(conv, turn, args);
  if (name === 'send_message') return this.messageHelper(conv, turn, args);
  if (name === 'interrupt_agent') return this.interruptHelper(conv, args);
  return this.listHelpers(conv);
+};
+
+// A helper's own conversation, with the chat's model, effort and mode as they are now.
+proto.helperConv = function (parent, helper) {
+ helper.conv ||= new (Object.getPrototypeOf(parent).constructor)(parent.record);
+ Object.assign(helper.conv, { helperOf: parent, brief: parent.brief, pad: null, model: parent.model, effort: parent.effort, speed: parent.speed, mode: parent.mode });
+ helper.conv.helper = helper;
+ return helper.conv;
 };
 
 proto.spawnHelper = function (conv, turn, args) {
@@ -121,32 +168,32 @@ proto.spawnHelper = function (conv, turn, args) {
  if (working(conv).length >= HELPERS.most) return `Error: ${HELPERS.most} helpers are at work already, the most there can be at once: ${working(conv).map(helper => `“${helper.title}”`).join(', ')}. Wait for one to finish (wait_agent), or do this part yourself.`;
  if (find(conv, title)) return `Error: there is a helper named “${title}” already. Give this one another name, or send that one more work with send_message.`;
  conv.helpers ||= new Map();
- const id = `h${conv.helpers.size + 1}`;
- const helperConv = new (Object.getPrototypeOf(conv).constructor)(conv.record);
- Object.assign(helperConv, { helperOf: conv, brief: conv.brief, pad: null, model: conv.model, effort: conv.effort, speed: conv.speed, mode: conv.mode });
+ conv.helperSeq = (conv.helperSeq || 0) + 1;
+ const id = `h${conv.helperSeq}`;
  const helper = {
-  id, title, task, conv: helperConv, tone: TONES[(conv.helpers.size) % TONES.length], state: 'working', started: Date.now(), ended: 0,
+  id, title, task, conv: null, tone: TONES[(conv.helperSeq - 1) % TONES.length], state: 'working', started: Date.now(), ended: 0,
   deed: null, log: [], files: new Set(), final: '', error: '', reported: false, stoppedBy: '', inbox: [], messages: [{ role: 'user', content: NOTE.role(task, title) }], warned: false,
  };
- helperConv.helper = helper;
+ this.helperConv(conv, helper);
  conv.helpers.set(id, helper);
- // The chat's Stop stops its helpers too.
- turn.controller.signal.addEventListener('abort', () => this.stopHelper(conv, helper, 'stop'), { once: true });
  this.runHelper(conv, helper, turn.config);
  changed(conv);
- return `Helper “${title}” started. It works on its own, at the same time as you, in the same folder; the user sees it at work. Do your own part meanwhile (not its part), then read its report with wait_agent.`;
+ return `Helper “${title}” started. It works on its own, at the same time as you, in the same folder, and goes on after your turn ends; the user sees it at work. Do your own part meanwhile (not its part). Its report comes to you by itself when it finishes: at your next step, or in a new turn the app starts for you once all your helpers have finished, if yours has ended by then. Wait for it with wait_agent only when your next step needs its result.`;
 };
 
 // A helper's turn: its own requests and steps, until it answers without a step. Never thrown out of: what went wrong
 // is its report.
 proto.runHelper = async function (parent, helper, config) {
- const conv = helper.conv, controller = new AbortController();
+ const conv = this.helperConv(parent, helper), controller = new AbortController();
  helper.controller = controller;
  helper.state = 'working';
  helper.ended = 0;
+ helper.spent = false;
  const panel = this.browserOf(parent);
- conv.turn = { id: `${parent.turn?.id || 'x'}-${helper.id}`, controller, config, browser: panel, part: null, parts: [], next: null, queue: [], pills: [], approvals: new Set(), tool: '', retryBudget: { used: 0 } };
+ conv.turn = { id: `${parent.turn?.id || parent.id || 'x'}-${helper.id}`, controller, config, browser: panel, part: null, parts: [], next: null, queue: [], pills: [], approvals: new Set(), tool: '', retryBudget: { used: 0 } };
  Desk.enter(conv, this);
+ this.keepHelpers(parent);
+ this.onChange?.();
  const room = this.settings.windowOf(config.id) || 128000;
  const tools = this.agent(conv) ? AgentTools.schemas.filter(tool => !KEPT.has(tool.function.name)) : null;
  try {
@@ -159,7 +206,7 @@ proto.runHelper = async function (parent, helper, config) {
    messages.push(...notes);
    let result;
    try {
-    result = await Providers.stream(config, { messages, tools, signal: controller.signal, session: `${this.session(parent)}-${helper.id}`, retryBudget: conv.turn.retryBudget });
+    result = await Providers.stream(config, { messages, tools, signal: controller.signal, session: `${this.session(parent)}-${helper.id}`, retryBudget: conv.turn.retryBudget, onReasoning: (delta, stream) => this.helperThinks(parent, helper, stream.reasoning) });
    } catch (error) {
     if (error?.name === 'AbortError' || controller.signal.aborted) throw error;
     helper.messages.push(...notes);
@@ -170,8 +217,7 @@ proto.runHelper = async function (parent, helper, config) {
    }
    const step = assistantStep(result);
    helper.messages.push(...notes, step);
-   const entry = parent.turn?.part?.entry;
-   if (entry) spend(entry, result.usage);
+   this.owe(parent, result.usage);
    if (typeof result.content === 'string' && result.content.trim()) helper.final = result.content;
    const calls = step.tool_calls || [];
    if (!calls.length) {
@@ -188,6 +234,7 @@ proto.runHelper = async function (parent, helper, config) {
    }
    if (images.length) helper.messages.push(imageStep(images));
    if (helper.inbox.length) helper.messages.push(...helper.inbox.splice(0));
+   this.keepHelpers(parent);
    // Near the end of its model's window a helper's conversation is summed up, as a chat's is, and it goes on from the
    // summary. Should the summary fail, it is asked to finish, and stopped at the very end.
    const used = estimate(helper.messages);
@@ -208,7 +255,11 @@ proto.runHelper = async function (parent, helper, config) {
   Desk.leave(conv);
   helper.ended = Date.now();
   helper.deed = null;
+  helper.controller = null;
   wake(parent);
+  this.keepHelpers(parent);
+  this.onChange?.();
+  this.wakeAgent(parent);
  }
 };
 
@@ -240,18 +291,20 @@ proto.helperTool = async function (parent, helper, call) {
   if (rule && this.library.permissions) asks = !(await this.library.permissions(parent.id).catch(() => [])).includes(rule.key);
  }
  if (asks) {
-  const host = parent.turn;
-  if (!host) return TOOL_NOTES.cancelled;
+  // Asked in the chat's own card: under the chat's reply while its agent works, in the composer's card all the same
+  // while its turn has ended and the helper goes on alone. The card goes with the helper when it is stopped.
+  const host = parent.turn || { approvals: (parent.helperApprovals ||= new Set()), next: null, controller: turn.controller };
+  const view = parent.turn?.part?.view || { el: document.createElement('div'), status: null };
   helper.asking = true;
   changed(parent);
-  const answer = await this.approve(parent, host, host.part.view, { name, args, cwd, apart, panel, helper: helper.title });
+  const answer = await this.approve(parent, host, view, { name, args, cwd, apart, panel, helper: helper.title, signal: turn.controller.signal });
   helper.asking = false;
   changed(parent);
   if (answer !== 'allow') return answer === 'deny' ? TOOL_NOTES.declined : answer;
  }
  if (turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
  // A command says what it does in the agent's own plain words (its description), not as the command itself.
- const said = name === AgentTools.shell && typeof args.description === 'string' ? args.description.replace(/s+/g, ' ').trim() : '';
+ const said = name === AgentTools.shell && typeof args.description === 'string' ? args.description.replace(/\s+/g, ' ').trim() : '';
  const deed = said ? { verb: said, what: '' } : AgentLine.deed(name, args, cwd, apart);
  if (deed) {
   helper.deed = deed;
@@ -275,6 +328,28 @@ proto.helperTool = async function (parent, helper, call) {
  } finally {
   turn.tool = '';
  }
+};
+
+// What a helper thinks about stands in its row where its step's words do, as beside the chat's agent's ghost
+// (Chat.think): a new thought at most every HELPERS.think ms. Its thoughts are no steps: they stay out of its log.
+proto.helperThinks = function (parent, helper, text) {
+ if (helper.state !== 'working') return;
+ const about = AgentLine.thought(text);
+ if (!about) return;
+ const thinking = !!helper.deed?.thought;
+ if (thinking && helper.deed.verb === about) return;
+ if (thinking && Date.now() - (helper.thoughtAt || 0) < HELPERS.think) return;
+ helper.thoughtAt = Date.now();
+ helper.deed = { verb: about, what: '', thought: true };
+ changed(parent);
+};
+
+// What a helper spent goes into the chat's reply under way, or into the next one when the chat's agent is not at work.
+proto.owe = function (parent, usage) {
+ if (!usage) return;
+ const entry = parent.turn?.part?.entry;
+ if (entry) spend(entry, usage);
+ else (parent.helperOwed ||= []).push(usage);
 };
 
 // A helper's conversation summed up, the way a chat's is (chat.js compact), with the same words for the model: its steps
@@ -324,8 +399,7 @@ ${COMPACT.resume}` }];
   helper.compacted = (helper.compacted || 0) + 1;
   return true;
  } finally {
-  const entry = parent.turn?.part?.entry;
-  if (entry && cost) spend(entry, cost);
+  this.owe(parent, cost);
   helper.deed = was;
   changed(parent);
  }
@@ -338,13 +412,21 @@ proto.stopHelper = function (conv, helper, by = 'agent') {
  return true;
 };
 
+// The user stops all the chat's work: its helpers stop, and none of them starts a turn of the agent's until the user's
+// next word. What they did stays, and so do their conversations.
+proto.stopHelpers = function (conv) {
+ if (!conv?.helpers) return;
+ conv.helpersHeld = true;
+ for (const helper of working(conv)) this.stopHelper(conv, helper, 'user');
+ changed(conv);
+};
+
 // Waits until a helper finishes, the user writes, the chat is stopped, or the time is up; then tells what is new.
 proto.waitHelpers = async function (conv, turn, args) {
- const fresh = () => listOf(conv).filter(helper => helper.state !== 'working' && !helper.reported);
- if (!fresh().length && !working(conv).length) return listOf(conv).length ? 'All your helpers have finished and you have read their reports.' : 'You have no helpers.';
+ if (!unread(conv).length && !working(conv).length) return listOf(conv).length ? 'All your helpers have finished and you have read their reports.' : 'You have no helpers.';
  const limit = Math.min(HELPERS.longest, Math.max(5, Number(args.timeout_seconds) || HELPERS.wait)) * 1000;
  let why = '';
- if (!fresh().length) {
+ if (!unread(conv).length) {
   let timer = 0;
   why = await new Promise(resolve => {
    timer = setTimeout(() => resolve('time'), limit);
@@ -356,15 +438,17 @@ proto.waitHelpers = async function (conv, turn, args) {
   turn.release = null;
  }
  if (why === 'abort' || turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
- const out = fresh().map(report);
+ const out = unread(conv).map(report);
  const still = working(conv);
  if (still.length) out.push(`Still at work:\n${still.map(line).join('\n')}`);
  if (why === 'message') out.push(TOOL_NOTES.message);
  else if (why === 'time' && !out.length) out.push(`No helper finished in ${seconds(limit)} s.`);
+ this.keepHelpers(conv);
  return out.join('\n\n');
 };
 
-// More work for a helper: told at its next step while it works, a turn of its own when it has finished.
+// More work for a helper: told at its next step while it works, a turn of its own when it has finished, and for one
+// that was stopped, its own conversation goes on from where it stopped.
 proto.messageHelper = function (conv, turn, args) {
  const helper = find(conv, args.target || args.task_name), text = String(args.message || '').trim();
  if (!helper) return `Error: no helper is named “${words(args.target)}”. Your helpers: ${listOf(conv).map(item => `“${item.title}”`).join(', ') || 'none'}.`;
@@ -374,23 +458,24 @@ proto.messageHelper = function (conv, turn, args) {
   return `Sent: “${helper.title}” reads it after its current step.`;
  }
  if (working(conv).length >= HELPERS.most) return `Error: ${HELPERS.most} helpers are at work already. Wait for one to finish first.`;
+ const again = helper.state === 'stopped';
+ if (again) helper.messages.push({ role: 'user', content: NOTE.resumed(helper.stoppedBy) });
  helper.messages.push({ role: 'user', content: NOTE.fromAgent(text) });
  helper.final = '';
  helper.reported = false;
  helper.error = '';
  helper.stoppedBy = '';
  helper.started = Date.now();
- turn.controller.signal.addEventListener('abort', () => this.stopHelper(conv, helper, 'stop'), { once: true });
  this.runHelper(conv, helper, turn.config);
  changed(conv);
- return `“${helper.title}” is at work again on your message. Read its report with wait_agent.`;
+ return again ? `“${helper.title}” goes on from where it stopped, with your message. Its report comes to you when it finishes.` : `“${helper.title}” is at work again on your message. Its report comes to you when it finishes.`;
 };
 
 proto.interruptHelper = function (conv, args) {
  const helper = find(conv, args.target || args.task_name);
  if (!helper) return `Error: no helper is named “${words(args.target)}”.`;
  if (!this.stopHelper(conv, helper, 'agent')) return `“${helper.title}” is not at work.`;
- return `“${helper.title}” is stopped. Its files stay as they are; read what it said with wait_agent.`;
+ return `“${helper.title}” is stopped. Its files stay as they are, and its conversation is kept: send it a message to have it go on.`;
 };
 
 proto.listHelpers = function (conv) {
@@ -416,32 +501,111 @@ proto.helpersOf = function (conv) {
  return listOf(conv);
 };
 
-// A turn that would end while its helpers work, or with their reports unread, is sent back to them.
-const planBack = proto.planBack;
-proto.planBack = function (conv, turn, finish) {
- const back = planBack.call(this, conv, turn, finish);
- if (back || !conv.helpers || conv.helperOf) return back;
- const still = working(conv), unread = listOf(conv).filter(helper => helper.state !== 'working' && !helper.reported);
- if (!still.length && !unread.length) return '';
- turn.helperNudges = (turn.helperNudges || 0) + 1;
- if (turn.helperNudges > HELPERS.nudges) { for (const helper of still) this.stopHelper(conv, helper, 'end'); return ''; }
- return still.length ? NOTE.still(still.map(helper => `“${helper.title}”`).join(', ')) : NOTE.unread(unread.map(helper => `“${helper.title}”`).join(', '));
+// The note that tells the agent what its helpers came to; '' when there is nothing new. What it tells counts as read.
+proto.helperNews = function (conv) {
+ const fresh = unread(conv);
+ if (!fresh.length) return '';
+ const text = fresh.map(report).join('\n\n'), still = working(conv).map(line).join('\n');
+ this.keepHelpers(conv);
+ changed(conv);
+ return NOTE.reports(text, still);
 };
 
-// When the chat's turn ends, however it ends, its helpers end with it.
+// Once all of a chat's helpers have finished while its agent is not at work, the agent gets a turn to read their
+// reports and go on, as if it had waited for them. Not while the user holds the work stopped (End), not for helpers
+// only the user stopped, not in a chat that is locked or gone.
+proto.wakeAgent = function (conv) {
+ if (conv.turn || conv.helpersHeld || working(conv).length || !conv.record || conv.locked || !this.library.chat(conv.id) || !this.agent(conv)) return false;
+ if (!unread(conv).some(helper => !BY_USER.has(helper.stoppedBy))) return false;
+ const config = this.config(conv);
+ if (!config.ready) return false;
+ this.resume(conv, config);
+ return true;
+};
+
+// The helpers go to the disk with the chat, a moment after they change; a chat that is gone or sealed shut keeps none.
+proto.keepHelpers = function (conv) {
+ if (!this.helpersOn || !conv || conv.helperOf || !conv.record || !this.library.saveHelpers) return;
+ clearTimeout(conv.helperSave);
+ conv.helperSave = setTimeout(() => {
+  if (!this.library.chat(conv.id)) return;
+  this.library.saveHelpers(conv.id, listOf(conv).map(stored)).catch(() => {});
+ }, HELPERS.save);
+};
+
+// A turn that would end with reports unread reads them first. One that ends while helpers work just ends: they go on,
+// and their reports bring the agent back once they have all finished.
+const planBack = proto.planBack;
+proto.planBack = function (conv, turn, finish) {
+ if (!conv.helpers || conv.helperOf || turn.quiet || turn.controller.signal.aborted || finish === 'length' || finish === 'content_filter') return planBack.call(this, conv, turn, finish);
+ const news = this.helperNews(conv);
+ if (news) return news;
+ if (working(conv).length) return '';
+ return planBack.call(this, conv, turn, finish);
+};
+
+// End stops the chat's agent and its helpers together.
+const abort = proto.abort;
+proto.abort = function (conv) {
+ abort.call(this, conv);
+ this.stopHelpers(conv);
+};
+
+// End with the chat's agent not at work stops the helpers that still are.
+const stop = proto.stop;
+proto.stop = function () {
+ const conv = this.active;
+ if (conv?.turn) return stop.call(this);
+ if (working(conv).length) this.stopHelpers(conv);
+};
+
+// The chat is at work while its agent or any of its helpers is.
+Object.defineProperty(proto, 'working', { configurable: true, get() { return !!this.active?.turn || working(this.active).length > 0; } });
+const isBusy = proto.isBusy;
+proto.isBusy = function (id) {
+ return isBusy.call(this, id) || working(this.conversations.get(id)).length > 0;
+};
+
+// When the chat's turn ends, its helpers go on. Stopped helpers whose story the agent read in it and did not send on
+// are let go at the user's next message; and helpers that finished while it was ending bring the agent back.
 const end = proto.end;
 proto.end = function (conv, turn, error, finish) {
- for (const helper of working(conv)) this.stopHelper(conv, helper, 'end');
  const out = end.call(this, conv, turn, error, finish);
+ for (const helper of listOf(conv)) if (helper.state === 'stopped' && helper.reported) helper.spent = true;
  changed(conv);
+ this.keepHelpers(conv);
+ Promise.resolve(out).then(() => this.wakeAgent(conv)).catch(() => {});
  return out;
 };
 
-// A new message of the user starts afresh: the helpers of the turn before are gone from the island.
+// A new message of the user: what is done and read is gone from the island; the rest stays, and helpers go on with
+// their work. The user's word also lifts End's hold on the helpers that are left.
 const run = proto.run;
 proto.run = function (conv, prompt, config, bubble) {
- if (conv.helpers && !working(conv).length) { conv.helpers = null; changed(conv); }
+ conv.helpersHeld = false;
+ if (conv.helpers) {
+  for (const helper of listOf(conv)) if (helper.state !== 'working' && helper.reported && (helper.state !== 'stopped' || helper.spent)) conv.helpers.delete(helper.id);
+  if (!conv.helpers.size) conv.helpers = null;
+  changed(conv);
+  this.keepHelpers(conv);
+ }
  return run.call(this, conv, prompt, config, bubble);
+};
+
+// A chat's helpers come back from the disk with its messages.
+const load = proto.load;
+proto.load = function (conv) {
+ return Promise.resolve(load.call(this, conv)).then(async out => {
+  if (this.helpersOn && this.library.helpers && conv.record && !conv.helpers) {
+   const items = await this.library.helpers(conv.id).catch(() => []);
+   if (items.length && !conv.helpers) {
+    conv.helpers = new Map(items.map(item => [item.id, restored(item)]));
+    conv.helperSeq = Math.max(0, ...items.map(item => Number(String(item.id).slice(1)) || 0));
+    changed(conv);
+   }
+  }
+  return out;
+ });
 };
 
 // A helper works in a tab of its own, always.
@@ -466,7 +630,8 @@ proto.taskOf = function (conv) {
 };
 
 // On Ultra the agent is told to hand work out; off it again, that it no longer has to. Told as a note, so the system
-// prompt stays the same in every chat (see notes in chat.js).
+// prompt stays the same in every chat (see notes in chat.js). What its helpers came to since its last step comes in a
+// note too, and what they spent while it was not at work is counted in this reply.
 const notes = proto.notes;
 proto.notes = function (conv, messages) {
  const out = notes.call(this, conv, messages);
@@ -476,9 +641,13 @@ proto.notes = function (conv, messages) {
  const lastOff = messages.findLastIndex(message => message.role === 'user' && message.content === NOTE.notUltra);
  if (ultra && lastOn <= lastOff) out.push({ role: 'user', content: NOTE.ultra });
  else if (!ultra && lastOn > lastOff) out.push({ role: 'user', content: NOTE.notUltra });
+ const entry = conv.turn?.part?.entry;
+ if (entry && conv.helperOwed?.length) for (const usage of conv.helperOwed.splice(0)) spend(entry, usage);
+ const news = this.helperNews(conv);
+ if (news) out.push({ role: 'user', content: news });
  return out;
 };
 
 Chat.HELPERS = HELPERS;
-window.Helpers = { HELPERS, TONES, listOf, working };
+window.Helpers = { HELPERS, TONES, listOf, working, unread };
 })();

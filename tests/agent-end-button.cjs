@@ -36,7 +36,7 @@ check('The old caption remains available while its collapse fades out',b.words.t
 b.configure({empty:false});check('Idle sending keeps its existing hover animation',b.targets(1,false).lift===1&&b.targets(1,true).lift===0);
 const other=button();other.configure({busy:true,empty:true});check('One composer cannot change another composer’s state',!b.hasAttribute('stop')&&other.hasAttribute('stop'));
 // Exercise the actual main sync method, not a rewritten controller.
-let text='',files=0;const classesNoop={toggle(){}};const active={id:'active',turn:null};const chat={active,prediction:'',get busy(){return !!this.active?.turn},forget(){}};
+let text='',files=0;const classesNoop={toggle(){}};const active={id:'active',turn:null};const chat={active,prediction:'',get busy(){return !!this.active?.turn},get working(){return !!this.active?.turn||!!this.active?.helpersWorking},forget(){}};
 Object.assign(c,{chat,composerSend:button(),composerText:{text:()=>text},attachments:{get count(){return files}},composerActions:{classList:classesNoop},composerField:{dataset:{predicted:''},classList:classesNoop},composerInput:{value:'',setAttribute(){}},composerPlaceholder:{textContent:'',firstChild:{textContent:''}}});
 const mainSource=read('script.js'),at=mainSource.indexOf('function syncComposer()'),end=mainSource.indexOf('// Each chat keeps',at);vm.runInContext(mainSource.slice(at,end),c);
 c.syncComposer();check('Main controller reflects idle state',c.composerSend.hasAttribute('disabled')&&!c.composerSend.hasAttribute('stop'));

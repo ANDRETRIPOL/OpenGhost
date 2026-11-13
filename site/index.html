@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.5.4</span>
+      <span class="ver" data-version>v1.5.5</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.4.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.5.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.5.4</h3>
+        <h3 class="h3" data-news-title>What's new in 1.5.5</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.5.4';
+const FALLBACK = '1.5.5';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,18 +1470,18 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'Helpers: the agent hands independent parts of a big task to up to three helpers at once. A second island beside the plan shows what each is doing; write to one or stop it.',
-    'Projects the developer way: Git asked once, a branch for every feature, checked steps committed, branches merged only when you release.',
-    'The agent checks its work by eye: clicks through, phone and desktop width, both themes, and tells you what it saw.',
-    'GPT Ultra works again, and GPT Fast through ChatGPT is confirmed by timing.',
-    'A new drawing editor with drag to reorder, drawings saved as PNG, photos of suggested options, and many fixes.',
+    'Helpers work in the background: the agent is free to talk while they work, and comes back by itself with their reports when they are done.',
+    'End no longer loses work: stopped helpers keep their conversations and go on from where they stopped when you say continue, even after a restart.',
+    'The agent never goes quiet: its current step stays in view, and while the model thinks you see what it is thinking about.',
+    'Your own chat pictures: Settings → Appearance → Chat picture, up to twelve, one for each theme.',
+    'A dropped connection is noticed in seconds, a clearer helpers island, and many fixes.',
   ],
   ru: [
-    'Помощники: агент раздаёт независимые части большой задачи до трёх помощников сразу. Второй островок рядом с планом показывает, что делает каждый; можно написать помощнику или остановить его.',
-    'Проекты как у разработчика: один вопрос про Git, своя ветка на каждую функцию, проверенные шаги в коммитах, слияние веток только при выпуске версии.',
-    'Агент проверяет работу глазами: прокликивает, смотрит ширину телефона и компьютера, обе темы и рассказывает, что увидел.',
-    'GPT «Ультра» снова работает, а GPT Fast через ChatGPT подтверждён замером скорости.',
-    'Новый редактор рисунков с перетаскиванием, сохранение рисунков в PNG, фото предлагаемых вариантов и много исправлений.',
+    'Помощники работают в фоне: с агентом можно говорить, пока они работают, а когда закончат, он сам вернётся с их отчётами.',
+    'End больше не теряет работу: остановленные помощники сохраняют свой разговор и по «продолжай» идут дальше с того же места, даже после перезапуска.',
+    'Агент больше не пропадает: видно, что он делает сейчас, а пока модель думает — о чём она думает.',
+    'Свои картинки фона чата: Настройки → Оформление → Картинка фона, до двенадцати, своя для каждой темы.',
+    'Оборванное соединение замечается за секунды, понятнее островок помощников и много исправлений.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };

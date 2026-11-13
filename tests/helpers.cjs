@@ -14,8 +14,27 @@ check('Only a chat with an island of helpers gets them', /return this\.helpersOn
 const kept = /const KEPT = new Set\(\[\.\.\.OWN, ([^\]]+)\]\)/.exec(helpers)?.[1] || '';
 check('A helper cannot ask the user, plan, keep notes, routines, memory, the record or show pictures', ['ask_user', 'plan', 'notepad', 'routine', 'memory', 'record', 'show_pictures'].every(name => kept.includes(`'${name}'`)), kept);
 check('A helper starts no helpers of its own', /if \(!this\.helpersOn \|\| conv\.helperOf\) return 'Error: helpers are not available here\.'/.test(helpers));
-check('The chat\'s Stop and its end stop the helpers', /addEventListener\('abort', \(\) => this\.stopHelper\(conv, helper, 'stop'\)/.test(helpers) && /proto\.end = function[\s\S]{0,120}stopHelper\(conv, helper, 'end'\)/.test(helpers));
-check('A helper\'s step waits for the user\'s OK in the chat\'s own card, named', /this\.approve\(parent, host, host\.part\.view, \{ name, args, cwd, apart, panel, helper: helper\.title \}\)/.test(helpers) && /request\.helper\) about\.title = I18n\.t\('helpers\.asks'/.test(read('chat.js')));
+const chatJs = read('chat.js'), endWrap = /proto\.end = function[\s\S]*?\n\};/.exec(helpers)?.[0] || '';
+check('End stops the chat\'s agent and its helpers together, also with the agent not at work', /proto\.abort = function \(conv\) \{\s*abort\.call\(this, conv\);\s*this\.stopHelpers\(conv\);/.test(helpers) && /proto\.stop = function[\s\S]{0,140}if \(working\(conv\)\.length\) this\.stopHelpers\(conv\)/.test(helpers));
+check('The end of the agent\'s turn leaves its helpers at work', endWrap && !/stopHelper/.test(endWrap) && !/addEventListener\('abort', \(\) => this\.stopHelper/.test(helpers));
+check('A turn that ends while helpers work just ends; unread reports are read first', /const news = this\.helperNews\(conv\);\s*if \(news\) return news;\s*if \(working\(conv\)\.length\) return '';/.test(helpers));
+check('Reports reach the agent by themselves, in a note at its next step', /proto\.notes = function[\s\S]*const news = this\.helperNews\(conv\);\s*if \(news\) out\.push/.test(helpers));
+check('Helpers that finished bring the agent back once all are done, never after End or for helpers the user stopped', /proto\.wakeAgent = function[\s\S]{0,260}conv\.helpersHeld \|\| working\(conv\)\.length/.test(helpers) && /BY_USER = new Set\(\['user', 'restart'\]\)/.test(helpers) && /this\.resume\(conv, config\)/.test(helpers) && /finally \{[\s\S]{0,400}this\.wakeAgent\(parent\);/.test(helpers));
+check('A stopped helper goes on from where it stopped, its conversation kept', /const again = helper\.state === 'stopped';\s*if \(again\) helper\.messages\.push\(\{ role: 'user', content: NOTE\.resumed\(helper\.stoppedBy\) \}\)/.test(helpers));
+check('Helpers are kept on the disk with the chat, and one at work when the app closed comes back stopped', /this\.library\.saveHelpers\(conv\.id, listOf\(conv\)\.map\(stored\)\)/.test(helpers) && /stoppedBy: stopped \? 'restart'/.test(helpers) && /saveHelpers\(id, items\)/.test(read('library.js')) && /'permissions', 'helpers'\]\.map\(kind => this\.store\.remove/.test(read('library.js')));
+check('The chat counts as at work while only its helpers are: End shows and the window stays awake', /Object\.defineProperty\(proto, 'working'/.test(helpers) && /busy: chat\.working, suggest: chat\.busy/.test(read('script.js')) && /conv\.turn \|\| window\.Helpers\?\.working\(conv\)\.length/.test(read('script.js')));
+check('A helper\'s step waits for the user\'s OK in the chat\'s own card, named, also with the agent not at work', /const host = parent\.turn \|\| \{ approvals: \(parent\.helperApprovals \|\|= new Set\(\)\)/.test(helpers) && /helper: helper\.title, signal: turn\.controller\.signal/.test(helpers) && /request\.helper\) about\.title = I18n\.t\('helpers\.asks'/.test(chatJs) && /request\.signal\?\.addEventListener\('abort', \(\) => card\.settle\('deny'\)/.test(chatJs) && /\.\.\.\(conv\?\.helperApprovals \|\| \[\]\)/.test(chatJs));
+check('The line beside the ghost goes along under a message that waits, and says when the model thinks', /if \(turn\.deed && !turn\.writing\) this\.say\(turn, turn\.next, turn\.deed\)/.test(chatJs) && /onReasoning: \(delta, stream\) => this\.think\(turn, view, stream\.reasoning\)/.test(chatJs) && /onReasoning: \(delta, stream\) => this\.helperThinks\(parent, helper, stream\.reasoning\)/.test(helpers));
+{
+ // What the model thinks about, from its thinking so far: GPT's latest heading, else the latest finished sentence.
+ const context = { window: { matchMedia: () => ({ matches: false }) }, I18n: { t: key => key }, AgentTools: {} };
+ require('node:vm').runInNewContext(read('agent-line.js'), context);
+ const thought = context.window.AgentLine.thought;
+ check('A thought is GPT\'s latest heading', thought('**Planning parallel research**\n\nI need…**Составляю план**') === 'Составляю план');
+ check('A thought is the latest finished sentence of a model that thinks aloud, never one still being written', thought('The user wants prices. I should check OpenAI first. Then Anthrop') === 'I should check OpenAI first');
+ check('A long thought is cut at a word, with an ellipsis', /…$/.test(thought(`${'слово '.repeat(30)}конец.`)) && thought(`${'слово '.repeat(30)}конец.`).length <= 71);
+}
+check('A stream that brings nothing for too long counts as a lost connection', /QUIET = \{ chatgpt: 30000, other: 300000 \}/.test(read('desktop/openai.js')) && /within\(reader\.read\(\)\)/.test(read('deepseek.js')));
 check('helpers.js comes after chat.js, the island after the plan\'s', html.indexOf('chat.js') < html.indexOf('helpers.js') && html.indexOf('plan-island.js') < html.indexOf('helper-island.js'));
 const script = read('script.js'), split = read('split-view.js');
 check('The main window has the island, the quick chat\'s window none', /if \(MAIN_WINDOW\) helperIsland = new HelperIsland\(\{ main, chat, plan: planIsland \}\)/.test(script));

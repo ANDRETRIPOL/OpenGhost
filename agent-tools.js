@@ -191,18 +191,18 @@ const SCHEMAS = [
   reason: { type: 'string', description: 'For drop and wait: why, one sentence in the user\'s language. For start while the plan has open steps: why the new plan replaces it' },
   after: { type: 'integer', description: 'For add: put the new steps after this step; at the end by default' },
  }, ['action']),
- fn('spawn_agent', 'Start a helper: another agent like you, with your model and your tools (except asking the user, the plan, the notepad, routines, memory, the record, pictures in the reply and starting helpers), working at the same time as you in the same folder, with a browser tab of its own. It knows nothing but your message, so the message holds everything it needs: the goal, the files and places, what done looks like and how to check it, what not to touch. It ends with a report you read with wait_agent. The user sees your helpers at work and can write to them or stop them. See the instructions on helpers for when to start one.', {
+ fn('spawn_agent', 'Start a helper: another agent like you, with your model and your tools (except asking the user, the plan, the notepad, routines, memory, the record, pictures in the reply and starting helpers), working at the same time as you in the same folder, with a browser tab of its own. It knows nothing but your message, so the message holds everything it needs: the goal, the files and places, what done looks like and how to check it, what not to touch. It goes on after your turn ends. It ends with a report that comes to you by itself: at your next step, or in a new turn the app starts for you once all your helpers have finished. The user sees your helpers at work and can write to them or stop them. See the instructions on helpers for when to start one.', {
   task_name: { type: 'string', description: 'The part in one to four words of the user\'s language, the name the user sees, e.g. "Меню и цены"' },
   message: { type: 'string', description: 'The whole task for the helper, in the user\'s language: what to do, where, what done looks like, how to check it, which files are its own and which to leave alone' },
  }, ['task_name', 'message']),
- fn('wait_agent', 'Wait until one of your helpers finishes, then get the reports of all that have finished since you last asked, and how the others stand. It also returns when the user writes to you or when the time is up. Prefer long waits: minutes, not seconds.', {
+ fn('wait_agent', 'Wait until one of your helpers finishes, then get the reports of all that have finished since you were last told, and how the others stand. Use it only when your next step needs a helper\'s result now: reports also come to you by themselves. It also returns when the user writes to you or when the time is up. Prefer long waits: minutes, not seconds.', {
   timeout_seconds: { type: 'integer', description: 'How long to wait at most, in seconds; 600 by default, 1800 at most' },
  }),
- fn('send_message', 'Send a helper more to do or a correction. A helper at work reads it after its current step; one that has finished starts again on it, and you read its new report with wait_agent.', {
+ fn('send_message', 'Send a helper more to do or a correction. A helper at work reads it after its current step; one that has finished starts again on it, with its conversation as it was; one that was stopped goes on from where it stopped. Its new report comes to you as the first did.', {
   target: { type: 'string', description: 'The helper\'s task_name' },
   message: { type: 'string', description: 'What to tell it, in the user\'s language' },
  }, ['target', 'message']),
- fn('interrupt_agent', 'Stop a helper whose work is no longer needed or went wrong. What it changed stays.', {
+ fn('interrupt_agent', 'Stop a helper whose work is no longer needed or went wrong. What it changed stays, and so does its conversation: send_message sends it on again.', {
   target: { type: 'string', description: 'The helper\'s task_name' },
  }, ['target']),
  fn('list_agents', 'How your helpers stand: at work and on what, done, stopped or failed.', {}),

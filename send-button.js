@@ -49,9 +49,10 @@ class SendButton extends IconButton {
   this.endObserver?.disconnect();window.removeEventListener('resize',this.refreshEnd);document.fonts?.removeEventListener('loadingdone',this.refreshEnd);
   super.disconnectedCallback();
  }
- // The same slot sends a message or stops work. Typing during work still sends a suggestion, never a stop.
- configure({busy=false,empty=true,stopping=false}={}){
-  const stop=!!busy&&!!empty,caption=stop?'End':busy&&!empty?I18n.t('composer.suggest'):'';
+ // The same slot sends a message or stops work. Typing during work still sends a suggestion, never a stop; `suggest`:
+ // whether words are a suggestion to an agent at work now, or a plain message (only its helpers work).
+ configure({busy=false,empty=true,stopping=false,suggest=busy}={}){
+  const stop=!!busy&&!!empty,caption=stop?'End':suggest&&!empty?I18n.t('composer.suggest'):'';
   this.toggleAttribute('working',!!busy);
   this.toggleAttribute('stop',stop);
   this.toggleAttribute('disabled',stop?!!stopping:!!empty);

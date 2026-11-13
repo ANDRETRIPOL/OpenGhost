@@ -75,6 +75,19 @@ function plain(messages) {
  return count ? [{ role: 'system', content: messages.slice(0, count).map(message => message.content).join('\n\n') }, ...rest] : rest;
 }
 
+// How long the stream may bring nothing at all before its connection counts as lost: the page's own fetch never gives
+// up on a stream that went silent. With no measure of DeepSeek's own signs of life, the five minutes OpenAI's Codex
+// allows any stream.
+// Timed by the window's own clock (a page without one, as in the tests, waits as before).
+const QUIET = 300000;
+function within(read) {
+ const clock = globalThis.window?.setTimeout ? window : null;
+ if (!clock) return read;
+ let timer = 0;
+ const lost = new Promise((resolve, reject) => { timer = clock.setTimeout(() => reject(new DeepSeekError(I18n.t('error.interrupted'), 0, 'network')), QUIET); });
+ return Promise.race([read, lost]).finally(() => clock.clearTimeout(timer));
+}
+
 async function streamChat({ key, model, effort, vision = true, messages, tools, signal, onReasoning, onContent, onActivity, maxTokens = 0 }) {
  const response = await request('/chat/completions', key, {
   method: 'POST',
@@ -101,7 +114,7 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
  };
  try {
   for (;;) {
-   const { value, done: ended } = await reader.read();
+   const { value, done: ended } = await within(reader.read());
    if (ended && !buffer.trim()) break;
    buffer += ended ? '\n' : value;
    const lines = buffer.split('\n');
