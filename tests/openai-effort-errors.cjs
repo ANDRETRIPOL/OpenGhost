@@ -89,9 +89,9 @@ async function main() {
   check('A failed compatibility attempt cannot mutate the next request', failedFallback.requests.at(-1).body.reasoning?.effort === 'medium');
   const none = fixture(() => null); await call(none.model, 'none');
   check('A supported explicit None is still transmitted as None', none.requests[0].body.reasoning?.effort === 'none');
-  const unchanged = fixture((_body, n) => n === 1 ? invalid('ultra') : null);
-  await caught(call(unchanged.model, 'ultra')); await call(unchanged.model, 'ultra');
-  check('Adapter does not change a saved selection behind the user’s back', unchanged.requests.at(-1).body.reasoning?.effort === 'ultra');
+  const unchanged = fixture((_body, n) => n === 1 ? invalid('extreme') : null);
+  await caught(call(unchanged.model, 'extreme')); await call(unchanged.model, 'extreme');
+  check('Adapter does not change a saved selection behind the user’s back', unchanged.requests.at(-1).body.reasoning?.effort === 'extreme');
   const failures = checks.filter(item => !item.pass);
   console.log(JSON.stringify({ baseline, count: checks.length, passed: checks.length - failures.length, failures }, null, 2));
   if (!baseline) console.log(`${checks.length} checks passed`);

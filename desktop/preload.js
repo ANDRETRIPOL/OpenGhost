@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld('openghost', {
  revealFolder: folder => ipcRenderer.invoke('folder:reveal', folder),
  // A file or a folder of a list drawn in the chat, opened by a press on it: 'opened', 'shown' in its folder, or 'missing'.
  openPath: target => ipcRenderer.invoke('path:open', target),
+ // A drawing of the chat saved as a picture where the user says: true once it is written.
+ saveImage: (name, bytes) => ipcRenderer.invoke('image:save', name, bytes),
  // Whether an agent is at work in this window: while one is, the window is not slowed down when it is out of sight.
  working: working => ipcRenderer.send('app:working', !!working),
  // A finished reply that came while the user was not looking (notify.js), and what has been seen since; the choice of

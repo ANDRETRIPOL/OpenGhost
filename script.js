@@ -27,6 +27,7 @@ let routinePanel = null;
 let routineMaker = null;
 // The agent's plan at the top of the chat, in the app's window: the quick chat's has no room for it.
 let planIsland = null;
+let helperIsland = null;
 let updatePill = null;
 let sidePanels = null;
 let splitView = null;
@@ -39,7 +40,7 @@ ComposerSpace.watch(main, composer);
 const threadBones = new ThreadBones({ app, main, thread });
 ThreadWindow.watch(thread);
 const composerScrollbar = new Scrollbar(composerInput, document.querySelector('.composer-scrollbar'));
-const threadScrollbar = new Scrollbar(thread, document.querySelector('.thread-scrollbar'));
+const threadScrollbar = new Scrollbar(thread, document.querySelector('.thread-scrollbar'), { autoHide: true });
 const chatsScrollbar = new Scrollbar(document.querySelector('.chats-scroll'), document.querySelector('.chats-scrollbar'), { autoHide: true });
 const composerText = new ComposerText(composerInput, document.querySelector('.composer-mirror'));
 LinkChip.watch(document.querySelector('.composer-mirror'));
@@ -91,6 +92,8 @@ const chat = new Chat({
   onPlan: conv => { if (conv === chat.active) planIsland?.sync(); chat.syncAsk(); splitView?.pane?.sync(); },
 });
 if (MAIN_WINDOW) planIsland = new PlanIsland({ main, chat });
+// The agent's helpers, beside the plan (helper-island.js). The quick chat's window has none.
+if (MAIN_WINDOW) helperIsland = new HelperIsland({ main, chat, plan: planIsland });
 // The chats' rows show the last message of each: older chats have it worked out once, a while after the start.
 if (MAIN_WINDOW) library.ready.then(() => setTimeout(() => chat.fillPreviews().catch(() => {}), 4000));
 // A new version of the app, at the top right beside the globe (desktop/update.js); the plan's island keeps clear of it.
@@ -269,6 +272,11 @@ if (MAIN_WINDOW) {
 const spotlight = new Spotlight({ button: searchButton, anchor: main, library, chat: chatList.chat, onSkill: name => {
   if (splitView?.currentChat !== chat && splitView?.pane) { splitView.pane.text.insertSkill(name); splitView.pane.sync(); }
   else { composerText.insertSkill(name); syncComposer(); }
+}, onChat: () => {
+  // The search is going and leaves the keys nowhere; a field pressed meanwhile keeps them.
+  const active = document.activeElement;
+  if (active && active !== document.body && !spotlight.root.contains(active)) return;
+  (splitView?.currentChat !== chat && splitView?.pane ? splitView.pane.input : composerInput).focus({ preventScroll: true });
 } });
 // Typing / in the message field lists the skills over it.
 new SkillPicker({ input: composerInput, text: composerText, anchor: composer, onPick: syncComposer });
@@ -293,8 +301,8 @@ function syncComposer() {
   // An empty field offers End while work runs; words or attachments still send a suggestion.
   const suggesting = chat.busy && !empty;
   composerActions.classList.toggle('is-suggesting', suggesting);
-  // The likely next message waits in the empty field as grey words (predictions.js); anything written sends it away.
-  if (!empty && chat.prediction) chat.forget(chat.active, true);
+  // The likely next message waits in the empty field as grey words (predictions.js). Words in the field hide it, and it
+  // is back once they are wiped out; it goes for good when a message is sent (Chat.send).
   const predicted = empty ? chat.prediction : '';
   if (predicted !== composerField.dataset.predicted) {
     composerField.dataset.predicted = predicted;
@@ -388,6 +396,7 @@ function syncAll() {
   notepad?.sync();
   routinePanel?.sync();
   planIsland?.sync();
+  helperIsland?.sync();
   sidePanels?.sync(focused.activeId);
   splitView?.sync();
   ModePicker.sync();
@@ -432,6 +441,7 @@ composerInput.addEventListener('input', () => {
   unsentTimer = setTimeout(keepUnsent, UNSENT_DELAY);
 });
 window.addEventListener('pagehide', keepUnsent);
+Predictions.room({ field: composerField, input: composerInput, placeholder: composerPlaceholder });
 
 // Tab or the right arrow in the empty field takes the predicted message into it, to be changed or sent.
 composerInput.addEventListener('keydown', (event) => {

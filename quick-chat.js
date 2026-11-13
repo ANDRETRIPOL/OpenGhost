@@ -226,7 +226,7 @@ class QuickChat {
   bottom.style.setProperty('--glass-lens', getComputedStyle(document.querySelector('.thread-bottom')).getPropertyValue('--glass-lens'));
   this.height = new SmoothHeight(this.field, this.input);
   new Scrollbar(this.input, $('.composer-scrollbar'));
-  const scrollbar = new Scrollbar(thread, $('.thread-scrollbar'));
+  const scrollbar = new Scrollbar(thread, $('.thread-scrollbar'), { autoHide: true });
   ThreadWindow.watch(thread);
   this.text = new ComposerText(this.input, $('.composer-mirror'));
   LinkChip.watch($('.composer-mirror'));

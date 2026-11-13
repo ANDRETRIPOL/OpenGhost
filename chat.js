@@ -69,6 +69,8 @@ const TOOL_NOTES = {
  memoryOff: '- The user has switched the memory off: nothing is remembered and nothing can be saved until they switch it on again.',
  pad: 'This note comes from the app, not from the user: the user\'s notepad, as it stands now.',
  padEmpty: '- The notepad is empty.',
+ // Under a list of notes or routines: their ids are the tools' own.
+ ids: 'The ids in brackets are for the tools alone: the user never sees them, so never write them to the user.',
  routines: 'This note comes from the app, not from the user: the routines of this chat, as they stand now.',
  routinesNone: '- This chat has no routines now.',
  peers: 'This note comes from the app, not from the user: who else is at work in this folder right now.',
@@ -215,8 +217,9 @@ const ASK = {
 // What the agent's show_pictures tool answers. At most `most` pictures in one call.
 const PICTURES = {
  most: 8,
- none: 'Error: show_pictures needs pictures: one to eight, each with a caption, and a ref, a part of the screen (x, y, width, height), a url or a path; with none of them the whole screen of the browser is shown.',
+ none: 'Error: show_pictures needs pictures: one to eight, each with a caption, and a ref, a part of the screen (x, y, width, height), photos, a url or a path; with none of them the whole screen of the browser is shown.',
  noBrowser: 'there is no page open in the built-in browser',
+ noPhotos: 'this page has no photos of its own to show: pass the ref of a picture or of a card, or a part of the screen',
  done: 'They are in your answer now, under what you have written so far: go on with the work. Do not show them again and do not write their addresses.',
 };
 
@@ -1649,12 +1652,12 @@ class Chat {
   if (browser && browser !== before) out.push({ role: 'user', content: browser });
   // The user's notepad, the same way: an empty one gets no note, unless an earlier note says it held something.
   if (conv.pad) {
-   const lines = this.padLines(conv), had = told(TOOL_NOTES.pad), pad = lines || had ? `${TOOL_NOTES.pad}\n${lines || TOOL_NOTES.padEmpty}` : '';
+   const lines = this.padLines(conv), had = told(TOOL_NOTES.pad), pad = lines || had ? `${TOOL_NOTES.pad}\n${lines ? `${lines}\n${TOOL_NOTES.ids}` : TOOL_NOTES.padEmpty}` : '';
    if (pad && pad !== had) out.push({ role: 'user', content: pad });
   }
   // The chat's routines, the same way: none gets no note, unless an earlier note named some.
   if (this.routinable(conv)) {
-   const lines = Routines.lines(conv.id), had = told(TOOL_NOTES.routines), note = lines || had ? `${TOOL_NOTES.routines}\n${lines || TOOL_NOTES.routinesNone}` : '';
+   const lines = Routines.lines(conv.id), had = told(TOOL_NOTES.routines), note = lines || had ? `${TOOL_NOTES.routines}\n${lines ? `${lines}\n${TOOL_NOTES.ids}` : TOOL_NOTES.routinesNone}` : '';
    if (note && note !== had) out.push({ role: 'user', content: note });
   }
   // What is remembered of the user from all chats, the same way; switched off, a chat that was told of it is told so.
@@ -1961,6 +1964,16 @@ class Chat {
   for (const [k, item] of items.entries()) {
    if (turn.controller.signal.aborted) return TOOL_NOTES.cancelled;
    const caption = String(item.caption || '').replace(/\s+/g, ' ').trim();
+   // The main photos of the page open in the browser, several at once.
+   if (item.photos && !item.ref && !item.url && !item.path) {
+    let got;
+    try { got = await this.browserPhotos(conv, turn, item.photos, { cwd, apart }); } catch (error) { got = { error: error.message }; }
+    const list = (got?.pictures || []).filter(one => one?.url).slice(0, Math.max(0, PICTURES.most - shown.length));
+    if (!list.length) { told.push(`${k + 1}) not shown: ${got?.error || PICTURES.noPhotos}`); continue; }
+    for (const one of list) shown.push({ caption: caption || one.alt || one.title || '', url: one.url, page: /^https?:/i.test(one.page || '') ? one.page : '' });
+    told.push(`${k + 1}) ${list.length} ${list.length === 1 ? 'photo' : 'photos'} of the page shown: ${caption}`);
+    continue;
+   }
    let got;
    try {
     if (item.path) got = await bridge.file(conv.id, AgentTools.place(cwd, String(item.path)) || String(item.path), sealed);
@@ -1996,6 +2009,14 @@ class Chat {
   const args = { chat: conv.id, sealed: this.library.isProtected(conv.id) };
   for (const key of ['ref', 'x', 'y', 'width', 'height']) if (item[key] !== undefined && item[key] !== null && item[key] !== '') args[key] = item[key];
   return panel.run('browser_picture', args, { id: turn.tool || `${conv.id}-${++this.tools}`, cwd, apart });
+ }
+
+ // The main photos of the page open in the built-in browser (show_pictures with photos): how many the agent asked for.
+ async browserPhotos(conv, turn, count, { cwd, apart }) {
+  const panel = this.browserOf(conv);
+  if (!panel || !panel.current(apart)) return { error: PICTURES.noBrowser };
+  const args = { chat: conv.id, sealed: this.library.isProtected(conv.id), count: count === true ? 4 : Number(count) || 4 };
+  return panel.run('browser_photos', args, { id: turn.tool || `${conv.id}-${++this.tools}`, cwd, apart });
  }
 
  // The agent asks the user (the ask_user tool): the composer of this chat turns into the card with the questions
@@ -2049,6 +2070,8 @@ class Chat {
   this.dismissGhost(view);
   if (turn.next) this.dismissGhost(turn.next);
   const about = AgentTools.describe(request.name, request.args, request.cwd, request.apart, request.panel);
+  // A helper's step (helpers.js) says whose it is.
+  if (request.helper) about.title = I18n.t('helpers.asks', { name: request.helper, what: about.title });
   const rule = this.modeOf(conv) === 'ask' ? AgentTools.approvalRule?.(request.name, request.args, { cwd: request.cwd, apart: request.apart, panel: request.panel }) : null;
   const always = rule && this.library.allowPermission ? { hint: rule.hint, save: async () => {
    const saved = await this.library.allowPermission(conv.id, rule.key, turn.controller.signal);
@@ -2278,6 +2301,7 @@ class Chat {
     messages: [{ role: 'system', content: COMPACT.prompt }, { role: 'user', content: transcript(source) }],
     maxTokens: compactRoom(turn.config),
     signal: turn.controller.signal,
+    waited: true,
     onUsage: usage => { cost = usage; },
    });
   } catch (error) {
@@ -2829,7 +2853,7 @@ class Chat {
  async judgeDocs(conv, turn, docs) {
   const request = this.userTexts(conv).slice(-3).join('\n\n');
   if (!request.trim() || turn.controller.signal.aborted) return null;
-  const answer = await Providers.complete(turn.config, { messages: PlanProof.judgeMessages(request, docs), signal: turn.controller.signal, maxTokens: PlanProof.JUDGE.answer });
+  const answer = await Providers.complete(turn.config, { messages: PlanProof.judgeMessages(request, docs), signal: turn.controller.signal, maxTokens: PlanProof.JUDGE.answer, waited: true });
   return PlanProof.verdict(answer);
  }
 
@@ -3729,6 +3753,8 @@ class SideChat extends Chat {
 }
 
 Chat.splitQuotes = splitQuotes;
+// What the agent's helpers (helpers.js) run on: the same desk, notes and steps as a chat's own agent.
+Chat.internals = { Desk, TOOL_NOTES, UNDONE, assistantStep, imageStep, estimate, spend, sharedKinds, CONTEXT, COMPACT, compactRoom };
 window.Chat = Chat;
 window.SideChat = SideChat;
 })();

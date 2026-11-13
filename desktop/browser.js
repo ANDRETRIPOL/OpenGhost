@@ -338,6 +338,45 @@ function install() {
   }
   return { src: '', rect: part, alt: '' };
  }
+ // The main photos of the page (show_pictures with photos): the gallery of the listing, product or place the page is
+ // about. Its largest photo on the screen first, then the others of the gallery it is in, also those the gallery keeps
+ // out of sight; last the photo the page names for links to it. Icons, logos, the page's head and foot and the photos of
+ // other offers further down do not count. Nothing on the page moves.
+ const PHOTO = { least: 200, up: 6 };
+ function photoSource(img) {
+  const own = widest(img);
+  if (/^https?:/i.test(own)) return own;
+  const lazy = ['data-src', 'data-lazy-src', 'data-original', 'data-lazy'].map(name => img.getAttribute(name)).find(Boolean);
+  try { return lazy ? new URL(lazy, img.baseURI).href : ''; } catch { return ''; }
+ }
+ function isPhoto(img) {
+  if (img.closest('header, nav, footer, [role="banner"], [role="navigation"]')) return false;
+  if (/\b(logo|icon|avatar|sprite|badge|flag)\b/i.test(`${img.className} ${img.alt}`)) return false;
+  const r = rectOf(img), wide = Math.max(r.width, img.naturalWidth || 0), tall = Math.max(r.height, img.naturalHeight || 0);
+  return wide >= PHOTO.least && tall >= PHOTO.least / 2 && !!photoSource(img);
+ }
+ function photos(count) {
+  const all = [...document.querySelectorAll('img')].filter(isPhoto);
+  const main = all.filter(img => shown(img)).sort((a, b) => area(rectOf(b)) - area(rectOf(a)))[0];
+  let gallery = [];
+  for (let up = main?.parentElement, k = 0; up && up !== document.body && k < PHOTO.up; up = up.parentElement, k++) {
+   const near = all.filter(img => up.contains(img));
+   if (near.length > 1) { gallery = near; break; }
+  }
+  // One photo in several sizes (the large one and its thumbnail) is one photo.
+  const out = [], seen = new Set();
+  const add = (src, alt) => {
+   let key = src;
+   try { const url = new URL(src); key = url.pathname.length > 12 ? url.origin + url.pathname : src; } catch {}
+   if (!src || seen.has(key)) return;
+   seen.add(key);
+   out.push({ src, alt });
+  };
+  for (const img of main ? [main, ...gallery] : []) add(photoSource(img), clean(img.alt));
+  const named = document.querySelector('meta[property="og:image"], meta[property="og:image:url"], meta[name="og:image"], meta[name="twitter:image"]')?.content;
+  if (named) try { add(new URL(named, document.baseURI).href, ''); } catch {}
+  return out.slice(0, count);
+ }
 
  function quiet(idle, max) {
   return new Promise(resolve => {
@@ -374,7 +413,7 @@ function install() {
   const el = state.refs.get(Number(ref))?.deref();
   if (el?.getAttribute('data-openghost-upload') === marker) el.removeAttribute('data-openghost-upload');
  }
- window.__og = { snapshot, point, choose, reveal, quiet, has, image, imageIn, box: ref => rectOf(element(ref)), document: () => state.document,
+ window.__og = { snapshot, point, choose, reveal, quiet, has, image, imageIn, photos, box: ref => rectOf(element(ref)), document: () => state.document,
   uploadTarget, unmarkUpload, isFile: ref => { const el = element(ref);return el.tagName === 'INPUT' && el.type === 'file'; } };
 }
 
@@ -690,6 +729,21 @@ async function picture(guest, args, signal) {
  return { ...kept, page, title, alt: seen?.alt || '', from: rect ? 'part' : 'screen' };
 }
 
+// The main photos of the page open now (show_pictures with photos), each fetched at the largest size the page offers
+// and kept for the chat. One that cannot be fetched, or is only a small thumbnail, is left out.
+async function photosOf(guest, args, signal) {
+ const chat = String(args.chat || ''), page = guest.getURL(), title = guest.getTitle();
+ const count = Math.min(8, Math.max(1, Math.round(Number(args.count) || 4)));
+ const found = await world(guest, `__og.photos(${count})`) || [];
+ const pictures = [];
+ for (const seen of found) {
+  if (signal.aborted) break;
+  const kept = await Pictures.fromWeb(chat, seen.src, page, signal, !!args.sealed).catch(() => null);
+  if (kept && kept.width >= 160) pictures.push({ ...kept, page, title, alt: seen.alt, from: 'picture' });
+ }
+ return { pictures };
+}
+
 const MIME = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif', '.avif':'image/avif', '.bmp':'image/bmp', '.svg':'image/svg+xml', '.heic':'image/heic', '.pdf':'application/pdf', '.txt':'text/plain', '.csv':'text/csv', '.json':'application/json', '.zip':'application/zip', '.mp4':'video/mp4', '.webm':'video/webm', '.mp3':'audio/mpeg' };
 function acceptsFile(file, accept) {
  const rules = String(accept || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
@@ -883,6 +937,8 @@ async function act(found, name, args, signal, files) {
   }
   case 'browser_picture':
    return picture(guest, args, signal);
+  case 'browser_photos':
+   return photosOf(guest, args, signal);
   case 'browser_screenshot': {
    const shot = await screenshot(guest, args, signal, files);
    const scale = Math.abs(shot.scale - 1) < 0.01 ? 'one screenshot pixel is one page pixel' : `divide screenshot pixels by ${shot.scale.toFixed(3)}`;

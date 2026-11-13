@@ -66,6 +66,9 @@ function watch(thread) {
   note();
  }, { passive: true });
  const sizes = new ResizeObserver(hold);
+ // The chat's own box too: a window made lower and narrower at once (maximized, restored, snapped) shrinks it while no
+ // message changes its height, and a chat read at its end slid under the composer.
+ sizes.observe(thread);
 
  const sight = new IntersectionObserver(entries => {
   for (const entry of entries) {
@@ -105,7 +108,7 @@ function watch(thread) {
  new MutationObserver(records => {
   for (const record of records) for (const node of record.addedNodes) if (node.nodeType === 1 && node.matches('.thread-list')) take(node);
  }).observe(thread, { childList: true });
- watched.set(thread, { note });
+ watched.set(thread, { note, end: () => !!held?.end });
 }
 
 // Whoever has changed the chat and put it where it should be tells so here: the place is taken as it stands.
@@ -118,5 +121,11 @@ function follow(thread, following) {
  followers.set(thread, following);
 }
 
-window.ThreadWindow = { watch, rest, follow, has: thread => watched.has(thread) };
+// Whether the chat was read at its end as of the last place it was held at: a box that has only just changed size
+// (and not been put right yet) does not count.
+function atEnd(thread) {
+ return watched.get(thread)?.end();
+}
+
+window.ThreadWindow = { watch, rest, follow, atEnd, has: thread => watched.has(thread) };
 })();

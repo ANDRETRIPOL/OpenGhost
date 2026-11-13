@@ -155,8 +155,14 @@ async function fromWeb(chat, address, page = '', signal, sealed = false) {
   const stop = new AbortController(), timer = setTimeout(() => stop.abort(), WAIT.fetch);
   signal?.addEventListener('abort', () => stop.abort(), { once: true });
   try {
-   const headers = page && /^https?:/i.test(page) ? { Referer: page } : {};
-   const response = await session.fromPartition('persist:browser').fetch(url, { headers, signal: stop.signal });
+   // The page it is on goes as the request's referrer, as when the page itself loads it (a Referer header set by hand
+   // is refused: net::ERR_BLOCKED_BY_CLIENT). A site that refuses even that gets the request without one.
+   const browser = session.fromPartition('persist:browser'), from = page && /^https?:/i.test(page) ? page : '';
+   let response = await browser.fetch(url, { ...(from ? { referrer: from } : {}), signal: stop.signal }).catch(error => {
+    if (!from || stop.signal.aborted) throw error;
+    return null;
+   });
+   if (!response || (from && !response.ok)) response = await browser.fetch(url, { signal: stop.signal });
    if (!response.ok) throw plain(`The picture could not be fetched: ${response.status}`);
    const type = response.headers.get('content-type') || '';
    if (type && !/^image\//i.test(type) && !/octet-stream/i.test(type)) throw plain(`That address is not a picture but ${type.split(';')[0]}`);

@@ -66,7 +66,8 @@ for(const [mode,delta,expected]of [[0,30,30],[1,2,32],[2,1,200]]){
  check('Final geometry refresh needs no repeating timer or extra DOM observer',f.timers.size===0&&f.bar.target.max===0&&!f.bar.contentWatch);
 }
 const script=fs.readFileSync(path.join(root,'script.js'),'utf8'),css=fs.readFileSync(path.join(root,'styles.css'),'utf8');
-check('Only the sidebar opts into auto-hide in application startup',script.includes("new Scrollbar(document.querySelector('.chats-scroll'), document.querySelector('.chats-scrollbar'), { autoHide: true })")&&(script.match(/autoHide:\s*true/g)||[]).length===1);
+check('The sidebar and the chat opt into auto-hide in application startup, and nothing else',script.includes("new Scrollbar(document.querySelector('.chats-scroll'), document.querySelector('.chats-scrollbar'), { autoHide: true })")&&script.includes("new Scrollbar(thread, document.querySelector('.thread-scrollbar'), { autoHide: true })")&&(script.match(/autoHide:\s*true/g)||[]).length===2);
+check('The chat scrollbar ends above the composer: its rule outranks the base .scrollbar that comes later',/\.thread-view > \.thread-scrollbar\s*\{[^}]*bottom:\s*calc\(var\(--composer-space/.test(css));
 check('Idle styling removes invisible pointer interception without changing layout',/\.scrollbar\.is-auto-hide\.is-scrollable:not\(\.is-scroll-active\):not\(\.is-dragging\)\s*\{\s*opacity:\s*0;\s*pointer-events:\s*none;\s*\}/.test(css));
 check('Only opted-in indicators lose their fade with reduced motion',/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.scrollbar\.is-auto-hide\s*\{\s*transition:\s*none;/.test(css));
 const resizeRule=css.match(/^\.sidebar-resize\s*\{([\s\S]*?)\}/m)?.[1]||'',resizeMark=css.match(/^\.sidebar-resize::after\s*\{([\s\S]*?)\}/m)?.[1]||'';

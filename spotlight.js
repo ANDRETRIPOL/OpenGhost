@@ -45,8 +45,8 @@ function ago(time, now = Date.now()) {
 }
 
 class Spotlight {
- constructor({ button, anchor, library, chat, onSkill = null }) {
-  Object.assign(this, { button, anchor, library, chat, onSkill });
+ constructor({ button, anchor, library, chat, onSkill = null, onChat = null }) {
+  Object.assign(this, { button, anchor, library, chat, onSkill, onChat });
   this.open = false;
   // 'chats', or 'skills' once the Skills plate is in the field; `locked`: opened for skills alone, from the sidebar.
   this.mode = 'chats';
@@ -351,7 +351,8 @@ class Spotlight {
  go(id) {
   this.close({ focus: false });
   if (id.startsWith('skill:')) this.onSkill?.(id.slice(6));
-  else this.chat.open(id);
+  // The chat found is open and its message field has the keys, as if it had been pressed in the list.
+  else Promise.resolve(this.chat.open(id)).then(() => this.onChat?.(), () => {});
  }
 
  // The plates under the field: Skills, while there are any and the field holds no capsule yet.

@@ -707,7 +707,10 @@ class ChatList {
    const was = new Set(group.inner.querySelectorAll('.chat-row'));
    this.render();
    if (reducedMotion()) return;
-   [...group.inner.querySelectorAll('.chat-row')].filter(row => !was.has(row)).forEach((row, k) => {
+   // Only the rows that come out in sight have a flight: with a hundred chats, a blurred flight each, the last of them
+   // seconds late and out of sight, held the first frame up.
+   const room = (this.root.querySelector('.chats-scroll') || this.list).getBoundingClientRect();
+   [...group.inner.querySelectorAll('.chat-row')].filter(row => !was.has(row)).filter(row => row.getBoundingClientRect().top < room.bottom).forEach((row, k) => {
     for (const animation of row.getAnimations()) animation.cancel();
     row.animate([{ opacity: 0, transform: 'translateY(-6px)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'blur(0px)' }], { duration: MORE.duration, delay: k * MORE.step, easing: MORE.easing, fill: 'backwards' });
    });

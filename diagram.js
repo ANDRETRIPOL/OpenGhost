@@ -56,9 +56,18 @@ const GIT = { max: 720, row: 28, lane: 18 };
 const CELLS = { max: 720, min: 34, wide: 120, height: 32, gap: 3 };
 const BRACKET = { card: 50, gap: 14, min: 124, max: 200 };
 const DAY = 86400000;
-const EDIT = { debounce: 90 };
-const TOOLS = { width: 68, height: 36, gap: 10, reach: 24 };
+const TOOLS = { width: 100, height: 36, gap: 10, reach: 24 };
 const COPIED_TIME = 1600;
+// A drawing saved as a picture: the margin round it, how many pixels it has per pixel of the chat at least, and what of
+// each part's look is carried over from the page.
+const PICTURE = {
+ pad: 24,
+ scale: 2,
+ style: ['display', 'visibility', 'opacity', 'fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-opacity', 'stroke-width', 'stroke-dasharray',
+  'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'paint-order', 'marker-start', 'marker-mid', 'marker-end',
+  'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant-numeric', 'letter-spacing', 'text-anchor', 'dominant-baseline',
+  'alignment-baseline', 'text-decoration', 'transform', 'transform-origin', 'transform-box', 'filter', 'mix-blend-mode', 'stop-color', 'stop-opacity'],
+};
 const NEAR = 22;
 const WIDTH_CACHE = 4000;
 // How text is set, as [size, weight]. The stylesheet gives the same numbers to the class each one stands for,
@@ -124,6 +133,8 @@ const SKIP = /^(classDef|class|style|linkStyle|click|direction|accTitle|accDescr
 const ICONS = {
  edit: '<svg class="dg-icon is-edit" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.2 3.3l2.5 2.5M3 13l.6-3 6.9-6.9a1.4 1.4 0 0 1 2 0l.4.4a1.4 1.4 0 0 1 0 2L6 12.4z"/></svg>'
   + '<svg class="dg-icon is-done" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>',
+ save: '<svg class="dg-icon is-save" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.25v7.5M4.75 6.75L8 10l3.25-3.25M2.75 13.25h10.5"/></svg>'
+  + '<svg class="dg-icon is-saved" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>',
  copy: '<svg class="dg-icon is-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="5.25" y="5.25" width="8.5" height="8.5" rx="2.25"/><path d="M10.75 3.25a2 2 0 0 0-2-2h-4.5a3 3 0 0 0-3 3v4.5a2 2 0 0 0 2 2"/></svg>'
   + '<svg class="dg-icon is-copied" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>',
 };
@@ -7313,8 +7324,13 @@ function editorFor(result) {
 /* View: one live diagram inside a message */
 
 class DiagramView {
- constructor(el, onChange, { instant = false } = {}) {
+ constructor(el, onChange, { instant = false, bare = false, enlarge = 1, mirror = null } = {}) {
   this.el = el;
+  // A drawing on the editing stage: drawn larger there, and without tools of its own. It mirrors the chat's drawing,
+  // laid out for the chat's room and only scaled, so the two are one picture at two sizes and fly into each other.
+  this.bare = bare;
+  this.enlarge = enlarge;
+  this.mirror = mirror;
   this.onChange = onChange;
   this.instant = instant;
   this.kind = el.dataset.kind || '';
@@ -7332,8 +7348,8 @@ class DiagramView {
   this.result = null;
   this.live = true;
   this.editing = false;
-  this.hints = null;
-  this.sideways = false;
+  this.hints = mirror?.hints || null;
+  this.sideways = mirror?.sideways || false;
   this.width = 0;
   this.stageLeft = 0;
   this.stageTop = 0;
@@ -7369,6 +7385,7 @@ class DiagramView {
 
  // A stage that is not on the page yet has no width to tell: it is asked again until it has one.
  available() {
+  if (this.mirror) return this.mirror.available() * this.enlarge;
   this.measured ??= this.stage.clientWidth || null;
   return Math.max(260, this.measured || 0);
  }
@@ -7376,6 +7393,7 @@ class DiagramView {
  // The column of text inside the stage. A drawing has the whole width of the chat to itself, and the text runs
  // down the middle of it; in a list or a quote the stage is no wider than the text.
  column() {
+  if (this.mirror) { const column = this.mirror.column(); return { left: column.left * this.enlarge, width: column.width * this.enlarge }; }
   const room = this.available(), parent = this.el.parentElement;
   const width = this.el.classList.contains('md-wide') && parent ? Math.min(room, Math.max(260, parent.clientWidth)) : room;
   return { left: (room - width) / 2, width };
@@ -7384,7 +7402,7 @@ class DiagramView {
  // How much larger than drawn a drawing is shown: as the chat's type is to the type its sizes were made for.
  zoom() {
   const size = parseFloat(getComputedStyle(this.el).fontSize) || 16;
-  return clamp(size / TYPE.base, TYPE.min, TYPE.max);
+  return clamp(size / TYPE.base, TYPE.min, TYPE.max) * this.enlarge;
  }
 
  update(source, live = false) {
@@ -7400,14 +7418,12 @@ class DiagramView {
   // A saved chat is drawn before it is put on the page, so its first layout does not know the width and takes the
   // narrowest. What that layout decided, to stand a scheme on end or where its blocks go, is a guess and is not
   // kept: once the width is known, the scheme is laid out for it afresh.
-  const width = this.available(), blind = !this.measured;
+  const width = this.available(), blind = !this.measured && !this.mirror;
   const result = safeCompile(this.source, this.tones, { width, column: this.column().width, zoom: this.zoom(), hints: this.hints, sideways: this.sideways, kind: this.kind });
   if (!result) {
-   if (this.editing) this.setHint(I18n.t('diagram.error'));
-   else if (!this.live && !this.result) this.fallback();
+   if (!this.live && !this.result) this.fallback();
    return false;
   }
-  this.setHint('');
   if (this.fallbackEl) { this.fallbackEl.remove(); this.fallbackEl = null; this.stage.hidden = false; }
   const first = !this.result;
   this.result = result;
@@ -7605,15 +7621,17 @@ class DiagramView {
  }
 
  ensureTools() {
-  if (this.tools || !this.result) return;
+  if (this.tools || !this.result || this.bare) return;
   const tools = this.tools = div('dg-tools glass-lens', this.frame);
   tools.innerHTML = `<button type="button" class="dg-tool" data-action="edit" aria-label="${I18n.t('diagram.edit')}">${ICONS.edit}</button>`
+   + `<button type="button" class="dg-tool" data-action="save" aria-label="${I18n.t('diagram.save')}">${ICONS.save}</button>`
    + `<button type="button" class="dg-tool" data-action="copy" aria-label="${I18n.t('diagram.copy')}">${ICONS.copy}</button>`;
   if (window.LiquidGlass) new LiquidGlass(tools, TOOLS);
   tools.addEventListener('click', event => {
    const button = event.target.closest('.dg-tool');
    if (!button) return;
-   if (button.dataset.action === 'edit') this.editing ? this.closeEditor() : this.openEditor();
+   if (button.dataset.action === 'edit') this.openEditor();
+   else if (button.dataset.action === 'save') this.save(button);
    else this.copy(button);
   });
   if (this.view) this.applyView(this.view);
@@ -7626,327 +7644,87 @@ class DiagramView {
   button.doneTimer = setTimeout(() => button.classList.remove('is-done'), COPIED_TIME);
  }
 
- openEditor() {
-  if (this.editing || this.live) return;
-  this.editing = true;
-  this.original = this.good;
-  this.adapter = editorFor(this.result);
-  if (!this.editor) this.buildEditor();
-  const editor = this.editor;
-  editor.getAnimations().forEach(animation => animation.cancel());
-  this.frame.classList.add('is-editing');
-  this.tools.querySelector('[data-action="edit"]').setAttribute('aria-label', I18n.t('diagram.done'));
-  const visual = !!this.adapter?.read(withHeader(this.good, this.kind));
-  this.modes.hidden = !visual;
-  this.setMode(visual ? 'data' : 'code');
-  this.syncReset();
-  editor.hidden = false;
-  const height = editor.offsetHeight;
-  if (!reducedMotion()) editor.animate([{ height: '0px', opacity: 0 }, { height: `${height}px`, opacity: 1 }], { duration: 420, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
-  (visual ? editor : this.code).focus({ preventScroll: true });
- }
-
- buildEditor() {
-  const editor = this.editor = div('dg-editor', this.frame);
-  editor.hidden = true;
-  editor.tabIndex = -1;
-  const bar = div('dg-editor-bar', editor);
-  this.modes = div('dg-modes', bar);
-  for (const mode of ['data', 'code']) this.button(this.modes, '', I18n.t(mode === 'data' ? 'edit.visual' : 'edit.code'), () => this.setMode(mode, true)).dataset.mode = mode;
-  div('dg-editor-space', bar);
-  this.resetButton = this.button(bar, 'dg-editor-button', I18n.t('edit.reset'), () => this.resetEdits());
-  this.button(bar, 'dg-editor-button is-primary', I18n.t('edit.done'), () => this.closeEditor());
-  this.form = div('dg-form', editor);
-  const wrap = div('dg-code-wrap', editor);
-  this.code = document.createElement('textarea');
-  this.code.className = 'dg-code';
-  this.code.spellcheck = false;
-  this.code.setAttribute('autocapitalize', 'off');
-  this.code.setAttribute('aria-label', I18n.t('diagram.edit'));
-  wrap.append(this.code);
-  this.hint = div('dg-hint', editor);
-  this.code.addEventListener('input', () => this.schedule(() => this.code.value));
-  this.code.addEventListener('keydown', event => {
-   if (event.key !== 'Tab' || event.shiftKey) return;
-   event.preventDefault();
-   this.code.setRangeText('  ', this.code.selectionStart, this.code.selectionEnd, 'end');
-   this.code.dispatchEvent(new Event('input'));
-  });
-  editor.addEventListener('keydown', event => {
-   if (event.key === 'Escape' || (event.key === 'Enter' && (event.ctrlKey || event.metaKey))) { event.preventDefault(); this.closeEditor(); }
-  });
- }
-
- button(parent, className, text, action) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  if (className) button.className = className;
-  button.textContent = text;
-  button.addEventListener('click', action);
-  parent.append(button);
-  return button;
- }
-
- schedule(read) {
-  this.pending = read;
-  clearTimeout(this.timer);
-  this.timer = setTimeout(() => this.flush(), EDIT.debounce);
- }
-
- flush() {
-  clearTimeout(this.timer);
-  const read = this.pending;
-  if (!read) return;
-  this.pending = null;
-  this.source = read();
-  this.render();
-  this.syncReset();
- }
-
- syncReset() {
-  if (this.resetButton) this.resetButton.disabled = this.good === this.original && !this.pending;
- }
-
- setMode(mode, user = false) {
-  this.flush();
-  const before = user && !this.editor.hidden ? this.editor.offsetHeight : 0;
-  if (mode === 'data') {
-   const model = this.adapter?.read(withHeader(this.good, this.kind));
-   if (model) { this.model = model; this.buildForm(); }
-   else mode = 'code';
-  }
-  if (mode === 'code') this.code.value = this.good;
-  this.mode = mode;
-  this.editor.dataset.mode = mode;
-  for (const button of this.modes.children) button.classList.toggle('is-active', button.dataset.mode === mode);
-  this.setHint('');
-  if (before && !reducedMotion()) {
-   const after = this.editor.offsetHeight;
-   if (after !== before) this.editor.animate([{ height: `${before}px` }, { height: `${after}px` }], { duration: 360, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
-  }
-  if (user && mode === 'code') this.code.focus({ preventScroll: true });
- }
-
- edited() {
-  // The block a diagram opens with holds its title and settings. The table has no fields for them, so the block
-  // stays as it was written.
-  const front = FRONT.exec(this.good)?.[0] || '';
-  this.schedule(() => `${front}${front && !front.endsWith('\n') ? '\n' : ''}${this.adapter.write(this.model)}`);
- }
-
- buildForm() {
-  const m = this.model, form = this.form;
-  form.replaceChildren();
-  if (m.fields.length) {
-   const grid = div('dg-fields', form);
-   for (const entry of m.fields) {
-    const row = document.createElement('label');
-    row.className = `dg-field${entry.kind === 'check' ? ' is-check' : ''}`;
-    const name = document.createElement('span');
-    name.textContent = I18n.t(entry.label);
-    row.append(name, this.control(entry.kind, entry.value, value => { entry.value = value; this.edited(); }, entry.options));
-    grid.append(row);
+ // The drawing as a picture to keep or send on: a PNG of what the chat shows, on the chat's own ground with a margin
+ // round it, at twice the size at least so it stays sharp on a phone. Its parts are drawn by the stylesheet, which a
+ // picture made of it does not have, so each part takes the look it has on the page.
+ async picture() {
+  const v = this.view;
+  if (!v || !this.result) return null;
+  const source = this.svg, copy = source.cloneNode(true), pad = PICTURE.pad;
+  const from = [source, ...source.querySelectorAll('*')], to = [copy, ...copy.querySelectorAll('*')];
+  from.forEach((el, i) => {
+   const style = getComputedStyle(el);
+   let text = '';
+   for (const name of PICTURE.style) {
+    const value = style.getPropertyValue(name);
+    if (value) text += `${name}:${value.replace(/url\("?[^"#)]*#([^")]+)"?\)/g, 'url(#$1)')};`;
    }
-  }
-  if (m.outline !== undefined) {
-   const box = div('dg-outline', form);
-   const area = document.createElement('textarea');
-   area.className = 'dg-code is-outline';
-   area.spellcheck = false;
-   area.value = m.outline;
-   area.addEventListener('input', () => { m.outline = area.value; this.edited(); });
-   area.addEventListener('keydown', event => outlineKey(event, area));
-   box.append(area);
-   div('dg-note-text', box, I18n.t('edit.outlineHint'));
-  }
-  if (m.tables.length) {
-   const grid = div(`dg-tables${m.tables.length > 1 ? ' is-pair' : ''}`, form);
-   m.tables.forEach((table, index) => grid.append(this.table(table, index)));
-  }
- }
-
- control(kind, value, onChange, options, placeholder = '') {
-  if (kind === 'select') {
-   const select = document.createElement('select');
-   select.className = 'dg-input is-select';
-   for (const [key, label] of options) select.add(new Option(label, key));
-   select.value = value;
-   select.addEventListener('change', () => onChange(select.value));
-   return select;
-  }
-  if (kind === 'check') {
-   const box = document.createElement('input');
-   box.type = 'checkbox';
-   box.className = 'dg-check';
-   box.checked = !!value;
-   box.addEventListener('change', () => onChange(box.checked));
-   return box;
-  }
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = `dg-input${kind === 'number' ? ' is-number' : ''}`;
-  input.value = String(value ?? '').replace(/\n/g, ' ');
-  input.placeholder = placeholder;
-  input.spellcheck = false;
-  if (kind === 'number') input.inputMode = 'decimal';
-  input.addEventListener('input', () => {
-   if (kind === 'number') input.classList.toggle('is-bad', input.value.trim() !== '' && !Number.isFinite(number(input.value)));
-   onChange(input.value);
+   to[i].setAttribute('style', text);
   });
-  return input;
+  // The picture is as large as the drawing itself, not the width of the chat it stood in, and keeps what is drawn past
+  // the frame (a long label, a mark at the edge).
+  let x0 = 0, y0 = 0, x1 = v.w, y1 = v.h;
+  try {
+   const box = this.canvas.getBBox();
+   if (box.width > 0 && box.height > 0) {
+    x0 = v.ox + box.x * v.s; y0 = v.top + box.y * v.s;
+    x1 = v.ox + (box.x + box.width) * v.s; y1 = v.top + (box.y + box.height) * v.s;
+   }
+  } catch {}
+  const w = Math.ceil(x1 - x0 + 2 * pad), h = Math.ceil(y1 - y0 + 2 * pad);
+  const ground = getComputedStyle(this.el.closest('.thread-view') || document.body).getPropertyValue('--chat-bg').trim() || getComputedStyle(document.body).backgroundColor;
+  setAttrs(copy, { xmlns: 'http://www.w3.org/2000/svg', width: w, height: h, viewBox: `${f(x0 - pad)} ${f(y0 - pad)} ${w} ${h}` });
+  copy.removeAttribute('class');
+  const font = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  font.textContent = '@font-face { font-family: "OpenGhost Display"; src: local("Segoe UI Variable Display"); font-weight: 300 700; }';
+  const back = svg('rect', { x: f(x0 - pad), y: f(y0 - pad), width: w, height: h, fill: ground });
+  copy.prepend(font, back);
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)], { type: 'image/svg+xml' }));
+  try {
+   const image = new Image();
+   image.src = url;
+   await image.decode();
+   const scale = Math.max(PICTURE.scale, window.devicePixelRatio || 1), canvas = document.createElement('canvas');
+   canvas.width = Math.round(w * scale);
+   canvas.height = Math.round(h * scale);
+   canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+   return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  } finally { URL.revokeObjectURL(url); }
  }
 
- table(t, index) {
-  const block = div('dg-table-block');
-  block.dataset.index = index;
-  if (t.title) div('dg-section-title', block, I18n.t(t.title));
-  const scroll = div('dg-table-scroll', block);
-  const table = document.createElement('table');
-  table.className = 'dg-table';
-  scroll.append(table);
-  const head = table.createTHead().insertRow(), lock = t.lock ?? 0;
-  t.cols.forEach((col, ci) => {
-   const th = document.createElement('th');
-   if (col.wide || col.narrow) th.className = col.wide ? 'is-wide' : 'is-narrow';
-   if (col.width) th.style.width = col.width;
-   if (col.head) {
-    const cell = div('dg-head-cell', th);
-    const name = this.control('text', col.name, value => { col.name = value; this.edited(); });
-    name.classList.add('is-head');
-    cell.append(name);
-    if (ci >= lock && t.cols.length > lock + 1) cell.append(this.removeButton(() => { t.cols.splice(ci, 1); t.rows.forEach(row => row.cells.splice(ci, 1)); this.structure(index); }));
-   } else th.textContent = I18n.t(col.label);
-   head.append(th);
-  });
-  head.append(document.createElement('th'));
-  const body = table.createTBody(), min = t.min ?? 1;
-  t.rows.forEach((row, ri) => {
-   const tr = body.insertRow();
-   if (row.fresh) { tr.className = 'is-new'; delete row.fresh; }
-   t.cols.forEach((col, ci) => {
-    const set = value => { row.cells[ci] = value; if (t.key === 'nodes') this.syncNodes(); this.edited(); };
-    const control = col.kind === 'node' ? this.nodeSelect(col, row.cells[ci], set) : this.control(col.kind, row.cells[ci], set, col.options, col.placeholder || '');
-    control.dataset.row = ri;
-    control.dataset.col = ci;
-    const td = tr.insertCell();
-    if (col.narrow) td.className = 'is-narrow';
-    td.append(control);
-   });
-   const tools = tr.insertCell();
-   tools.className = 'dg-row-tools';
-   if (t.rows.length > min) tools.append(this.removeButton(() => this.removeRow(t, index, ri)));
-  });
-  table.addEventListener('keydown', event => this.gridKey(event, t, index));
-  const actions = div('dg-table-actions', block);
-  this.button(actions, 'dg-add', I18n.t(t.add), () => this.addRow(t, index));
-  if (t.addCol) this.button(actions, 'dg-add', I18n.t(t.addCol), () => {
-   t.cols.push(t.blankCol(t));
-   t.rows.forEach(row => row.cells.push(''));
-   this.structure(index, 'thead th:nth-last-child(2) input');
-  });
-  return block;
+ // The picture saved where the user says, named after the drawing's own title when it has one.
+ async save(button) {
+  if (!window.openghost?.saveImage || button.classList.contains('is-busy')) return;
+  button.classList.add('is-busy');
+  try {
+   const bytes = await this.picture();
+   if (!bytes) return;
+   const title = /(?:^|[ \t])title[: \t]+"?([^"\n]+?)"?[ \t]*$/mi.exec(this.good || '')?.[1] || I18n.t('diagram.file');
+   if (!await window.openghost.saveImage(title, bytes)) return;
+   button.classList.add('is-done');
+   clearTimeout(button.doneTimer);
+   button.doneTimer = setTimeout(() => button.classList.remove('is-done'), COPIED_TIME);
+  } catch {} finally { button.classList.remove('is-busy'); }
  }
 
- removeButton(action) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'dg-remove';
-  button.setAttribute('aria-label', I18n.t('edit.remove'));
-  button.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6"/></svg>';
-  button.addEventListener('click', action);
-  return button;
+ // Editing happens on a stage of its own (diagram-stage.js): the drawing flies there out of the chat and back.
+ openEditor() {
+  if (this.editing || this.live || !this.result || !window.DiagramStage) return;
+  DiagramStage.open(this);
  }
 
- nodeSelect(col, value, onChange) {
-  const select = document.createElement('select');
-  select.className = 'dg-input is-select';
-  select.dataset.node = col.pseudo || '';
-  this.fillNodes(select, value);
-  select.addEventListener('change', () => onChange(select.value));
-  return select;
- }
-
- fillNodes(select, value = select.value) {
-  const pseudo = select.dataset.node, nodes = this.model.tables.find(t => t.key === 'nodes').rows;
-  select.replaceChildren();
-  if (pseudo) select.add(new Option(I18n.t(pseudo === 'start' ? 'edit.startState' : 'edit.endState'), '[*]'));
-  nodes.forEach((row, i) => select.add(new Option(words(row.cells[0]).replace(/\*\*/g, '') || `${I18n.t('edit.block')} ${i + 1}`, row.meta.id)));
-  for (const group of this.model.groups || []) select.add(new Option(`${I18n.t('edit.group')}: ${group.title || group.id}`, group.id));
-  select.value = value;
- }
-
- syncNodes() {
-  for (const select of this.form.querySelectorAll('select[data-node]')) this.fillNodes(select);
- }
-
- addRow(t, index, col = t.focus ?? 0) {
-  const row = t.blank(t, this.model);
-  row.fresh = true;
-  t.rows.push(row);
-  this.structure(index, `tbody [data-row="${t.rows.length - 1}"][data-col="${col}"]`);
- }
-
- removeRow(t, index, ri) {
-  const [row] = t.rows.splice(ri, 1);
-  if (t.key === 'nodes') {
-   const links = this.model.tables.find(other => other.key === 'links');
-   if (links) links.rows = links.rows.filter(link => link.cells[0] !== row.meta.id && link.cells[1] !== row.meta.id);
-  }
-  this.structure(index);
- }
-
- structure(index, focus = '') {
-  const tables = this.model.tables, rebuild = [index];
-  if (tables[index].key === 'nodes') rebuild.push(tables.findIndex(t => t.key === 'links'));
-  for (const k of rebuild) {
-   if (k < 0) continue;
-   const next = this.table(tables[k], k);
-   this.form.querySelector(`.dg-table-block[data-index="${k}"]`).replaceWith(next);
-   if (k === index && focus) next.querySelector(focus)?.focus();
-  }
-  this.edited();
- }
-
- gridKey(event, t, index) {
-  const el = event.target;
-  if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey || el.tagName !== 'INPUT' || el.dataset.row === undefined) return;
-  event.preventDefault();
-  const row = +el.dataset.row + 1, col = +el.dataset.col;
-  if (row >= t.rows.length) this.addRow(t, index, col);
-  else el.closest('tbody').querySelector(`[data-row="${row}"][data-col="${col}"]`)?.focus();
- }
-
- resetEdits() {
-  clearTimeout(this.timer);
-  this.pending = null;
-  this.source = this.original;
-  this.render();
-  this.setMode(this.mode);
-  this.syncReset();
- }
-
- setHint(text) {
-  if (!this.hint) return;
-  this.hint.textContent = text;
-  this.hint.classList.toggle('is-shown', !!text);
- }
-
- closeEditor() {
-  if (!this.editing) return;
-  this.flush();
+ // What the stage made of the drawing comes back: drawn here at once, under the drawing flying home, and told to the
+ // chat when it changed. The stage's layout decisions come with it, so the drawing here is the one that flies home.
+ adopt(source, stage = null) {
+  const from = this.good;
   this.editing = false;
-  this.source = this.good;
-  this.frame.classList.remove('is-editing');
-  this.setHint('');
-  this.tools.querySelector('[data-action="edit"]').setAttribute('aria-label', I18n.t('diagram.edit'));
-  const editor = this.editor;
-  if (editor.contains(document.activeElement)) document.activeElement.blur();
-  if (reducedMotion()) editor.hidden = true;
-  else {
-   const animation = editor.animate([{ height: `${editor.offsetHeight}px`, opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 300, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' });
-   animation.finished.then(() => { if (!this.editing) editor.hidden = true; animation.cancel(); }, () => {});
-  }
-  this.commit(this.original);
+  if (!source || source === this.good) return;
+  if (stage) { this.hints = stage.hints; this.sideways = stage.sideways; }
+  this.instant = true;
+  this.source = source;
+  this.render();
+  this.commit(from);
  }
 
  commit(from) {
@@ -7955,7 +7733,7 @@ class DiagramView {
  }
 
  rename(event) {
-  if (this.live || !this.result || !['flow', 'state'].includes(this.result.dialect)) return;
+  if (this.live || this.bare || this.editing || !this.result || !['flow', 'state'].includes(this.result.dialect)) return;
   const g = event.target.closest('.dg-node');
   const item = g && this.scene.items.get(g.dataset.key);
   const id = item?.spec.fixed.id;
@@ -7982,8 +7760,7 @@ class DiagramView {
    const from = this.good;
    this.source = renameNode(this.good, id, value, this.result.dialect);
    this.render();
-   if (this.editing) { this.setMode(this.mode); this.syncReset(); }
-   else this.commit(from);
+   this.commit(from);
   };
   input.addEventListener('keydown', e => {
    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
@@ -8033,5 +7810,8 @@ const view = (el, onChange, options) => new DiagramView(el, onChange, options);
 if (document.readyState === 'complete') prewarm();
 else window.addEventListener('load', prewarm, { once: true });
 
-window.Diagram = { view, prewarm, compile: safeCompile, renameNode, editorFor, withHeader };
+// What the editing stage (diagram-stage.js) reads a drawing into lines with, and writes it back.
+const edit = { editorFor, withHeader, outlineKey, front: source => FRONT.exec(source)?.[0] || '' };
+
+window.Diagram = { view, prewarm, compile: safeCompile, renameNode, editorFor, withHeader, edit };
 })();

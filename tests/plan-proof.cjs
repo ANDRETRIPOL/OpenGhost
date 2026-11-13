@@ -217,6 +217,12 @@ function eyes(over = {}) {
  check('Words in quotes with no source beside them are the agent\'s own: a title it wrote is no quotation (seen with DeepSeek)', P.audit(c, 'The page opens with “A warm loaf for every family on our quiet little street”.\n\nSources: https://b.test/two', []), '');
  check('Nor are words it wrote into a file, quoted beside a link', P.audit(c, 'The heading “Bread that is baked while the whole city is still asleep” follows https://b.test/two', []), '');
  check('A quoted block with no link is a quotation still', P.audit(c, '> Every pizza needs exactly nine grams of salt per kilo of flour, always.', []).includes('nine grams'), true);
+ // A callout the format guide asks for is the agent's own note, not a quotation (seen with DeepSeek: it then told the
+ // user «these were my own words»). Its links are still sources.
+ check('A callout block is no quotation', P.audit(c, '> [!NOTE]\n> The contact form is markup only for now: the letter goes nowhere, since sending needs a server you asked not to add.', []), '');
+ check('Nor a callout in another case, after other text', P.audit(c, 'Done.\n\n> [!tip] Open index.html with a double click: the site works straight from the file, with no internet at all.', []), '');
+ check('A link in a callout is still a source to check', P.audit(c, '> [!NOTE]\n> More at https://made.up/x about forms that send letters without any server of your own.', []).includes('https://made.up/x'), true);
+ check('A quoted block right after a callout is a quotation still', P.audit(c, '> [!NOTE]\n> My own note about the menu page and its prices for today.\n\n> Every pizza needs exactly nine grams of salt per kilo of flour, always.', []).includes('nine grams'), true);
  c = fresh(); e = eyes({ judge: () => ({ unmet: e.asked.judge === 1 ? ['a vegetarian section'] : [] }) });
  note(c, 'write_file', { path: 'menu.md', content: '# Menu' }, 'Created menu.md (1 lines)');
  note(c, 'read_file', { path: 'menu.md' }, '# Menu');

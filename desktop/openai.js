@@ -23,6 +23,16 @@ const error = (message, status = 0, code = '') => Object.assign(new Error(messag
 // same catalogue answers an API key. A model OpenAI adds, or takes away from a plan, is in or out of the list the next
 // time it is read. The public /models only names models, so it says which of the catalogue's a key may use.
 const levelsOf = entry => (entry.supported_reasoning_levels || []).map(level => typeof level === 'string' ? level : level?.effort).filter(Boolean);
+// Ultra is no level a request carries: OpenAI's own Codex sends a model's Ultra as the level its catalogue names for work
+// handed out to helpers (multi_agent_reasoning_effort), else as its Max, else as its highest other level, and lets the
+// model hand work out on its own. The backend turns "ultra" itself down.
+const ULTRA = 'ultra';
+const ultraOf = (entry, levels) => {
+ if (!levels.includes(ULTRA)) return undefined;
+ const named = entry.multi_agent_reasoning_effort;
+ if (named && named !== ULTRA && levels.includes(named)) return named;
+ return levels.includes('max') ? 'max' : levels.filter(level => level !== ULTRA).at(-1) || 'medium';
+};
 const offered = list => list.filter(entry => entry?.slug && entry.visibility === 'list').sort((a, b) => (a.priority ?? Infinity) - (b.priority ?? Infinity));
 
 const describe = provider => entry => {
@@ -38,6 +48,7 @@ const describe = provider => entry => {
   output: Number(entry.max_output_tokens) || Number(entry.max_completion_tokens) || 0,
   vision: !Array.isArray(entry.input_modalities) || entry.input_modalities.includes('image'),
   efforts,
+  ultraEffort: ultraOf(entry, efforts),
   fast: (Array.isArray(entry.service_tiers) && entry.service_tiers.some(tier => ['priority', 'fast'].includes(typeof tier === 'string' ? tier : tier?.id))) || (Array.isArray(entry.additional_speed_tiers) && entry.additional_speed_tiers.includes('fast')),
   defaultEffort: efforts.includes(entry.default_reasoning_level) ? entry.default_reasoning_level : efforts.includes('medium') ? 'medium' : efforts[0],
  };
@@ -196,7 +207,7 @@ async function stream(request, context) {
   store: false,
   stream: true,
   include: ['reasoning.encrypted_content'],
-  reasoning: effort && effort !== 'none' ? { effort, summary: 'auto' } : { effort: 'none' },
+  reasoning: effort && effort !== 'none' ? { effort: effort === ULTRA ? request.ultraEffort || 'xhigh' : effort, summary: 'auto' } : { effort: 'none' },
  };
  if (request.fast === true && ['standard', 'fast'].includes(request.speed)) body.service_tier = request.speed === 'fast' ? 'priority' : 'default';
  if (tools?.length) {

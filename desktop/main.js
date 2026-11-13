@@ -234,6 +234,18 @@ const fromApp = event => event.sender.getType() === 'window' && event.senderFram
 // The user's own folders where the system really keeps them, for paths the agent wrote by their usual names.
 const knownFolders = () => Object.fromEntries([['Desktop', 'desktop'], ['Documents', 'documents'], ['Downloads', 'downloads'], ['Pictures', 'pictures'], ['Music', 'music'], ['Videos', 'videos']].map(([name, key]) => { try { return [name, app.getPath(key)]; } catch { return [name, '']; } }));
 ipcMain.handle('path:open', (event, target) => fromApp(event) ? Reveal.open(target, shell, process.platform, knownFolders()) : 'missing');
+// A drawing of the chat as a PNG, saved where the user picks, Downloads offered first.
+ipcMain.handle('image:save', async (event, name, bytes) => {
+ if (!fromApp(event) || !(bytes instanceof Uint8Array) || !bytes.length) return false;
+ const stem = String(name || '').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'drawing';
+ let where = '';
+ try { where = app.getPath('downloads'); } catch {}
+ const window = BrowserWindow.fromWebContents(event.sender);
+ const choice = await dialog.showSaveDialog(window, { defaultPath: path.join(where, `${stem}.png`), filters: [{ name: 'PNG', extensions: ['png'] }] });
+ if (choice.canceled || !choice.filePath) return false;
+ await fs.promises.writeFile(choice.filePath, Buffer.from(bytes));
+ return true;
+});
 ipcMain.handle('path:terminal', (event, target) => fromApp(event) ? Reveal.terminal(target, process.platform, knownFolders()) : 'missing');
 ipcMain.handle('path:copy', async (event, target) => {
  if (!fromApp(event) || typeof target !== 'string') return false;

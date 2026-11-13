@@ -82,7 +82,7 @@ const SCHEMAS = [
   path: { type: 'string', description: 'Folder to list, the project folder by default' },
   depth: { type: 'integer', description: 'How many levels deep, 2 by default, 6 at most' },
  }),
- fn('git', 'Run git in the project folder when relevant to an existing repository or explicitly requested by the user, for example ["status"], ["log", "--oneline", "-10"], ["diff"]. Do not initialize or clone a repository, install Git, commit or push unless the user explicitly requests that action. A request to maintain Git history authorizes local commits for that task, not installation or publishing. Stage only this task\'s authorized changes, preserving pre-existing edits and other agents\' work.', {
+ fn('git', 'Run git in the project folder, for example ["status"], ["switch", "-c", "feature/dark-theme"], ["commit", "-m", "…"], ["log", "--oneline", "-10"]. For a project, as the instructions on Git and branches say: a branch of its own for each feature or fix, each checked step committed there; a repository started only after the user said yes to it; finished branches merged into the main branch only for a release, offered with ask_user and done on the user\'s yes; never push, clone or install Git unless the user says so. Stage only this task\'s own changes, preserving pre-existing edits and other agents\' work.', {
   args: { type: 'array', items: { type: 'string' }, description: 'Arguments after the word git, one per item' },
   description: PURPOSE('git command'),
  }, ['args', 'description']),
@@ -100,7 +100,7 @@ const SCHEMAS = [
  }, ['query']),
  fn('show_pictures', 'Show the user pictures in the chat right away and go on working: what you see in the built-in browser (the whole screen, a part of it, or the picture of an element), a picture on the internet by its address, or an image file on this computer. The user may watch the browser panel but cannot look closer there without taking it from you, and does not see it at all while it is closed; these pictures stay in the chat and open large. They go into your answer where you are in it, under the words you have written so far.', {
   pictures: {
-   type: 'array', minItems: 1, maxItems: 8, description: 'The pictures, shown together in this order. Each comes from one place: ref, or a part of the screen (x, y, width, height), or url, or path; with none of them, the whole screen of the browser.',
+   type: 'array', minItems: 1, maxItems: 8, description: 'The pictures, shown together in this order. Each comes from one place: ref, or a part of the screen (x, y, width, height), or photos, or url, or path; with none of them, the whole screen of the browser.',
    items: {
     type: 'object',
     properties: {
@@ -110,6 +110,7 @@ const SCHEMAS = [
      y: { type: 'number', description: 'Browser: top of that part' },
      width: { type: 'number', description: 'Browser: width of that part' },
      height: { type: 'number', description: 'Browser: height of that part' },
+     photos: { type: 'integer', description: 'Browser: the main photos of the page open now, as many as this (1 to 8): the gallery of the listing, product, car or place you are on, the largest first, also those it shows one at a time. Needs no ref and no screenshot; the caption goes with all of them' },
      url: { type: 'string', description: 'The full address of a picture on the internet' },
      path: { type: 'string', description: 'An image file on this computer: png, jpg, webp, gif, bmp, avif, tiff' },
     },
@@ -190,6 +191,21 @@ const SCHEMAS = [
   reason: { type: 'string', description: 'For drop and wait: why, one sentence in the user\'s language. For start while the plan has open steps: why the new plan replaces it' },
   after: { type: 'integer', description: 'For add: put the new steps after this step; at the end by default' },
  }, ['action']),
+ fn('spawn_agent', 'Start a helper: another agent like you, with your model and your tools (except asking the user, the plan, the notepad, routines, memory, the record, pictures in the reply and starting helpers), working at the same time as you in the same folder, with a browser tab of its own. It knows nothing but your message, so the message holds everything it needs: the goal, the files and places, what done looks like and how to check it, what not to touch. It ends with a report you read with wait_agent. The user sees your helpers at work and can write to them or stop them. See the instructions on helpers for when to start one.', {
+  task_name: { type: 'string', description: 'The part in one to four words of the user\'s language, the name the user sees, e.g. "Меню и цены"' },
+  message: { type: 'string', description: 'The whole task for the helper, in the user\'s language: what to do, where, what done looks like, how to check it, which files are its own and which to leave alone' },
+ }, ['task_name', 'message']),
+ fn('wait_agent', 'Wait until one of your helpers finishes, then get the reports of all that have finished since you last asked, and how the others stand. It also returns when the user writes to you or when the time is up. Prefer long waits: minutes, not seconds.', {
+  timeout_seconds: { type: 'integer', description: 'How long to wait at most, in seconds; 600 by default, 1800 at most' },
+ }),
+ fn('send_message', 'Send a helper more to do or a correction. A helper at work reads it after its current step; one that has finished starts again on it, and you read its new report with wait_agent.', {
+  target: { type: 'string', description: 'The helper\'s task_name' },
+  message: { type: 'string', description: 'What to tell it, in the user\'s language' },
+ }, ['target', 'message']),
+ fn('interrupt_agent', 'Stop a helper whose work is no longer needed or went wrong. What it changed stays.', {
+  target: { type: 'string', description: 'The helper\'s task_name' },
+ }, ['target']),
+ fn('list_agents', 'How your helpers stand: at work and on what, done, stopped or failed.', {}),
  fn('memory', 'What you remember about the user across all chats; what it holds comes in a note from the app. save: write a new record, when nothing there is about the same thing. update: write the record with this id anew, so that it says what it said and what is new together, or the new instead of what has changed. forget: remove the record with this id.', {
   action: { type: 'string', enum: ['save', 'update', 'forget'] },
   id: { type: 'string', description: 'For update and forget: the id of the record, like m3' },

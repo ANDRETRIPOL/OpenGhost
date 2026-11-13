@@ -104,7 +104,7 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, onAc
  const id = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
  const request = {
   provider: config.provider, key: config.key, address: config.address, window: config.window, model: config.model, effort: config.effort, vision: config.vision,
-  thinking: config.thinking, output: config.output, fast: config.fast === true, fastBeta: config.fastBeta || '', speed: config.speed || 'standard', messages, tools, maxTokens, session, once, aside,
+  thinking: config.thinking, output: config.output, fast: config.fast === true, ultraEffort: config.ultraEffort, fastBeta: config.fastBeta || '', speed: config.speed || 'standard', messages, tools, maxTokens, session, once, aside,
  };
  return new Promise((resolve, reject) => {
   const partial = { content: '', reasoning: '', toolCalls: [], finishReason: null, usage: null };
@@ -167,22 +167,24 @@ async function stream(config, options) {
 
 // Short side jobs, such as naming a chat or compacting it, think as little as the model allows. `onUsage` hears what the job
 // cost, for a chat that keeps count of its own tokens.
-async function complete(config, { messages, signal, maxTokens = 40, onUsage }) {
+// `waited`: the user waits on this answer in the middle of a reply (a chat's summary, the look at a plan's step), so it
+// goes at the chat's own speed; a job done behind the user's back (a title, the facts kept) takes the standard one.
+async function complete(config, { messages, signal, maxTokens = 40, onUsage, waited = false }) {
  const once = begin => config.provider === 'deepseek'
   ? DeepSeek.complete({ key: config.key, model: config.model, messages, signal, maxTokens, ...heard(begin) })
-  : sideComplete(config, { messages, signal, maxTokens, ...heard(begin) });
+  : sideComplete(config, { messages, signal, maxTokens, waited, ...heard(begin) });
  const result = counted(config, await endure(config, once, { signal }));
  onUsage?.(result.usage);
  return config.provider === 'deepseek' ? result.content : result.content.trim();
 }
 
-function sideComplete(config, { messages, signal, maxTokens, ...live }) {
+function sideComplete(config, { messages, signal, maxTokens, waited = false, ...live }) {
  const efforts = config.efforts || [];
  const effort = efforts.includes('none') ? 'none' : efforts[0] || 'low';
  // A model that always thinks spends its room on thinking first, so it gets room for both. So does a service's model:
  // its "none" is only offered, and one that turns it down is asked again with nothing said and thinks as it likes.
  const room = config.provider === 'anthropic' || config.provider === 'custom' || !efforts.includes('none') ? Math.max(maxTokens, 2048) : maxTokens;
- return viaMain({ ...config, effort, speed: 'standard' }, { messages, signal, maxTokens: room, once: true, ...live });
+ return viaMain({ ...config, effort, speed: waited ? config.speed : 'standard' }, { messages, signal, maxTokens: room, once: true, ...live });
 }
 
 // A prediction of the user's next message (predictions.js): the chat's own request with a word from the app at its end,
@@ -195,7 +197,7 @@ function sideComplete(config, { messages, signal, maxTokens, ...live }) {
 // - A model on the user's own computer has no price and no cache to lose, only time: it thinks as little as it can.
 // - The answer is a few words: the room for it is small, larger where the model thinks first, and an answer that runs
 //   on is cut off.
-const PREDICT = { plain: 80, thinking: 2048, most: 400, steep: ['xhigh', 'max'], openai: ['openai', 'chatgpt'] };
+const PREDICT = { plain: 80, thinking: 2048, most: 400, steep: ['xhigh', 'max', 'ultra'], openai: ['openai', 'chatgpt'] };
 async function predict(config, { messages, tools, signal, session }) {
  const efforts = config.efforts || [];
  let effort = config.effort;

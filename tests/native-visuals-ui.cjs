@@ -22,7 +22,7 @@ process.on('uncaughtException', finish); process.on('unhandledRejection', finish
 setTimeout(() => finish(Error('Native visuals UI timeout')), 110000);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const check = (name, pass) => { assert.ok(pass, name); report.checks.push(name); };
-const scripts = ['i18n-ru.js', 'i18n.js', 'glyphs.js', 'file-kinds.js', 'tex.js', 'highlight.js', 'markdown.js', 'diagram.js', 'stream-view.js', 'agent-plan.js', 'plan-proof.js', 'chat.js'];
+const scripts = ['i18n-ru.js', 'i18n.js', 'glyphs.js', 'file-kinds.js', 'tex.js', 'highlight.js', 'markdown.js', 'scrollbar.js', 'diagram.js', 'diagram-stage.js', 'stream-view.js', 'agent-plan.js', 'plan-proof.js', 'chat.js'];
 const chart = '```mermaid\nxychart-beta\n title Значения из тестовой фикстуры\n x-axis [A, B, C]\n y-axis Значение 0 --> 10\n bar "Измерение" [3, 6, 9]\n```';
 const progress = '## Первые результаты\n\n**Проверены три значения**. График показан до завершения работы.\n\n### Сравнение значений\n\n' + chart;
 const rich = '\n\n> [!NOTE]\n> Данные этого примера заданы тестом, а не получены от модели.\n\n| Этап | Число |\n| --- | --- |\n| A | 3 |\n| B | 6 |\n| C | 9 |\n\n- **Выделение** сохранено\n- *Курсив* и `код` тоже\n';
@@ -74,8 +74,8 @@ app.whenReady().then(async () => {
  await js(`document.documentElement.dataset.theme='light';void 0`); await shot('final-light');
  // Real editor controls remain usable after checkpoint and continuation.
  await js(`firstView.ensureTools();firstDiagram.querySelector('[data-action="edit"]').click();void 0`);
- check('The native editor still opens after continuing the response', await js(`firstView.editing&&!!firstDiagram.querySelector('.dg-editor')`));
- await js(`firstView.closeEditor();void 0`); await settle();
+ check('The native editor still opens after continuing the response', await js(`firstView.editing&&!!document.querySelector('.ds')&&DiagramStage.current?.view===firstView`));
+ await js(`DiagramStage.current.close();void 0`); await settle();
  win.setContentSize(400, 940); await pause(100); await settle();
  report.narrow = await js(`({width:innerWidth,scroll:document.documentElement.scrollWidth,svg:firstSVG.getBoundingClientRect().toJSON(),headings:firstHeadings.map(h=>h.getBoundingClientRect().toJSON())})`);
  await shot('narrow-light');

@@ -149,7 +149,10 @@ class ThreadBones {
    }
   }
   if (!inner.childElementCount) return null;
-  const thread = this.thread, bottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 2;
+  // At its end as the chat was last held, not as this moment's box says: veiled in the middle of a window's resize, the
+  // chat had already shrunk and seemed to be read higher up, and came back away from its end.
+  const thread = this.thread, held = window.ThreadWindow?.atEnd?.(thread);
+  const bottom = held ?? thread.scrollHeight - thread.scrollTop - thread.clientHeight < 2;
   // The list holds its width, so nothing in it is set anew while the column changes. It stays drawn as it is: taken out
   // of the page's work for the while, the whole chat had to be painted afresh when it came back, and on a slow computer
   // the words could be seen settling for a second or two.

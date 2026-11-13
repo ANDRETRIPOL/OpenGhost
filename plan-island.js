@@ -140,7 +140,8 @@ class PlanIsland {
   let left = 0, right = width;
   for (const el of this.main.querySelectorAll(':scope > .top-tools, :scope > .notes-pill')) if (seen(el)) left = Math.max(left, el.offsetLeft + el.offsetWidth);
   for (const el of this.main.querySelectorAll(':scope > .routines-pill, :scope > .update-pill, :scope > .browser-tools')) if (seen(el)) right = Math.min(right, el.offsetLeft);
-  const room = Math.floor(2 * Math.min(middle - left, right - middle) - 2 * ROOM.gap);
+  // The helpers' island beside it (helper-island.js) takes this much of the room.
+  const room = Math.floor(2 * Math.min(middle - left, right - middle) - 2 * ROOM.gap) - (this.beside || 0);
   // The open panel's own width, set here so that it lays out at its final width from the first frame of its move.
   this.root.style.setProperty('--plan-sheet', `${Math.max(0, Math.min(PANEL.width, width - PANEL.gutter))}px`);
   // Never narrower than the ring: while a panel slides in or out the room shrinks and swells for a few frames, and
@@ -384,7 +385,8 @@ class PlanIsland {
    if (item.k === 'site') return I18n.t(item.errors ? 'proof.siteErrors' : 'proof.site', { count: item.errors });
    if (item.k === 'read') return I18n.t('proof.read', { file: item.file });
    if (item.k === 'shown') return I18n.t('proof.shown', { file: item.file });
-   if (item.k === 'page') return I18n.t('proof.page', { title: item.title });
+   // A page with neither a title nor an address (a blank tab) says nothing, not «».
+   if (item.k === 'page') return String(item.title || '').trim() ? I18n.t('proof.page', { title: item.title }) : '';
    if (item.k === 'opened') return I18n.t('proof.opened', { count: item.count });
    if (item.k === 'files') {
     const parts = [['added', 'proof.filesNew'], ['moved', 'proof.filesMoved'], ['changed', 'proof.filesChanged'], ['removed', 'proof.filesRemoved']].filter(([key]) => item[key] > 0).map(([key, word]) => I18n.t(word, { count: item[key] }));

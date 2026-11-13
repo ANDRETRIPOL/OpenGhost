@@ -6,22 +6,20 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.5.3 beta**
+**v1.5.4 beta**
 
-[Windows version 1.5.3](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.3/OpenGhost-1.5.3-Setup.exe)
+[Windows version 1.5.4](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.4/OpenGhost-1.5.4-Setup.exe)
 
-[Linux version 1.5.3](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.3/OpenGhost-1.5.3-linux.tar.gz)
+[Linux version 1.5.4](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.4/OpenGhost-1.5.4-linux.tar.gz)
 
-[macOS version 1.5.3](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.3/OpenGhost-1.5.3-mac.dmg)
+[macOS version 1.5.4](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.4/OpenGhost-1.5.4-mac.dmg)
 
 What's new:
-- Split View keeps two chats side by side, with saved pairs and an adjustable divider.
-- Each pane can have its own mini chat. Conversations, model settings, private records and browser ownership stay independent, and agents keep working in the background.
-- Optional Fast controls for supported GPT, Claude and OpenRouter models, saved per chat. Fast can use more of your allowance or cost more. **Fast through ChatGPT is experimental: sending the request is verified, but server-side application and actual acceleration are not confirmed.**
-- Provider errors no longer silently downgrade the selected reasoning effort. The effort capsule resizes smoothly, with clearer Fast bolt states.
-- Message times and day separators, compact actions on hover, and a new notification sound.
-- Better sidebar grouping for pairs and forks, with an automatically hiding scrollbar.
-- Automatic record keeping can read the full 40,000-character private chat record.
+- Helpers: for a big task with independent parts, the agent hands parts to up to three helpers working at the same time. A second island beside the plan shows what each is doing; write to a helper or stop it. GPT on Ultra uses them on its own, any model when you ask.
+- The agent works on projects like a developer: asks once about Git, a branch for every feature or fix, checked steps committed, branches merged only when you release a version.
+- The agent checks its work by eye: clicks through anything with an interface at phone and desktop width, in both themes, and tells you what it saw.
+- GPT Ultra works again; GPT Fast through ChatGPT is confirmed by timing (about 1.5× faster).
+- A new drawing editor with drag to reorder, drawings saved as PNG, photos of suggested options, and many fixes (Split View from a narrow window, a centred plan, a hiding chat scrollbar).
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 

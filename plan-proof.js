@@ -360,7 +360,9 @@ const PlanProof = {
   for (const text of given) corpus += `\n${normal(text)}`;
   // A quotation is words in quotes beside a link to where they come from, or a quoted block; words in quotes with no
   // source beside them are the agent's own, a name or a title.
-  const cited = said.split(/\n\s*\n|\n(?=\s*(?:[-*•]|\d+[.)])\s)/).filter(part => /https?:\/\/\S/.test(part) || /^\s*>/m.test(part)).join('\n');
+  // A callout (> [!NOTE], > [!TIP]…) is the agent's own note, which the format guide asks for, not a quotation.
+  const quotable = said.replace(/^[ \t]*>[ \t]*\[![a-z]+\][^\n]*(?:\n[ \t]*>[^\n]*)*/gim, ' ');
+  const cited = quotable.split(/\n\s*\n|\n(?=\s*(?:[-*•]|\d+[.)])\s)/).filter(part => /https?:\/\/\S/.test(part) || /^\s*>/m.test(part)).join('\n');
   const quoted = [...cited.matchAll(/[“«"]([^”»"\n]{40,600})[”»"]|^\s*>\s*(.{40,600})$/gm)].map(match => (match[1] || match[2]).trim());
   out.quotes = [...new Set(quoted)].filter(quote => normal(quote).length >= PROOF.quote && !corpus.includes(normal(quote))).map(quote => quote.length > 120 ? `${quote.slice(0, 117)}…` : quote);
   return out;

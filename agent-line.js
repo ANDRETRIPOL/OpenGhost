@@ -56,6 +56,11 @@ function deed(name, args = {}, cwd = '', apart = null) {
   case 'browser_press': return say('press', args.key);
   case 'browser_scroll': return say('scroll');
   case 'browser_wait': return say('wait', quote(args.text));
+  // The agent's helpers (helpers.js).
+  case 'spawn_agent': return say('helper', quote(args.task_name));
+  case 'wait_agent': return say('helpers');
+  case 'send_message': return say('tellHelper', quote(args.target));
+  case 'interrupt_agent': return say('stopHelper', quote(args.target));
   default: return null;
  }
 }

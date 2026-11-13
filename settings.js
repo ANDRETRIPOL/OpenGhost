@@ -398,6 +398,8 @@ class Settings {
    effort,
    efforts,
    fast: model?.fast === true,
+   // What a model's Ultra is sent as (desktop/openai.js).
+   ultraEffort: model?.ultraEffort,
    fastBeta: model?.fastBeta || '',
    fastLookup: model?.fastLookup === true && typeof model.fast !== 'boolean',
    speed: 'standard',

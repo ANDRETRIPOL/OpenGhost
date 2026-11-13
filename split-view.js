@@ -2,6 +2,8 @@
 'use strict';
 
 const { GAP, MIN } = SplitSizing;
+// How long a window made wider for two chats is waited for (see ensureOpen).
+const GROW_WAIT = 900;
 const motion = () => !matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Pane controls share the existing conversations, never a second copy of their messages or running agents.
@@ -13,7 +15,8 @@ class SplitPane {
   main.removeAttribute('style');
   main.querySelector('.thread').replaceChildren(Object.assign(document.createElement('div'), { className: 'thread-list' }));
   for (const el of main.querySelectorAll('.plan-island, .update-pill, .lock-screen, .thread-bones, .thread-wait')) el.remove();
-  main.querySelector('.welcome').replaceChildren();
+  // The empty pane greets like the main chat: its own welcome ghost, started below once the field is there.
+  main.querySelector('.welcome').replaceChildren(Object.assign(document.createElement('div'), { className: 'welcome-flight' }));
   main.querySelector('.composer-input').value = '';
   main.querySelector('.composer-input').removeAttribute('autofocus');
   main.querySelector('.composer-mirror-lines').replaceChildren();
@@ -49,12 +52,14 @@ class SplitPane {
   this.composer = $('.composer');
   this.sendButton = $('.composer-send');
   this.text = new ComposerText(this.input, $('.composer-mirror'));
+  this.welcome = new WelcomeGhost({ main, root: $('.welcome'), input: this.input });
   new SkillPicker({ input: this.input, text: this.text, anchor: this.composer, onPick: () => this.sync() });
   new SmoothHeight(this.field, this.input);
+  Predictions.room({ field: this.field, input: this.input, placeholder: $('.composer-placeholder') });
   ComposerSpace.watch(main, this.composer);
   this.bones = new ThreadBones({ app: owner.app, main, thread: $('.thread') });
   ThreadWindow.watch($('.thread'));
-  const bar = new Scrollbar($('.thread'), $('.thread-scrollbar'));
+  const bar = new Scrollbar($('.thread'), $('.thread-scrollbar'), { autoHide: true });
   this.inputBar = new Scrollbar(this.input, $('.composer-scrollbar'));
   LinkChip.watch($('.composer-mirror')); LinkChip.watch($('.thread'));
   this.chat = new Chat({ main, thread: $('.thread'), bottom: $('.thread-bottom'), settings, library: owner.library,
@@ -65,6 +70,7 @@ class SplitPane {
   owner.join(this.chat);
   this.chat.onForked = (...args) => owner.chat.onForked?.(...args);
   this.plan = new PlanIsland({ main, chat: this.chat });
+  this.helpers = new HelperIsland({ main, chat: this.chat, plan: this.plan });
   this.lock = new LockScreen({ main, chat: this.chat, composer: this.composer, onOpen: () => this.input.focus({ preventScroll: true }) });
   this.folder = new FolderPill({ button: $('.composer-folder'), library: owner.library, chat: this.chat });
   this.attachments = new Attachments({ tray: $('.composer-attachments'), picker: $('.composer-picker'), panel: document.querySelector('.note-panel'), main,
@@ -170,7 +176,7 @@ class SplitPane {
   this.sendButton.configure({ busy: chat.busy, empty, stopping: !!chat.active?.turn?.controller.signal.aborted });
   const suggesting = chat.busy && !empty;
   this.sendButton.parentElement.classList.toggle('is-suggesting', suggesting);
-  if (!empty && chat.prediction) chat.forget(chat.active, true);
+  // Words in the field hide the prediction; wiped out, it is back (it goes for good when a message is sent).
   const predicted = empty ? chat.prediction : '';
   if (predicted !== this.field.dataset.predicted) {
    this.field.dataset.predicted = predicted;
@@ -184,10 +190,10 @@ class SplitPane {
   }
   this.field.classList.toggle('has-value', this.input.value !== '');
   this.folder.sync(); this.settings.show(chat.model); this.models?.sync(); this.effort?.follow(); this.effort?.lock(chat.busy);
-  this.notepad?.sync(); this.routines?.sync(); this.plan.sync(); chat.syncAsk(); chat.syncForks();
+  this.notepad?.sync(); this.routines?.sync(); this.plan.sync(); this.helpers.sync(); chat.syncAsk(); chat.syncForks();
   this.name.textContent = now?.record ? this.owner.library.titleOf(now.record) : I18n.t('chat.new');
   this.main.setAttribute('aria-label', this.name.textContent);
-  this.name.hidden = !this.plan.root.hidden;
+  this.name.hidden = !this.plan.root.hidden || !this.helpers.root.hidden;
   this.close.setAttribute('label', I18n.t('split.close'));
   this.close.title = I18n.t('split.close');
   this.signalMini();
@@ -391,15 +397,27 @@ class SplitView {
   if (candidates.length) return this.open(candidates[0].id);
   return this.openDraft(this.chat.folder);
  }
- ensureOpen() {
+ async ensureOpen() {
   this.pane ||= new SplitPane(this, this.template);
   this.pane.ensureBrowser();
   if (this.opened) return false;
   this.cancelMotion();
+  const room = () => this.app.clientWidth - 2 * this.sidePanels.gap();
+  // A window too narrow for two chats is made wider (desktop/size.js). It grows at once, but its new width reaches the
+  // page a moment later: wait for it, rather than finding no room and giving up while the window still grows.
+  window.openghost?.size?.setSplit?.(true);
+  if (!SplitSizing.fit(room())) {
+   await new Promise(resolve => {
+    const check = () => { if (SplitSizing.fit(room())) done(); };
+    const timer = setTimeout(() => done(), GROW_WAIT);
+    const done = () => { clearTimeout(timer); window.removeEventListener('resize', check); resolve(); };
+    window.addEventListener('resize', check);
+   });
+   if (this.opened) return false;
+  }
   this.beforeOpen = this.main.getBoundingClientRect();
   if (motion()) this.bones.veil();
-  window.openghost?.size?.setSplit?.(true);
-  if (!SplitSizing.fit(this.app.clientWidth - 2 * this.sidePanels.gap())) {
+  if (!SplitSizing.fit(room())) {
    this.cancelMotion();
    window.openghost?.size?.setSplit?.(false);
    return false;
@@ -414,10 +432,10 @@ class SplitView {
   this.sidePanels.layout();
   return this.opened;
  }
- openDraft(folder = null) {
-  if (!this.canFit()) return Promise.resolve();
-  const openedNow = this.ensureOpen();
-  if (!this.opened) return Promise.resolve();
+ async openDraft(folder = null) {
+  if (!this.canFit()) return;
+  const openedNow = await this.ensureOpen();
+  if (!this.opened) return;
   this.pane.chat.newChat(folder);
   if (openedNow) this.animateOpen();
   else this.animateSwitch();
@@ -506,8 +524,8 @@ class SplitView {
   try { await this.pane.chat.open(id, { pane: true }); }
   finally { if (this.opening === token) this.switching = false; }
   if (this.opening !== token || this.pane.chat.activeId !== id) return;
-  const openedNow = this.ensureOpen();
-  if (!this.opened) return;
+  const openedNow = await this.ensureOpen();
+  if (!this.opened || this.opening !== token) return;
   this.remember();
   this.focus(this.pane.chat); this.changed(); this.pane.input.focus({ preventScroll: true }); Notify.look();
   if (openedNow) this.animateOpen();

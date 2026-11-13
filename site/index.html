@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.5.3</span>
+      <span class="ver" data-version>v1.5.4</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.3.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.4.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.5.3</h3>
+        <h3 class="h3" data-news-title>What's new in 1.5.4</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.5.3';
+const FALLBACK = '1.5.4';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,18 +1470,18 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'Split View: two chats side by side, saved pairs, an adjustable divider and a mini chat for each pane.',
-    'Independent conversations, settings, private records and browser ownership. Agents keep working in the background.',
-    'Optional Fast for supported models, with higher allowance use or cost. Fast through ChatGPT is experimental: the request is verified, but server-side application and acceleration are not confirmed.',
-    'Provider errors no longer silently downgrade reasoning effort. The effort capsule resizes smoothly and the Fast bolt has clearer states.',
-    'Message times and day separators, actions on hover, a new notification sound, better sidebar grouping and full 40,000-character record access for automatic record keeping.',
+    'Helpers: the agent hands independent parts of a big task to up to three helpers at once. A second island beside the plan shows what each is doing; write to one or stop it.',
+    'Projects the developer way: Git asked once, a branch for every feature, checked steps committed, branches merged only when you release.',
+    'The agent checks its work by eye: clicks through, phone and desktop width, both themes, and tells you what it saw.',
+    'GPT Ultra works again, and GPT Fast through ChatGPT is confirmed by timing.',
+    'A new drawing editor with drag to reorder, drawings saved as PNG, photos of suggested options, and many fixes.',
   ],
   ru: [
-    'Split View: два чата рядом, сохранённые пары, регулируемый разделитель и отдельный мини-чат у каждой панели.',
-    'Независимые переписки, настройки, личные записи и управление браузером. Агенты продолжают работу в фоне.',
-    'Fast для поддерживаемых моделей с повышенным расходом лимита или стоимостью. Через ChatGPT режим экспериментальный: отправка проверена, применение сервером и ускорение не подтверждены.',
-    'Ошибки провайдера больше не понижают уровень рассуждения незаметно. Капсула effort плавно меняет размер, состояния молнии Fast стали понятнее.',
-    'Время сообщений и разделители дней, действия при наведении, новый звук, улучшенная группировка чатов и доступ ко всем 40 000 символов записи для автоматического сохранения фактов.',
+    'Помощники: агент раздаёт независимые части большой задачи до трёх помощников сразу. Второй островок рядом с планом показывает, что делает каждый; можно написать помощнику или остановить его.',
+    'Проекты как у разработчика: один вопрос про Git, своя ветка на каждую функцию, проверенные шаги в коммитах, слияние веток только при выпуске версии.',
+    'Агент проверяет работу глазами: прокликивает, смотрит ширину телефона и компьютера, обе темы и рассказывает, что увидел.',
+    'GPT «Ультра» снова работает, а GPT Fast через ChatGPT подтверждён замером скорости.',
+    'Новый редактор рисунков с перетаскиванием, сохранение рисунков в PNG, фото предлагаемых вариантов и много исправлений.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };

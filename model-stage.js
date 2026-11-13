@@ -468,6 +468,7 @@ class ModelStage {
   if (!this.settings.models.length) { this.settings.open(I18n.t('settings.key.needed')); return; }
   this.settings.freshen();
   this.state = 'open';
+  this.root.style.pointerEvents = '';
   this.keyboard = keyboard;
   this.pointer = null;
   this.steered = performance.now() + OPEN.still;
@@ -803,6 +804,9 @@ class ModelStage {
   if (this.state !== 'open' && this.state !== 'confirm') return;
   clearTimeout(this.going);
   this.state = 'closing';
+  // Going away it takes no more presses: the name flies home over a page that is the user's again, and a press on the
+  // effort, the field or the list was lost on the veil for the second the flight takes.
+  this.root.style.pointerEvents = 'none';
   this.button.removeAttribute('expanded');
   document.documentElement.classList.remove('is-staging');
   if (reducedMotion()) { this.finish(); return; }
@@ -844,17 +848,21 @@ class ModelStage {
  finish() {
   if (this.state !== 'closing') return;
   this.state = 'closed';
+  this.root.style.pointerEvents = '';
   document.documentElement.classList.remove('is-staging');
   this.accepting = false;
   this.dropFlyer();
   this.dropCarrier();
   this.sync();
   this.button.away(false);
+  // Where the keyboard went meanwhile (the effort, the field) stays: the menu takes it home only from itself or nowhere.
+  const active = document.activeElement, moved = !!active && active !== document.body && !this.root.contains(active);
   for (const animation of this.root.getAnimations({ subtree: true })) animation.cancel();
   this.root.hidePopover();
   this.focused = null;
   this.marked = null;
   this.choice = null;
+  if (moved && active.isConnected) return;
   if (this.keyboard) this.button.focus({ preventScroll: true });
   else this.input?.focus({ preventScroll: true });
  }
