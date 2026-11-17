@@ -55,8 +55,8 @@ function world({ version, seen = null, tour = null, chats = 0, tourDuringLoad = 
    const text = read(file), missing = keys.flatMap(k => ['title', 'text'].map(p => `news.${v}.${k}.${p}`)).filter(k => !text.includes(`'${k}':`));
    check(`${v}: every word in ${file}`, !missing.length && ['news.title', 'news.version', 'news.more', 'news.all', 'news.ok'].every(k => text.includes(`'${k}':`)), missing.join(', '));
   }
-  const lost = pictures.flatMap(p => ['dark', 'light'].flatMap(theme => ['ru', 'en'].map(lang => `whats-new/${v}/${p}-${theme}-${lang}.png`))).filter(f => !fs.existsSync(path.join(root, f)));
-  check(`${v}: every picture in both themes, in Russian and English`, !lost.length, lost.join(', '));
+  const lost = pictures.flatMap(p => ['dark', 'light'].flatMap(theme => ['ru', 'en', 'it', 'fr'].map(lang => `whats-new/${v}/${p}-${theme}-${lang}.png`))).filter(f => !fs.existsSync(path.join(root, f)));
+  check(`${v}: every picture in both themes, in all four languages`, !lost.length, lost.join(', '));
   const icons = [...body.matchAll(/icon: '([\w-]+)'/g)].map(m => m[1]), names = world({ version: v }).WhatsNew && vm.runInNewContext(`${read('change-icons.js')}; window.ChangeIcons.names`, { window: {} });
   check(`${v}: every sign is one of the set`, icons.every(i => names.includes(i)), icons.filter(i => !names.includes(i)).join(', '));
  }

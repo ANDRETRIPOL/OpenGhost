@@ -64,8 +64,8 @@ class WhatsNew {
   this.onDone = onDone;
   const release = RELEASES[version], t = key => I18n.t(`news.${key}`), item = (key, part) => I18n.t(`news.${version}.${key}.${part}`);
   // A picture in each theme, the theme's own showing (styles.css), so a theme changed while the window is open is
-  // followed; with its words in Russian for Russian, in English for every other language.
-  const lang = I18n.lang === 'ru' ? 'ru' : 'en';
+  // followed; with its words in the app's language (English for one it has no pictures in).
+  const lang = ['ru', 'it', 'fr'].includes(I18n.lang) ? I18n.lang : 'en';
   const dialog = this.el = element('dialog', 'news');
   dialog.setAttribute('closedby', 'any');
   dialog.setAttribute('aria-labelledby', 'news-title');
