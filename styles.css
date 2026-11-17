@@ -23652,10 +23652,22 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   display: block;
   width: 132px;
   height: 84px;
+  overflow: hidden;
   border-radius: 12px;
-  object-fit: cover;
   background: rgba(var(--fg-rgb), 0.05);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 0 0 1px rgba(var(--fg-rgb), 0.08);
+  box-shadow: 0 0 0 1px rgba(var(--fg-rgb), 0.08);
+}
+
+.news-shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+[data-theme="light"] .news-shot.is-dark,
+:root:not([data-theme="light"]) .news-shot.is-light {
+  display: none;
 }
 
 .news-name {

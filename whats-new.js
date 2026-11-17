@@ -42,13 +42,14 @@ class WhatsNew {
  // version as seen.
  static async start({ library, onDone } = {}) {
   try {
-   const info = await window.openghost?.about?.();
+   // Whether the welcome cards were ever seen is read first, before they could count themselves seen on this very start
+   // (welcome-tour.js writes that once the opening has played): read later, a first start looked like an update.
+   const [info, seen, tour] = await Promise.all([window.openghost?.about?.(), ChatStore.read(KEY), ChatStore.read('tour')]);
    const version = info?.version;
    if (!version) return;
-   const seen = await ChatStore.read(KEY);
    if (seen?.version === version) return;
    await library.ready;
-   const fresh = !seen && !library.chats.length && !(await ChatStore.read('tour'))?.seen;
+   const fresh = !seen && !library.chats.length && !tour?.seen;
    ChatStore.write(KEY, { version, at: Date.now() });
    if (fresh || !RELEASES[version]) return;
    if (document.documentElement.classList.contains('is-splash')) await new Promise(resolve => window.addEventListener('splashend', resolve, { once: true }));
@@ -62,7 +63,9 @@ class WhatsNew {
   this.version = version;
   this.onDone = onDone;
   const release = RELEASES[version], t = key => I18n.t(`news.${key}`), item = (key, part) => I18n.t(`news.${version}.${key}.${part}`);
-  const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  // A picture in each theme, the theme's own showing (styles.css), so a theme changed while the window is open is
+  // followed; with its words in Russian for Russian, in English for every other language.
+  const lang = I18n.lang === 'ru' ? 'ru' : 'en';
   const dialog = this.el = element('dialog', 'news');
   dialog.setAttribute('closedby', 'any');
   dialog.setAttribute('aria-labelledby', 'news-title');
@@ -80,10 +83,14 @@ class WhatsNew {
   this.rows = [];
   for (const feature of release.features || []) {
    const row = element('article', 'news-feature');
-   const picture = element('img', 'news-picture');
-   picture.src = `whats-new/${version}/${feature.picture}-${theme}.png`;
-   picture.alt = '';
-   picture.draggable = false;
+   const picture = element('span', 'news-picture');
+   for (const theme of ['dark', 'light']) {
+    const img = element('img', `news-shot is-${theme}`);
+    img.src = `whats-new/${version}/${feature.picture}-${theme}-${lang}.png`;
+    img.alt = '';
+    img.draggable = false;
+    picture.append(img);
+   }
    const words = element('div', 'news-words');
    words.append(element('h3', 'news-name', item(feature.key, 'title')), element('p', 'news-text', item(feature.key, 'text')));
    row.append(picture, words);
