@@ -30,31 +30,31 @@ const release = (version, extra = {}) => ({
   tag_name: `v${version}`, draft: false, prerelease: true,
   html_url: `${base}/tag/v${version}`,
   assets: [`OpenGhost-${version}-Setup.exe`, `OpenGhost-${version}-mac.dmg`, `OpenGhost-${version}-linux.tar.gz`].map(name => ({ name, state: 'uploaded', size: 123, browser_download_url: `${base}/download/v${version}/${name}` })),
-  body: '- **Helpers work in the background.** The agent is free while they work.\n- **Your own chat pictures.** Up to twelve, one for each theme.',
+  body: '- **The agent remembers details far better.** Summaries take everything whole.\n- **Context economy.** An arc sets how large a chat grows.',
   ...extra,
 });
-const old = release('1.5.4'), beta = release('1.5.5');
-check('Package, lock and site fallback agree', () => assert.deepEqual([pkg.version, lock.version, lock.packages[''].version, api.fallback], ['1.5.5', '1.5.5', '1.5.5', '1.5.5']));
-check('Draft is never selected', () => assert.equal(api.pickRelease([release('9.0.0', { draft: true }), beta]).version, '1.5.5'));
-check('A beta is selected after a stable release', () => assert.equal(api.pickRelease([old, beta]).version, '1.5.5'));
+const old = release('1.5.5'), beta = release('1.5.6');
+check('Package, lock and site fallback agree', () => assert.deepEqual([pkg.version, lock.version, lock.packages[''].version, api.fallback], ['1.5.6', '1.5.6', '1.5.6', '1.5.6']));
+check('Draft is never selected', () => assert.equal(api.pickRelease([release('9.0.0', { draft: true }), beta]).version, '1.5.6'));
+check('A beta is selected after a stable release', () => assert.equal(api.pickRelease([old, beta]).version, '1.5.6'));
 check('Version order is numeric, not lexical', () => assert.equal(api.pickRelease([release('1.5.9'), release('1.5.10')]).version, '1.5.10'));
 check('Major and minor version order is numeric', () => assert.equal(api.pickRelease([release('1.99.0'), release('2.0.0'), release('1.100.0')]).version, '2.0.0'));
-check('An object from release.json is accepted', () => assert.equal(api.pickRelease(beta).version, '1.5.5'));
-check('Malformed versions are ignored', () => assert.equal(api.pickRelease([release('1.5.6junk'), release('1.5'), release('nightly'), beta]).version, '1.5.5'));
+check('An object from release.json is accepted', () => assert.equal(api.pickRelease(beta).version, '1.5.6'));
+check('Malformed versions are ignored', () => assert.equal(api.pickRelease([release('1.5.7junk'), release('1.5'), release('nightly'), beta]).version, '1.5.6'));
 check('Null and empty data are safe', () => assert.equal([null, {}, [], { message: 'rate limit' }, [null, {}]].every(value => api.pickRelease(value) === null), true));
-check('A release with missing platform files is skipped', () => assert.equal(api.pickRelease([release('1.5.6', { assets: beta.assets.slice(0, 2) }), beta]).version, '1.5.5'));
-check('A file still uploading is not offered', () => assert.equal(api.pickRelease([release('1.5.6', { assets: release('1.5.6').assets.map((a, i) => i ? a : { ...a, state: 'starter' }) }), beta]).version, '1.5.5'));
+check('A release with missing platform files is skipped', () => assert.equal(api.pickRelease([release('1.5.7', { assets: beta.assets.slice(0, 2) }), beta]).version, '1.5.6'));
+check('A file still uploading is not offered', () => assert.equal(api.pickRelease([release('1.5.7', { assets: release('1.5.7').assets.map((a, i) => i ? a : { ...a, state: 'starter' }) }), beta]).version, '1.5.6'));
 for (const [kind, suffix] of [['win', 'Setup.exe'], ['mac', 'mac.dmg'], ['linux', 'linux.tar.gz']]) {
-  check(`${kind} uses its exact release asset`, () => assert.equal(api.readRelease(beta).assets[kind].url, `${base}/download/v1.5.5/OpenGhost-1.5.5-${suffix}`));
+  check(`${kind} uses its exact release asset`, () => assert.equal(api.readRelease(beta).assets[kind].url, `${base}/download/v1.5.6/OpenGhost-1.5.6-${suffix}`));
 }
-check('English notes name the background helpers and the chat pictures', () => assert.match(api.notes.en.join(' '), /Helpers work in the background[\s\S]*chat pictures/));
-check('Russian notes name the background helpers and the chat pictures', () => assert.match(api.notes.ru.join(' '), /Помощники работают в фоне[\s\S]*картинки фона/));
+check('English notes name the memory and the context economy', () => assert.match(api.notes.en.join(' '), /remembers details far better[\s\S]*Context economy/));
+check('Russian notes name the memory and the context economy', () => assert.match(api.notes.ru.join(' '), /намного лучше помнит детали[\s\S]*Экономия контекста/));
 check('Both website languages have five current highlights', () => assert.deepEqual(Object.values(api.notes).map(notes => notes.length), [5, 5]));
-check('Release notes are read from the release body', () => assert.match(api.readRelease(beta).notes.join(' '), /background[\s\S]*pictures/));
-check('README has the three versioned downloads and the background helpers', () => {
+check('Release notes are read from the release body', () => assert.match(api.readRelease(beta).notes.join(' '), /remembers[\s\S]*economy/));
+check('README has the three versioned downloads and the better memory', () => {
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
   for (const asset of beta.assets) assert.ok(readme.includes(asset.browser_download_url));
-  assert.match(readme, /Helpers work in the background/);
+  assert.match(readme, /remembers details far better in long sessions/);
 });
 check('Pages includes prereleases instead of using the stable-only endpoint', () => {
   const workflow = fs.readFileSync(path.join(root, '.github/workflows/pages.yml'), 'utf8');
@@ -71,14 +71,14 @@ async function main() {
     assert.equal(requests[0].init.cache, 'no-store');
     assert.equal(requests.length, 1);
   });
-  check('The newest beta is painted', () => assert.equal(api.current().version, '1.5.5'));
+  check('The newest beta is painted', () => assert.equal(api.current().version, '1.5.6'));
   requests = []; replies = [new Error('offline'), { ok: true, json: async () => beta }];
   await api.loadRelease();
   check('Network error falls back to release.json', () => assert.equal(requests[1].url, 'release.json'));
-  check('Fallback retains beta version', () => assert.equal(api.current().version, '1.5.5'));
+  check('Fallback retains beta version', () => assert.equal(api.current().version, '1.5.6'));
   requests = []; replies = [{ ok: false }, { ok: false }];
   await api.loadRelease();
-  check('Both failures leave the current version intact', () => assert.equal(api.current().version, '1.5.5'));
+  check('Both failures leave the current version intact', () => assert.equal(api.current().version, '1.5.6'));
   requests = []; replies = [{ ok: true, json: async () => [] }, { ok: true, json: async () => beta }];
   await api.loadRelease();
   check('An empty list also tries release.json', () => assert.equal(requests[1].url, 'release.json'));

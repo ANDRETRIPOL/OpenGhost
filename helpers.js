@@ -21,13 +21,13 @@
 // Only the chats with an island of helpers have them: the main window's chat and the second pane of Split View. The
 // mini chat and the quick chat have no room for them, and their agents never get the tools.
 
-const { Desk, TOOL_NOTES, assistantStep, imageStep, estimate, spend, sharedKinds, CONTEXT, COMPACT, compactRoom } = Chat.internals;
+const { Desk, TOOL_NOTES, assistantStep, imageStep, estimate, spend, sharedKinds, CONTEXT, COMPACT, compactRoom, parts } = Chat.internals;
 
 // most: helpers at work at once. wait: how long wait_agent waits by default, and at most, in seconds. log: the deeds of a
 // helper kept to be shown. compact: the share of its model's window a helper's conversation fills before it is summed
 // up, as a chat's is; full: the share at which a helper whose summary failed is asked to finish, cut: what one of its
 // steps keeps in the summary. save: how long after a change the helpers are written to the disk, in ms.
-const HELPERS = { most: 3, wait: 600, longest: 1800, log: 6, compact: 0.82, full: 0.94, title: 40, cut: 2400, save: 800, think: 2500 };
+const HELPERS = { most: 3, wait: 600, longest: 1800, log: 6, compact: 0.82, full: 0.94, title: 40, save: 800, think: 2500 };
 // Calm tones a helper's ghost is drawn in, one each, in the order they start.
 const TONES = ['120, 178, 255', '186, 150, 255', '110, 214, 168', '240, 188, 110'];
 const OWN = new Set(['spawn_agent', 'wait_agent', 'send_message', 'interrupt_agent', 'list_agents']);
@@ -128,8 +128,8 @@ const proto = Chat.prototype;
 
 // The tools of a chat: a chat with no island of helpers never gets theirs.
 const schemas = proto.toolSchemas;
-proto.toolSchemas = function toolSchemas() {
- const all = schemas.call(this);
+proto.toolSchemas = function toolSchemas(conv = null) {
+ const all = schemas.call(this, conv);
  return this.helpersOn ? all : all.filter(tool => !OWN.has(tool.function.name));
 };
 
@@ -236,9 +236,15 @@ proto.runHelper = async function (parent, helper, config) {
    if (helper.inbox.length) helper.messages.push(...helper.inbox.splice(0));
    this.keepHelpers(parent);
    // Near the end of its model's window a helper's conversation is summed up, as a chat's is, and it goes on from the
-   // summary. Should the summary fail, it is asked to finish, and stopped at the very end.
+   // summary. Should the summary fail, it is asked to finish, and stopped at the very end. A chat that saves (economy.js)
+   // has its helpers summed up at its own limit, their instructions counted in.
    const used = estimate(helper.messages);
-   if (used > room * HELPERS.compact && !helper.warned) {
+   const plan = this.span(parent, config);
+   // What the helper sends besides its messages (its instructions and tools), and how the chat's counts compared with
+   // the provider's, so its request is held under the limit as the chat's are.
+   const fixed = estimate(system) + Math.ceil(JSON.stringify(tools || []).length / CONTEXT.chars), ratio = parent.ratio || 1;
+   const due = plan.on ? Math.max(plan.limit / ratio - fixed, plan.limit / 2) : room * HELPERS.compact;
+   if (used > due && !helper.warned) {
     if (await this.compactHelper(parent, helper, config).catch(error => { if (error?.name === 'AbortError') throw error; return false; })) continue;
     helper.warned = true;
     helper.messages.push({ role: 'user', content: NOTE.finish });
@@ -356,41 +362,46 @@ proto.owe = function (parent, usage) {
 // go as text, the summary takes their place after its task, and it goes on. The user's compaction of the chat leaves
 // helpers alone; what a summary cost is counted in the chat's reply, as all a helper spends.
 const plain = content => typeof content === 'string' ? content : (content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
-const cut = (text, most) => text.length > most ? `${text.slice(0, most)} […]` : text;
+// Everything since its last summary goes in whole, as in a chat's: what one request can't take is summed up in parts.
 function helperTranscript(messages) {
  const out = [];
  for (const message of messages.slice(1)) {
-  if (message.role === 'user') out.push(`Main agent or app: ${cut(plain(message.content), COMPACT.text)}`);
-  else if (message.role === 'tool') out.push(`[Result] ${cut(plain(message.content), HELPERS.cut)}`);
+  if (message.role === 'user') out.push(`Main agent or app: ${plain(message.content)}`);
+  else if (message.role === 'tool') out.push(`[Result] ${plain(message.content)}`);
   else if (message.role === 'assistant') {
-   if (message.content) out.push(`Helper: ${cut(plain(message.content), COMPACT.text)}`);
-   for (const call of message.tool_calls || []) out.push(`[Tool ${call.function.name}] ${cut(call.function.arguments || '', HELPERS.cut)}`);
+   if (message.content) out.push(`Helper: ${plain(message.content)}`);
+   for (const call of message.tool_calls || []) out.push(`[Tool ${call.function.name}] ${call.function.arguments || ''}`);
   }
  }
- const text = out.join('\n\n');
- return text.length > COMPACT.total ? `${text.slice(0, COMPACT.total / 4)}
-
-[… middle left out …]
-
-${text.slice(-COMPACT.total * 3 / 4)}` : text;
+ return out;
 }
 
 proto.compactHelper = async function (parent, helper, config) {
  const was = helper.deed;
  helper.deed = { verb: I18n.t('helpers.compacting'), what: '' };
  changed(parent);
- let cost = null;
+ const costs = [];
  try {
-  const summary = await Providers.complete(config, {
-   messages: [{ role: 'system', content: COMPACT.prompt }, { role: 'user', content: `${helper.messages[0].content}
+  // Parts that fit one request with the task, the summary so far and the answer, the window counted by characters as a
+  // chat's is (chat.js compact).
+  const room = compactRoom(config), task = helper.messages[0].content;
+  const reach = Math.min(COMPACT.total, Math.floor((Number(config.window) || this.settings.windowOf(config.id)) * 0.8 * CONTEXT.chars));
+  let summary = '';
+  for (const part of parts(helperTranscript(helper.messages), Math.max(Math.floor(reach / 2), reach - Math.ceil(room * CONTEXT.chars) - String(task).length - 4000))) {
+   summary = await Providers.complete(config, {
+    messages: [{ role: 'system', content: COMPACT.prompt }, { role: 'user', content: `${task}
 
-${helperTranscript(helper.messages)}` }],
-   maxTokens: compactRoom(config),
-   signal: helper.controller.signal,
-   waited: true,
-   onUsage: usage => { cost = usage; },
-  });
-  if (!summary) return false;
+${summary ? `[Summary of what came before]
+${summary}
+
+` : ''}${part}` }],
+    maxTokens: room,
+    signal: helper.controller.signal,
+    waited: true,
+    onUsage: usage => { costs.push(usage); },
+   });
+   if (!summary) return false;
+  }
   helper.messages = [helper.messages[0], { role: 'user', content: `${COMPACT.head}
 
 ${summary}
@@ -399,7 +410,7 @@ ${COMPACT.resume}` }];
   helper.compacted = (helper.compacted || 0) + 1;
   return true;
  } finally {
-  this.owe(parent, cost);
+  for (const cost of costs) this.owe(parent, cost);
   helper.deed = was;
   changed(parent);
  }

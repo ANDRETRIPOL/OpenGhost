@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.5.5</span>
+      <span class="ver" data-version>v1.5.6</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.5.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.6.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.5.5</h3>
+        <h3 class="h3" data-news-title>What's new in 1.5.6</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.5.5';
+const FALLBACK = '1.5.6';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,18 +1470,18 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'Helpers work in the background: the agent is free to talk while they work, and comes back by itself with their reports when they are done.',
-    'End no longer loses work: stopped helpers keep their conversations and go on from where they stopped when you say continue, even after a restart.',
-    'The agent never goes quiet: its current step stays in view, and while the model thinks you see what it is thinking about.',
-    'Your own chat pictures: Settings → Appearance → Chat picture, up to twelve, one for each theme.',
-    'A dropped connection is noticed in seconds, a clearer helpers island, and many fixes.',
+    'The agent remembers details far better in long sessions: a summary now takes everything since the last one whole, nothing cut, in parts when it is long.',
+    'Context economy: an arc in the composer sets how large a chat may grow; it is summarized sooner and every answer costs less, and with models that charge more for long requests it stays under their step.',
+    'Ghost Max and Ghost Max+: for big tasks, a chat memory two to three times larger, fuller summaries and more of the conversation kept word for word.',
+    'Drawings for bookkeeping and tax for any country, and chat stats that show what went at the full price and what came from the cache.',
+    'Ollama models see pictures and get a 128K context, models too small for the agent are hidden, a "What\'s new" card after each update, and many fixes.',
   ],
   ru: [
-    'Помощники работают в фоне: с агентом можно говорить, пока они работают, а когда закончат, он сам вернётся с их отчётами.',
-    'End больше не теряет работу: остановленные помощники сохраняют свой разговор и по «продолжай» идут дальше с того же места, даже после перезапуска.',
-    'Агент больше не пропадает: видно, что он делает сейчас, а пока модель думает — о чём она думает.',
-    'Свои картинки фона чата: Настройки → Оформление → Картинка фона, до двенадцати, своя для каждой темы.',
-    'Оборванное соединение замечается за секунды, понятнее островок помощников и много исправлений.',
+    'Агент намного лучше помнит детали в длинных сессиях: пересказ теперь берёт всё после прошлого целиком, без обрезки, а длинное — частями.',
+    'Экономия контекста: дуга в композере задаёт, до какого размера растёт чат; он сжимается раньше и каждый ответ дешевле, а у моделей с повышенной ценой за длинный запрос не переходит их порог.',
+    'Ghost Max и Ghost Max+: для больших задач память чата в 2–3 раза больше, пересказы подробнее, больше разговора остаётся дословно.',
+    'Рисунки для бухгалтерии и налогов для любой страны и статистика чата: что прошло по полной цене, а что из кеша.',
+    'Модели Ollama видят фото и получают окно 128K, слишком маленькие для агента модели скрыты, карточка «Что нового» после каждого обновления и много исправлений.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };

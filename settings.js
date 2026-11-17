@@ -93,7 +93,7 @@ function localRows() {
     <div class="settings-presets">${LOCAL.presets.map(([name, address]) => `<button type="button" class="settings-preset" data-address="${address}">${name}</button>`).join('')}</div>
     <p class="settings-status" data-provider="local" role="status"></p>
    </div>
-  </div>${handRow('local', 'models', 'my-model')}${handRow('local', 'context', String(LOCAL.window))}`;
+  </div>${handRow('local', 'models', 'my-model')}${handRow('local', 'context', '131072')}`;
 }
 
 // A service that speaks the OpenAI API: where it lives, the key it asks for if it asks for one, and by hand what it
@@ -112,7 +112,7 @@ function customRows() {
      <button type="button" class="settings-key-eye" aria-label="${escapeHtml(I18n.t('settings.key.show'))}" aria-pressed="false">${Glyphs.eye}</button>
     </div>
    </div>
-  </div>${handRow('custom', 'models', 'model-id')}${handRow('custom', 'context', String(LOCAL.window))}`;
+  </div>${handRow('custom', 'models', 'model-id')}${handRow('custom', 'context', '131072')}`;
 }
 
 function accountRow() {
@@ -259,13 +259,14 @@ class Settings {
  readHand() {
   const read = name => name ? String(localStorage.getItem(name) || '').trim() : '';
   return Object.fromEntries(Object.entries(HAND).map(([provider, at]) => {
+   // A window smaller than the agent needs is not taken (Providers.NEED): the settings say so under the field.
    const context = Math.round(Number(read(at.context).replace(/[\s,._]/g, ''))) || 0;
-   return [provider, { names: [...new Set(read(at.models).split(',').map(name => name.trim()).filter(Boolean))], context: context > 0 ? context : 0, address: read(at.address) }];
+   return [provider, { names: [...new Set(read(at.models).split(',').map(name => name.trim()).filter(Boolean))], context: context >= Providers.NEED ? context : 0, address: read(at.address) }];
   }));
  }
 
- // The models of a server whose window is too small for the agent's own instructions, said under the address so the
- // user learns it in the settings and not from a chat that goes wrong.
+ // The models of a server whose window is too small for the agent to work in, and so not in the model picker, said
+ // under the address so the user learns why, and that a larger window written by hand brings them back.
  cramped(provider) {
   if (!SERVED.has(provider)) return '';
   const small = (this.catalog[provider] || []).filter(model => model.context < Providers.NEED);
@@ -360,8 +361,10 @@ class Settings {
 
  // The picker offers the models of every connected provider, as each provider lists them. No model is known to the app
  // by itself: with nothing connected there is none, and the picker leads to the settings instead.
+ // A model whose window is too small for the agent to work in is not offered (Providers.NEED); one whose window nobody
+ // told is.
  collect() {
-  this.models = ORDER.filter(provider => this.connected(provider)).flatMap(provider => this.catalog[provider] || []);
+  this.models = ORDER.filter(provider => this.connected(provider)).flatMap(provider => this.catalog[provider] || []).filter(model => !(model.context > 0 && model.context < Providers.NEED));
   this.paint();
  }
 
@@ -552,6 +555,11 @@ class Settings {
     else localStorage.removeItem(at);
     this.hand = this.readHand();
     if (this.has(provider) || name === 'address') this.onKeyInput(provider);
+   });
+   // A window written smaller than the agent needs is not taken: said once the field is left, not at every digit typed.
+   if (name === 'context') input.addEventListener('change', () => {
+    const typed = Math.round(Number(input.value.trim().replace(/[\s,._]/g, ''))) || 0;
+    if (typed > 0 && typed < Providers.NEED) this.setStatus(provider, I18n.t('settings.window.least', { need: Providers.NEED.toLocaleString('en-US') }), 'error');
    });
   }
   this.statuses = Object.fromEntries([...this.list.querySelectorAll('.settings-status')].map(node => [node.dataset.provider, node]));

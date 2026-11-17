@@ -6,20 +6,20 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.5.5 beta**
+**v1.5.6 beta**
 
-[Windows version 1.5.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.5/OpenGhost-1.5.5-Setup.exe)
+[Windows version 1.5.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.6/OpenGhost-1.5.6-Setup.exe)
 
-[Linux version 1.5.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.5/OpenGhost-1.5.5-linux.tar.gz)
+[Linux version 1.5.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.6/OpenGhost-1.5.6-linux.tar.gz)
 
-[macOS version 1.5.5](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.5/OpenGhost-1.5.5-mac.dmg)
+[macOS version 1.5.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.6/OpenGhost-1.5.6-mac.dmg)
 
 What's new:
-- Helpers work in the background: the agent may end its turn while they work and talk with you meanwhile; once they have all finished, it comes back by itself with their reports.
-- End stops everything but loses nothing: stopped helpers keep their conversations and, when you say continue, go on from where they stopped, also after the app restarts.
-- The agent never goes quiet: what it is doing stays in view, also under a message you send while it works, and while the model thinks you see what it is thinking about.
-- Your own chat pictures: Settings → Appearance → Chat picture, up to twelve, one for each theme, behind a veil so the words always read.
-- A dropped connection to ChatGPT is noticed in 30 seconds instead of 5 minutes, a DeepSeek stream that falls silent no longer waits forever, and the helpers' island shows a ring with the number at work.
+- The agent remembers details far better in long sessions: when a chat is summarized, everything since the last summary goes in whole (messages, replies, tool calls and results), long conversations in parts, and the data of a task under way is carried over in full.
+- Context economy: an arc in the composer sets how large a chat may grow, from 500K down to 100K. It is summarized sooner and every answer costs less; with models that charge more past a size (Claude Haiku, GPT with an API key, Gemini Pro) it always stays under that step.
+- Ghost Max and Ghost Max+ on the same arc, for work where nothing may be missed: the chat's own memory holds 80,000 or 120,000 characters, summaries are fuller and more of the conversation stays word for word.
+- Drawings for bookkeeping and tax for any country, and chat stats that show how many tokens went at the full price and how many came from the cache.
+- Ollama models that see pictures are shown as such and get a 128K context, models too small for the agent to work in are hidden, and a "What's new" card after each update.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 

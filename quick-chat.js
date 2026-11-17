@@ -117,7 +117,10 @@ const TEMPLATE = `
    <div class="composer-toolbar">
     <div class="composer-tools">
      <add-button class="composer-add" data-i18n-attr="label:attach.add"></add-button>
-     <button type="button" class="composer-mode" aria-haspopup="menu" aria-expanded="false" hidden></button>
+     <div class="composer-pair glass-lens">
+      <button type="button" class="composer-mode" aria-haspopup="menu" aria-expanded="false" hidden></button>
+      <economy-button class="composer-economy"></economy-button>
+     </div>
     </div>
     <div class="composer-actions">
      <model-button class="composer-model"></model-button>
@@ -275,6 +278,8 @@ class QuickChat {
   this.models = new ModelStage({ button: $('.composer-model'), root: popover('model-stage is-quick', 'model'), chat: this.chat, settings, input: this.input });
   this.models.room = () => dialog.getBoundingClientRect();
   this.effort = new EffortSlider({ button: $('.composer-effort'), panel: popover('effort-panel is-quick', 'effort', EFFORT), settings, chat: this.chat });
+  // How far the chat saves (economy.js): its arc opens over the card, within it.
+  this.economy = new EconomyArc({ button: $('.composer-economy'), stage: popover('economy-stage is-quick', 'economy'), chat: this.chat, settings, room: () => dialog.getBoundingClientRect(), composer: this.composer });
 
   this.input.addEventListener('input', () => this.sync());
   this.input.addEventListener('keydown', event => this.onKey(event));
@@ -512,6 +517,7 @@ class QuickChat {
   this.mode?.sync();
   this.effort.follow();
   this.models.sync();
+  this.economy?.sync();
   this.effort.lock(busy);
   // A reply that came while the window was out of sight is marked in the list, like one that came to a chat off
   // screen, and is shown first when the window comes back.

@@ -29,7 +29,7 @@ const { Providers } = window;
  check('A waited side answer of a standard chat stays standard', sent.at(-1).speed === 'standard');
  check('Side answers still think as little as they can', sent.every(request => request.effort === 'none'));
  const chat = fs.readFileSync(path.join(root, 'chat.js'), 'utf8');
- check('The chat summary is a waited answer', /maxTokens: compactRoom\(turn\.config\),\s*signal: turn\.controller\.signal,\s*waited: true/.test(chat));
+ check('The chat summary is a waited answer', /maxTokens: most,\s*signal: turn\.controller\.signal,\s*waited: true/.test(chat));
  check('The plan step look is a waited answer', /PlanProof\.JUDGE\.answer, waited: true/.test(chat));
  for (const name of results) console.log(`ok  ${name}`);
  console.log(`\n${results.length} checks passed`);

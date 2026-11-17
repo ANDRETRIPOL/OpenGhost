@@ -17,6 +17,29 @@ const MARKED = /^~?anthropic\//;
 const CACHE = { type: 'ephemeral' };
 const THINKING_ROOM = 2048;
 
+// The token counts at which a model's price goes up for the whole request, lowest first (`pricing.overrides`, each with
+// the count it starts at). An override set by the time of day (`utc_start`) is no step of length. Read by prices.js too.
+function stepsOf(pricing) {
+ const base = Number(pricing?.prompt) || 0, out = new Set();
+ for (const item of Array.isArray(pricing?.overrides) ? pricing.overrides : []) {
+  const at = Number(item?.min_prompt_tokens), price = Number(item?.prompt);
+  if (at > 0 && Number.isFinite(at) && (!(price >= 0) || price > base)) out.add(Math.round(at));
+ }
+ return [...out].sort((a, b) => a - b);
+}
+
+// What a model costs per token, as the list says: what is sent, what is read from the cache and written to it, what is
+// written back, and the same past each step of length. Null when the list gives no price.
+function priceOf(pricing) {
+ const n = value => { const x = Number(value); return Number.isFinite(x) && x >= 0 ? x : undefined; };
+ const tier = item => ({ in: n(item?.prompt), hit: n(item?.input_cache_read), write: n(item?.input_cache_write), out: n(item?.completion) });
+ const base = tier(pricing);
+ if (base.in === undefined) return null;
+ const over = (Array.isArray(pricing?.overrides) ? pricing.overrides : []).filter(item => Number(item?.min_prompt_tokens) > 0)
+  .map(item => ({ at: Math.round(Number(item.min_prompt_tokens)), ...tier(item) })).sort((a, b) => a.at - b.at);
+ return { ...base, over };
+}
+
 const error = (message, status = 0, code = '') => Object.assign(new Error(message), { status, code });
 const headers = key => ({ Authorization: `Bearer ${key}`, ...APP });
 
@@ -101,6 +124,9 @@ function described(list) {
    tools: !params || params.includes('tools'),
    // Resolve only a selected model's endpoints; the catalogue's `endpoints` are API paths, not service tiers.
    fastLookup: true,
+   // Where a request grows dear: past these many tokens the whole of it costs more (prices.js, economy.js).
+   steps: stepsOf(model.pricing),
+   price: priceOf(model.pricing),
    ...effortsOf(model),
   };
  });
@@ -363,4 +389,4 @@ async function stream(request, { signal, onEvent = () => {}, apiUrl = API_URL } 
  return result;
 }
 
-module.exports = { models, account, speed, stream, convert, build, described };
+module.exports = { models, account, speed, stream, convert, build, described, stepsOf, priceOf };

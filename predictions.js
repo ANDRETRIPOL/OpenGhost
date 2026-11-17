@@ -56,6 +56,8 @@ const Predictions = {
   const fit = () => {
    const shown = field.classList.contains('is-predicted') && !field.classList.contains('has-value');
    const height = shown ? `${placeholder.offsetHeight}px` : '';
+   // The floor stays on the field for the hold of erased letters (composer-text.js) to come back down to.
+   if (shown) input.dataset.floor = String(placeholder.offsetHeight); else delete input.dataset.floor;
    if (input.style.minHeight !== height) input.style.minHeight = height;
   };
   new ResizeObserver(fit).observe(placeholder);

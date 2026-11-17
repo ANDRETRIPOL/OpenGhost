@@ -1724,14 +1724,34 @@ html[data-picture="shown"] .main {
   transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing), --chat-picture-veil 0.8s var(--motion-easing);
 }
 
-html[data-picture] .thread-view::before,
+/* The messages fade into the picture at the top and the bottom under a copy of the chat's own ground laid over them,
+   the same picture behind the same veil, clear in the middle. A mask on the thread itself would do it too, but under a
+   mask nothing in the thread can blur what lies behind it: the glass of the selection's menu (Copy, Ask OpenGhost,
+   Mini chat) and the mist round a selection went clear, and the menu's words were lost on the picture. */
+html[data-picture] .thread-view::before {
+  inset: 0;
+  height: auto;
+  background:
+    linear-gradient(color-mix(in srgb, var(--chat-bg) var(--chat-picture-veil), transparent), color-mix(in srgb, var(--chat-bg) var(--chat-picture-veil), transparent)),
+    var(--chat-picture) center / cover no-repeat,
+    var(--chat-bg);
+  -webkit-mask-image: linear-gradient(#000, transparent calc(var(--composer-bottom-gap) + 12px), transparent calc(100% - var(--composer-bottom-gap) - 12px), #000);
+  mask-image: linear-gradient(#000, transparent calc(var(--composer-bottom-gap) + 12px), transparent calc(100% - var(--composer-bottom-gap) - 12px), #000);
+}
+
 html[data-picture] .thread-view::after {
   display: none;
 }
 
-html[data-picture] .thread {
-  -webkit-mask-image: linear-gradient(transparent, #000 calc(var(--composer-bottom-gap) + 12px), #000 calc(100% - var(--composer-bottom-gap) - 12px), transparent);
-  mask-image: linear-gradient(transparent, #000 calc(var(--composer-bottom-gap) + 12px), #000 calc(100% - var(--composer-bottom-gap) - 12px), transparent);
+/* While a piece of a reply is selected the edges step back with the feed under them, with the same blur and dimming:
+   left sharp, they cut the mist off short of the top and the bottom. */
+html[data-picture] .thread-view::before {
+  transition: filter 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-picture] .is-veiled .thread-view::before {
+  filter: var(--veil);
+  transition: filter 0.52s var(--motion-easing);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3220,7 +3240,7 @@ button.thread-fork-name:focus-visible {
    and a line a model with a meter of its cache, then the context. */
 .stats-item {
   align-self: center;
-  width: min(468px, 100%);
+  width: min(540px, 100%);
 }
 
 .stats {
@@ -3454,9 +3474,10 @@ button.thread-fork-name:focus-visible {
 
 /* One line a model, all lines on shared columns: the name, what it spent, a meter of its cache and the share, so every meter is
    as long as the others and the numbers stand in columns. */
+/* The name takes the room it needs, up to half the row: a model's name was cut to "GPT-6-…" for a meter's sake. */
 .stats-rows {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(44px, 76px) auto;
+  grid-template-columns: fit-content(50%) auto minmax(24px, 1fr) auto;
   column-gap: 12px;
   row-gap: 11px;
   padding-top: 14px;
@@ -3484,6 +3505,46 @@ button.thread-fork-name:focus-visible {
   font-weight: 600;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.stats-sub {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  margin: 4px 0 14px;
+  color: var(--fg-tertiary);
+  font-size: 12.5px;
+  line-height: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A part of the total with its colour in the chart: a bar's own colour, or that colour under the cache's wash. */
+.stats-key {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.stats-key i {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 2.5px;
+  background: rgb(var(--c));
+}
+
+.stats-key.is-cached i::after {
+  position: absolute;
+  inset: 0;
+  background: var(--stats-wash);
+  content: '';
+}
+
+.stats-sub b {
+  color: var(--fg-secondary);
+  font-weight: 600;
 }
 
 .stats-row-value em {
@@ -5823,7 +5884,10 @@ h6.md-h {
 }
 
 .ds-modes > button {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  height: 29px;
+  padding: 0 14px;
   border: 0;
   border-radius: 999px;
   outline: none;
@@ -5851,7 +5915,10 @@ h6.md-h {
 }
 
 .ds-done {
-  padding: 7px 16px;
+  display: inline-flex;
+  align-items: center;
+  height: 31px;
+  padding: 0 16px;
   border: 0;
   border-radius: 999px;
   outline: none;
@@ -5864,6 +5931,13 @@ h6.md-h {
 
 .ds-done:hover {
   opacity: 0.88;
+}
+
+/* The words in the bar's buttons stand in the middle by their capitals, not by the font's line, which has room for what
+   hangs below it and set them a pixel low. */
+.ds-word {
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
 }
 
 .ds-body {
@@ -7085,8 +7159,82 @@ h6.md-h {
 /* Where a whole row answers the pointer, the row is what it meets: the marks over it let it through. */
 .dg-svg[data-kind="ledger"] .dg-layer:not(.is-back),
 .dg-svg[data-kind="ranges"] .dg-layer:not(.is-back),
-.dg-svg[data-kind="git"] .dg-layer:not(.is-back) {
+.dg-svg[data-kind="git"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="invoice"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="statement"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="entries"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="taccounts"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="reconcile"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="match"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="trial"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="report"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="tax"] .dg-layer:not(.is-back),
+.dg-svg[data-kind="aging"] .dg-layer:not(.is-back) {
   pointer-events: none;
+}
+
+/* Books: the number of an account set apart and quiet, the one sum to read set large, the signs of a worked tax in
+   their own column, where a line of a statement went as a dot, and debts darker the older they are. */
+.dg-books-code {
+  fill: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.dg-books-figure {
+  fill: var(--ink);
+  font-size: 20px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-svg .is-rtl {
+  unicode-bidi: plaintext;
+}
+
+.dg-books-op {
+  fill: var(--ink-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dg-books-tag {
+  fill: rgb(var(--tone, var(--fg-rgb)));
+}
+
+.dg-books-tag.is-booked,
+.dg-books-tag:not([class*="t-"]) {
+  fill: var(--ink-3);
+}
+
+.dg-books-tag.is-pending {
+  fill: rgb(var(--warn-rgb));
+}
+
+.dg-books-gap {
+  stroke: var(--rule);
+  stroke-dasharray: 2 3;
+}
+
+/* Age reads as risk: money not yet due is grey, overdue money turns amber and then red the older it is. */
+.dg-books-age {
+  fill: rgba(var(--fg-rgb), 0.26);
+}
+
+.dg-books-age.is-a1 {
+  fill: rgba(var(--warn-rgb), 0.55);
+}
+
+.dg-books-age.is-a2 {
+  fill: rgb(var(--warn-rgb));
+}
+
+.dg-books-age.is-a3 {
+  fill: rgba(var(--danger-rgb), 0.7);
+}
+
+.dg-books-age.is-a4 {
+  fill: rgb(var(--danger-rgb));
 }
 
 /* Figures: a number to read, its unit beside it, and under it how it moved or how far it has come. */
@@ -10185,6 +10333,12 @@ h6.md-h {
   transition-duration: 0.2s;
 }
 
+/* A prediction of several lines is gone before the field shrinks from under it: fading as slowly as the field went
+   down, its lower lines were cut off by the field's edge on the way, and the composer looked to jerk. */
+.composer-field.is-predicted.has-value .composer-placeholder {
+  transition-duration: 0.1s;
+}
+
 .scrollbar {
   position: absolute;
   top: 0;
@@ -10248,13 +10402,17 @@ h6.md-h {
   min-width: 0;
 }
 
+/* Only the shield: which mode is on shows by its sign, and its name is in the menu it opens and in its label. The room
+   it gave back goes to the model's name, and the quick chat's narrow composer needs it most. */
 .composer-mode {
   anchor-name: --mode;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
+  width: var(--composer-button-size);
   height: var(--composer-button-size);
-  padding: 0 12px 0 10px;
+  padding: 0;
   overflow: hidden;
   border: 0;
   border-radius: calc(var(--composer-button-size) / 2);
@@ -10277,9 +10435,7 @@ h6.md-h {
 /* The words stand by their capitals, as the signs beside them do by their middle: centred whole, with room for what
    hangs below the line, they stood a pixel lower than the shield and the plus. */
 .composer-mode-label {
-  text-box: trim-both cap alphabetic;
-  /* Keep rasterised capitals inside the clipping box while the composer moves. */
-  padding-block: .3em;
+  display: none;
 }
 
 .composer-mode:hover {
@@ -10291,11 +10447,12 @@ h6.md-h {
   box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
+/* A step larger than the other signs: a shield's ink is narrower than a plus's, and at the same size looked smaller. */
 .composer-mode-icons {
   position: relative;
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .composer-mode[data-mode="full"] .composer-mode-icons {
@@ -21578,7 +21735,7 @@ html:not([data-theme="light"]) .skill-page-key {
 }
 
 .composer-mode {
-  min-width: 0;
+  flex: none;
 }
 
 /* The plus and the mode keep their room: the model's name gives it. Even a fraction of a pixel taken from the mode's
@@ -23080,4 +23237,533 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   stroke: rgba(255, 255, 255, 0.55);
   stroke-width: 1.4;
   stroke-linecap: round;
+}
+
+/* ---- Economy (economy.js, economy-arc.js): the composer's button and the arc it opens to.
+   The button is the arc made small, its knob where the chat's size stands. The arc comes up under the model menu's veil:
+   a thick track bent over the top, a dot at each size, a white knob; the track fills behind the knob with the colour of
+   that place (--economy-tint, amber to green); the size stands in the middle, what it means under the arc. */
+.composer-economy {
+  --icon-button-size: var(--composer-button-size);
+  --icon-size: var(--composer-icon-size);
+  --icon-stroke: 6;
+  --icon-rgb: var(--composer-fg-rgb);
+  --icon-hover-rgb: var(--composer-accent-rgb);
+  --icon-opacity: 1;
+  --icon-hover-opacity: 1;
+  --icon-disabled-opacity: 0.3;
+}
+
+.composer-economy[expanded] {
+  --icon-rgb: var(--composer-accent-rgb);
+}
+
+/* The mode's shield and the economy's arc in one capsule of the top capsule's plain frosted glass (.top-tools): two
+   settings of the chat side by side, each still opening its own menu. Under the pointer a sign only brightens: a disc
+   in so low a capsule all but filled it. While either menu is open the capsule is gone, glass and all. It comes back out
+   of a blur as the menu starts to close, so it stands ready where the shield or the knob flies home: it neither moves nor
+   grows meanwhile, or the sign would land beside its place and jump into it. */
+.composer-pair {
+  --pair-button: calc(var(--composer-button-size) - 4px);
+  --glass-fill: linear-gradient(180deg, rgba(54, 54, 60, 0.65), rgba(38, 38, 42, 0.65));
+  --glass-rim: rgba(255, 255, 255, 0.16);
+  --glass-shade: 0 0 0 0 transparent;
+  --glass-backdrop: blur(5px) saturate(1.5) brightness(1.06);
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: var(--composer-button-size);
+  padding: 2px 6px;
+  transition: opacity 0.38s ease, filter 0.38s ease;
+}
+
+.composer-pair:has(> .composer-mode[aria-expanded="true"]),
+.composer-pair:has(> .composer-economy[expanded]) {
+  opacity: 0;
+  filter: blur(4px);
+  pointer-events: none;
+  transition: opacity 0.16s ease, filter 0.2s ease;
+}
+
+[data-theme="light"] .composer-pair {
+  --glass-fill: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(250, 251, 253, 0.65));
+  --glass-rim: rgba(20, 30, 60, 0.1);
+  --glass-backdrop: blur(5px) saturate(1.4) brightness(1.02);
+}
+
+.composer-pair:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
+.composer-pair > .composer-mode {
+  width: var(--pair-button);
+  height: var(--pair-button);
+  border-radius: 50%;
+}
+
+.composer-pair > .composer-economy {
+  --icon-button-size: var(--pair-button);
+  --icon-button-radius: 50%;
+}
+
+.composer-pair > .composer-mode:hover {
+  background: transparent;
+}
+
+/* Back from the menu, the shield is there at once: the menu's own has just landed in its place (mode-picker.js, home). */
+.composer-mode:not(.is-away) {
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-pair,
+  .composer-pair:has(> .composer-mode[aria-expanded="true"]),
+  .composer-pair:has(> .composer-economy[expanded]) {
+    filter: none;
+    transition: opacity 0.2s ease;
+  }
+}
+
+.economy-stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: rgb(var(--composer-accent-rgb));
+  user-select: none;
+  --economy-track: rgba(var(--composer-fg-rgb), 0.16);
+  --economy-dot: rgba(var(--composer-fg-rgb), 0.42);
+  --economy-dot-under: rgba(0, 0, 0, 0.22);
+  --economy-knob-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 6px 18px rgba(0, 0, 0, 0.32);
+  --economy-scrim: rgba(18, 18, 18, 0.62);
+}
+
+[data-theme="light"] .economy-stage {
+  --economy-track: rgba(0, 0, 0, 0.09);
+  --economy-dot: rgba(0, 0, 0, 0.28);
+  --economy-dot-under: rgba(0, 0, 0, 0.2);
+  --economy-knob-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 6px 16px rgba(0, 0, 0, 0.16);
+  --economy-scrim: rgba(250, 250, 250, 0.66);
+}
+
+.economy-stage::backdrop {
+  background: none;
+}
+
+.economy-veil {
+  position: absolute;
+  inset: 0;
+}
+
+.economy-arc {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.economy-track,
+.economy-fill {
+  fill: none;
+  stroke-width: 40;
+  stroke-linecap: round;
+}
+
+.economy-track {
+  stroke: var(--economy-track);
+}
+
+.economy-fill {
+  stroke: var(--economy-tint, transparent);
+}
+
+.economy-dot {
+  fill: var(--economy-dot);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: fill 0.25s ease;
+}
+
+.economy-dot.is-under {
+  fill: var(--economy-dot-under);
+}
+
+.economy-dot.is-covered {
+  opacity: 0;
+}
+
+.economy-stops {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.economy-stop {
+  position: absolute;
+  translate: 0 -50%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: rgba(var(--composer-fg-rgb), 0.5);
+  font: 500 12px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 0.25s ease;
+}
+
+.economy-stop:hover {
+  color: rgba(var(--composer-fg-rgb), 0.8);
+}
+
+.economy-stop.is-here {
+  color: rgb(var(--composer-accent-rgb));
+  font-weight: 650;
+}
+
+.economy-slider {
+  position: absolute;
+  inset: 0;
+  outline: none;
+  pointer-events: none;
+}
+
+/* Glass, as the effort slider's capsule (.glass-lens, liquid-glass.js): a little wider than the track, so the track's
+   edge bends under it and its rounded end is under it whole. */
+.economy-knob {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: grab;
+  /* The track's colour through the glass as it is: the usual glass brightens what it bends, and the green went loud. */
+  --glass-backdrop: blur(0.4px) saturate(1.05);
+}
+
+.economy-stage:active .economy-knob {
+  cursor: grabbing;
+}
+
+.economy-slider:focus-visible .economy-knob {
+  outline: 2px solid var(--focus-ring, rgba(255, 255, 255, 0.35));
+  outline-offset: 3px;
+}
+
+.economy-words {
+  position: absolute;
+  z-index: 1;
+  width: 330px;
+  transform: translate(0, -50%);
+  text-align: left;
+  pointer-events: none;
+}
+
+.economy-value {
+  height: 44px;
+  overflow: visible;
+  font: 650 40px/44px var(--font);
+  letter-spacing: -0.025em;
+  color: rgb(var(--composer-accent-rgb));
+  font-variant-numeric: tabular-nums;
+}
+
+.economy-value span {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.economy-words.is-narrow .economy-value {
+  height: 34px;
+  font-size: 28px;
+  line-height: 34px;
+}
+
+.economy-words.is-narrow .economy-about {
+  font-size: 12px;
+}
+
+.economy-words.is-narrow .economy-saving {
+  font-size: 13px;
+}
+
+/* What is behind the words under the arc (the ghost of an empty chat, a picture) is quietened under them. */
+.economy-words::before {
+  content: "";
+  position: absolute;
+  inset: -40px -70px;
+  z-index: -1;
+  background: radial-gradient(closest-side, var(--economy-scrim), transparent);
+  pointer-events: none;
+}
+
+.economy-about,
+.economy-saving {
+  position: relative;
+  margin: 0;
+  max-width: 330px;
+  text-wrap: pretty;
+}
+
+.economy-about {
+  margin-top: 10px;
+  min-height: 2.8em;
+  font: 500 13px/1.4 var(--font);
+  color: rgba(var(--composer-fg-rgb), 0.62);
+}
+
+.economy-saving {
+  margin-top: 8px;
+  min-height: 1.4em;
+  font: 650 14px/1.4 var(--font);
+  color: rgb(var(--composer-accent-rgb));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .economy-dot,
+  .economy-stop {
+    transition: none;
+  }
+}
+
+/* ---- What's new (whats-new.js): once after an update, a small window as the settings are, coming and going as they do.
+   The new features each as a picture with a few words beside it, the smaller changes a line each with its sign
+   (change-icons.js); the list scrolls inside when the window is short. */
+.news {
+  user-select: none;
+  position: fixed;
+  inset: 0;
+  width: min(540px, 100% - 48px);
+  max-width: none;
+  height: fit-content;
+  max-height: min(800px, 100% - 40px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: rgb(0, 0, 0);
+  border-radius: calc(var(--chat-radius) + var(--chat-gap));
+  box-shadow: var(--contour), 0 24px 64px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
+  color: var(--fg-primary);
+  opacity: 0;
+  transform: scale(1.06);
+  filter: blur(12px);
+  transition: opacity 0.11s ease-out, transform 0.11s ease-out, filter 0.11s ease-out, overlay 0.11s allow-discrete, display 0.11s allow-discrete;
+}
+
+[data-theme="light"] .news {
+  background: rgb(255, 255, 255);
+  box-shadow: 0 0 0 1px rgba(30, 48, 88, 0.18), 0 24px 64px rgba(0, 0, 0, calc(0.45 * var(--shadow)));
+}
+
+.news[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition: opacity 0.133s cubic-bezier(0.37, 0, 0.63, 1), transform 0.133s cubic-bezier(0.37, 0, 0.63, 1), filter 0.133s cubic-bezier(0.37, 0, 0.63, 1), overlay 0.133s allow-discrete, display 0.133s allow-discrete;
+}
+
+@starting-style {
+  .news[open] {
+    opacity: 0;
+    transform: scale(1.09, 0.96);
+    filter: blur(5px);
+  }
+}
+
+.news:focus {
+  outline: none;
+}
+
+.news::backdrop {
+  background: transparent;
+  transition: background-color 0.11s ease-out, overlay 0.11s allow-discrete, display 0.11s allow-discrete;
+}
+
+.news[open]::backdrop {
+  background: var(--backdrop);
+  transition: background-color 0.133s cubic-bezier(0.37, 0, 0.63, 1), overlay 0.133s allow-discrete, display 0.133s allow-discrete;
+}
+
+@starting-style {
+  .news[open]::backdrop {
+    background: transparent;
+  }
+}
+
+.news-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 28px 16px;
+}
+
+.news-app {
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+
+.news-title {
+  margin: 0;
+  font: 700 22px/1.2 var(--font);
+  letter-spacing: -0.01em;
+}
+
+.news-version {
+  margin-top: 2px;
+  color: var(--fg-tertiary);
+  font: 500 13px/1.3 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+
+.news-list {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 2px 28px 6px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* A new feature: its picture, and beside it what it is and what it is for. */
+.news-feature {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.news-picture {
+  display: block;
+  width: 132px;
+  height: 84px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: rgba(var(--fg-rgb), 0.05);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.08), 0 0 0 1px rgba(var(--fg-rgb), 0.08);
+}
+
+.news-name {
+  margin: 0 0 4px;
+  font: 650 15.5px/1.3 var(--font);
+}
+
+.news-text {
+  margin: 0;
+  color: var(--fg-secondary);
+  font: 400 13px/1.42 var(--font);
+}
+
+.news-more {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(var(--fg-rgb), 0.08);
+  color: var(--fg-tertiary);
+  font: 600 12px/1 var(--font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.news-changes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 22px;
+  margin-top: -4px;
+}
+
+/* A smaller change: its sign, what changed, and under it a line of what that means. */
+.news-change {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.news-sign {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--fg-secondary);
+}
+
+.news-sign .change-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.news-change-words {
+  display: grid;
+  gap: 2px;
+  padding-top: 1px;
+}
+
+.news-change-name {
+  color: var(--fg-primary);
+  font: 600 13.5px/1.3 var(--font);
+}
+
+.news-change-text {
+  color: var(--fg-tertiary);
+  font: 400 12.5px/1.35 var(--font);
+}
+
+.news-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 28px 22px;
+}
+
+.news-all {
+  color: var(--fg-tertiary);
+  font: 500 13px/1 var(--font);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.news-all:hover {
+  color: var(--fg-primary);
+}
+
+.news-ok {
+  min-width: 120px;
+  height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 18px;
+  outline: none;
+  background: var(--fg-primary);
+  color: var(--app-bg);
+  font: 600 14px/1 var(--font);
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.news-ok:hover {
+  opacity: 0.88;
+}
+
+.news-ok:active {
+  transform: scale(0.97);
+}
+
+.news-ok:focus-visible {
+  box-shadow: 0 0 0 2px var(--app-bg), 0 0 0 4px var(--focus-ring);
 }

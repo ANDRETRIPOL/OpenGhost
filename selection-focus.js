@@ -137,8 +137,12 @@ class SelectionFocus {
  draw() {
   const veil = this.veil, list = this.list, range = this.range;
   if (!veil || !range) return false;
-  veil.style.top = px(list.offsetTop);
-  veil.style.height = px(list.offsetHeight);
+  // The veil covers the whole feed, from its top down past the last message to the room the composer stands in: ending
+  // with the list, it left a sharp band between the last words and the composer, edged where the dimming stopped.
+  // The room under the list is the thread's own ::after, so the feed is measured whole, without the veil in it.
+  veil.style.top = '0px';
+  veil.style.height = '0px';
+  veil.style.height = px(Math.max(this.thread.scrollHeight, this.thread.clientHeight));
   const origin = veil.getBoundingClientRect();
   const rects = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0)
    .map(rect => ({ left: rect.left - origin.left, right: rect.right - origin.left, top: rect.top - origin.top, bottom: rect.bottom - origin.top }));

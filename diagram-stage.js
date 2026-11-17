@@ -87,7 +87,8 @@ class DiagramStage {
   this.modes = make('div', 'ds-modes', bar);
   this.modes.setAttribute('role', 'tablist');
   for (const mode of ['data', 'code']) {
-   const button = make('button', '', this.modes, t(mode === 'data' ? 'edit.visual' : 'edit.code'));
+   const button = make('button', '', this.modes);
+   make('span', 'ds-word', button, t(mode === 'data' ? 'edit.visual' : 'edit.code'));
    button.type = 'button';
    button.dataset.mode = mode;
    button.setAttribute('role', 'tab');
@@ -95,7 +96,8 @@ class DiagramStage {
   }
   this.modes.hidden = !this.model;
   make('span', 'ds-space', bar);
-  const done = make('button', 'ds-done', bar, t('edit.done'));
+  const done = make('button', 'ds-done', bar);
+  make('span', 'ds-word', done, t('edit.done'));
   done.type = 'button';
   done.addEventListener('click', () => this.close());
   const body = this.body = make('div', 'ds-body', pane);

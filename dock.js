@@ -35,7 +35,7 @@ const OPEN = { veil: 560, stagger: 50, bend: 0.3, lens: 320, lensDelay: 360, nam
 // Closing, the name, the lens, the dot and the divider go first; the icons fly back into the button and the capsule folds
 // into it, and the button comes back as the capsule reaches it (`back`, a share of the fold). The veil lifts only once the
 // name has nearly gone, so its letters never stand over the bare chat.
-const CLOSE = { veil: 440, veilDelay: 170, fly: 420, stagger: 34, fold: 480, foldDelay: 80, back: 0.62, home: 560, landing: 0.5, letters: 200, spacing: 8, spread: 70, lens: 180 };
+const CLOSE = { veil: 440, veilDelay: 170, fly: 420, stagger: 34, fold: 480, foldDelay: 80, back: 0.62, home: 560, letters: 200, spacing: 8, spread: 70, lens: 180 };
 // A choice made in a choosing dock stays in view a moment before the dock goes, long enough for its name to come out.
 const CHOSEN = 560;
 // The veil's patch: how far past the name and the capsule it keeps full strength, and over how much it then fades out.
@@ -620,12 +620,13 @@ class Dock {
    return { item, glyph, dx: to.x - at.x, dy: to.y - at.y, size: glyph.getBoundingClientRect().width };
   }).sort((a, b) => Math.hypot(b.dx, b.dy) - Math.hypot(a.dx, a.dy));
   let homing = null;
+  this.homed = null;
   shown.forEach(({ item, glyph, dx, dy, size }, k) => {
    for (const animation of glyph.getAnimations()) animation.cancel();
    if (item.id === keep) { glyph.style.opacity = '0'; return; }
    if (this.choice) {
     // The current icon goes home whole, and lands as the button's own glyph.
-    if (item.id === this.current) homing = glyph.animate(way(dx, dy, home.width / size, false).reverse().map((frame, i, all) => ({ ...frame, offset: i / (all.length - 1) })), { duration: CLOSE.home, easing: EASE.motion, fill: 'forwards' });
+    if (item.id === this.current) homing = (this.homed = glyph).animate(way(dx, dy, home.width / size, false).reverse().map((frame, i, all) => ({ ...frame, offset: i / (all.length - 1) })), { duration: CLOSE.home, easing: EASE.motion, fill: 'forwards' });
     else waits.push(quiet(glyph.animate([{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: 'scale(0.6)', filter: 'blur(4px)' }], { duration: CLOSE.lens + 60, easing: 'ease-in', fill: 'forwards' })));
     return;
    }
@@ -637,10 +638,12 @@ class Dock {
    { left: `${button.left - panel.left}px`, top: `${button.top - panel.top}px`, width: `${button.width}px`, height: `${button.height}px`, opacity: 0 },
   ], { duration: CLOSE.fold, delay: CLOSE.foldDelay, easing: EASE.motion, fill: 'forwards' })));
   waits.push(quiet(this.patch.lift(CLOSE.veilDelay)));
-  // The button comes back as the capsule reaches it, or as the current icon arrives in it: the icon's flight is nearly over
-  // (`landing`) well before its easing's long tail is.
-  if (homing) waits.push(quiet(homing));
-  this.backTimer = setTimeout(() => this.back(), homing ? CLOSE.home * CLOSE.landing : CLOSE.foldDelay + CLOSE.fold * CLOSE.back);
+  // The button comes back as the capsule reaches it, or once the current icon has landed in it: then the button's own sign
+  // takes that icon's place in the same frame, so one sign flies home and stops, and no second one is drawn over it.
+  if (homing) {
+   waits.push(quiet(homing));
+   homing.finished.then(() => this.back(), () => {});
+  } else this.backTimer = setTimeout(() => this.back(), CLOSE.foldDelay + CLOSE.fold * CLOSE.back);
   Promise.all(waits).then(() => {
    if (this.state === 'closing') this.finish(focusButton);
   });
@@ -652,6 +655,7 @@ class Dock {
   if (this.returned) return;
   this.returned = true;
   this.onReturn?.();
+  if (this.homed) this.homed.style.visibility = 'hidden';
  }
 
  finish(focusButton = false) {
@@ -664,7 +668,9 @@ class Dock {
   for (const animation of this.panel.getAnimations({ subtree: true })) animation.cancel();
   for (const el of [this.dot, ...this.items.map(item => item.divider)]) if (el) el.style.opacity = '';
   for (const item of this.items) {
-   item.el.querySelector('.dock-glyph').style.opacity = '';
+   const glyph = item.el.querySelector('.dock-glyph');
+   glyph.style.opacity = '';
+   glyph.style.visibility = '';
    item.el.tabIndex = -1;
   }
   if (this.panel.matches(':popover-open')) this.panel.hidePopover();

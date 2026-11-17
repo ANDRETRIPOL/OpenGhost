@@ -5839,7 +5839,7 @@ function clean(source) {
  const lines = (front ? source.slice(front[0].length) : source).replace(/%%\{[\s\S]*?\}%%/g, '').split('\n').map(line => line.replace(/%%.*$/, '').replace(/\s+$/, '')).filter(line => line.trim());
  if (named && lines.length) {
   const title = unquote(named[1]), head = lines[0].trim();
-  if (!TITLED.test(head)) lines.title = title;
+  if (!TITLED.test(head) && !OWN_TITLED.some(test => test.test(head))) lines.title = title;
   else if (!/\btitle\b/i.test(head) && !lines.some(line => /^\s*title\b/i.test(line))) lines.splice(1, 0, `title ${title}`);
  }
  return lines;
@@ -7625,7 +7625,7 @@ class DiagramView {
   const tools = this.tools = div('dg-tools glass-lens', this.frame);
   tools.innerHTML = `<button type="button" class="dg-tool" data-action="edit" aria-label="${I18n.t('diagram.edit')}">${ICONS.edit}</button>`
    + `<button type="button" class="dg-tool" data-action="save" aria-label="${I18n.t('diagram.save')}">${ICONS.save}</button>`
-   + `<button type="button" class="dg-tool" data-action="copy" aria-label="${I18n.t('diagram.copy')}">${ICONS.copy}</button>`;
+   + `<button type="button" class="dg-tool" data-action="copy" aria-label="${I18n.t(this.result.tsv ? 'diagram.copyTable' : 'diagram.copy')}">${ICONS.copy}</button>`;
   if (window.LiquidGlass) new LiquidGlass(tools, TOOLS);
   tools.addEventListener('click', event => {
    const button = event.target.closest('.dg-tool');
@@ -7637,8 +7637,10 @@ class DiagramView {
   if (this.view) this.applyView(this.view);
  }
 
+ // A drawing of money copies as a table, its cells parted by tabs, to paste into a spreadsheet or an accounting program;
+ // any other drawing copies its code.
  async copy(button) {
-  try { await navigator.clipboard.writeText(this.good || this.source); } catch { return; }
+  try { await navigator.clipboard.writeText(this.result?.tsv || this.good || this.source); } catch { return; }
   button.classList.add('is-done');
   clearTimeout(button.doneTimer);
   button.doneTimer = setTimeout(() => button.classList.remove('is-done'), COPIED_TIME);
@@ -7813,5 +7815,17 @@ else window.addEventListener('load', prewarm, { once: true });
 // What the editing stage (diagram-stage.js) reads a drawing into lines with, and writes it back.
 const edit = { editorFor, withHeader, outlineKey, front: source => FRONT.exec(source)?.[0] || '' };
 
-window.Diagram = { view, prewarm, compile: safeCompile, renameNode, editorFor, withHeader, edit };
+// Kinds drawn in a file of their own (diagram-books.js) are built from the same parts and join the list here: the
+// word their first line opens with, and how they are laid out.
+const kit = {
+ FONT, SERIES, CHART, ARROW, STATE, clamp, clamp01, textWidth, widthOf, truncate, wrap, caps, capsWidth, titleOf, amount, bare, cellsOf,
+ rowCells, indentOf, unquote, cleanLabel, slot, ring, polyline, splitList,
+};
+function addKind(test, build, place = 'column', name = '') {
+ KINDS.push([test, build, place]);
+ if (name) OWN_TITLED.push(name);
+}
+const OWN_TITLED = [];
+
+window.Diagram = { view, prewarm, compile: safeCompile, renameNode, editorFor, withHeader, edit, kit, addKind };
 })();

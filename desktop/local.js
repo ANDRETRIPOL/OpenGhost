@@ -18,8 +18,12 @@ const https = require('node:https');
 const NO_VISION = '[A picture was here, but the selected model can\'t see pictures]';
 // A server that does not answer a question about itself is not waited for.
 const ASK = 2500;
-// The window the app asks Ollama for when the user names none and the model runs with less.
-const AUTO = 32768;
+// What a model is and can do (Ollama's /api/show) is waited for longer: a server busy with a model on this computer's
+// own processor answers slowly, and a model it did not tell about was taken to see no pictures.
+const SHOW = 20000;
+// The window the app asks Ollama for when the user names none and the model runs with less: what the agent needs to
+// work (Providers.NEED, about 103K), as the 128K the models are trained for. A model trained for less is not offered.
+const AUTO = 131072;
 
 const error = (message, status = 0, code = '') => Object.assign(new Error(message), { status, code });
 
@@ -121,8 +125,8 @@ async function failure(response) {
  return serverProblem(body, response.status);
 }
 
-async function ask(url, init = {}) {
- const response = await fetch(url, { ...init, signal: AbortSignal.timeout(ASK) });
+async function ask(url, init = {}, wait = ASK) {
+ const response = await fetch(url, { ...init, signal: AbortSignal.timeout(wait) });
  if (!response.ok) throw await failure(response);
  return response.json();
 }
@@ -182,7 +186,7 @@ async function ollama(root) {
  if (!Array.isArray(tags.models)) throw error('not Ollama');
  const running = new Map((ps.models || []).map(item => [item.name || item.model, number(item.context_length)]));
  return Promise.all(tags.models.map(item => item?.name || item?.model).filter(name => typeof name === 'string' && name).map(async id => {
-  const shown = await ask(`${root}/api/show`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: id }) }).catch(() => null);
+  const shown = await ask(`${root}/api/show`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: id }) }, SHOW).catch(() => null);
   const limit = number(Object.entries(shown?.model_info || {}).find(([name]) => name.endsWith('.context_length'))?.[1]);
   const can = Array.isArray(shown?.capabilities) ? shown.capabilities : null, runs = running.get(id) || 0;
   const context = runs >= AUTO ? runs : limit ? Math.min(limit, AUTO) : AUTO;

@@ -7,8 +7,13 @@ const bridge = window.openghost?.llm || null;
 const listeners = new Map();
 bridge?.onEvent(data => listeners.get(data.id)?.(data));
 
-// The least window a model needs to hold the agent's instructions and tools (about 12,400 tokens) and still answer.
-const NEED = 16000;
+// The least window a model is offered with. Every request of an agent's chat carries its base, which no summary makes
+// smaller: the instructions, their formatting guide and the tools (about 29,000 tokens as the app counts them, 20,956
+// as GPT-6 Luna did), the chat's private record once full (about 12,000) and the app's notes (tests/model-window.cjs). Above it the work needs room of its own (economy.js, ROOM),
+// and a chat is summarized at 90% of its window. A model with less would summarize every few steps and forget its
+// work: it is not offered at all (settings.js), as the agent's work matters more than the number of models.
+const AGENT = 44000, ROOM = 48000;
+const NEED = Math.ceil((AGENT + ROOM) / 0.9 / 1000) * 1000;
 const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', openrouter: 'OpenRouter', local: 'Local', custom: 'Custom API' };
 
 class ProviderError extends Error {
@@ -250,5 +255,5 @@ async function speed({ provider, key, model }) {
  return { fast: reply?.fast === true };
 }
 
-window.Providers = { stream, complete, predict, models, account, speed, retry, NAMES, NEED, available: !!bridge };
+window.Providers = { stream, complete, predict, models, account, speed, retry, NAMES, NEED, AGENT, available: !!bridge };
 })();

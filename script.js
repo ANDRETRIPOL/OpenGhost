@@ -20,6 +20,7 @@ let chatList = null;
 let folderPill = null;
 let modelStage = null;
 let effortSlider = null;
+let economyArc = null;
 let notepad = null;
 // Routines (routines.js): the panel of the chat's own, opened from its button, and the one that sets a routine up with a
 // chat of its own, opened from the sidebar. The app's window runs them; the quick chat's only reads and sets them.
@@ -103,6 +104,8 @@ const lockCard = new LockCard({ chat, library, scroller: document.querySelector(
 new WelcomeGhost({ main, root: document.querySelector('.welcome'), input: composerInput });
 // Someone who has just installed the app is shown what it does, once, after the opening (welcome-tour.js).
 if (MAIN_WINDOW) WelcomeTour.start({ library, onDone: () => composerInput.focus({ preventScroll: true }) });
+// After an update, what the new version brings, once (whats-new.js).
+if (MAIN_WINDOW) WhatsNew.start({ library, onDone: () => composerInput.focus({ preventScroll: true }) });
 folderPill = new FolderPill({ button: document.querySelector('.composer-folder'), library, chat });
 chatList = new ChatList({
   root: document.querySelector('.chats'),
@@ -203,6 +206,8 @@ effortSlider = new EffortSlider({
   chat,
 });
 effortSlider.lock(chat.busy);
+// How far the chat saves (economy.js): the arc the button in the composer opens to.
+economyArc = new EconomyArc({ button: document.querySelector('.main .composer-economy'), stage: document.querySelector('.economy-stage'), chat, settings });
 notepad = new Notepad({ chat, thread, button: notesToggle });
 if (MAIN_WINDOW && Routines.available) {
   routinePanel = new RoutinePanel({ chat, settings, button: document.querySelector('.routines-pill') });
@@ -393,6 +398,7 @@ function syncAll() {
   settings.show(chat.model);
   effortSlider?.follow();
   modelStage?.sync();
+  economyArc?.sync();
   effortSlider?.lock(chat.busy);
   notepad?.sync();
   routinePanel?.sync();

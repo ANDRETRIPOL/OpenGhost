@@ -15,7 +15,7 @@ const WAVE = { duration: 560, stagger: 22, spread: 300 };
 const TWIRL = { duration: 760, turn: 180, swell: 1.2 };
 // A model that needs the chat compacted first: the others go where they stand (`fade`), then the chosen one glides to its
 // new place (`glide`) and the question comes up under it.
-const CHOSEN = { fade: 240, glide: 560 };
+const CHOSEN = { fade: 240, glide: 560, longest: 820 };
 const EASE = {
  motion: 'cubic-bezier(0.32, 0.72, 0, 1)',
  out: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -754,23 +754,30 @@ class ModelStage {
  // it stood to where it now stands, the drum's tilt with it, and the question comes up under it.
  chosen(row, others) {
   if (this.state !== 'confirm' || this.choice !== row) return;
-  const list = this.list, from = this.laid(row), was = { translate: row.style.translate, rotate: row.style.rotate, scale: row.style.scale };
+  // Where the row is seen before the list takes its new shape: its drawn middle, the drum's own shift in it.
+  const list = this.list, seen = row.getBoundingClientRect(), was = { translate: row.style.translate, rotate: row.style.rotate, scale: row.style.scale };
   list.classList.add('is-instant');
   for (const box of others) box.classList.add('is-gone');
   this.askSlot.classList.remove('is-folded');
   void list.offsetHeight;
   this.bend();
-  const to = this.laid(row);
+  const now = row.getBoundingClientRect(), shift = (seen.top + seen.height / 2) - (now.top + now.height / 2);
   requestAnimationFrame(() => list.classList.remove('is-instant'));
   this.ask.querySelector('[data-answer="ok"]').focus({ preventScroll: true });
   if (reducedMotion()) return;
-  // The way down goes into `translate`, which comes before the drum's turn and shrink: put after them, it was shrunk
-  // with the row and the glide began a few pixels off.
-  const across = value => parseFloat(value) || 0;
+  // The row glides from where it was seen to where it now stands: measured as drawn, the drum's own shift and turn in
+  // both. (Measured from the layout alone, a row from far down the drum began its way out of sight below, and the menu
+  // seemed to drop it and bring it back.) The way goes into `translate`, which comes before the drum's turn and shrink.
+  const parts = value => String(value || '0px 0px').split(/\s+/).map(part => parseFloat(part) || 0);
+  const [x0, y0] = parts(was.translate), [x1, y1] = parts(row.style.translate);
+  // A row from far down the list has a long way: it takes a little longer, and the question rides with it, so it never
+  // stands in its place while the row is still on the way to it.
+  const glide = Math.round(Math.min(CHOSEN.glide + Math.abs(shift) * 0.6, CHOSEN.longest));
   row.animate([
-   { translate: `${across(was.translate)}px ${(from - to).toFixed(1)}px`, rotate: was.rotate || '0deg', scale: was.scale || '1' },
-   { translate: `${across(row.style.translate)}px 0px`, rotate: row.style.rotate || '0deg', scale: row.style.scale || '1' },
-  ], { duration: CHOSEN.glide, easing: EASE.motion });
+   { translate: `${x0}px ${(y1 + shift).toFixed(1)}px`, rotate: was.rotate || '0deg', scale: was.scale || '1' },
+   { translate: `${x1}px ${y1}px`, rotate: row.style.rotate || '0deg', scale: row.style.scale || '1' },
+  ], { duration: glide, easing: EASE.motion });
+  this.askSlot.animate([{ translate: `0 ${shift.toFixed(1)}px` }, { translate: '0 0' }], { duration: glide, easing: EASE.motion });
   const mark = row.querySelector('.model-mark svg');
   mark?.animate([{ opacity: 0, transform: 'scale(0.2) rotate(-120deg)' }, { opacity: 1, transform: 'none' }], { duration: 620, delay: 120, easing: EASE.spring, fill: 'backwards' });
   this.ask.querySelectorAll('.model-word').forEach((word, k) => word.animate(

@@ -93,6 +93,7 @@ class SplitPane {
   };
   this.models = new ModelStage({ button: $('.composer-model'), root: clonePanel('.model-stage'), chat: this.chat, settings, input: this.input });
   this.effort = new EffortSlider({ button: $('.composer-effort'), panel: clonePanel('.effort-panel'), settings, chat: this.chat });
+  this.economy = new EconomyArc({ button: $('.composer-economy'), stage: clonePanel('.economy-stage'), chat: this.chat, settings });
   this.notepad = new Notepad({ chat: this.chat, thread: $('.thread'), button: $('.notes-toggle') });
   if (Routines.available) {
    this.routines = new RoutinePanel({ chat: this.chat, settings, button: $('.routines-pill') });
@@ -189,7 +190,7 @@ class SplitPane {
    this.input.setAttribute('aria-placeholder', predicted || I18n.t('composer.placeholder'));
   }
   this.field.classList.toggle('has-value', this.input.value !== '');
-  this.folder.sync(); this.settings.show(chat.model); this.models?.sync(); this.effort?.follow(); this.effort?.lock(chat.busy);
+  this.folder.sync(); this.settings.show(chat.model); this.models?.sync(); this.economy?.sync(); this.effort?.follow(); this.effort?.lock(chat.busy);
   this.notepad?.sync(); this.routines?.sync(); this.plan.sync(); this.helpers.sync(); chat.syncAsk(); chat.syncForks();
   this.name.textContent = now?.record ? this.owner.library.titleOf(now.record) : I18n.t('chat.new');
   this.main.setAttribute('aria-label', this.name.textContent);

@@ -33,7 +33,7 @@ const CONTEXT = { reserve: 0.1, chars: 3.2, image: 1200 };
 // How many pages of PDFs go along with one message as pictures, at most.
 const PDF_PICTURES = 16;
 const COMPACT = {
- prompt: 'You compress a long conversation between a user and OpenGhost, an AI agent working on the user\'s computer, so the work can go on without the original messages. Write a dense summary in the language of the user\'s own messages in it (English when they write in English, never a language they did not use), with these parts: the user\'s goals and preferences; key facts, decisions and constraints; what has been done, with file paths, commands and their results, commits; the current state and open problems; the exact next steps. Keep names, paths, numbers, versions and code identifiers exact. Leave out small talk and whatever no longer matters. When the transcript opens with a summary of what came before, that summary is the earlier conversation already compressed: fold it in with the messages after it, and do not expect those older messages.',
+ prompt: 'You compress a long conversation between a user and OpenGhost, an AI agent working on the user\'s computer, so the work can go on without the original messages. Write a dense summary in the language of the user\'s own messages in it (English when they write in English, never a language they did not use), with these parts: the user\'s goals and preferences; key facts, decisions and constraints; what has been done, with file paths, commands and their results, commits; the current state and open problems; the exact next steps. Keep names, paths, numbers, versions and code identifiers exact. While a task is still under way, carry over in full every piece of data from the tool results and messages that it still needs (every name, number, code, path and list item), written out item by item exactly as given: after this summary it is the only place the agent will find them without doing that work again. How many there are is no reason to shorten them. Leave out small talk and whatever no longer matters. When the transcript opens with a summary of what came before, that summary is the earlier conversation already compressed: fold it in with the messages after it, and do not expect those older messages. A long transcript may come in parts: then it opens with the summary of the parts before it, to fold in the same way.',
  head: 'The earlier part of this conversation was compacted to save context. Your tools, formatting rules and browser instructions still apply; this summary does not replace them. Summary of it:',
  resume: 'Go on with the task from where you stopped, using the summary above.',
  skills: 'This message comes from the app, not from the user. These skills were in use before the summary; their instructions still hold, word for word:',
@@ -48,8 +48,24 @@ const COMPACT = {
  turns: { user: 2, assistant: 2 },
  // ...within this share of the window, so a pasted log or a long report can't fill the chat again at once.
  keptShare: 0.1,
- tool: 2000,
- text: 12000,
+ // In economy (economy.js) a summary made while the agent is at work keeps the task's latest steps word for word, with
+ // their tool results, within this share of the chat's limit: the agent goes on with what it just read in front of it.
+ tailShare: 0.2,
+ // A step larger than that is still kept when it takes no more than this share: a file just read is not lost.
+ tailMost: 0.4,
+ // ...and leave the next request this far under the limit at the least (notes from the app, the next step's words).
+ spare: 4000,
+ // Ghost Max (economy.js): the summary is written fuller.
+ ghost: words => `This chat keeps a fuller memory: write a thorough summary, as long as everything below takes, about ${words} words where there is that much to keep, and never cut short for brevity. Keep every goal, decision and constraint in the user's own terms, every file path, command and result that still matters, names, numbers and code identifiers exactly, what was tried and why it was left, and the exact state of the work and its next steps. Lose no detail the work may need later.`,
+ tail: 'This message comes from the app, not from the user. The summary above covers the whole conversation so far. The latest steps of the task under way follow here once more, word for word, with their full tool results, so nothing of them has to be looked up again.',
+ // A summary that drops much of the exact data the summary before it carried (names, codes, numbers, paths) is asked
+ // to write itself again once, with what it dropped listed: a model now and then folds a long list down to a few of
+ // its items, and the agent then does the work that found them over again. Loss under `least` items, or under `share`
+ // of them, is taken as data the work no longer needs. At most `most` items are listed.
+ keep: { least: 5, share: 0.2, most: 400 },
+ again: (summary, lost) => `[Your summary of all this]\n${summary}\n\n[Items of the summary before it that yours left out]\n${lost.join('\n')}\n\nWrite the summary again, whole: keep every one of these items that the work still needs, written out exactly as above, along with everything else your summary keeps.`,
+ // The most characters one request of a summary carries. Nothing is cut to fit: a transcript longer than this, or than
+ // the model can read at once, is summarized in parts (pieces).
  total: 2400000,
 };
 const REMOVE = { duration: 240, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
@@ -281,9 +297,13 @@ const RECORD = {
  empty: 'Error: text is empty.',
  missing: 'Error: old_text is not in the record. Copy it exactly from the latest note of the record, or use write to set the whole record.',
  twice: 'Error: old_text is in the record more than once. Give a longer piece, so that it is found in one place only.',
- big: n => `Error: that record would be ${n} characters, and the file holds ${RECORD.chars} at most. Take out what is no longer true, shorten the rest, and write it again.`,
+ big: (n, most = RECORD.chars) => `Error: that record would be ${n} characters, and the file holds ${most} at most. Take out what is no longer true, shorten the rest, and write it again.`,
  saved: n => `Saved at ${RECORD.stamp()} by this computer's clock. The record is ${n} characters. The next step is shown it, so there is no need to repeat it in the reply.`,
  cleared: 'The record is empty now.',
+ // How the agent's instructions and the record tool name its size (agent-prompt.js, agent-tools.js): a Ghost Max chat
+ // says its own number in their place.
+ rule: n => `Stay under ${n} characters.`,
+ most: n => `At most ${n} characters.`,
  failed: 'Error: the record could not be saved. Do not assume the change was kept. Try again before relying on it.',
 };
 // What the agent's skill tool answers (skills.js and desktop/skills.js find, read and put in the skills).
@@ -345,6 +365,18 @@ const FORMAT_GUIDE = [
  '  parts for a computer build, a kit or an estimate: Slot | part | what to know of it | price, with good, warn or bad as a last cell for whether it fits, and a last line total.',
  '  settings for setting up a phone, a system or an app: Settings > Battery > Power saving | on | note; write on or off for a switch, or the value to choose; a line without bars names a group.',
  '  route for a trip: Place | when or how long | what to see; a line indented under a place is the way on to the next (train | 2 h 50 min | 310 km), and a line Day 1 opens a day.',
+ '- Bookkeeping and tax have kinds of their own, for any country: write accounts, documents, taxes and words exactly as that country and the user name them, and the amounts as the documents give them. Each may start with title, currency <ISO code> (BRL, EUR, USD, RUB, INR, JPY…), locale <code> (pt-BR, de-DE, en-US…) so amounts are written as there, rate <text> and note <text>. Key words at the start of a line are lower case.',
+ '  The app checks every sum (debit equals credit, balances follow from movements, lines add up to totals) and marks a figure that does not add up. Write the figures as they are in the source, never adjust one to make a check pass: an unexplained difference is shown as found.',
+ '  invoice for one document of sale (invoice, nota fiscal, fattura, счёт-фактура, bill): number NF 4512 | 2026-10-14, from Seller | tax id, to Buyer | tax id, period 10/2026, due 2026-11-10, status paid, not verified or cancelled; then rows Item | amount or Item | qty | price | amount; then tax VAT 19% | 1 900,00 (add | included when the price holds it), withheld IRRF 1.5% | 192,00, discount Name | amount, total <as the document says> and payable <as it says>.',
+ '  statement for a bank statement sorted line by line: account <name and number>, period <text>, opening <amount>, then Date | what it is | signed amount (or 100,00 C / 100,00 D) | where it went | note; a last line closing <amount>. Where it went is one of the English words booked, new, transfer, advance, settle or pending, whatever the language of the answer: the app says it in the user\'s language. No line of column headings.',
+ '  entries for journal entries: one line each as Date | debit account | credit account | amount | description, or a line Date | description with its lines indented under it as Dr account | amount and Cr account | amount. t-accounts takes the same lines (plus opening account | balance lines) and draws each account as a T.',
+ '  reconcile for two records of one account (bank and books, us and a supplier): sides Bank | Books, then the opening row Name | a | b, the movements as signed rows, = Closing | a | b as each record states it, then the items that explain the difference as Name | amount in the column of the record that has it.',
+ '  match for documents against payments: sides Invoices | Payments, then Document | amount | Payment | amount | note; leave a side empty when it is missing, and indent a line under another to add a part payment or a second document to its group.',
+ '  trial for a trial balance: cols Opening | Turnover | Closing names the groups, then Account | opening | debit | credit | closing (balances signed or with D/C after them; two numbers mean the turnover only); indent sub-accounts under their synthetic account.',
+ '  report for a balance sheet or a profit and loss statement: a line without bars opens a section, its rows Name | amount are indented under it; = Name | amount sums every row above (gross profit, net profit); check Assets = Liabilities + Equity says which sections must balance.',
+ '  tax for a tax worked out (VAT, GST, sales tax, ICMS, income tax): Base | amount, then Tax name | 18% (| the amount counted, if any) under its base, then signed rows for credits and additions, and = To pay | amount.',
+ '  aging for debts by age: as of 2026-10-31, then Counterparty | amount | due date, or a counterparty line with its documents indented under it as Document | amount | due date; or buckets Current | 1-30 | 31-60 | 61-90 | 90+ and Counterparty | a | b | c | d | e.',
+ '  In bookkeeping answers draw the documents and the books themselves with these kinds and keep the words around them short; the pending items, what is missing for each, belong in a checklist.',
  '  Choose the form by the subject. How something works or is made: a flowchart of the whole with its stages, and a chart for each curve or comparison in it. A document or a file the user sent: facts for what it is, outline for how it is built, then checklist, changes, timeline, metrics or bars for what it says, and a flowchart for the process it describes.',
  '  Food: nutrition, recipe, plan for a menu. Sport: matches, bracket, plan for a training week, metrics and heatmap for progress. Money: candlestick, waterfall, bars with a total, metrics, pie. A language: words, gloss, forms. A device: parts, settings, steps, checklist. A trip: route, plan by days, bars for the budget, checklist for packing. A repair: steps, ranges for the norms, parts for what to buy.',
  '  And by what the reader needs: a few key numbers are metrics, not a chart; a ranking is bars; a change over time is a line; steps to follow are steps; a schedule is plan or gantt.',
@@ -411,6 +443,7 @@ const VISUAL_CHECK = [
  '- Numbers to compare, a trend or shares: a chart. A process, a plan, a structure or a history: a diagram. An interface or a page: a wireframe.',
  '- A few key numbers: metrics. Values against a norm: ranges. Steps to follow: steps. A plan by days: plan.',
  '- Food: nutrition or recipe. Matches: matches. A language: words, gloss, forms. A build: parts. Settings of a device: settings. A trip: route.',
+ '- Bookkeeping and tax: invoice, statement, entries, t-accounts, reconcile, match, trial, report, tax, aging.',
  '- An explanation of how something works: a scheme of the whole and a chart for every curve in it, not one drawing for the whole answer.',
  '- Something better seen than described, a dish, a place, a game, a product: pictures or a video found with find_media.',
  'Draw it in this reply without being asked, and keep the words around it short.',
@@ -602,31 +635,78 @@ function estimate(messages) {
 
 const textOf = content => typeof content === 'string' ? content : (content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
 
-function transcript(entries) {
+// Long parts are shortened for the summary only. The mark says so: a bare "more characters" was taken by the model
+// writing the summary for a read that had been cut off, and the agent then read the file again after the summary.
+
+function blocks(entries) {
  const out = [];
  for (const entry of entries) {
   if (entry.role === 'compact') out.push(`[Summary of what came before]\n${entry.summary}`);
-  else if (entry.role === 'user') out.push(`User: ${cut(textOf(entry.content) || entry.text || '', COMPACT.text)}`);
-  else if (entry.role === 'assistant' && !entry.steps) out.push(`OpenGhost: ${cut(entry.content || '', COMPACT.text)}`);
+  // Everything since the last summary goes in whole, the user's words, the agent's and the tools' alike: a transcript
+  // longer than one request can take is summarized in parts, never cut.
+  else if (entry.role === 'user') out.push(`User: ${textOf(entry.content) || entry.text || ''}`);
+  else if (entry.role === 'assistant' && !entry.steps) out.push(`OpenGhost: ${entry.content || ''}`);
   else if (entry.role === 'assistant') {
    const recordCalls = new Set(entry.steps.flatMap(step => (step.tool_calls || []).filter(call => call.function.name === 'record').map(call => call.id)));
    for (const step of entry.steps) {
     if (step.role === 'tool') {
-     if (!recordCalls.has(step.tool_call_id)) out.push(`[Result] ${cut(step.content, COMPACT.tool)}`);
+     if (!recordCalls.has(step.tool_call_id)) out.push(`[Result] ${textOf(step.content)}`);
      continue;
     }
     // A note from the app says how things stood then; the chat gets fresh ones after the summary.
     if (step.role === 'user' && typeof step.content === 'string') continue;
     if (step.role === 'user') { out.push(`[${step.content.filter(part => part.type === 'image_url').length} pictures from the tools were shown]`); continue; }
-    if (step.content) out.push(`OpenGhost: ${cut(step.content, COMPACT.text)}`);
+    if (step.content) out.push(`OpenGhost: ${textOf(step.content)}`);
     for (const call of step.tool_calls || []) {
-     if (call.function.name !== 'record') out.push(`[Tool ${call.function.name}] ${cut(call.function.arguments, COMPACT.tool)}`);
+     if (call.function.name !== 'record') out.push(`[Tool ${call.function.name}] ${call.function.arguments || ''}`);
     }
    }
   }
  }
- const text = out.join('\n\n');
- return text.length > COMPACT.total ? `${text.slice(0, COMPACT.total / 4)}\n\n[… middle of the conversation left out …]\n\n${text.slice(-COMPACT.total * 3 / 4)}` : text;
+ return out;
+}
+
+function transcript(entries) {
+ return blocks(entries).join('\n\n');
+}
+
+// The exact data in a summary: what a model could not guess again — a word with a digit in it, an identifier with a
+// capital inside or an underscore, a path. Plain words are left to the summary's own judgement.
+function exact(text) {
+ const out = new Set();
+ for (const raw of String(text || '').split(/[\s,;:()[\]{}<>"'`«»|*=]+/)) {
+  const item = raw.replace(/^[.\-#]+|[.\-]+$/g, '');
+  if (item.length >= 3 && (/\d/.test(item) || /[a-z][A-Z]/.test(item) || /[/_\\]/.test(item))) out.add(item);
+ }
+ return out;
+}
+
+// What of the summary before a new one the new one left out, when that is too much to be data the work is done with.
+function dropped(before, after) {
+ const all = [...exact(before)], lost = all.filter(item => !after.includes(item));
+ return lost.length >= Math.max(COMPACT.keep.least, all.length * COMPACT.keep.share) ? lost.slice(0, COMPACT.keep.most) : [];
+}
+
+// The transcript in parts of at most `most` characters each, nothing left out: a conversation too long for one request
+// is summarized part by part, each part with the summary of those before it (Chat.compact). A single message longer
+// than a part is split.
+function pieces(entries, most) {
+ return parts(blocks(entries), most);
+}
+
+// Blocks of a transcript (a chat's or a helper's) put together into parts of at most `most` characters, in order.
+function parts(list, most) {
+ const out = [];
+ let now = '';
+ for (const block of list) {
+  for (let at = 0; at < block.length; at += most) {
+   const slice = block.slice(at, at + most);
+   if (now && now.length + slice.length + 2 > most) { out.push(now); now = ''; }
+   now = now ? `${now}\n\n${slice}` : slice;
+  }
+ }
+ if (now || !out.length) out.push(now);
+ return out;
 }
 
 // The messages some entries of a chat go to the model as. `reader` is the model that will read them: a step another
@@ -650,8 +730,7 @@ function unsigned(step) {
 
 // The last turns that stay word for word after a summary: the last few messages of the user and the last few replies,
 // and everything between them, so a reply is never split from the message it answers. A reply keeps its tool calls.
-function keptSpan(entries) {
- const need = COMPACT.turns;
+function keptSpan(entries, need = COMPACT.turns) {
  let users = 0, assistants = 0, start = entries.length;
  for (let i = entries.length - 1; i >= 0 && (users < need.user || assistants < need.assistant); i--) {
   const role = entries[i].role;
@@ -662,6 +741,23 @@ function keptSpan(entries) {
   start = i;
  }
  return start >= entries.length ? [] : entries.slice(start);
+}
+
+// The task's latest steps that stay word for word after a summary made in economy: how many of `steps`, counted from
+// the end. It starts at a step of the model's, so every tool result kept has its call before it, and holds as many whole
+// steps as fit `room` tokens. A last step larger than that is kept on its own when it fits `most`, else nothing is.
+function tailOf(steps, room, most) {
+ let from = -1;
+ for (let i = steps.length - 1; i >= 0; i--) {
+  if (steps[i].role !== 'assistant') continue;
+  const size = estimate(steps.slice(i));
+  if (size <= room) from = i;
+  else {
+   if (from < 0 && size <= most) from = i;
+   break;
+  }
+ }
+ return from < 0 ? 0 : steps.length - from;
 }
 
 // How many tokens a summary may run to: a share of the window of the model that writes it, never more than that model
@@ -865,6 +961,58 @@ class Chat {
   return true;
  }
 
+ // How far the chat saves (economy.js): the size in tokens it is summarized at, 0 when it doesn't. A chat keeps the size
+ // it was given; one not sent yet has the size new chats get, and a chat from before economy saves nothing.
+ economyOf(conv = this.active) {
+  const own = conv?.record ? conv.record.economy : conv?.economy ?? window.Economy?.value;
+  return Math.max(0, Math.round(Number(own) || 0));
+ }
+
+ // The chat on screen saves down to `value` tokens (0: not at all), and new chats will too.
+ setEconomy(value) {
+  const conv = this.active, size = Math.max(0, Math.round(Number(value) || 0));
+  if (!conv || conv.locked || !Number.isFinite(Number(value))) return false;
+  window.Economy?.set(size);
+  if (this.economyOf(conv) === size && !this.ghostOf(conv)) return true;
+  if (conv.record) this.library.update(conv.id, { economy: size, ghost: 0 });
+  else Object.assign(conv, { economy: size, ghost: 0 });
+  this.onChange();
+  return true;
+ }
+
+ // What every request of this chat carries before anything said in it, which no summary makes smaller: the instructions
+ // and the tools, the user's own instructions and files, the project's AGENTS.md, the memory and the chat's private
+ // record. Economy (economy.js) keeps the chat's limit far enough above it to leave room for the work. Counted as the
+ // app counts, corrected by how its counts of this chat compared with the provider's.
+ countBase(conv, system) {
+  const tools = this.agent(conv) ? this.toolSchemas(conv) : null;
+  const size = estimate(system) + estimate(this.notes(conv, [])) + Math.ceil(JSON.stringify(tools || []).length / CONTEXT.chars) + UserContext.pictures().length * CONTEXT.image;
+  return Math.ceil(size * (conv.ratio || 1));
+ }
+
+ async baseOf(conv) {
+  conv.base = this.countBase(conv, (await this.system(conv)).map(content => ({ role: 'system', content })));
+  return conv.base;
+ }
+
+ // How much of its model's window the chat may fill before it is summarized, and why (economy.js). `room` is the window
+ // everything about a summary is measured by: the model's own, or in economy the one its limit is the usual share of.
+ span(conv, config = this.config(conv)) {
+  const size = this.settings.windowOf(config.id), value = this.economyOf(conv);
+  const plan = window.Economy?.limit(this.settings.find(config.id), value, size, conv.base || 0) || { limit: Math.floor(size * (1 - CONTEXT.reserve)), window: size, on: false };
+  plan.room = plan.on ? Math.floor(plan.limit / (1 - CONTEXT.reserve)) : size;
+  return plan;
+ }
+
+ // How large the next request will be, as far as the app can tell. It knows the size of the last one from the provider;
+ // what came after it (tool results, notes) it counts itself, by characters, and corrects that by how its counts of this
+ // chat's requests compared with the provider's. Only economy asks: it has a price step to stay under.
+ ahead(conv, used, plan) {
+  if (!plan.on) return used;
+  const guessed = Math.max(0, used - (conv.real || 0));
+  return Math.ceil(used + guessed * ((conv.ratio || 1) - 1));
+ }
+
  // Whether the chat has turns no summary covers yet: a new model would need them compacted first.
  hasHistory(conv = this.active) {
   const messages = conv?.messages || [], last = messages.findLastIndex(entry => entry.role === 'compact');
@@ -916,7 +1064,7 @@ class Chat {
  // How full the chat's context is, out of its model's window, from 0 to 1.
  get fill() {
   const conv = this.active;
-  return conv?.record ? Math.min(1, (conv.tokens || 0) / this.settings.windowOf(this.modelOf(conv))) : 0;
+  return conv?.record ? Math.min(1, (conv.tokens || 0) / this.span(conv).room) : 0;
  }
 
  // Compacts the chat on screen on the user's word: the same summary a full window brings, shown the same way.
@@ -1071,6 +1219,7 @@ class Chat {
   return Promise.all([this.library.conversation(conv.id), this.library.notes?.(conv.id), this.library.record?.(conv.id)]).then(([{ messages, tokens }, pad, brief]) => {
    conv.messages = messages;
    conv.tokens = tokens;
+   conv.real = tokens;
    conv.pad = pad || null;
    conv.brief = brief || '';
    // Freeze the old application-wide preference once for a legacy chat. Never replace another chat's choice.
@@ -1262,7 +1411,7 @@ class Chat {
  }
 
  send(text, attachments = []) {
-  const conv = this.active, config = this.config(conv);
+  const conv = this.active, config = this.config(conv), saving = this.economyOf(conv), ghost = this.ghostOf(conv);
   if (conv.locked) return false;
   this.forget(conv, true);
   this.anchor = null;
@@ -1272,7 +1421,7 @@ class Chat {
   }
   if (!conv.record) {
    conv.record = this.library.create({ folder: conv.folder, text, attachments });
-   this.library.update(conv.id, { model: this.modelOf(conv), effort: config.effort, speed: config.speed, mode: this.modeOf(conv) });
+   this.library.update(conv.id, { model: this.modelOf(conv), effort: config.effort, speed: config.speed, mode: this.modeOf(conv), economy: saving, ghost });
    this.conversations.set(conv.id, conv);
    if (this.library.notes) conv.pad = { items: [], next: 1 };
    this.draft = null;
@@ -1467,7 +1616,9 @@ class Chat {
   if (bubble) this.nodes.set(entry, bubble);
   this.openPart(conv, turn);
   this.onChange();
-  return this.drive(conv, turn, async () => { await this.compose(conv, entry, prompt); });
+  // The message counts once its attachments are read, before the first request: a long text or a file pasted in is
+  // what could carry the chat past its limit at once.
+  return this.drive(conv, turn, async () => { await this.compose(conv, entry, prompt); conv.tokens += estimate([entry]); });
  }
 
  // The message as the model gets it, once every attachment is read; a video's place and frame are known only then.
@@ -1643,7 +1794,8 @@ class Chat {
   const home = this.library.isHome(conv.record), place = AgentPrompt.environment({ folder: this.cwd(conv), own: home, env });
   // A chat's own folder is no project: nobody keeps instructions there.
   const guide = home ? null : await AgentTools.guide(this.cwd(conv));
-  return [`${AgentPrompt.build({ env })}\n\n# Formatting\n${FORMAT_GUIDE}`, [place, guide?.text && AgentPrompt.guide(guide), own, check].filter(Boolean).join('\n\n')];
+  const prompt = `${AgentPrompt.build({ env })}\n\n# Formatting\n${FORMAT_GUIDE}`, most = this.recordLimit(this instanceof SideChat ? this.origin : conv);
+  return [most === RECORD.chars ? prompt : prompt.replace(RECORD.rule(RECORD.chars), RECORD.rule(most)), [place, guide?.text && AgentPrompt.guide(guide), own, check].filter(Boolean).join('\n\n')];
  }
 
  // What the model has to be told before this request: the notes whose latest word in the chat no longer holds. A note goes
@@ -1753,10 +1905,14 @@ class Chat {
   if (!entry) return flat(messages);
   const out = [{ role: 'system', content: `${COMPACT.head}\n\n${entry.summary}` }];
   if (entry.skills) out.push({ role: 'user', content: `${COMPACT.skills}\n\n${entry.skills}` });
-  const kept = entry.turns ? keptTurns(messages.slice(0, start).slice(-entry.turns), entry.room) : [];
+  // A summary made in economy while the agent worked keeps the task's latest steps (`tail`): they are the entry just
+  // before it, and the turns kept as text end before that entry.
+  const tail = entry.tail ? flat([messages[start - 1]], entry.model).slice(-entry.tail) : [];
+  const kept = entry.turns ? keptTurns(messages.slice(0, tail.length ? start - 1 : start).slice(-entry.turns), entry.room) : [];
   if (kept.length) out.push({ role: 'user', content: COMPACT.kept }, ...kept);
   // A summary made by an earlier version kept its last steps with their commands.
   else if (entry.keep) out.push({ role: 'user', content: COMPACT.keptSteps }, ...flat(messages.slice(0, start), entry.model).slice(-entry.keep));
+  if (tail.length) out.push({ role: 'user', content: COMPACT.tail }, ...tail);
   if (entry.resume) out.push({ role: 'user', content: COMPACT.resume });
   return [...out, ...flat(messages.slice(start + 1))];
  }
@@ -1764,11 +1920,14 @@ class Chat {
  async request(conv, turn) {
   const part = turn.part, view = part.view, base = part.entry.content;
   if (this.agent(conv)) await Skills.refresh(this.cwd(conv)).catch(() => {});
-  const messages = [...(await this.system(conv)).map(content => ({ role: 'system', content })), ...withPictures(this.history(conv), UserContext.pictures())];
+  const system = (await this.system(conv)).map(content => ({ role: 'system', content }));
+  const messages = [...system, ...withPictures(this.history(conv), UserContext.pictures())];
+  conv.base = this.countBase(conv, system);
   if (this.agent(conv)) await Desk.refresh().catch(() => {});
   const notes = this.notes(conv, messages), at = this.seam(conv, messages);
   if (messages[at]) messages[at] = { ...messages[at], cache: true };
   messages.push(...notes);
+  const counted = estimate(messages);
   // What was sent stays in the chat with the reply to it, the notes included, and the next request is told where this one ended.
   const keep = step => {
    part.entry.steps.push(...notes, ...(step ? [step] : []));
@@ -1778,7 +1937,7 @@ class Chat {
   try {
    result = await Providers.stream(turn.config, {
     messages,
-    tools: this.agent(conv) ? this.toolSchemas() : null,
+    tools: this.agent(conv) ? this.toolSchemas(conv) : null,
     signal: turn.controller.signal,
     session: this.session(conv),
     retryBudget: turn.retryBudget ||= { used: 0 },
@@ -1833,6 +1992,9 @@ class Chat {
   spend(part.entry, result.usage);
   const usage = result.usage;
   conv.tokens = usage ? usage.total_tokens || usage.prompt_tokens + usage.completion_tokens : estimate(messages) + estimate([part.entry.steps.at(-1)]);
+  conv.real = usage ? conv.tokens : 0;
+  // How the provider's count of this request compares with the app's own: the app's next counts are corrected by it.
+  if (usage?.prompt_tokens > 0 && counted > 0) conv.ratio = Math.min(3, Math.max(0.8, usage.prompt_tokens / counted));
   const calls = part.entry.steps.at(-1).tool_calls || [];
   if (calls.length) {
    view.stream.checkpoint?.();
@@ -2270,13 +2432,22 @@ class Chat {
  }
 
  async compactIfNeeded(conv, turn) {
-  const used = conv.tokens || estimate(this.history(conv)), window = this.settings.windowOf(turn.config.id);
-  if (used < window * (1 - CONTEXT.reserve)) return;
+  const used = conv.tokens || estimate(this.history(conv)), plan = this.span(conv, turn.config);
+  if (this.ahead(conv, used, plan) < plan.limit) return;
   // Right after a summary there is little new to fold: what fills the window is the rest (the instructions, the record,
   // a huge file). Another summary would change nothing and would come again at every step, so the request goes as it is.
   const start = conv.messages.findLastIndex(entry => entry.role === 'compact');
-  if (start >= 0 && estimate(flat(conv.messages.slice(start + 1))) < window * COMPACT.part) return;
+  if (start >= 0 && estimate(flat(conv.messages.slice(start + 1))) < plan.room * COMPACT.part) {
+   // In economy the task's latest steps kept word for word after the summary can be what holds the chat over its
+   // limit: the summary is made again once without them (they are in it already), and no more after that.
+   if (plan.on && conv.messages[start].tail) await this.compact(conv, turn, null, { bare: true });
+   return;
+  }
   await this.compact(conv, turn);
+  // Should the next request still not fit under the limit (a heavy start of every request), the summary is made once
+  // more without the task's latest steps, before anything is sent.
+  const made = conv.messages.findLast(entry => entry.role === 'compact');
+  if (plan.on && made?.tail && this.ahead(conv, conv.tokens, plan) >= plan.limit) await this.compact(conv, turn, null, { bare: true });
  }
 
  switchLabels(from, to) {
@@ -2288,7 +2459,7 @@ class Chat {
   };
  }
 
- async compact(conv, turn, labels = null) {
+ async compact(conv, turn, labels = null, { bare = false } = {}) {
   const messages = conv.messages;
   let at = messages.length;
   while (at > 0 && (messages[at - 1].role === 'user' || (messages[at - 1].steps && !messages[at - 1].steps.length))) at--;
@@ -2309,18 +2480,42 @@ class Chat {
    else turn.part.view.el.before(notice);
   }
   this.viewOf(conv)?.followBottom();
-  let summary = '', cost = null;
+  let summary = '';
+  const costs = [];
+  // In economy the summary and what stays after it are measured by the chat's limit, and the request that writes the
+  // summary stays under it too, so it never costs the higher price the chat is kept from.
+  const plan = this.span(conv, turn.config), ghost = window.Economy?.ghost(this.ghostOf(conv)), level = this.ghostOf(conv);
+  const room = compactRoom(plan.on ? { ...turn.config, window: plan.room } : turn.config);
+  // The transcript the summary is written from fits the request that carries it: under the chat's limit in economy,
+  // within the window of the model that writes it otherwise. What does not fit is cut from its middle.
+  const reach = Math.min(COMPACT.total, Math.floor((plan.on ? plan.limit : Number(turn.config.window) || this.settings.windowOf(turn.config.id)) * 0.8 * CONTEXT.chars));
   try {
    // A later summary reads the previous summary and what was said after it, not the messages that summary already folded.
    const earlier = messages.findLastIndex((item, k) => k < at && item.role === 'compact');
    const source = earlier >= 0 ? [messages[earlier], ...messages.slice(earlier + 1, at)] : messages.slice(0, at);
-   summary = await Providers.complete(turn.config, {
-    messages: [{ role: 'system', content: COMPACT.prompt }, { role: 'user', content: transcript(source) }],
-    maxTokens: compactRoom(turn.config),
+   // What does not fit one request is summarized part by part, each part with the summary so far: nothing is left out.
+   // A whole number: OpenAI turns down a decimal one (13,200 × 1.5 is 19,800.000000000004 in floating point).
+   const most = ghost ? Math.max(room, Math.min(Math.ceil(window.Economy.summaryTokens(level) * 1.5), Number(turn.config.output) || COMPACT.output * 4)) : room;
+   const parts = pieces(source, Math.max(Math.floor(reach / 2), reach - Math.ceil(most * CONTEXT.chars) - 4000));
+   const ask = content => Providers.complete(turn.config, {
+    messages: [{ role: 'system', content: ghost ? `${COMPACT.prompt} ${COMPACT.ghost(ghost.words)}` : COMPACT.prompt }, { role: 'user', content }],
+    maxTokens: most,
     signal: turn.controller.signal,
     waited: true,
-    onUsage: usage => { cost = usage; },
+    onUsage: usage => { costs.push(usage); },
    });
+   for (const part of parts) {
+    // What this summary folds in: the summary so far, or for the first part the chat's previous one.
+    const prior = summary || (earlier >= 0 ? messages[earlier].summary : ''), input = summary ? `[Summary of what came before]\n${summary}\n\n${part}` : part;
+    let written = await ask(input);
+    if (!written) { summary = ''; break; }
+    const lost = prior ? dropped(prior, written) : [];
+    if (lost.length) {
+     const again = await ask(`${input}\n\n${COMPACT.again(written, lost)}`);
+     if (again && dropped(prior, again).length < lost.length) written = again;
+    }
+    summary = written;
+   }
   } catch (error) {
    // Never continue with another request to the same unavailable model after a failed summary. Let end() release
    // the turn, expose the provider error and roll back a failed model switch, with the original history intact.
@@ -2341,19 +2536,32 @@ class Chat {
   // The last two messages and the last two replies stay word for word as text, whichever model continues: the entries
   // they are read from, and the room they may take. The previous summary's last turns still count when only one new
   // exchange followed it.
-  const turns = keptSpan(messages.slice(0, at)).length;
+  // In economy, a summary made while the agent works keeps the task's latest steps word for word (`tail`).
+  // They take no more than leaves the next request under the limit, with what every request carries, the summary just
+  // written and the turns kept as text counted in.
+  // In Ghost Max more stays: more turns, and the task's latest steps, within the level's room.
+  const own = messages[at - 1], size = Number(turn.config.window) || this.settings.windowOf(turn.config.id);
+  const keptRoom = ghost ? Math.min(Math.floor(size * ghost.kept), ghost.keptMost) : Math.floor((plan.on ? plan.room : size) * COMPACT.keptShare);
+  const fit = plan.on ? Math.floor(plan.limit - (conv.base || 0) - estimate([{ content: summary }]) - plan.room * COMPACT.keptShare - COMPACT.spare) : ghost ? Math.floor(plan.limit - (conv.base || 0) - estimate([{ content: summary }]) - keptRoom - COMPACT.spare) : 0;
+  const shares = plan.on ? [Math.floor(plan.limit * COMPACT.tailShare), Math.floor(plan.limit * COMPACT.tailMost)] : ghost ? [ghost.tail, ghost.tail] : [0, 0];
+  const tail = (plan.on || ghost) && !bare && middle && fit > 0 && own?.role === 'assistant' && own.steps?.length ? tailOf(own.steps, Math.min(shares[0], fit), Math.min(shares[1], fit)) : 0;
+  if (tail) entry.tail = tail;
+  const turns = keptSpan(messages.slice(0, tail ? at - 1 : at), ghost ? { user: ghost.turns, assistant: ghost.turns } : COMPACT.turns).length;
   if (turns) {
    entry.turns = turns;
-   entry.room = Math.floor((Number(turn.config.window) || this.settings.windowOf(turn.config.id)) * COMPACT.keptShare);
+   entry.room = keptRoom;
   }
   // How many messages of the conversation went into this summary: the mark in the chat says so.
   entry.count = before.filter(item => item.role === 'user' || item.role === 'assistant').length;
-  spend(entry, cost);
+  for (const cost of costs) spend(entry, cost);
   messages.splice(at, 0, entry);
   this.nodes.set(entry, notice);
   // The chat starts anew from the summary: nothing of the requests before it is in the next one.
   conv.sent = 0;
   conv.tokens = estimate([...(await this.system(conv)).map(content => ({ content })), ...this.history(conv)]);
+  // In economy the tools count too: the next request is held to the limit on this count.
+  if (plan.on && this.agent(conv)) conv.tokens += Math.ceil(JSON.stringify(this.toolSchemas(conv) || []).length / CONTEXT.chars);
+  conv.real = 0;
   this.finishNotice(notice, true, entry.count);
   this.save(conv);
   return true;
@@ -2768,8 +2976,36 @@ class Chat {
  }
 
  // The schemas this chat's agent is given. The mini chat over this chat gets the same record tool.
- toolSchemas() {
-  return AgentTools.schemas;
+ toolSchemas(conv = null) {
+  const most = conv ? this.recordLimit(conv) : RECORD.chars;
+  if (most === RECORD.chars) return AgentTools.schemas;
+  return AgentTools.schemas.map(tool => tool.function.name !== 'record' ? tool : { ...tool, function: { ...tool.function, description: tool.function.description.replace(RECORD.most(RECORD.chars), RECORD.most(most)) } });
+ }
+
+ // ---- Ghost Max (economy.js)
+
+ // The chat's level of Ghost Max: 0, 1 or 2. A chat keeps the level it was given; one not sent yet has the level new
+ // chats get.
+ ghostOf(conv = this.active) {
+  const own = conv?.record ? conv.record.ghost : conv?.ghost ?? window.Economy?.ghostLevel;
+  return window.Economy?.ghost(own) ? own : 0;
+ }
+
+ // The chat on screen goes to Ghost Max at `level` (0: back to none); it saves nothing meanwhile, and new chats will too.
+ setGhost(level) {
+  const conv = this.active, ghost = window.Economy?.ghost(level) ? level : 0;
+  if (!conv || conv.locked) return false;
+  window.Economy?.set(0, ghost);
+  if (this.ghostOf(conv) === ghost && this.economyOf(conv) === 0) return true;
+  if (conv.record) this.library.update(conv.id, { ghost, economy: 0 });
+  else Object.assign(conv, { ghost, economy: 0 });
+  this.onChange();
+  return true;
+ }
+
+ // How many characters the chat's private record may hold.
+ recordLimit(conv) {
+  return window.Economy?.ghost(this.ghostOf(conv))?.record || RECORD.chars;
  }
 
  // A chat's plan (agent-plan.js): the latest one kept on its replies, and where it is kept.
@@ -2928,7 +3164,8 @@ class Chat {
     if (now.indexOf(old, at + 1) >= 0) return RECORD.twice;
     text = `${now.slice(0, at)}${clean(args.new_text)}${now.slice(at + old.length)}`.replace(/\n{3,}/g, '\n\n').trim();
    }
-   if (text.length > RECORD.chars) return RECORD.big(text.length);
+   const most = this.recordLimit(this instanceof SideChat ? this.origin : conv);
+   if (text.length > most) return RECORD.big(text.length, most);
    saved = await this.library.saveRecord(conv.id, text);
   }
   catch { return RECORD.failed; }
@@ -3086,9 +3323,14 @@ class Chat {
   let mini = null;
   for (const entry of side?.messages || []) if (entry.usage && !entry.forked && (entry.role === 'assistant' || entry.role === 'compact')) addUp(mini ||= tokens(), entry.usage);
   const order = [...models.keys()];
+  // What went at the full price: new tokens and the model's own words; what the provider read from its cache costs a
+  // fraction.
   return {
    version: 1,
-   models: order.map(id => ({ id, name: this.settings.find(id)?.name || String(id).split(':').pop(), ...models.get(id) })),
+   models: order.map(id => {
+    const u = models.get(id);
+    return { id, name: this.settings.find(id)?.name || String(id).split(':').pop(), ...u, fresh: Math.max(0, u.input - u.cached) + u.output };
+   }),
    turns: [...turns.values()].map(({ model, spent }) => ({ m: order.indexOf(model), t: spent.input + spent.output, c: spent.cached })),
    mini,
    context: { used: conv.tokens || 0, window: this.settings.windowOf(this.modelOf(conv)) },
@@ -3628,7 +3870,7 @@ function movedNotice() {
 class SideChat extends Chat {
  constructor({ library, origin, model, effort = '', ...options }) {
   const state = { seen: 0 };
-  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model, effort: effort || origin.record.effort || origin.effort || '', speed: origin.record.speed || origin.speed || 'standard', mode: origin.record.mode || origin.mode || options.settings.mode };
+  const record = { id: origin.id, title: '', folder: origin.record.folder, created: 0, updated: 0, pinned: false, named: true, model, economy: origin.record.economy, ghost: origin.record.ghost, effort: effort || origin.record.effort || origin.effort || '', speed: origin.record.speed || origin.speed || 'standard', mode: origin.record.mode || origin.mode || options.settings.mode };
   if (library.isHome(origin.record)) record.space = origin.record.space;
   if (origin.record.session) record.session = origin.record.session;
   super({ ...options, library: {
@@ -3690,8 +3932,8 @@ class SideChat extends Chat {
  }
 
  // A plan is shown at the top of its chat: the mini chat's agent, asked things on the side, keeps none.
- toolSchemas() {
-  return super.toolSchemas().filter(tool => tool.function.name !== 'plan');
+ toolSchemas(conv = null) {
+  return super.toolSchemas(conv && this.origin).filter(tool => tool.function.name !== 'plan');
  }
 
  replied(conv, text) {
@@ -3809,7 +4051,7 @@ class SideChat extends Chat {
 
 Chat.splitQuotes = splitQuotes;
 // What the agent's helpers (helpers.js) run on: the same desk, notes and steps as a chat's own agent.
-Chat.internals = { Desk, TOOL_NOTES, UNDONE, assistantStep, imageStep, estimate, spend, sharedKinds, CONTEXT, COMPACT, compactRoom };
+Chat.internals = { Desk, TOOL_NOTES, UNDONE, assistantStep, imageStep, estimate, spend, sharedKinds, CONTEXT, COMPACT, compactRoom, parts };
 window.Chat = Chat;
 window.SideChat = SideChat;
 })();

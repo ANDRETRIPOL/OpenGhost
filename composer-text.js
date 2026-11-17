@@ -587,11 +587,14 @@ class ComposerText {
   return null;
  }
 
+ // While erased letters fly off, the field keeps the height it had; then it lets go down to its floor, the height a
+ // prediction in the empty field asks for (predictions.js), not past it: let go to nothing, the field fell to one line
+ // under a prediction of three and jumped back up, a jerk each time the words were wiped out.
  holdHeight() {
-  const input = this.input;
+  const input = this.input, floor = () => parseFloat(input.dataset.floor) || 0;
   clearTimeout(this.holdTimer);
-  if (input.clientHeight < this.viewHeight) input.style.minHeight = `${this.viewHeight}px`;
-  this.holdTimer = setTimeout(() => { input.style.minHeight = ''; }, HOLD_HEIGHT);
+  if (input.clientHeight < this.viewHeight) input.style.minHeight = `${Math.max(this.viewHeight, floor())}px`;
+  this.holdTimer = setTimeout(() => { input.style.minHeight = floor() ? `${floor()}px` : ''; }, HOLD_HEIGHT);
  }
 
  firstVisibleIndex(viewTop) {

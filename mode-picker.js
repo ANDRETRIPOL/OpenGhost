@@ -11,7 +11,6 @@ const MODES = [
 ];
 const RESIZE = { duration: 380, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
 const LABEL = { duration: 340, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
-const LAND = { duration: 460, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' };
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const icon = mode => `<span class="mode-icon" data-mode="${mode.id}">${Glyphs[mode.icon]}</span>`;
@@ -62,10 +61,10 @@ class ModePicker {
 
  static sync() { for (const picker of pickers) picker.sync(); }
 
- // The button is back, and the mode's icon settles in it with a small bounce.
+ // The button is back. The menu's sign has landed whole in its place, so the button's own takes over from it at once,
+ // as it is: a bounce or a fade-in here made the sign shrink and blink under the one that had just landed.
  home() {
   this.button.classList.remove('is-away');
-  if (!reducedMotion()) this.icons.animate([{ transform: 'scale(0.82)' }, { transform: 'none' }], LAND);
  }
 
  destroy() {

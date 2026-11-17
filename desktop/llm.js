@@ -9,6 +9,7 @@ const Claude = require('./anthropic');
 const ChatGPT = require('./chatgpt');
 const OpenRouter = require('./openrouter');
 const Local = require('./local');
+const Prices = require('./prices');
 
 const runs = new Map();
 const ENGINES = { openai: OpenAI, chatgpt: OpenAI, anthropic: Claude, openrouter: OpenRouter, local: Local, custom: Local };
@@ -74,6 +75,8 @@ function register(fromApp) {
    return { ...(await ChatGPT.status()), error: error.message };
   }
  };
+ // Where models start to cost more for a long request (prices.js): asked for only while a chat saves that way.
+ ipcMain.handle('llm:steps', async event => fromApp(event) ? Prices.steps() : { at: 0, models: {} });
  ipcMain.handle('auth:login', auth(() => ChatGPT.login()));
  ipcMain.handle('auth:logout', auth(() => ChatGPT.logout()));
  ipcMain.handle('auth:status', auth(() => ChatGPT.status()));

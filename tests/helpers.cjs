@@ -47,7 +47,7 @@ for (const file of ['i18n.js', 'i18n-ru.js', 'i18n-fr.js', 'i18n-it.js']) {
  const text = read(file), missing = [...keys, ...states, 'deed.helper', 'deed.helpers', 'deed.tellHelper', 'deed.stopHelper'].filter(key => !text.includes(`'${key}':`));
  check(`${file} has every word of the helpers`, !missing.length, missing.join(', '));
 }
-check('A helper\'s conversation is summed up near its model\'s limit, with the chat\'s own words for it, and it goes on', /proto\.compactHelper = async function/.test(helpers) && /content: COMPACT\.prompt/.test(helpers) && /used > room \* HELPERS\.compact && !helper\.warned[\s\S]{0,160}compactHelper\(parent, helper, config\)[\s\S]{0,120}\) continue;/.test(helpers));
+check('A helper\'s conversation is summed up near its model\'s limit, with the chat\'s own words for it, and it goes on', /proto\.compactHelper = async function/.test(helpers) && /content: COMPACT\.prompt/.test(helpers) && /: room \* HELPERS\.compact;\s*if \(used > due && !helper\.warned[\s\S]{0,160}compactHelper\(parent, helper, config\)[\s\S]{0,120}\) continue;/.test(helpers));
 check('The plan island leaves room for the helpers\' one', /- \(this\.beside \|\| 0\)/.test(read('plan-island.js')));
 check('A class on the plan island is set only when it changes (no endless watch)', /const flag = \(el, name, on\) => \{ if \(el\.classList\.contains\(name\) !== on\)/.test(island) && !/plan\.root\.classList\.(remove|add)\(/.test(island));
 for (const name of results) console.log(`ok  ${name}`);

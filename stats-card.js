@@ -88,6 +88,12 @@ function build(stats) {
  const context = stats.context || { used: 0, window: 0 };
  // A chat from before the count still has a real number to show: how much of its context it fills.
  const value = spent || context.used, unit = I18n.t(spent ? 'stats.total' : 'stats.inContext');
+ // Of all that, what went at the full price, as the provider counted it. A card from before it was counted has none.
+ const fresh = models.some(model => model.fresh != null) ? models.reduce((sum, model) => sum + (model.fresh ?? 0), 0) + (stats.mini ? Math.max(0, stats.mini.input - stats.mini.cached) + stats.mini.output : 0) : null;
+ // The total in two parts, keyed to the chart's colours: what went at the full price, and what the provider read again
+ // from its cache, for a fraction of it.
+ const key = (n, label, kind) => `<span class="stats-key${kind}" style="--c: ${tone(0)}"><i></i>${I18n.t(label, { n: `<b>${escapeHtml(compact(n))}</b>` })}</span>`;
+ const sub = spent && fresh != null ? `<div class="stats-sub" title="${escapeHtml(I18n.t('stats.fresh.hint'))}">${key(fresh, 'stats.fresh', '')}${key(Math.max(0, spent - fresh), 'stats.cached', ' is-cached')}</div>` : '';
  const bars = columns(turns), { step, top } = scale(Math.max(0, ...bars.map(bar => bar.t)));
  const chart = bars.length ? `<div class="stats-chart">
    <div class="stats-y" aria-hidden="true">${[3, 2, 1].map(k => `<span>${compact(step * k)}</span>`).join('')}<span>0</span></div>
@@ -112,6 +118,7 @@ function build(stats) {
     <button type="button" class="stats-remove" aria-label="${escapeHtml(I18n.t('stats.remove'))}" title="${escapeHtml(I18n.t('stats.remove'))}">${CLOSE}</button>
    </header>
    <div class="stats-total"><span class="stats-value" title="${escapeHtml(I18n.t('stats.tokens', { n: full(value) }))}">${big(value)}</span><span class="stats-unit">${escapeHtml(unit)}</span></div>
+   ${sub}
    ${chart}
    <div class="stats-rows">
     ${rows}
