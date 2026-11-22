@@ -26,7 +26,7 @@ function world({ version, seen = null, tour = null, chats = 0, tourDuringLoad = 
 }
 
 (async () => {
- const version = '1.5.6';
+ const version = '1.5.7';
  let w = world({ version, seen: { version: '1.5.5' }, tour: { seen: 1 }, chats: 3 });
  await w.WhatsNew.start({ library: w.library });
  check('After an update to a version with an entry, it is shown', w.opened.length === 1);
@@ -42,7 +42,7 @@ function world({ version, seen = null, tour = null, chats = 0, tourDuringLoad = 
  w = world({ version, seen: null, tour: null, chats: 0, tourDuringLoad: true });
  await w.WhatsNew.start({ library: w.library });
  check('...also when the welcome cards count themselves seen while the app loads', w.opened.length === 0);
- w = world({ version: '9.9.9', seen: { version: '1.5.6' }, tour: { seen: 1 }, chats: 2 });
+ w = world({ version: '9.9.9', seen: { version: '1.5.7' }, tour: { seen: 1 }, chats: 2 });
  await w.WhatsNew.start({ library: w.library });
  check('A version with no entry shows nothing, and counts as seen', w.opened.length === 0 && w.store.get('news').version === '9.9.9');
 

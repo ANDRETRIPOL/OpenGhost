@@ -22,7 +22,7 @@ const ASK = 2500;
 // own processor answers slowly, and a model it did not tell about was taken to see no pictures.
 const SHOW = 20000;
 // The window the app asks Ollama for when the user names none and the model runs with less: what the agent needs to
-// work (Providers.NEED, about 103K), as the 128K the models are trained for. A model trained for less is not offered.
+// work (Providers.NEED, about 104K), as the 128K the models are trained for. A model trained for less is not offered.
 const AUTO = 131072;
 
 const error = (message, status = 0, code = '') => Object.assign(new Error(message), { status, code });

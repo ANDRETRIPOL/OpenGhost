@@ -307,6 +307,7 @@ class Library {
 
  // A protected chat is sealed with the key it has when the save is asked for, so locking right after a reply loses nothing.
  saveMessages(id, messages, tokens = 0) {
+  window.Blocks?.settle(messages);
   const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
   if (!chat || (chat.lock && !key)) return Promise.resolve();
   const body = { messages, tokens };
@@ -325,6 +326,7 @@ class Library {
  }
 
  saveSide(id, { messages, tokens = 0, seen = 0, effort = '', speed = '', mode = '' }) {
+  window.Blocks?.settle(messages);
   const chat = this.chat(id), key = chat?.lock ? this.keys.get(id) : null;
   if (!chat || (chat.lock && !key)) return Promise.resolve();
   const body = { messages, tokens, seen, ...(effort ? { effort } : {}), ...(['standard', 'fast'].includes(speed) ? { speed } : {}), ...(['ask', 'auto', 'full'].includes(mode) ? { mode } : {}) };

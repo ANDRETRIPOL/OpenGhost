@@ -93,8 +93,18 @@ const chat = new Chat({
   onPlan: conv => { if (conv === chat.active) planIsland?.sync(); chat.syncAsk(); splitView?.pane?.sync(); },
 });
 if (MAIN_WINDOW) planIsland = new PlanIsland({ main, chat });
+// Settings → Rules (settings-rules.js): words become rules with the chat's model; trying one reads the chats.
+new RulesSettings({ root: document.querySelector('#settings-rules'), chat: () => chat, settings });
 // The agent's helpers, beside the plan (helper-island.js). The quick chat's window has none.
 if (MAIN_WINDOW) helperIsland = new HelperIsland({ main, chat, plan: planIsland });
+// A widget's timer has run out (blocks.js): the sound of notifications while its chat is on screen, the system's
+// notification when it is not.
+window.addEventListener('block-ring', event => {
+  const d = event.detail;
+  d.handled = true;
+  if (!d.chat || Notify.looking().includes(d.chat)) Notify.play();
+  else Notify.replied(d.chat, d.label || I18n.t('widget.done'), I18n.t('widget.done')).catch(() => Notify.play());
+});
 // The chats' rows show the last message of each: older chats have it worked out once, a while after the start.
 if (MAIN_WINDOW) library.ready.then(() => setTimeout(() => chat.fillPreviews().catch(() => {}), 4000));
 // A new version of the app, at the top right beside the globe (desktop/update.js); the plan's island keeps clear of it.

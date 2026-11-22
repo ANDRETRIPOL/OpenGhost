@@ -1,0 +1,1280 @@
+/* Settings → Rules (settings-rules.js): a wall of rule tiles as Shortcuts has, and a rule as a chain of blocks. Every
+   label in its own span (.rl) trimmed to its capitals, so it stands in the middle of its button by its ink. */
+.rules-panel .rl,
+.rules-menu .rl {
+  display: block;
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+  white-space: nowrap;
+}
+
+.settings-tab-icon.is-rule .rule-head {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+}
+
+.settings-tab[aria-selected="true"] .settings-tab-icon.is-rule .rule-head {
+  animation: rules-tab 0.6s var(--motion-easing);
+}
+
+@keyframes rules-tab {
+  40% { transform: translateX(4px); }
+}
+
+/* Say it, or paste a hook. */
+.rules-ask {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-height: 46px;
+  margin: 2px 0 4px;
+  padding: 6px 7px 6px 16px;
+  border-radius: 23px;
+  background: rgba(var(--fg-rgb), 0.06);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.07);
+  transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.rules-ask:focus-within {
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.16);
+}
+
+/* The ghost's eyes are holes in it: the colour of what is under the field. */
+.rules-ghost-eye {
+  fill: var(--chat-bg);
+}
+
+.rules-banner .rules-ghost-eye {
+  fill: var(--chat-bg);
+}
+
+.rules-lead {
+  margin: 0 0 16px;
+}
+
+.rules-ask-ghost {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  transition: opacity 0.28s ease, transform 0.36s cubic-bezier(0.32, 0.72, 0, 1), width 0.36s cubic-bezier(0.32, 0.72, 0, 1), margin 0.36s cubic-bezier(0.32, 0.72, 0, 1);
+  margin-bottom: 8px;
+  color: rgba(var(--fg-rgb), 0.42);
+}
+
+.rules-ask-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  max-height: 160px;
+  padding: 8px 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: none;
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 18px;
+}
+
+.rules-ask-input::placeholder {
+  color: rgba(var(--fg-rgb), 0.42);
+}
+
+.rules-send {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(var(--fg-rgb), 0.12);
+  color: var(--fg-primary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s var(--motion-easing);
+}
+
+.rules-send svg {
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+}
+
+.rules-ask.is-filled .rules-send {
+  background: rgb(var(--composer-accent-rgb));
+  color: rgb(var(--composer-on-accent-rgb));
+}
+
+.rules-send:active {
+  transform: scale(0.92);
+}
+
+/* While the model builds or changes a rule, a light runs round the field's outline, its colours flowing one into the
+   next; the field itself stays as it is, and no line of words stands under it. */
+@property --rules-spin {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.rules-ask {
+  position: relative;
+}
+
+.rules-ask::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--rules-spin), rgba(120, 170, 255, 0) 0deg, rgba(120, 170, 255, 0.95) 50deg, rgba(190, 130, 255, 0.95) 110deg, rgba(255, 150, 200, 0.85) 160deg, rgba(255, 150, 200, 0) 220deg, rgba(120, 170, 255, 0) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.rules-ask.is-building::before {
+  opacity: 1;
+  animation: rules-orbit 1.8s linear infinite;
+}
+
+/* A soft glow of the same light outside the outline. */
+.rules-ask.is-building {
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.04), 0 0 22px -6px rgba(150, 140, 255, 0.45);
+}
+
+@keyframes rules-orbit {
+  to { --rules-spin: 360deg; }
+}
+
+.rules-ask.is-building .rules-ask-ghost {
+  animation: rules-bob 1.3s ease-in-out infinite;
+}
+
+
+
+@keyframes rules-bob {
+  50% { transform: translateY(-2px); }
+}
+
+.rules-status {
+  min-height: 18px;
+  margin: 6px 4px 0;
+}
+
+.rules-title {
+  margin: 14px 0 12px;
+  color: var(--fg-primary);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* The wall. */
+.rules-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.rules-tile {
+  --a: 255 176 74;
+  --b: 247 143 46;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 108px;
+  padding: 13px 13px 15px 15px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 18px;
+  outline: none;
+  background: linear-gradient(160deg, rgb(var(--a)), rgb(var(--b)));
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18), 0 1px 2px rgba(0, 0, 0, 0.12);
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.25s var(--motion-easing), filter 0.2s ease;
+}
+
+.rules-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgb(150 150 158), rgb(122 122 130));
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+}
+
+.rules-tile > * {
+  position: relative;
+  z-index: 1;
+}
+
+.rules-tile:hover {
+  filter: brightness(1.06);
+}
+
+.rules-tile:active {
+  transform: scale(0.97);
+}
+
+.rules-tile:focus-visible {
+  box-shadow: 0 0 0 2px var(--chat-bg), 0 0 0 4px var(--focus-ring);
+}
+
+.rules-tile.is-block { --a: 255 102 112; --b: 238 72 92; }
+.rules-tile.is-check { --a: 74 205 120; --b: 40 178 96; }
+.rules-tile.is-script { --a: 128 112 255; --b: 98 84 232; }
+.rules-tile.is-notify { --a: 64 200 245; --b: 26 170 230; }
+.rules-tile.is-tell { --a: 70 140 255; --b: 44 112 240; }
+.rules-tile.is-log { --a: 120 124 136; --b: 96 100 112; }
+.rules-tile.is-wrong { --a: 150 150 158; --b: 122 122 130; }
+
+/* Switched off: the colour goes grey, and comes back the same way. */
+.rules-tile.is-paused::after {
+  opacity: 1;
+}
+
+.rules-tile-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.rules-tile-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.rules-tile-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.rules-on {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s var(--motion-easing);
+}
+
+.rules-on svg {
+  width: 13px;
+  height: 13px;
+  transition: opacity 0.2s ease, transform 0.3s var(--motion-easing);
+}
+
+.rules-on:hover {
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.rules-on:active {
+  transform: scale(0.9);
+}
+
+.rules-on[aria-checked="false"] svg {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.rules-tile-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.24);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rules-tile-name {
+  font-size: 15.5px;
+  font-weight: 600;
+}
+
+.rules-tile-name .rl {
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.rules-tile.is-new {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: none;
+  box-shadow: inset 0 0 0 1.5px rgba(var(--fg-rgb), 0.14);
+  color: rgba(var(--fg-rgb), 0.55);
+}
+
+.rules-tile.is-new::after {
+  display: none;
+}
+
+.rules-tile.is-new svg {
+  width: 22px;
+  height: 22px;
+}
+
+.rules-tile.is-new .rules-tile-name {
+  font-size: 14px;
+}
+
+.rules-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.rules-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 15px;
+  background: rgba(var(--fg-rgb), 0.06);
+  color: rgba(var(--fg-rgb), 0.72);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.rules-link:hover {
+  background: rgba(var(--fg-rgb), 0.1);
+}
+
+.rules-link-glyph {
+  width: 14px;
+  height: 14px;
+}
+
+/* The editor: its own bar, then the chain. */
+.rules-editor {
+  padding-bottom: 6px;
+  transform-origin: 50% 0;
+}
+
+.rules-bar {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 2fr) 1fr;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.rules-back {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 8px;
+  border: 0;
+  border-radius: 15px;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rules-back svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rules-name {
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  outline: none;
+  background: none;
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  text-align: center;
+  transition: background-color 0.15s ease;
+}
+
+.rules-name:hover,
+.rules-name:focus {
+  background: rgba(var(--fg-rgb), 0.06);
+}
+
+.rules-done {
+  display: inline-flex;
+  justify-self: end;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(10, 132, 255);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.2s var(--motion-easing);
+}
+
+.rules-done:active {
+  transform: scale(0.92);
+}
+
+.rules-done svg {
+  width: 19px;
+  height: 19px;
+}
+
+.rules-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(10, 132, 255, 0.1);
+  color: rgba(var(--fg-rgb), 0.78);
+  font-size: 13.5px;
+  line-height: 18px;
+}
+
+.rules-banner > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: rgb(10, 132, 255);
+}
+
+.rules-banner.is-wrong {
+  align-items: flex-start;
+  background: rgba(247, 143, 46, 0.12);
+}
+
+.rules-banner.is-wrong > svg {
+  margin-top: 1px;
+  color: rgb(247, 143, 46);
+}
+
+.rules-banner.is-adapted {
+  background: rgba(98, 84, 232, 0.12);
+}
+
+.rules-banner.is-adapted > svg {
+  color: rgb(128, 112, 255);
+}
+
+.rules-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.rules-banner-text b {
+  font-weight: 650;
+  color: var(--fg-primary);
+}
+
+.rules-banner-text ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+.rules-banner-error {
+  margin: 6px 0 0;
+  color: rgb(238, 72, 92);
+}
+
+.rules-chain {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  perspective: 900px;
+}
+
+.rules-block {
+  position: relative;
+  padding: 12px 14px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(var(--fg-rgb), 0.055);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.06);
+  transition: transform 0.25s var(--motion-easing), box-shadow 0.2s ease;
+}
+
+[data-theme="light"] .rules-block {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(20, 30, 60, 0.08), 0 1px 3px rgba(20, 30, 60, 0.06);
+}
+
+/* The thin line from one block to the next, as Shortcuts draws it. */
+.rules-block + .rules-block {
+  margin-top: 14px;
+}
+
+.rules-block + .rules-block::before {
+  content: "";
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: rgba(var(--fg-rgb), 0.14);
+}
+
+.rules-block {
+  overflow: visible;
+}
+
+.rules-block.is-in {
+  margin-left: 28px;
+}
+
+.rules-block.is-cond,
+.rules-block.is-act {
+  cursor: grab;
+  touch-action: none;
+}
+
+.rules-block.is-lifted {
+  z-index: 3;
+  cursor: grabbing;
+  transition: none;
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.1), 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.rules-panel.is-dragging,
+.rules-panel.is-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.rules-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  color: var(--fg-primary);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.rules-line + .rules-line {
+  margin-top: 6px;
+}
+
+.rules-line.is-sub {
+  color: rgba(var(--fg-rgb), 0.55);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rules-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 4px;
+  border-radius: 7px;
+  background: var(--c);
+  color: #fff;
+}
+
+.rules-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.rules-tok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  max-width: 100%;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.08);
+  color: rgba(var(--fg-rgb), 0.66);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.rules-tok .lang-arrows {
+  width: 8px;
+  height: 12px;
+}
+
+.rules-tok:hover {
+  background: rgba(var(--fg-rgb), 0.12);
+}
+
+.rules-tok.is-open {
+  opacity: 0;
+}
+
+input.rules-tok {
+  cursor: text;
+  color: var(--fg-primary);
+  field-sizing: content;
+  min-width: 48px;
+}
+
+input.rules-tok:focus {
+  background: rgba(var(--fg-rgb), 0.12);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.16);
+}
+
+input.rules-tok.is-code {
+  font-family: var(--mono-font);
+  font-size: 13px;
+}
+
+/* The block's remove button stands in its corner, out of the line: a line that wraps leaves no empty row for it. */
+.rules-block.is-cond .rules-line:first-child,
+.rules-block.is-act .rules-line:first-child {
+  padding-right: 26px;
+}
+
+.rules-remove {
+  position: absolute;
+  top: 14px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: rgba(var(--fg-rgb), 0.4);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.rules-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rules-block:hover .rules-remove,
+.rules-remove:focus-visible {
+  opacity: 1;
+}
+
+.rules-remove:hover {
+  background: rgba(var(--fg-rgb), 0.08);
+  color: var(--fg-primary);
+}
+
+.rules-code {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  margin: 10px 0 2px;
+  padding: 11px 13px;
+  border: 0;
+  border-radius: 10px;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: var(--mono-font);
+  font-size: 12.5px;
+  line-height: 1.6;
+  cursor: text;
+}
+
+.rules-code.is-prompt {
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+[data-theme="light"] .rules-code {
+  background: rgba(20, 30, 60, 0.05);
+  color: rgba(20, 24, 33, 0.9);
+}
+
+.rules-code:focus {
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.16);
+}
+
+.rules-io {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rules-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: rgba(var(--fg-rgb), 0.6);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.rules-end {
+  align-self: flex-start;
+  margin: 12px 0 0 2px;
+  color: rgba(var(--fg-rgb), 0.45);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* While the model adapts a hook, a light passes down the chain. */
+.rules-editor.is-adapting .rules-chain {
+  position: relative;
+}
+
+.rules-editor.is-adapting .rules-chain::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  left: -6px;
+  height: 64px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(128, 112, 255, 0), rgba(128, 112, 255, 0.22), rgba(128, 112, 255, 0));
+  pointer-events: none;
+  animation: rules-scan 1.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+
+@keyframes rules-scan {
+  from { top: -64px; }
+  to { top: 100%; }
+}
+
+.rules-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 40px;
+  margin-top: 18px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(var(--fg-rgb), 0.05);
+  color: rgba(var(--fg-rgb), 0.5);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.rules-add:hover {
+  background: rgba(var(--fg-rgb), 0.08);
+}
+
+.rules-add.is-open {
+  opacity: 0;
+}
+
+.rules-add svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rules-try {
+  margin-top: 16px;
+}
+
+.rules-past ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: rgba(var(--fg-rgb), 0.6);
+  font-size: 13px;
+}
+
+.rules-past li {
+  display: flex;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.rules-past time {
+  flex: none;
+  width: 88px;
+  color: rgba(var(--fg-rgb), 0.4);
+  font-variant-numeric: tabular-nums;
+}
+
+.rules-past code {
+  font-family: var(--mono-font);
+  font-size: 12px;
+  color: var(--fg-primary);
+}
+
+.rules-past-head {
+  margin: 10px 0 0;
+  color: var(--fg-primary);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.rules-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.rules-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.2s var(--motion-easing), opacity 0.15s ease;
+}
+
+.rules-btn:hover {
+  background: rgba(var(--fg-rgb), 0.11);
+}
+
+.rules-btn:active {
+  transform: scale(0.96);
+}
+
+.rules-btn.is-primary {
+  background: rgb(var(--composer-accent-rgb));
+  color: rgb(var(--composer-on-accent-rgb));
+}
+
+.rules-btn.is-danger {
+  color: rgb(238, 72, 92);
+}
+
+.rules-btn.is-sure {
+  background: rgb(238, 72, 92);
+  color: #fff;
+}
+
+.rules-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rules-btn:focus-visible,
+.rules-tok:focus-visible,
+.rules-back:focus-visible,
+.rules-add:focus-visible,
+.rules-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--chat-bg), 0 0 0 4px var(--focus-ring);
+}
+
+/* A token's menu: the language menu, with the blocks' own icons and the groups named. */
+.rules-menu {
+  max-height: min(520px, 76vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.rules-menu .lang-option {
+  max-width: 100%;
+}
+
+.rules-menu .lang-name {
+  min-width: 0;
+}
+
+.rules-menu .lang-name .rl {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.rules-menu .lang-option:has(.lang-name .rl) {
+  height: auto;
+  min-height: 36px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+/* A menu of groups: tabs at its head, one narrow list under them. */
+.rules-menu.is-tabbed {
+  width: 300px;
+  overflow: visible;
+}
+
+.rules-menu-list {
+  position: relative;
+}
+
+.rules-menu-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--c);
+  color: #fff;
+}
+
+.rules-menu-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.rules-seg-tab .rl {
+  white-space: nowrap;
+}
+
+.rules-menu-head {
+  padding: 10px 12px 4px;
+  color: rgba(var(--fg-rgb), 0.45);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rules-menu-sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: rgba(var(--fg-rgb), 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rules-ask.is-building::before,
+  .rules-ask.is-building .rules-ask-ghost,
+  .rules-editor.is-adapting .rules-chain::after {
+    animation: none;
+  }
+}
+
+/* The switch between two or three sets: one light glides to the one picked. */
+.rules-seg {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(var(--fg-rgb), 0.07);
+}
+
+.rules-seg.is-menu {
+  display: flex;
+  margin: 2px 2px 6px;
+}
+
+.rules-seg.is-menu .rules-seg-tab {
+  flex: 1;
+}
+
+.rules-seg-glide {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  border-radius: 9px;
+  background: rgba(var(--fg-rgb), 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), width 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+[data-theme="light"] .rules-seg-glide {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(20, 30, 60, 0.14);
+}
+
+.rules-seg-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  outline: none;
+  background: none;
+  color: rgba(var(--fg-rgb), 0.6);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.rules-seg-tab[aria-selected="true"] {
+  color: var(--fg-primary);
+}
+
+.rules-seg-tab:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* The library of steps, opened in place of the add button. */
+.rules-add.is-hidden {
+  display: none;
+}
+
+.rules-lib {
+  margin-top: 18px;
+  padding: 10px 10px 12px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(var(--fg-rgb), 0.05);
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.07);
+}
+
+.rules-lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.rules-lib-title {
+  padding-left: 4px;
+  color: rgba(var(--fg-rgb), 0.55);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rules-lib-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: rgba(var(--fg-rgb), 0.6);
+  cursor: pointer;
+}
+
+.rules-lib-close svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rules-lib-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rules-lib-chips[hidden] {
+  display: none;
+}
+
+.rules-chip-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  height: 34px;
+  padding: 0 12px 0 5px;
+  border: 0;
+  border-radius: 17px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.2s var(--motion-easing);
+}
+
+[data-theme="light"] .rules-chip-add {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(20, 30, 60, 0.08);
+}
+
+.rules-chip-add:hover {
+  background: rgba(var(--fg-rgb), 0.12);
+}
+
+.rules-chip-add:active {
+  transform: scale(0.96);
+}
+
+.rules-chip-add:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.rules-chip-add .rules-icon {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  border-radius: 12px;
+}
+
+
+/* Whose rules: the user's own, or the open project's. */
+.rules-seg.is-scope {
+  margin: 0 0 14px;
+}
+
+.rules-banner.is-trust p {
+  margin: 4px 0 0;
+}
+
+.rules-banner.is-trust code {
+  font-family: var(--mono-font);
+  font-size: 12px;
+}
+
+/* The scope's switch is drawn by its own state: it is built while the settings may still be out of sight. */
+.rules-seg.is-scope .rules-seg-glide {
+  display: none;
+}
+
+.rules-seg.is-scope .rules-seg-tab {
+  transition: color 0.2s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.rules-seg.is-scope .rules-seg-tab[aria-selected="true"] {
+  background: rgba(var(--fg-rgb), 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="light"] .rules-seg.is-scope .rules-seg-tab[aria-selected="true"] {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(20, 30, 60, 0.14);
+}
+
+/* The model that writes rules, at the end of the field: its name, and a menu of the others. */
+.rules-model {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  height: 28px;
+  padding: 0 9px 0 11px;
+  border: 0;
+  border-radius: 14px;
+  outline: none;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: rgba(var(--fg-rgb), 0.7);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.rules-model:hover {
+  background: rgba(var(--fg-rgb), 0.11);
+}
+
+.rules-model.is-open {
+  opacity: 0;
+}
+
+.rules-model .lang-arrows {
+  width: 8px;
+  height: 12px;
+}
+
+.rules-ask.is-revise {
+  margin: 0 0 14px;
+}
+
+.rules-revise-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  max-height: 140px;
+  padding: 8px 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: none;
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 18px;
+}
+
+.rules-revise-input::placeholder {
+  color: rgba(var(--fg-rgb), 0.42);
+}
+
+.rules-ask.is-revise .rules-model,
+.rules-ask .rules-model {
+  margin-bottom: 2px;
+}
+
+.rules-revise-error {
+  margin: -6px 4px 12px;
+}
+
+.rules-ask.is-filled .rules-ask-ghost {
+  width: 0;
+  margin-right: -10px;
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+/* The model's pill and the ghost stand on the middle of the send button, whatever the field's height. */
+.rules-ask .rules-model {
+  align-self: flex-end;
+  margin-bottom: 3px;
+}
+
+.rules-ask .rules-ask-ghost {
+  margin-bottom: 7px;
+}

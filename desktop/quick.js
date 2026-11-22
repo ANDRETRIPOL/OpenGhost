@@ -399,8 +399,12 @@ function dress() {
  }
  if (!host.trayIcon) return;
  if (!tray) {
+  // On macOS the sign stands in the menu bar, at the top on the right: the ghost in one colour on clear (trayTemplate.png
+  // and its @2x), a template image the system tints for a light or a dark menu bar, as the system's own signs are.
+  // Windows takes its icon as it is; Linux the app's icon made small.
   const image = nativeImage.createFromPath(host.trayIcon);
-  tray = new Tray(process.platform === 'win32' ? image : image.resize({ width: 18, height: 18 }));
+  if (process.platform === 'darwin') image.setTemplateImage(true);
+  tray = new Tray(process.platform === 'linux' ? image.resize({ width: 18, height: 18 }) : image);
   tray.setToolTip('OpenGhost');
   tray.on('click', () => host.showMain());
  }

@@ -177,6 +177,19 @@ async function chats() {
  check('The kept steps take no more than a fifth of the limit', keptSize <= 100000 * 0.2 + 500, String(keptSize));
  check('The user\'s message that started the task is kept as text', sent.some(message => message.role === 'user' && message.content === 'refactor the app'));
  check('The working reply is not repeated as text beside its steps', sent.filter(message => message.role === 'assistant' && !message.tool_calls).every(message => message.content === 'first answer'));
+ // A kept step goes without its signed thinking: a thinking block is bound to everything before it, and before the
+ // kept steps now stands the summary (Claude Haiku 5.5 turned the request down: "bound to a different conversation").
+ {
+  const signed = steps.map(step => step.role === 'assistant' ? { ...step, reasoning_content: 'thought', native: { provider: 'anthropic', content: [{ type: 'thinking', thinking: 'thought', signature: 'sig' }, ...step.tool_calls.map(call => ({ type: 'tool_use', id: call.id, name: call.function.name, input: {} }))] } } : step);
+  const g = fixture({ level: 100000, tokens: 100000, messages: [{ role: 'user', content: 'refactor the app' }, { ...work, steps: signed }] });
+  g.turn.part.entry = g.conv.messages[1];
+  await g.chat.compact(g.conv, g.turn);
+  const out = g.chat.history(g.conv), kept = out.filter(message => message.role === 'assistant' && message.tool_calls);
+  check('The steps kept by a summary go without their signed thinking, with their calls', kept.length > 0 && kept.every(message => !message.native && !message.reasoning_content && message.tool_calls.length === 1), JSON.stringify(kept.map(message => Object.keys(message))));
+  const later = { role: 'assistant', content: 'done', native: { provider: 'anthropic', content: [{ type: 'thinking', thinking: 't2', signature: 's2' }, { type: 'text', text: 'done' }] } };
+  g.conv.messages.push({ role: 'assistant', content: 'done', model: opus.id, steps: [later] });
+  check('A step made after the summary keeps its thinking', g.chat.history(g.conv).at(-1).native?.content[0].type === 'thinking');
+ }
  check('A note says the steps are the task\'s latest, word for word, and the agent goes on', sent.some(message => message.role === 'user' && /latest steps of the task under way/.test(message.content)) && sent.at(-1).content === sent.at(-1).content);
 
  // Off keeps the agreed summary: last turns as text, no steps.
@@ -217,6 +230,30 @@ async function chats() {
   check('The next summary starts from the last one', sent.includes('EARLIER_SUMMARY'));
   check('...and takes the agent\'s replies, the tools\' results and calls whole', [said, read, wrote].every(text => sent.includes(text)));
   check('...with nothing marked as left out', !/more characters|left out/.test(sent));
+ }
+
+ // A task whose working set does not fit the limit: the agent reads the files again after every summary, and the chat
+ // went over again at every step (113 requests of Claude Haiku 5.5, no answer). Three summaries a turn at most, then the
+ // agent is told once and the turn goes on.
+ {
+  const s = fixture({ level: 100000, tokens: 150000, messages: [{ role: 'user', content: 'read all of it' }] });
+  let made = 0;
+  for (let step = 0; step < 8; step++) {
+   const work = { role: 'assistant', content: '', model: opus.id, steps: [{ role: 'assistant', content: '', tool_calls: [{ id: `r${step}`, type: 'function', function: { name: 'read_file', arguments: '{}' } }] }, { role: 'tool', tool_call_id: `r${step}`, content: big(60000) }] };
+   s.conv.messages.push(work);
+   s.turn.part.entry = work;
+   s.conv.tokens = 150000;
+   s.conv.real = 150000;
+   const before = s.calls.length;
+   await s.chat.compactIfNeeded(s.conv, s.turn);
+   if (s.calls.length > before) made++;
+  }
+  check('A turn over the limit at every step makes three summaries at most', made <= 3 && made >= 1, String(made));
+  const told = s.conv.messages.flatMap(entry => entry.steps || []).filter(step => step.role === 'user' && /does not fit the economy limit/.test(step.content));
+  check('...and then the agent is told once that the task does not fit', told.length === 1, String(told.length));
+  const next = fixture({ level: 100000, tokens: 150000, messages: [{ role: 'user', content: 'again' }, { role: 'assistant', content: 'x', steps: [{ role: 'assistant', content: 'x' }] }] });
+  await next.chat.compactIfNeeded(next.conv, next.turn);
+  check('A new turn may summarize again', next.calls.length >= 1);
  }
 
  // A summary that kept the task's latest steps, with the chat still over its limit and little new: made again once

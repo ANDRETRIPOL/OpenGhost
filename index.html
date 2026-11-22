@@ -9,6 +9,8 @@
   <title>OpenGhost</title>
   <link rel="icon" href="desktop/icon.png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="blocks.css">
+  <link rel="stylesheet" href="settings-rules.css">
   <script src="desktop.js"></script>
   <script src="theme.js"></script>
   <script src="look.js"></script>
@@ -126,6 +128,10 @@
           <svg class="settings-tab-icon is-memory" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="memo-leaf" d="M42 37h36v46l-18-13.5L42 83z"/><path class="memo-line" d="M52 51h16"/></svg>
           <span data-i18n="settings.memory">Memory</span>
         </button>
+        <button type="button" class="settings-tab" role="tab" data-page="rules" aria-controls="settings-rules" aria-selected="false" tabindex="-1">
+          <svg class="settings-tab-icon is-rule" viewBox="26.6 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="43" cy="60" r="7"/><path d="M50 60h28"/><path class="rule-head" d="M69 51l9 9-9 9"/></svg>
+          <span data-i18n="settings.rules">Rules</span>
+        </button>
         <button type="button" class="settings-tab" role="tab" data-page="providers" aria-controls="settings-providers" aria-selected="false" tabindex="-1">
           <svg class="settings-tab-icon is-plug" viewBox="30 30 60 60" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="plug"><path d="M52 36v10M68 36v10"/><path d="M44 46h32v7a15 15 0 0 1-15 15h-2a15 15 0 0 1-15-15z"/></g><path d="M60 68v8a6 6 0 0 1-6 6h-4"/></svg>
           <span data-i18n="settings.providers">Providers</span>
@@ -153,6 +159,7 @@
       <div class="settings-panel" id="settings-composer" role="tabpanel" data-page="composer" aria-labelledby="settings-page-title" hidden></div>
       <div class="settings-panel" id="settings-notifications" role="tabpanel" data-page="notifications" aria-labelledby="settings-page-title" hidden></div>
       <div class="settings-panel" id="settings-memory" role="tabpanel" data-page="memory" aria-labelledby="settings-page-title" hidden></div>
+      <div class="settings-panel rules-panel" id="settings-rules" role="tabpanel" data-page="rules" aria-labelledby="settings-page-title" hidden></div>
       <div class="settings-panel" id="settings-providers" role="tabpanel" data-page="providers" aria-labelledby="settings-page-title" hidden>
         <p class="settings-lead" data-i18n="settings.lead">Connect the services whose models OpenGhost can use. Keys and sign-ins stay on this computer.</p>
         <div class="settings-providers"></div>
@@ -211,6 +218,7 @@
   <script src="highlight.js"></script>
   <script src="markdown.js"></script>
   <script src="diagram.js"></script>
+  <script src="blocks.js"></script>
   <script src="diagram-books.js"></script>
   <script src="diagram-stage.js"></script>
   <script src="stream-view.js"></script>
@@ -242,6 +250,7 @@
   <script src="user-context.js"></script>
   <script src="memory.js"></script>
   <script src="settings-memory.js"></script>
+  <script src="settings-rules.js"></script>
   <script src="predictions.js"></script>
   <script src="fact-keeper.js"></script>
   <script src="settings-composer.js"></script>
@@ -261,6 +270,7 @@
   <script src="plan-proof.js"></script>
   <script src="chat-preview.js"></script>
   <script src="message-dates.js"></script>
+  <script src="rules.js"></script>
   <script src="chat.js"></script>
   <script src="helpers.js"></script>
   <script src="row-menu.js"></script>

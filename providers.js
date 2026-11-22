@@ -12,7 +12,7 @@ bridge?.onEvent(data => listeners.get(data.id)?.(data));
 // as GPT-6 Luna did), the chat's private record once full (about 12,000) and the app's notes (tests/model-window.cjs). Above it the work needs room of its own (economy.js, ROOM),
 // and a chat is summarized at 90% of its window. A model with less would summarize every few steps and forget its
 // work: it is not offered at all (settings.js), as the agent's work matters more than the number of models.
-const AGENT = 44000, ROOM = 48000;
+const AGENT = 45000, ROOM = 48000;
 const NEED = Math.ceil((AGENT + ROOM) / 0.9 / 1000) * 1000;
 const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', openrouter: 'OpenRouter', local: 'Local', custom: 'Custom API' };
 

@@ -41,6 +41,24 @@ function install() {
  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'META', 'LINK', 'svg', 'SVG', 'CANVAS', 'VIDEO', 'AUDIO', 'OBJECT', 'EMBED']);
  const INLINE = new Set(['SPAN', 'B', 'I', 'EM', 'STRONG', 'SMALL', 'MARK', 'CODE', 'SUB', 'SUP', 'ABBR', 'TIME', 'FONT', 'U', 'S', 'Q', 'CITE', 'BR', 'WBR', 'DATA', 'VAR', 'KBD', 'SAMP', 'BDI', 'BDO']);
  const SELECTOR = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=checkbox],[role=radio],[role=tab],[role=menuitem],[role=option],[role=switch],[role=combobox],[role=textbox],[role=searchbox],[contenteditable=""],[contenteditable=true],[onclick]';
+ // The browser's own pickers: a field of these types takes its value in one form only, set at once (browser_type),
+ // since typed keys and its calendar or palette (drawn outside the page) never reach it.
+ const PICKERS = { date: ['YYYY-MM-DD', '2026-05-31'], time: ['HH:MM', '14:30'], 'datetime-local': ['YYYY-MM-DDTHH:MM', '2026-05-31T14:30'], month: ['YYYY-MM', '2026-05'], week: ['YYYY-Www', '2026-W22'], color: ['#rrggbb', '#3366ff'] };
+ // The fields a button without a name may belong to (a calendar beside a date, a cross in a search box).
+ const FIELDS = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]):not([type=file]):not([type=range]),textarea';
+ // What an icon means, read from the words in its classes, its symbol's or picture's name and its test id: a control
+ // with no name of its own (a calendar, a cross, a bin) is told by its icon. Directions go with arrows.
+ const ICONS = new Map(Object.entries({
+  calendar: 'calendar calender datepicker datetimepicker daterange date dates', clock: 'clock time timepicker', search: 'search magnifier magnify loupe',
+  close: 'close times xmark dismiss', clear: 'clear eraser', menu: 'menu hamburger burger navicon', 'show password': 'eye eyeslash visibility reveal',
+  attach: 'attach attachment paperclip', upload: 'upload', download: 'download', edit: 'edit pencil', delete: 'delete trash bin garbage', plus: 'plus add', minus: 'minus subtract',
+  settings: 'settings gear cog cogs', cart: 'cart basket', user: 'user account profile person avatar', like: 'heart like favorite favourite', share: 'share', filter: 'filter funnel', sort: 'sort',
+  info: 'info', help: 'help question', phone: 'phone', mail: 'mail envelope email', print: 'print printer', home: 'home house', notifications: 'bell notification notifications', star: 'star',
+  play: 'play', pause: 'pause', copy: 'copy clipboard duplicate', refresh: 'refresh reload sync', location: 'location pin marker geo', lock: 'lock', more: 'dots ellipsis kebab meatballs',
+  check: 'check tick checkmark', send: 'send', microphone: 'mic microphone', camera: 'camera', expand: 'expand', collapse: 'collapse', previous: 'prev previous', next: 'next', 'sign out': 'logout signout',
+ }).flatMap(([meaning, words]) => words.split(' ').map(word => [word, meaning])));
+ const ARROWS = new Set(['arrow', 'chevron', 'caret', 'angle', 'triangle']);
+ const TOWARD = { left: 'left arrow', prev: 'left arrow', previous: 'left arrow', back: 'left arrow', right: 'right arrow', next: 'right arrow', forward: 'right arrow', down: 'down arrow', up: 'up arrow' };
  const state = { next: 1, refs: new Map(), ids: new WeakMap(), document: Array.from(crypto.getRandomValues(new Uint32Array(4)), n => n.toString(16)).join('-') };
  const clean = text => (text || '').replace(/\s+/g, ' ').trim();
  const cut = (text, max) => text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -63,6 +81,10 @@ function install() {
  function roleOf(el) {
   const role = el.getAttribute('role');
   if (role) return role.split(/\s+/)[0];
+  return nativeRole(el);
+ }
+
+ function nativeRole(el) {
   const tag = el.tagName;
   if (tag === 'A') return el.hasAttribute('href') ? 'link' : '';
   if (tag === 'BUTTON' || tag === 'SUMMARY') return 'button';
@@ -77,12 +99,75 @@ function install() {
   return '';
  }
 
+ // A page may give a real control a role that is no control (a day button of a calendar grid marked gridcell, a link
+ // marked presentation): it still is one. A role that only hides what it is gives way to what it is.
+ const NATIVE = 'a[href],button,input:not([type=hidden]),select,textarea,summary';
+ function controlRole(el, role) {
+  if (!role || role === 'heading' || ACTIVE.has(role)) return '';
+  if (!el.matches(NATIVE) && !(/^(gridcell|cell|row|rowheader|columnheader|listitem|presentation|none|generic|img|image|graphics-\w+)$/.test(role) && !el.querySelector(SELECTOR) && (clickable(el) || pickerIcon(el)))) return '';
+  if (!/^(presentation|none|generic|img|image|graphics-\w+)$/.test(role)) return role;
+  return nativeRole(el) || 'clickable';
+ }
+
  function clickable(el) {
   if (el.hasAttribute('onclick')) return true;
   if (el.querySelector(SELECTOR)) return false;
   if (styleOf(el).cursor !== 'pointer') return false;
   const parent = el.parentElement;
   return !parent || styleOf(parent).cursor !== 'pointer';
+ }
+
+ // The words an element and its first few inner parts are drawn with: classes, test ids, a symbol's or picture's name.
+ function signs(el) {
+  const words = [];
+  const add = text => words.push(...String(text || '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z]+/).filter(Boolean));
+  const read = node => {
+   for (const name of ['class', 'data-icon', 'data-testid', 'id', 'name']) add(node.getAttribute(name));
+   if (/^use$/i.test(node.tagName)) add((node.getAttribute('href') || node.getAttribute('xlink:href') || '').split('#').pop());
+   if (/^(img|image)$/i.test(node.tagName)) add((node.getAttribute('src') || node.getAttribute('href') || '').split(/[?#]/)[0].split('/').pop().replace(/\.\w+$/, ''));
+  };
+  read(el);
+  add((backgroundOf(el).split(/[?#]/)[0].split('/').pop() || '').replace(/\.\w+$/, ''));
+  for (const node of [...el.querySelectorAll('*')].slice(0, 12)) read(node);
+  return words;
+ }
+
+ function iconOf(el) {
+  const words = signs(el);
+  for (const word of words) {
+   if (ARROWS.has(word)) return words.map(other => TOWARD[other]).find(Boolean) || 'arrow';
+   if (ICONS.has(word)) return ICONS.get(word);
+  }
+  return '';
+ }
+
+ // The one field a control stands beside, within a few levels of it and right next to it on the same line (a calendar
+ // at the end of a date, a cross inside a search box): none when there are several, or when it stands apart.
+ function fieldOf(el) {
+  for (let up = el.parentElement, k = 0; up && k < 3; up = up.parentElement, k++) {
+   const found = [...up.querySelectorAll(FIELDS)].filter(field => !el.contains(field));
+   if (found.length > 1) return null;
+   if (found.length !== 1) continue;
+   const field = found[0], a = rectOf(el), b = rectOf(field);
+   const across = Math.max(0, a.left - b.right, b.left - a.right), down = Math.max(0, a.top - b.bottom, b.top - a.bottom);
+   return shown(field) && across <= 16 && down <= 4 ? field : null;
+  }
+  return null;
+ }
+
+ // The calendar or clock beside a date field that opens its picker, also when the page did not mark it as a control
+ // (no pointer cursor, no role): a small icon with no text, next to one field.
+ function pickerIcon(el) {
+  if (el.childElementCount > 3) return false;
+  const r = rectOf(el);
+  if (r.width < 6 || r.height < 6 || r.width > 64 || r.height > 64 || clean(el.textContent) || el.querySelector(SELECTOR)) return false;
+  return /^(calendar|clock)$/.test(iconOf(el)) && shown(el) && !!fieldOf(el);
+ }
+
+ // A check box or radio button the page hides behind a drawing of its own is clicked through its label.
+ function standIn(el, seen = () => true) {
+  if (el.tagName !== 'INPUT' || !/^(checkbox|radio)$/.test(el.type)) return null;
+  return [...(el.labels || [])].find(label => shown(label) && seen(rectOf(label))) || null;
  }
 
  function labelText(label, control) {
@@ -128,11 +213,19 @@ function install() {
   let text = role;
   const name = nameOf(el, role);
   if (name) text += ` ${quote(name)}`;
+  else if (/^(button|clickable|link|menuitem|gridcell)$/.test(role)) {
+   // Only a control of an icon's size is told by its icon: the words of a large card are no icon.
+   const box = rectOf(el), icon = box.width <= 96 && box.height <= 96 ? iconOf(el) : '', field = fieldOf(el);
+   if (icon) text += ` icon=${quote(icon)}`;
+   if (field) text += ` for [${idOf(field)}]`;
+  }
   if (TYPING.has(role) && el.tagName !== 'SELECT') {
+   if (el.tagName === 'INPUT' && Object.hasOwn(PICKERS, el.type)) text += ` type=${el.type}`;
    const value = el.isContentEditable ? el.innerText : el.value;
    if (el.type === 'password') { if (value) text += ' value=••••'; }
    else if (clean(value)) text += ` value=${quote(value, 160)}`;
    if (name !== clean(el.getAttribute('placeholder') || '') && el.getAttribute('placeholder') && !clean(value)) text += ` placeholder=${quote(el.getAttribute('placeholder'))}`;
+   if (el.readOnly || el.getAttribute('aria-readonly') === 'true') text += ' readonly';
   }
   if (el.tagName === 'INPUT' && el.type === 'file') {
    if (el.accept) text += ` accept=${quote(el.accept)}`;
@@ -180,11 +273,13 @@ function install() {
    for (const child of el.children) visit(child);
   };
   const visit = el => {
-   if (++visited > 20000 || SKIP.has(el.tagName) || el.getAttribute('aria-hidden') === 'true' || el.hidden) return;
-   const role = roleOf(el);
-   if (ACTIVE.has(role) || (!role && clickable(el))) {
-    if (inView(rectOf(el)) && shown(el)) {
-     const id = idOf(el), text = describe(el, role || 'clickable');
+   if (++visited > 20000 || el.getAttribute('aria-hidden') === 'true' || el.hidden) return;
+   // A drawing is passed over, unless it is itself what is clicked (a cross or a calendar drawn in SVG).
+   if (SKIP.has(el.tagName) && !(el.tagName === 'svg' && (clickable(el) || pickerIcon(el)))) return;
+   const role = roleOf(el), acting = controlRole(el, role);
+   if (ACTIVE.has(role) || acting || (!role && (clickable(el) || pickerIcon(el)))) {
+    if ((inView(rectOf(el)) && shown(el)) || standIn(el, inView)) {
+     const id = idOf(el), text = describe(el, acting || role || 'clickable');
      refs[id] = cut(text, 140);
      push(`[${id}] ${text}`);
     }
@@ -201,6 +296,8 @@ function install() {
     try { doc = el.contentDocument; } catch {}
     if (doc?.body) children(doc.body);
     else if (inView(rectOf(el))) push(`iframe${el.title ? ` ${quote(el.title)}` : ''} (content not readable)`);
+    return;
+   } else if (SKIP.has(el.tagName)) {
     return;
    } else {
     const own = ownText(el);
@@ -247,9 +344,11 @@ function install() {
  }
 
  function point(ref) {
-  const el = element(ref);
-  el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
-  const r = rectOf(el), vw = innerWidth, vh = innerHeight;
+  const el = element(ref), box = rectOf(el), label = standIn(el);
+  // A hidden or tiny check box is clicked on its label, as a person would.
+  const at = label && (!shown(el) || box.width < 4 || box.height < 4) ? label : el;
+  at.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+  const r = rectOf(at), vw = innerWidth, vh = innerHeight;
   const x = Math.min(Math.max(r.left + Math.min(r.width / 2, 40), 1), vw - 1);
   const y = Math.min(Math.max(r.top + r.height / 2, 1), vh - 1);
   let hit = document.elementFromPoint(x, y);
@@ -258,8 +357,62 @@ function install() {
    if (!deeper || deeper === hit) break;
    hit = deeper;
   }
-  const own = !hit || inside(hit, el) || inside(el, hit) || (hit.tagName === 'IFRAME' && el.ownerDocument !== document);
-  return { x, y, label: describe(el), covered: own ? '' : describe(hit) };
+  const own = !hit || inside(hit, at) || inside(at, hit) || (hit.tagName === 'IFRAME' && at.ownerDocument !== document);
+  return { x, y, label: describe(el), covered: own ? '' : describe(hit), picker: pickerOf(el) };
+ }
+
+ const pickerOf = el => el.tagName === 'INPUT' && Object.hasOwn(PICKERS, el.type) ? el.type : '';
+ // What browser_type needs to know of a field before it types: whether the browser's own picker fills it, whether it
+ // is read-only, what it holds.
+ function field(ref) {
+  const el = element(ref);
+  const focus = el.ownerDocument.activeElement;
+  return { picker: pickerOf(el), readonly: !!el.readOnly || el.getAttribute('aria-readonly') === 'true', value: valueOf(el), focused: !!focus && (focus === el || el.contains(focus)) };
+ }
+ const valueOf = el => el.isContentEditable ? el.innerText : String(el.value ?? '');
+ // A value of a picker field in its one form, from the forms people write it in: a date day first with dots or
+ // dashes, or with slashes when only one reading is possible; a time with am or pm; a date and time with a space.
+ function pickerValue(type, given) {
+  const text = clean(given), pad = n => String(n).padStart(2, '0');
+  const day = value => {
+   let m = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+   if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+   m = value.match(/^(\d{1,2})([./-])(\d{1,2})\2(\d{4})$/);
+   if (!m) return '';
+   let [d, mo] = [Number(m[1]), Number(m[3])];
+   if (m[2] === '/') { if (mo > 12 && d <= 12) [d, mo] = [mo, d]; else if (d <= 12) return ''; }
+   return `${m[4]}-${pad(mo)}-${pad(d)}`;
+  };
+  const hour = value => {
+   const m = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap])?\.?\s*m?\.?$/i);
+   if (!m) return '';
+   let h = Number(m[1]);
+   if (m[4]) h = h % 12 + (/p/i.test(m[4]) ? 12 : 0);
+   return `${pad(h)}:${m[2]}${m[3] ? `:${m[3]}` : ''}`;
+  };
+  if (type === 'date') return day(text);
+  if (type === 'time') return hour(text);
+  if (type === 'datetime-local') { const [d, t] = text.split(/[T\s]+/); const a = day(d || ''), b = hour(t || ''); return a && b ? `${a}T${b}` : ''; }
+  if (type === 'month') {
+   const m = text.match(/^(\d{4})-(\d{1,2})$/), n = text.match(/^(\d{1,2})[./](\d{4})$/);
+   return m ? `${m[1]}-${pad(m[2])}` : n ? `${n[2]}-${pad(n[1])}` : '';
+  }
+  if (type === 'week') { const m = text.match(/^(\d{4})-?W(\d{1,2})$/i); return m ? `${m[1]}-W${pad(m[2])}` : ''; }
+  if (type === 'color') { const m = text.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i); return m ? `#${(m[1].length === 3 ? [...m[1]].map(c => c + c).join('') : m[1]).toLowerCase()}` : ''; }
+  return '';
+ }
+ // Sets a picker field at once, the way the page hears a person set it (input and change), so that the page's own
+ // scripts, React's included, take the new value.
+ function fill(ref, given) {
+  const el = element(ref), type = pickerOf(el), [form, example] = PICKERS[type] || [];
+  const value = type && clean(given) ? pickerValue(type, given) : '';
+  if (!type || (clean(given) && !value)) throw new Error(`[${ref}] is the browser's own ${type} field: write the ${type} as ${form}, for example ${example}`);
+  el.focus();
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, value);
+  if (el.value !== value) throw new Error(`[${ref}] did not take "${value}"`);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  return el.value;
  }
 
  function choose(ref, wanted) {
@@ -413,7 +566,7 @@ function install() {
   const el = state.refs.get(Number(ref))?.deref();
   if (el?.getAttribute('data-openghost-upload') === marker) el.removeAttribute('data-openghost-upload');
  }
- window.__og = { snapshot, point, choose, reveal, quiet, has, image, imageIn, photos, box: ref => rectOf(element(ref)), document: () => state.document,
+ window.__og = { snapshot, point, choose, reveal, quiet, has, image, imageIn, photos, box: ref => rectOf(element(ref)), document: () => state.document, field, fill,
   uploadTarget, unmarkUpload, isFile: ref => { const el = element(ref);return el.tagName === 'INPUT' && el.type === 'file'; } };
 }
 
@@ -620,6 +773,23 @@ async function press(guest, combo) {
  const base = { key, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers };
  await guest.debugger.sendCommand('Input.dispatchKeyEvent', { ...base, type: text ? 'keyDown' : 'rawKeyDown', text, unmodifiedText: text });
  await guest.debugger.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyUp' });
+}
+
+// Text typed key by key, for a field that refuses text put in at once (an input mask that takes only keys one by
+// one). Each key goes down and up with its code on a plain keyboard, so the page's key handlers read it as typed.
+const PUNCT = { '.': [190, 'Period'], ',': [188, 'Comma'], '-': [189, 'Minus'], '_': [189, 'Minus'], '/': [191, 'Slash'], ' ': [32, 'Space'], ':': [186, 'Semicolon'], ';': [186, 'Semicolon'], '+': [187, 'Equal'], '=': [187, 'Equal'], '(': [57, 'Digit9'], ')': [48, 'Digit0'], '@': [50, 'Digit2'] };
+const KEYED = 300;
+// The one form of each of the browser's own picker fields, for the agent (as in install's PICKERS).
+const PICKED = { date: 'YYYY-MM-DD', time: 'HH:MM', 'datetime-local': 'YYYY-MM-DDTHH:MM', month: 'YYYY-MM', week: 'YYYY-Www', color: '#rrggbb' };
+async function typeKeys(guest, text, check) {
+ for (const char of Array.from(text).slice(0, KEYED)) {
+  check();
+  const upper = char.toUpperCase();
+  const [vk, code] = /^[a-z]$/i.test(char) ? [upper.charCodeAt(0), `Key${upper}`] : /^\d$/.test(char) ? [char.charCodeAt(0), `Digit${char}`] : PUNCT[char] || [0, ''];
+  const base = { key: char, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, modifiers: 0 };
+  await guest.debugger.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyDown', text: char, unmodifiedText: char });
+  await guest.debugger.sendCommand('Input.dispatchKeyEvent', { ...base, type: 'keyUp' });
+ }
 }
 
 async function navigate(guest, target) {
@@ -868,6 +1038,7 @@ async function act(found, name, args, signal, files) {
     const spot = await world(guest, `__og.point(${Number(args.ref)})`);
     ({ x, y } = spot);
     if (spot.covered) note = `Note: at that spot [${args.ref}] is covered by ${spot.covered}, the click went there.`;
+    else if (spot.picker) note = `Note: [${args.ref}] is the browser's own ${spot.picker} field; its picker is not part of the page and never shows in a snapshot. Set it with browser_type [${args.ref}] and the ${spot.picker} as ${PICKED[spot.picker]}.`;
    } else if (!Number.isFinite(x) || !Number.isFinite(y)) {
     throw plain('Pass ref from the snapshot, or x and y in page pixels');
    }
@@ -880,15 +1051,34 @@ async function act(found, name, args, signal, files) {
    return state(guest, { note });
   }
   case 'browser_type': {
-   const text = String(args.text ?? '');
-   if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
-    if (await world(guest, `__og.isFile(${Number(args.ref)})`)) throw plain('A local file cannot be typed into this input. Use browser_upload with local file paths.');
-    const spot = await world(guest, `__og.point(${Number(args.ref)})`);
+   const text = String(args.text ?? ''), ref = Number(args.ref), given = args.ref !== undefined && args.ref !== null && args.ref !== '';
+   let before = null, note = '';
+   if (given) {
+    if (await world(guest, `__og.isFile(${ref})`)) throw plain('A local file cannot be typed into this input. Use browser_upload with local file paths.');
+    const kind = await world(guest, `__og.field(${ref})`);
+    // The browser's own date, time or colour field takes no keys: its value is set at once.
+    if (kind.picker) {
+     check();
+     const value = await world(guest, `__og.fill(${ref}, ${JSON.stringify(text)})`);
+     if (args.submit) { await sleep(60); check(); await press(guest, 'Enter'); }
+     done();
+     await settle(guest);
+     return state(guest, { note: `Set [${args.ref}] to "${value}".` });
+    }
+    const spot = await world(guest, `__og.point(${ref})`);
     check();
     await pointer(found, spot.x, spot.y);
     check();
     await mouse(guest, spot.x, spot.y);
     await sleep(80);
+    // Read-only after the click too (some fields open up on focus): the site fills it from a picker of its own, which
+    // the click may have opened.
+    before = await world(guest, `__og.field(${ref})`);
+    if (before.readonly && text) {
+     done();
+     await settle(guest);
+     return state(guest, { note: `Note: [${args.ref}] is read-only, so nothing was typed: the site fills it from a picker of its own. It was clicked: if a calendar or a list opened, choose in it; if not, click the button beside the field.` });
+    }
    }
    check();
    if (args.clear !== false) {
@@ -897,10 +1087,23 @@ async function act(found, name, args, signal, files) {
    }
    check();
    if (text) await guest.debugger.sendCommand('Input.insertText', { text });
+   // A field that refused the text put in at once (an input mask) gets it key by key.
+   if (before?.focused && text) {
+    await sleep(60);
+    const after = await world(guest, `__og.field(${ref})`).catch(() => null);
+    if (after?.focused && after.value === before.value && after.value.trim() !== text.trim()) {
+     check();
+     if (args.clear !== false) { await press(guest, 'Control+A'); await press(guest, 'Delete'); }
+     await typeKeys(guest, text, check);
+     await sleep(60);
+     const keyed = await world(guest, `__og.field(${ref})`).catch(() => null);
+     if (keyed && keyed.value === before.value) note = `Note: [${args.ref}] did not take the text, neither at once nor key by key.`;
+    }
+   }
    if (args.submit) { await sleep(60); check(); await press(guest, 'Enter'); }
    done();
    await settle(guest);
-   return state(guest);
+   return state(guest, { note });
   }
   case 'browser_select': {
    const chosen = await world(guest, `__og.choose(${Number(args.ref)}, ${JSON.stringify(String(args.option ?? ''))})`);

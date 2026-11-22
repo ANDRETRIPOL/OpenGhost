@@ -133,6 +133,16 @@ function finish(data, texts) {
 
 const isMoney = (text, style) => !!readMoney(text, style);
 const dateLike = text => DATE.test(String(text ?? '').trim());
+// The date of a line: the cell that looks like one. A day and month with a dot and no year (03.10, as Ukraine, Poland
+// or Germany write it) reads as a number too; it is the date when it opens the line, is a day and a month, and other
+// cells of the line hold numbers (the amount).
+const DAY_MONTH = /^(\d{1,2})\.(\d{1,2})$/;
+function dateAt(cells) {
+ const d = cells.findIndex(dateLike);
+ if (d >= 0) return d;
+ const m = DAY_MONTH.exec(String(cells[0] ?? '').trim());
+ return m && +m[1] >= 1 && +m[1] <= 31 && +m[2] >= 1 && +m[2] <= 12 && cells.slice(1).some(cell => /\d/.test(cell)) ? 0 : -1;
+}
 
 /* Parts */
 
@@ -438,7 +448,7 @@ function parseStatement(lines) {
  // A line is a date, what it was, the amount and where it went, then a note; written in other orders, the date is
  // the cell that looks like one and the amount the cell that is money.
  data.rows = data.rows.map(cells => {
-  const d = cells.findIndex(dateLike), sums = cells.map((cell, i) => i !== d && read(cell) ? i : -1).filter(i => i >= 0);
+  const d = dateAt(cells), sums = cells.map((cell, i) => i !== d && read(cell) ? i : -1).filter(i => i >= 0);
   // The amount is the number with decimals, else the first number after the date: a document number may stand before it.
   const at = sums.find(i => /\d[.,]\d{1,3}\D*$/.test(cells[i])) ?? sums.find(i => i > d) ?? -1;
   if (at < 0) return null;
@@ -539,6 +549,14 @@ function statementScene(data, tones, { width }) {
 const DR = /^(?:Dr|Db|D|Debit|Débito|Debito|Débit|Debe|Soll|Dare|Дт|Д|Дебет)\.?(?:\s+|:\s*)(.+)$/iu;
 const CR = /^(?:Cr|C|Credit|Crédito|Credito|Crédit|Haber|Haben|Avere|Кт|К|Кредит)\.?(?:\s+|:\s*)(.+)$/iu;
 
+// The names of the columns of a line of entries, in the languages people keep books in.
+const HEAD = {
+ date: /^(?:date|дата|fecha|datum|data|tarih)\b/iu,
+ debit: /(?:debit|débit|debe|soll|дебет|^дт\b|winien|^wn\b|^dr\b|dare)/iu,
+ credit: /(?:credit|crédit|haber|haben|кредит|^кт\b|^ma\b|^cr\b|avere)/iu,
+ amount: /(?:amount|montant|сумм|сума|importe|betrag|kwota|valor|importo|^sum)/iu,
+};
+const moneyEqual = (a, b) => Math.abs(a - b) < 0.005;
 function parseEntries(lines) {
  const data = { ...blank(), entries: [], openings: [] }, texts = [];
  let entry = null, base = null;
@@ -559,10 +577,43 @@ function parseEntries(lines) {
   data.entries.push(entry);
  }
  const read = finish(data, texts);
+ // A line of column names (Date | debit account | credit account | amount | description, in any language) says
+ // which cell is which: the lines under it are read by it, whatever their date says ("at the date of purchase"), and
+ // a debit or credit cell left empty is a line of one side. Lines of one side follow one another as one compound
+ // entry until its debits equal its credits.
+ const named = data.entries.findIndex(e => e.head.length >= 3 && !e.head.some(cell => read(cell)) && e.head.some(cell => HEAD.debit.test(cell)) && e.head.some(cell => HEAD.credit.test(cell)));
+ if (named >= 0) {
+  const head = data.entries.splice(named, 1)[0].head, col = re => head.findIndex(cell => re.test(cell));
+  const c = { date: col(HEAD.date), d: col(HEAD.debit), c: col(HEAD.credit), sum: col(HEAD.amount) };
+  const merged = [];
+  let open = null;
+  for (const e of data.entries) {
+   if (e.raw.length || c.d < 0 || c.c < 0) { merged.push(e); open = null; continue; }
+   const cells = e.head, sumAt = c.sum >= 0 ? c.sum : cells.findIndex((cell, i) => i !== c.date && i !== c.d && i !== c.c && read(cell));
+   const a = sumAt >= 0 ? read(cells[sumAt]) : null;
+   if (!a) { merged.push(e); open = null; continue; }
+   const value = Math.abs(a.value), dr = cells[c.d] || '', cr = cells[c.c] || '';
+   const text = cells.filter((cell, i) => cell && ![c.date, c.d, c.c, sumAt].includes(i)).join(' · ');
+   const lines = [...(dr ? [{ side: 'd', account: dr, value }] : []), ...(cr ? [{ side: 'c', account: cr, value }] : [])];
+   if (!lines.length) { merged.push(e); open = null; continue; }
+   // A line of one side joins the entry still open (its sides not yet equal); a line of both sides stands alone.
+   if (lines.length === 1 && open && !moneyEqual(open.debit, open.credit)) {
+    open.lines.push({ ...lines[0], note: text !== open.text ? text : '' });
+   } else {
+    open = { head: cells, raw: [], named: true, date: c.date >= 0 ? cells[c.date] : '', text, lines, debit: 0, credit: 0 };
+    merged.push(open);
+   }
+   open.debit = open.lines.filter(l => l.side === 'd').reduce((s, l) => s + l.value, 0);
+   open.credit = open.lines.filter(l => l.side === 'c').reduce((s, l) => s + l.value, 0);
+   if (lines.length > 1) open = null;
+  }
+  data.entries = merged;
+ }
  for (const e of data.entries) {
+  if (e.named) continue;
   e.lines = [];
   // The date is the cell that looks like one; what stands before it (a branch, a number of a batch) is no account.
-  const cells = e.head, d = cells.findIndex(dateLike), at = cells.map((cell, i) => i > d && read(cell) ? i : -1).filter(i => i >= 0);
+  const cells = e.head, d = dateAt(cells), at =cells.map((cell, i) => i > d && read(cell) ? i : -1).filter(i => i >= 0);
   // Of the cells that read as numbers the amount is the one with decimals, else the last: an account may be a bare
   // number too, 1102, and stands before the amount.
   const pick = at.length ? at.find(i => /\d[.,]\d{1,3}(?:\D*)$/.test(cells[i])) ?? at[at.length - 1] : -1;
@@ -1203,6 +1254,7 @@ function dayOf(text, locale) {
  return NaN;
 }
 
+const OVERDUE = /(?:^|\D)(\d{1,4})\s*(?:дн\p{L}*|д\.|days?\b|d\b|jours?\b|j\b|giorn[oi]\b|dias?\b|días?\b|dni\b|dzie\p{L}*|tage?n?\b|gün\b)/iu;
 function parseAging(lines) {
  const data = { ...blank(), buckets: [], asof: '', rows: [] }, texts = [];
  let group = null, base = null;
@@ -1236,7 +1288,10 @@ function parseAging(lines) {
    if (byDate) {
     const a = read(cells[0]), due = cells.slice(1).map(cell => dayOf(cell, data.locale)).find(Number.isFinite);
     if (!a) continue;
-    const days = Number.isFinite(due) && Number.isFinite(now) ? Math.round((now - due) / 86400000) : 0;
+    // The days overdue may be written as words (просрочка 10 дней, 45 днів, 30 days overdue, 12 jours, 7 dni): they
+    // are the days, before any date.
+    const late = cells.slice(1).map(cell => OVERDUE.exec(String(cell))).find(Boolean);
+    const days = late ? Number(late[1]) : Number.isFinite(due) && Number.isFinite(now) ? Math.round((now - due) / 86400000) : 0;
     const k = days <= LIMITS[0] ? 0 : days <= LIMITS[1] ? 1 : days <= LIMITS[2] ? 2 : days <= LIMITS[3] ? 3 : 4;
     row.values[k] += Math.abs(a.value);
    } else cells.slice(0, n).forEach((cell, k) => { const a = cell ? read(cell) : null; if (a) row.values[k] += Math.abs(a.value); });

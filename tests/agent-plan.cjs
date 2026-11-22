@@ -123,10 +123,22 @@ const entry = reply(), live = { messages: [user('make a site'), entry] }, turn =
 chat.onPlan = () => { live.told = (live.told || 0) + 1; };
 await chat.usePlan(live, turn, { action: 'start', steps: ['Frame', 'Menu'] });
 check('A new plan stands on the reply and the top is told', [!!entry.plan, entry.plan.steps.length, live.told], [true, 2, 1]);
-live.planWork = 3;
+live.planWork = 1;
 await chat.usePlan(live, turn, { action: 'done', step: 1, proof: 'the page opens and shows the frame' });
-check('Closing a step uses up the work done for it', [entry.plan.steps[0].state, live.planWork], ['done', 0]);
+check('Closing a step uses up a piece of the work done', [entry.plan.steps[0].state, live.planWork], ['done', 0]);
 check('The next step then needs work of its own', await chat.usePlan(live, turn, { action: 'done', step: 2, proof: 'the menu shows 18 items on the page' }), TEXT.idle(2));
+// Work done at once (seen on GPT Luna: five pages read together, then each next step refused and checked again for
+// show) closes as many steps in a row.
+{
+ const e2 = reply(), conv2 = { messages: [user('choose a city'), e2] }, t2 = { part: { entry: e2 }, parts: [{ entry: e2 }], config: {} };
+ await chat.usePlan(conv2, t2, { action: 'start', steps: ['Facts', 'Comparison', 'Pictures'] });
+ conv2.planWork = 5;
+ await chat.usePlan(conv2, t2, { action: 'done', step: 1, proof: 'the timetables show 1 h 5 min and 2 h 53 min' });
+ await chat.usePlan(conv2, t2, { action: 'done', step: 2, proof: 'compared the roads and what each city offers' });
+ check('Five calls of work close two steps in a row, with three left', [e2.plan.steps.map(step => step.state).join(), conv2.planWork], ['done,done,open', 3]);
+ conv2.planWork = 0;
+ check('With none left the next one is refused', await chat.usePlan(conv2, t2, { action: 'done', step: 3, proof: 'three pictures are in the answer' }), TEXT.idle(3));
+}
 check('A step closed with nothing for the app to see rests on the agent\'s word', [entry.plan.steps[0].by, entry.plan.steps[0].saw], ['word', []]);
 await chat.usePlan(live, turn, { action: 'wait', reason: 'Which of the two menus to keep' });
 check('Waiting is told at the end of the turn', turn.waits, 'Which of the two menus to keep');
@@ -163,6 +175,20 @@ const worked = { work: PLAN.nudge };
 check('A long task with no plan is reminded once', [nudge([user('make a site')], worked), nudge([user('make a site')], worked)], [TOOL_NOTES.planNudge, '']);
 check('Not before enough work, nor with a plan made or open', [nudge([user('x')], { work: PLAN.nudge - 1 }), nudge([user('x')], { work: 9, planned: true }), nudge([reply({ plan: open })], { work: 9 })], ['', '', '']);
 check('A finished plan of an earlier task does not stop it', nudge([reply({ plan: done }), user('now a new site')], { work: 9 }), TOOL_NOTES.planNudge);
+// The answer the agent ends its turn with closes the steps it gives (seen on GPT Luna: a plan whose last step was «the
+// recommendation» sent the agent back after its answer, refused the close for want of work, and it browsed and then
+// wrote the whole answer again).
+const answer = 'Я бы выбрал Ярославль: исторический центр, музеи и набережная, а прямой поезд идёт около трёх часов. Тверь ближе, но программа там на один день; Суздаль самый атмосферный, но дорога длиннее и с пересадкой во Владимире. Для обычных выходных это лучший баланс дороги и впечатлений.';
+check('An answer is a long reply or one with a widget, a drawing or pictures; a line of progress is not', [P.answer(answer), P.answer('```widget\n{"kind":"poll"}\n```'), P.answer('```mermaid\nflowchart\n```'), P.answer('![Тверь](ogpic://chat/x/y.jpg)'), P.answer('Проверю расписание и вернусь.'), P.answer('')], [true, true, true, true, false, false]);
+const lastOpen = { ...made.plan, steps: made.plan.steps.map((step, k) => k < 3 ? { ...step, state: 'done', proof: 'shown in the chat' } : step) };
+const closedOnAnswer = P.apply(lastOpen, { action: 'done', step: 4, proof: 'The answer recommends Yaroslavl with the reasons' }, { work: 0, answered: true });
+check('A step closes on the answer with no other work, and the answer is not asked for again', [closedOnAnswer.plan?.steps[3].state, closedOnAnswer.text.includes(TEXT.lastAnswered), closedOnAnswer.text.includes(TEXT.last)], ['done', true, false]);
+check('Without an answer it is still refused for want of work', P.apply(lastOpen, { action: 'done', step: 4, proof: 'The answer recommends Yaroslavl with the reasons' }, { work: 0 }).text, TEXT.idle(4));
+check('A failed check still keeps the step open, answer or not', P.apply(lastOpen, { action: 'done', step: 4, proof: 'The answer recommends Yaroslavl with the reasons' }, { work: 0, answered: true, check: { command: 'npm test', code: 1 } }).text, TEXT.failed('npm test', 1));
+check('Sent back after an answer, the agent is told it counts and not to write it again', chat.planBack({ messages: [reply({ plan: open })], planAnswered: true }, { controller: new AbortController() }, 'stop'), TOOL_NOTES.planAnswered('1. A; 2. B'));
+check('The note after an answer differs from the plain one and says not to repeat it', [TOOL_NOTES.planAnswered('x') !== TOOL_NOTES.planBack('x'), /Do not write the answer again/.test(TOOL_NOTES.planAnswered('x'))], [true, true]);
+check('A new turn starts with no answer given', (() => { const conv = { planAnswered: true }; chat.begin(conv, {}); return conv.planAnswered; })(), false);
+
 check('The mini chat is never reminded', SideChat.prototype.planNudge.call(Object.create(SideChat.prototype), { messages: [] }, { work: 9 }), '');
 check('The mini chat\'s agent keeps no plan', SideChat.prototype.toolSchemas.call(Object.create(SideChat.prototype)).map(tool => tool.function.name), ['read_file']);
 

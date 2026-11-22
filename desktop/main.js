@@ -18,6 +18,7 @@ const Routines = require('./routines');
 const Skills = require('./skills');
 const Update = require('./update');
 const Pictures = require('./pictures');
+const Rules = require('./rules');
 
 const APP_ID = 'com.openghost.app';
 const ROOT = path.join(__dirname, '..');
@@ -312,6 +313,8 @@ ipcMain.handle('proof:glimpse', (event, request) => fromApp(event) ? Proof.glimp
 // Skills (desktop/skills.js): those a chat can use, one's instructions, and one put in from a link; every window is told.
 Skills.setup({ fromApp, chats: Tools.CHATS, changed: () => { for (const each of BrowserWindow.getAllWindows()) if (!each.isDestroyed()) each.webContents.send('skills:changed'); } });
 ipcMain.handle('pdf:read', (event, source) => fromApp(event) ? Pdf.read(source) : { text: '', reason: 'unreadable' });
+// Rules (desktop/rules.js): kept in ~/OpenGhost/rules.json and a project's .openghost/rules.json; handlers run here.
+Rules.setup(fromApp);
 LLM.register(fromApp);
 Keys.register(fromApp);
 Size.setup(fromApp);
@@ -328,6 +331,16 @@ ipcMain.handle('pictures:copy', (event, from, to) => fromApp(event) ? Pictures.c
 const EDITS = new Set(['cut', 'copy', 'paste', 'selectAll']);
 ipcMain.handle('edit:do', (event, action) => { if (fromApp(event) && EDITS.has(action)) event.sender[action](); });
 Pictures.register();
+
+// An error no code here caught still comes up as Electron's own window, as it always did, with one exception: net.fetch
+// (pictures.js, update.js) throws inside Electron when a site answers with a status a web Response cannot hold (outside
+// 200 to 599, as LinkedIn's 999). Nothing is broken then: that one fetch is let go and runs out its time, and the app
+// goes on without a window about it.
+process.on('uncaughtException', error => {
+ if (error instanceof RangeError && /init\["status"\] must be in the range/.test(error.message)) { console.warn('A page answered with a status a web Response cannot hold:', error.message); return; }
+ console.error(error);
+ dialog.showErrorBox('A JavaScript error occurred in the main process', `Uncaught Exception:\n${error?.stack || error}`);
+});
 
 if (process.argv.includes('--create-shortcut')) {
  app.whenReady().then(() => {
@@ -357,6 +370,9 @@ if (process.argv.includes('--create-shortcut')) {
  // The main window, made if the app has been waiting in the tray without it; `then` gets it once its page is there.
  // `unseen`: made for a routine, it is not shown, and one that is there already is left where it is.
  const showMain = (then, unseen = false) => {
+  // Asked before Electron is ready (a second start of the app, or macOS waking it, while it is still starting up): the
+  // window is made once it is. Made earlier, it reads the screen too soon and the main process stops with an error.
+  if (!app.isReady()) { app.whenReady().then(() => showMain(then, unseen)); return; }
   const fresh = !win;
   if (!win) {
    win = createWindow(unseen);
@@ -414,7 +430,7 @@ if (process.argv.includes('--create-shortcut')) {
   Browser.setup();
   Keys.load();
   Quick.setup({
-   fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png'), stay: () => Routines.alive,
+   fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : process.platform === 'darwin' ? 'trayTemplate.png' : 'icon.png'), stay: () => Routines.alive,
    preload: path.join(__dirname, 'preload.js'), page: path.join(ROOT, 'index.html'), languages,
   });
   // A new version of the app (desktop/update.js), put in only while no agent works, here or in the quick chat.

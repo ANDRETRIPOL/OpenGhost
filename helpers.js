@@ -154,6 +154,9 @@ proto.useTool = function (conv, turn, view, call) {
  return this.listHelpers(conv);
 };
 
+// A helper as the user's rules know it (agent_id, agent_type in a hook's JSON).
+const ruleAgent = helper => ({ id: helper.id, type: 'helper', name: helper.title });
+
 // A helper's own conversation, with the chat's model, effort and mode as they are now.
 proto.helperConv = function (parent, helper) {
  helper.conv ||= new (Object.getPrototypeOf(parent).constructor)(parent.record);
@@ -197,6 +200,12 @@ proto.runHelper = async function (parent, helper, config) {
  const room = this.settings.windowOf(config.id) || 128000;
  const tools = this.agent(conv) ? AgentTools.schemas.filter(tool => !KEPT.has(tool.function.name)) : null;
  try {
+  // The user's rules see a helper start (SubagentStart): what they say goes to it with its task.
+  if (!helper.ruled) {
+   helper.ruled = true;
+   const started = await this.rules(parent, conv.turn, 'SubagentStart', { extra: { agent_id: helper.id, agent_type: 'helper' }, agent_type: 'helper' }, ruleAgent(helper));
+   if (started?.context.length) helper.messages.push({ role: 'user', content: `This note comes from the app, from the user's rules:\n${started.context.join('\n\n')}` });
+  }
   for (;;) {
    controller.signal.throwIfAborted();
    const system = (await this.system(conv)).map(content => ({ role: 'system', content }));
@@ -222,13 +231,17 @@ proto.runHelper = async function (parent, helper, config) {
    const calls = step.tool_calls || [];
    if (!calls.length) {
     if (helper.inbox.length) { helper.messages.push(...helper.inbox.splice(0)); continue; }
+    // A rule of the user's may not let the helper finish yet (SubagentStop): it goes on with what the rule says.
+    const kept = await this.ruleStopping(parent, conv.turn, helper.final || '', ruleAgent(helper));
+    if (kept) { helper.messages.push({ role: 'user', content: kept }); continue; }
     helper.state = 'done';
     break;
    }
+   conv.turn.stopKept = 0;
    const images = [];
    for (const call of calls) {
     const result = controller.signal.aborted ? TOOL_NOTES.cancelled : await this.helperTool(parent, helper, call);
-    const output = typeof result === 'string' ? result : result.text;
+    const output = await this.ruleAfter(parent, conv.turn, conv.turn.ruleSteps?.get(call.id), typeof result === 'string' ? result : result.text, ruleAgent(helper));
     helper.messages.push({ role: 'tool', tool_call_id: call.id, content: output });
     if (result.images?.length) images.push(...result.images);
    }
@@ -291,11 +304,24 @@ proto.helperTool = async function (parent, helper, call) {
  const refused = shared && this.sharedRefusal(conv, cwd, shared);
  if (refused) return refused;
  const panel = this.browserOf(parent), apart = conv;
+ // The user's rules see a helper's step as they see the agent's (chat.js).
+ const ruled = await this.ruleBefore(parent, turn, { name, args, cwd, apart, panel, id: call.id, agent: ruleAgent(helper) });
+ if (ruled?.deny) return ruled.deny;
+ if (ruled?.args) args = ruled.args;
+ // Kept by the turn, not on the call: the call is saved with the chat, and this holds the browser and the chat.
+ const stepOf = { name, args, cwd, apart, panel, id: call.id, notes: ruled?.notes || '' };
+ (turn.ruleSteps ||= new Map()).set(call.id, stepOf);
  let asks = AgentTools.needsApproval(name, args, { mode: this.modeOf(parent), cwd, attached: this.attachedFiles(parent), apart, panel });
- if (asks && this.modeOf(parent) === 'ask') {
+ if (asks && this.modeOf(parent) === 'ask' && ruled?.asks !== true) {
   const rule = AgentTools.approvalRule?.(name, args, { cwd, apart, panel });
   if (rule && this.library.permissions) asks = !(await this.library.permissions(parent.id).catch(() => [])).includes(rule.key);
  }
+ if (ruled?.asks === true) asks = true;
+ else if (ruled?.asks === false) asks = false;
+ const permitted = asks ? await this.rulePermission(parent, turn, { name, args, cwd, apart, panel, agent: ruleAgent(helper) }) : null;
+ if (permitted?.deny) return permitted.deny;
+ if (permitted?.args) { args = permitted.args; stepOf.args = args; }
+ if (permitted?.allow) asks = false;
  if (asks) {
   // Asked in the chat's own card: under the chat's reply while its agent works, in the composer's card all the same
   // while its turn has ended and the helper goes on alone. The card goes with the helper when it is stopped.
@@ -303,7 +329,7 @@ proto.helperTool = async function (parent, helper, call) {
   const view = parent.turn?.part?.view || { el: document.createElement('div'), status: null };
   helper.asking = true;
   changed(parent);
-  const answer = await this.approve(parent, host, view, { name, args, cwd, apart, panel, helper: helper.title, signal: turn.controller.signal });
+  const answer = await this.approve(parent, host, view, { name, args, cwd, apart, panel, helper: helper.title, signal: turn.controller.signal, rule: ruled?.rule || '' });
   helper.asking = false;
   changed(parent);
   if (answer !== 'allow') return answer === 'deny' ? TOOL_NOTES.declined : answer;

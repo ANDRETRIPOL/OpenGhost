@@ -1712,7 +1712,7 @@ html[data-picture="shown"][data-theme="light"] {
   --chat-picture-veil: 62%;
 }
 
-html[data-picture] .main {
+html[data-picture]:not(.is-quick) .main {
   background:
     linear-gradient(color-mix(in srgb, var(--chat-bg) var(--chat-picture-veil), transparent), color-mix(in srgb, var(--chat-bg) var(--chat-picture-veil), transparent)),
     var(--chat-picture) center / cover no-repeat,
@@ -1720,15 +1720,16 @@ html[data-picture] .main {
   transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing), --chat-picture-veil 0.36s ease;
 }
 
-html[data-picture="shown"] .main {
+html[data-picture="shown"]:not(.is-quick) .main {
   transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing), --chat-picture-veil 0.8s var(--motion-easing);
 }
 
 /* The messages fade into the picture at the top and the bottom under a copy of the chat's own ground laid over them,
    the same picture behind the same veil, clear in the middle. A mask on the thread itself would do it too, but under a
    mask nothing in the thread can blur what lies behind it: the glass of the selection's menu (Copy, Ask OpenGhost,
-   Mini chat) and the mist round a selection went clear, and the menu's words were lost on the picture. */
-html[data-picture] .thread-view::before {
+   Mini chat) and the mist round a selection went clear, and the menu's words were lost on the picture. The mini chat
+   and the quick chat keep their plain ground: only the chat's own thread fades so, never theirs. */
+html[data-picture]:not(.is-quick) .main > .thread-view::before {
   inset: 0;
   height: auto;
   background:
@@ -1739,23 +1740,23 @@ html[data-picture] .thread-view::before {
   mask-image: linear-gradient(#000, transparent calc(var(--composer-bottom-gap) + 12px), transparent calc(100% - var(--composer-bottom-gap) - 12px), #000);
 }
 
-html[data-picture] .thread-view::after {
+html[data-picture]:not(.is-quick) .main > .thread-view::after {
   display: none;
 }
 
 /* While a piece of a reply is selected the edges step back with the feed under them, with the same blur and dimming:
    left sharp, they cut the mist off short of the top and the bottom. */
-html[data-picture] .thread-view::before {
+html[data-picture]:not(.is-quick) .main > .thread-view::before {
   transition: filter 0.42s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-html[data-picture] .is-veiled .thread-view::before {
+html[data-picture]:not(.is-quick) .main.is-veiled > .thread-view::before {
   filter: var(--veil);
   transition: filter 0.52s var(--motion-easing);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-picture] .main {
+  html[data-picture]:not(.is-quick) .main {
     transition: left var(--motion-duration) var(--motion-easing), right var(--motion-duration) var(--motion-easing);
   }
 }
@@ -2396,6 +2397,49 @@ ghost-thinking {
   font-size: var(--small-font-size);
 }
 
+/* What a rule of the user's did (rules.js): a quiet line under the reply, with the mark of a rule. */
+.message-rule {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: rgba(var(--fg-rgb), 0.5);
+  font-size: var(--small-font-size);
+  line-height: 1.35;
+}
+
+.message-rule svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.message-rule-text {
+  min-width: 0;
+}
+
+.message-rule-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(var(--fg-rgb), 0.07);
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+  cursor: pointer;
+}
+
+.message-rule-action:hover {
+  background: rgba(var(--fg-rgb), 0.11);
+}
+
 .message-content:empty + .message-note,
 .message-content:empty + .message-error {
   margin-top: 0;
@@ -2687,6 +2731,28 @@ ghost-thinking {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+}
+
+/* A rule of the user's asks about the step (rules.js): its name beside the mark of a rule, in the card's quiet ink. */
+.approval-effect.is-rule {
+  --tone: var(--fg-rgb);
+  background: rgba(var(--fg-rgb), 0.08);
+  color: rgba(var(--fg-rgb), 0.72);
+}
+
+.approval-effect.is-rule::before {
+  display: none;
+}
+
+.approval-rule-glyph {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.approval-rule-name {
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
 }
 
 .approval-effect.is-count {
@@ -18701,6 +18767,14 @@ html[data-theme="light"] .settings {
   transition: opacity 0.3s ease, scale 0.5s cubic-bezier(0.34, 1.5, 0.64, 1);
 }
 
+.routines-pill.is-compact {
+  padding-right: 9px;
+}
+
+.routines-pill.is-compact .routines-pill-label {
+  display: none;
+}
+
 /* Where there is no browser's button (the quick chat), the routines' one takes its corner. */
 .main:not(:has(> .browser-tools > :not([hidden]))) .routines-pill {
   right: calc(var(--toggle-inset) + 4px);
@@ -18795,6 +18869,22 @@ html[data-theme="light"] .settings {
     padding-top: 0;
     padding-bottom: 0;
     text-box: trim-both cap alphabetic;
+  }
+}
+
+/* On those screens the notes' number still stood half a pixel to a pixel low (an odd height of figures in an even disc
+   has no middle, and the line is placed in whole pixels): raised by a bottom padding, it stands half a pixel high
+   instead, where the eye takes a figure in a disc to be in its middle. At 125% the number already stands right there.
+   Measured on the real button from 100% to 185% (countfix). */
+@media (max-resolution: 1.89dppx) {
+  html .notes-pill .notes-pill-count {
+    padding-bottom: 0.7px;
+  }
+}
+
+@media (min-resolution: 1.2dppx) and (max-resolution: 1.3dppx) {
+  html .notes-pill .notes-pill-count {
+    padding-bottom: 0.5px;
   }
 }
 
@@ -23374,7 +23464,7 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .economy-track,
 .economy-fill {
   fill: none;
-  stroke-width: 40;
+  stroke-width: 26;
   stroke-linecap: round;
 }
 
@@ -23415,7 +23505,7 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   border-radius: 8px;
   background: none;
   color: rgba(var(--composer-fg-rgb), 0.5);
-  font: 500 12px/1 var(--font);
+  font: 500 11px/1 var(--font);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: pointer;
@@ -23439,18 +23529,22 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
   pointer-events: none;
 }
 
-/* Glass, as the effort slider's capsule (.glass-lens, liquid-glass.js): a little wider than the track, so the track's
-   edge bends under it and its rounded end is under it whole. */
+/* A bead of glass in the track (.glass-lens, liquid-glass.js), a little narrower than it: the track's colour shows
+   through it bent and lightened, never as a flat disc of colour, and a rim of light round its top and a shade under
+   its bottom edge make it stand out of the track as a drop of convex glass does. */
 .economy-knob {
   position: absolute;
-  width: 46px;
-  height: 46px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   pointer-events: auto;
   cursor: grab;
-  /* The track's colour through the glass as it is: the usual glass brightens what it bends, and the green went loud. */
-  --glass-backdrop: blur(0.4px) saturate(1.05);
+  --glass-backdrop: blur(0.6px) saturate(0.7) brightness(1.35);
+  --glass-fill: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.16) 46%, rgba(255, 255, 255, 0.06) 72%);
+  --glass-rim: linear-gradient(170deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.25) 45%, rgba(0, 0, 0, 0.28));
+  --glass-shade: inset 0 -1.5px 2px rgba(0, 0, 0, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.55);
+  --glass-drop: 0 1.5px 4px rgba(0, 0, 0, 0.38);
 }
 
 .economy-stage:active .economy-knob {
@@ -23465,16 +23559,16 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .economy-words {
   position: absolute;
   z-index: 1;
-  width: 330px;
+  width: 280px;
   transform: translate(0, -50%);
   text-align: left;
   pointer-events: none;
 }
 
 .economy-value {
-  height: 44px;
+  height: 34px;
   overflow: visible;
-  font: 650 40px/44px var(--font);
+  font: 650 28px/34px var(--font);
   letter-spacing: -0.025em;
   color: rgb(var(--composer-accent-rgb));
   font-variant-numeric: tabular-nums;
@@ -23486,9 +23580,9 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 }
 
 .economy-words.is-narrow .economy-value {
-  height: 34px;
-  font-size: 28px;
-  line-height: 34px;
+  height: 28px;
+  font-size: 22px;
+  line-height: 28px;
 }
 
 .economy-words.is-narrow .economy-about {
@@ -23513,21 +23607,21 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 .economy-saving {
   position: relative;
   margin: 0;
-  max-width: 330px;
+  max-width: 280px;
   text-wrap: pretty;
 }
 
 .economy-about {
-  margin-top: 10px;
+  margin-top: 6px;
   min-height: 2.8em;
-  font: 500 13px/1.4 var(--font);
+  font: 500 12px/1.4 var(--font);
   color: rgba(var(--composer-fg-rgb), 0.62);
 }
 
 .economy-saving {
-  margin-top: 8px;
+  margin-top: 6px;
   min-height: 1.4em;
-  font: 650 14px/1.4 var(--font);
+  font: 650 13px/1.4 var(--font);
   color: rgb(var(--composer-accent-rgb));
 }
 

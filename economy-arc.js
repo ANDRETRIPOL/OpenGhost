@@ -14,10 +14,11 @@
 // must miss nothing; each only where it fits the model's window. The track fills from "All" toward the knob: down in
 // amber turning green, up in violet.
 
-// The arc, in CSS pixels: its radius to the middle of the track, the track's width, the knob's, and where it starts and
-// ends in degrees (0 to the right, counter-clockwise): a quarter of a circle's left side, "(", from the top down. The
-// sizes stand inside its bend, `label` from the track; the words begin `words` to the right of the arc's middle.
-const ARC = { r: 300, least: 150, width: 40, knob: 46, from: 138, to: 222, label: 16, words: 128, edge: 28, top: 20 };
+// The arc, in CSS pixels: it rises straight up from its foot over the composer, and from its middle bends round to the
+// right, a quarter of a circle of radius `r`, its head lying flat at the top. `straight` is the straight part, as a
+// share of `r`. The track's width, the knob's (smaller than the track, a bead of glass in it); the sizes stand inside the
+// bend, `label` from the track; the words begin `words` to the right of the straight part.
+const ARC = { r: 150, least: 96, straight: 1, width: 26, knob: 22, label: 12, words: 104, edge: 28, top: 20 };
 const OPEN = { veil: 460, draw: 620, dot: 300, dots: 220, stagger: 40, flight: 640, text: 420, textDelay: 200 };
 const CLOSE = { veil: 380, veilDelay: 60, draw: 360, flight: 460, text: 200 };
 const EASE = {
@@ -198,6 +199,11 @@ class EconomyArc {
 
  // The button follows the chat on screen.
  sync() {
+  // While the agent works the size stays as it is, as the model does (model-stage.js): a summary may be under way.
+  const locked = !!this.chat.busy;
+  this.button.toggleAttribute('disabled', locked);
+  this.button.title = locked ? I18n.t('economy.locked') : '';
+  if (locked && (this.state === 'open' || this.state === 'opening')) this.close();
   if (!this.conv) return;
   this.stops = this.stopsFor();
   const index = this.placeOf(), share = this.shareOf(index);
@@ -212,35 +218,42 @@ class EconomyArc {
   const composer = this.composerEl || main?.querySelector('.composer') || main;
   const box = composer.getBoundingClientRect(), area = this.room?.() || main.getBoundingClientRect();
   // The arc stands over the composer's left part, where its button is, its foot clear of the composer and its head
-  // clear of the top of the chat: in a low window it is drawn on a smaller circle. Its centre is out to the right.
-  const sin = Math.sin(rad((ARC.to - ARC.from) / 2)), tall = box.top - ARC.edge - (area.top + ARC.top);
-  this.r = Math.round(clamp((tall - ARC.width - ARC.knob / 2) / (2 * sin), ARC.least, ARC.r));
-  const half = this.r * sin + ARC.width / 2;
-  this.cx = Math.round(box.left + ARC.edge + ARC.width / 2 + this.r);
-  this.cy = Math.round(Math.max(area.top + ARC.top + half, box.top - ARC.edge - half));
+  // clear of the top of the chat: in a low window it is drawn smaller. `x0` is the straight part's line, `ym` where it
+  // begins to bend (its centre is `r` to the right of that), `y0` the head's height.
+  const tall = box.top - ARC.edge - (area.top + ARC.top);
+  this.r = Math.round(clamp((tall - ARC.width) / (1 + ARC.straight), ARC.least, ARC.r));
+  this.straight = Math.round(this.r * ARC.straight);
+  this.x0 = Math.round(box.left + ARC.edge + ARC.width / 2);
+  this.ym = Math.round(box.top - ARC.edge - ARC.width / 2 - this.straight);
+  this.y0 = this.ym - this.r;
+  this.bend = Math.PI * this.r / 2;
+  this.span = this.bend + this.straight;
   // In the quick chat the veil covers the card, not the screen.
   if (this.room) Object.assign(this.veilEl.style, { inset: `${area.top}px ${innerWidth - area.right}px ${innerHeight - area.bottom}px ${area.left}px`, borderRadius: '22px' });
   this.svg.setAttribute('viewBox', `0 0 ${window.innerWidth} ${window.innerHeight}`);
   this.svg.setAttribute('width', window.innerWidth);
   this.svg.setAttribute('height', window.innerHeight);
-  const [x0, y0] = this.point(0), [x1, y1] = this.point(1);
-  const d = `M${x0.toFixed(2)} ${y0.toFixed(2)}A${this.r} ${this.r} 0 0 0 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  const d = `M${this.x0 + this.r} ${this.y0}A${this.r} ${this.r} 0 0 0 ${this.x0} ${this.ym}V${this.ym + this.straight}`;
   this.track.setAttribute('d', d);
   this.fill.setAttribute('d', d);
   this.length = this.track.getTotalLength();
-  const left = Math.round(this.cx - this.r + ARC.words);
+  const left = Math.round(this.x0 + ARC.words);
   this.words.style.left = `${left}px`;
-  this.words.style.top = `${this.cy}px`;
-  const wide = Math.round(clamp(area.right - left - 20, 160, 330));
+  this.words.style.top = `${Math.round(this.ym + this.straight * 0.45)}px`;
+  const wide = Math.round(clamp(area.right - left - 20, 160, 280));
   this.words.style.width = `${wide}px`;
   // In a narrow room (the quick chat's card) the words are set smaller, the size on one line.
-  this.words.classList.toggle('is-narrow', wide < 260);
+  this.words.classList.toggle('is-narrow', wide < 230);
   this.place();
  }
 
- point(t, r = this.r) {
-  const deg = ARC.from + (ARC.to - ARC.from) * t;
-  return [this.cx + r * Math.cos(rad(deg)), this.cy - r * Math.sin(rad(deg))];
+ // A point of the arc at a share of its length from its head, `inset` in from it toward the inside of the bend. Past
+ // either end it goes on as the arc would: further round the bend over the head, straight down past the foot.
+ point(t, inset = 0) {
+  const s = t * this.span;
+  if (s >= this.bend) return [this.x0 + inset, this.ym + s - this.bend];
+  const a = s / this.r, r = this.r - inset;
+  return [this.x0 + this.r - r * Math.sin(a), this.ym - r * Math.cos(a)];
  }
 
  shareOf(index) { return this.stops.length > 1 ? index / (this.stops.length - 1) : 0; }
@@ -249,10 +262,10 @@ class EconomyArc {
  place() {
   this.dotsEl.innerHTML = this.stops.map((size, i) => {
    const [x, y] = this.point(this.shareOf(i));
-   return `<circle class="economy-dot" data-i="${i}" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="4.5"/>`;
+   return `<circle class="economy-dot" data-i="${i}" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="3.5"/>`;
   }).join('');
   this.labelsEl.innerHTML = this.stops.map((size, i) => {
-   const [x, y] = this.point(this.shareOf(i), this.r - ARC.width / 2 - ARC.label);
+   const [x, y] = this.point(this.shareOf(i), ARC.width / 2 + ARC.label);
    const name = size < 0 ? I18n.t(size === -1 ? 'economy.max' : 'economy.maxplus') : size ? short(size) : I18n.t('economy.all');
    return `<button type="button" class="economy-stop${size < 0 ? ' is-ghost' : ''}" data-i="${i}" tabindex="-1" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px">${name}</button>`;
   }).join('');
@@ -266,7 +279,7 @@ class EconomyArc {
  }
 
  open(keyboard = false) {
-  if (this.state !== 'closed' || !this.conv) return;
+  if (this.state !== 'closed' || !this.conv || this.chat.busy) return;
   this.state = 'opening';
   this.stops = this.stopsFor();
   this.at = this.placeOf();
@@ -353,13 +366,17 @@ class EconomyArc {
 
  // A point of the page as a share of the arc, or null when it is far from the track.
  shareAt(x, y, loose = false) {
-  const dx = x - this.cx, dy = this.cy - y, distance = Math.hypot(dx, dy);
-  if (!loose && Math.abs(distance - this.r) > ARC.width) return null;
-  // The angle runs from 0 to 360 here, so the arc (138 down to 222, through the left) is one stretch of it, and a point
-  // above or below it falls past that end.
-  let deg = Math.atan2(dy, dx) * 180 / Math.PI;
-  if (deg < 0) deg += 360;
-  return (deg - ARC.from) / (ARC.to - ARC.from);
+  // Below where it bends the arc is its straight line; above, the bend round its centre. Past the head a point counts
+  // as further round, past the foot as further down, for the knob to give a little there.
+  let s, off;
+  if (y >= this.ym) { s = this.bend + y - this.ym; off = Math.abs(x - this.x0); }
+  else {
+   const dx = this.x0 + this.r - x, dy = this.ym - y;
+   s = Math.atan2(dx, dy) * this.r;
+   off = Math.abs(Math.hypot(dx, dy) - this.r);
+  }
+  if (!loose && off > ARC.width) return null;
+  return s / this.span;
  }
 
  down(event) {

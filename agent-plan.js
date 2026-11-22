@@ -19,6 +19,8 @@ const PLAN = {
  proof: [12, 400],
  // How many times one turn is sent back to open steps.
  returns: 2,
+ // How many characters of words, besides any figure, make the end of a turn an answer rather than a line of progress.
+ answer: 240,
  // After this many steps of work in one turn without a plan, the agent is reminded that a task of parts gets one.
  nudge: 6,
  // What a check is: a command whose failure means the work is not done.
@@ -48,6 +50,8 @@ const TEXT = {
  started: 'The plan is set, and the user sees it at the top of the chat. Work the steps in order; close each with done and its proof as soon as you have seen it work.',
  closedStep: n => `Step ${n} is closed.`,
  last: 'That was the last step. Before your final answer, read the user\'s request once more and go through it part by part: for each thing they asked for, name what showed it is done. Whatever nothing showed, do now, or add it to the plan, or say plainly in the answer that it is not done.',
+ // The plan closed after the agent had already given its answer: the answer stands, and is not written again.
+ lastAnswered: 'That was the last step. Your answer above stands: do not write it again, nor its widgets, drawings or pictures. Read the user\'s request once more part by part; if something they asked for is missing from it, add only that, in a line or two; otherwise end with no more words.',
  dropped: n => `Step ${n} is dropped. Tell the user in your reply that you dropped it and why.`,
  added: 'Added.',
  waits: 'The user is told that you wait for them. Ask for what you need in your reply, in a sentence or two, and end the reply there.',
@@ -111,9 +115,17 @@ const AgentPlan = {
   return true;
  },
 
+ // Whether the words the agent ended its turn with are an answer, not a line of progress: a widget, a drawing or
+ // pictures given, or enough said beside them.
+ answer(text) {
+  const said = String(text || '');
+  if (/```(widget|mermaid)\b|!\[[^\]]*\]\(|ogpic:\/\//.test(said)) return true;
+  return said.replace(/```[\s\S]*?```/g, ' ').replace(/\s+/g, ' ').trim().length >= PLAN.answer;
+ },
+
  // One call of the plan tool. Gives the plan as it stands after it, or null when the call changed nothing, and the
  // words the agent is answered with.
- apply(plan, args, { work = 0, check = null } = {}) {
+ apply(plan, args, { work = 0, check = null, answered = false } = {}) {
   const action = String(args?.action || '');
   const reply = (next, text) => ({ plan: next, text: next ? `${text}\n\n${PLAN.head}\n${AgentPlan.lines(next)}` : text });
   const refuse = text => ({ plan: null, text });
@@ -146,10 +158,11 @@ const AgentPlan = {
    if (error) return refuse(error);
    const proof = clean(args.proof);
    if (proof.length < PLAN.proof[0] || PLAN.hollow.test(proof)) return refuse(TEXT.proof);
-   if (!work) return refuse(TEXT.idle(n));
+   // The answer the agent ended its turn with is the work of the steps it gives: a summary, a choice, a recommendation.
+   if (!work && !answered) return refuse(TEXT.idle(n));
    if (check && check.code !== null && check.code !== 0) return refuse(TEXT.failed(check.command, check.code));
    Object.assign(step, { state: 'done', proof: proof.slice(0, PLAN.proof[1]) });
-   return reply(next, AgentPlan.finished(next) ? `${TEXT.closedStep(n)} ${TEXT.last}` : TEXT.closedStep(n));
+   return reply(next, AgentPlan.finished(next) ? `${TEXT.closedStep(n)} ${answered ? TEXT.lastAnswered : TEXT.last}` : TEXT.closedStep(n));
   }
   if (action === 'drop') {
    const { n, step, error } = pick(next);
@@ -157,7 +170,7 @@ const AgentPlan = {
    const reason = clean(args.reason);
    if (!reason) return refuse(TEXT.reason);
    Object.assign(step, { state: 'dropped', reason: reason.slice(0, PLAN.proof[1]) });
-   return reply(next, AgentPlan.finished(next) ? `${TEXT.dropped(n)} ${TEXT.last}` : TEXT.dropped(n));
+   return reply(next, AgentPlan.finished(next) ? `${TEXT.dropped(n)} ${answered ? TEXT.lastAnswered : TEXT.last}` : TEXT.dropped(n));
   }
   if (action === 'add') {
    const { steps, long } = names(args.steps);

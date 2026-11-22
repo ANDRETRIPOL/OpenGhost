@@ -561,6 +561,19 @@ function diagramHeader(body) {
 
 function renderCode(block, state, live) {
  const lang = block.lang, t = tone(state.tone || state.tones[0]);
+ // A live widget (blocks.js): the card the app draws from the agent's data. While its fence is being written a quiet
+ // place for it; what cannot be read as one stays code, so nothing the agent wrote is lost.
+ if (lang === 'widget' && window.Blocks) {
+  if (!block.closed && live) return '<div class="md-widget-wait" data-static aria-hidden="true"></div>';
+  let data = null;
+  data = Blocks.parse ? Blocks.parse(block.body) : (() => { try { return JSON.parse(block.body); } catch { return null; } })();
+  if (data && typeof data === 'object' && Blocks.known(data.kind)) return `<og-block kind="${escapeHtml(data.kind)}" data-json="${escapeHtml(JSON.stringify(data))}" data-static data-nowave></og-block>`;
+ }
+ // A widget the agent wrote as a mermaid block by mistake (its kind, then its fields) is drawn as the widget once closed.
+ if (lang === 'mermaid' && block.closed && window.Blocks?.fromFields) {
+  const data = Blocks.fromFields(block.body);
+  if (data) return `<og-block kind="${escapeHtml(data.kind)}" data-json="${escapeHtml(JSON.stringify(data))}" data-static data-nowave></og-block>`;
+ }
  const kind = DIAGRAM_KINDS[lang] ? `${DIAGRAM_KINDS[lang]} ${block.info || ''}`.trim() : '';
  const bare = PLAIN_LANGS.has(lang) && BARE_DIAGRAM.test((block.body.split('\n').find(line => line.trim()) || '').trim());
  if (DIAGRAM_LANGS.has(lang) || kind || bare) {

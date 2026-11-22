@@ -11,6 +11,8 @@ const ICONS = { command: 'terminal', file: 'file', web: 'globe' };
 const PLACES = { folder: 'folder', file: 'file', site: 'globe' };
 const MAX_PLACES = 3;
 const KEY = 'openghost.approval.details';
+// A rule: a moment, and what then happens.
+const RULE_GLYPH = '<svg class="approval-rule-glyph" viewBox="26.6 30 60 60" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="43" cy="60" r="7"/><path d="M50 60h28"/><path d="M69 51l9 9-9 9"/></svg>';
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const remembered = () => { try { return localStorage.getItem(KEY) === 'open'; } catch { return false; } };
@@ -68,6 +70,13 @@ class ApprovalCard {
   main.append(headline(info.title));
   const meta = element('div', 'approval-meta');
   let k = 0;
+  // A step a rule of the user's asks about says which rule (rules.js): it asks every time, so it has no "always".
+  if (info.rule) {
+   const chip = staged(element('span', 'approval-effect is-rule'), k++);
+   chip.innerHTML = RULE_GLYPH;
+   chip.append(element('span', 'approval-rule-name', I18n.t('approve.rule', { name: info.rule })));
+   meta.append(chip);
+  }
   if (info.badge && info.effect) meta.append(staged(element('span', 'approval-effect', I18n.t(`approve.effect.${info.effect}`)), k++));
   const places = info.places || [];
   for (const item of places.slice(0, MAX_PLACES)) meta.append(staged(place(item), k++));

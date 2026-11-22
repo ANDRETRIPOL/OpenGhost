@@ -27,17 +27,17 @@ function inkShift(style, text) {
  ctx.textBaseline = 'middle';
  ctx.fillText(text, pad, canvas.height / 2);
  const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
- let left = width, right = -1;
+ // The middle the eye sees is that of the ink's weight, not of its box: a 1 has a thin flag to the left of a heavy stem,
+ // and set by its box its stem stood a pixel and a half right of the disc's middle (seen at 150%).
+ let mass = 0, moment = 0;
  for (let x = 0; x < width; x++) {
-  for (let y = 0; y < height; y++) {
-   if (data[(y * width + x) * 4 + 3] < 128) continue;
-   left = Math.min(left, x);
-   right = Math.max(right, x);
-   break;
-  }
+  let column = 0;
+  for (let y = 0; y < height; y++) column += data[(y * width + x) * 4 + 3];
+  mass += column;
+  moment += column * (x + 0.5);
  }
- if (right < 0) return 0;
- return (pad + advance / 2 - (left + right + 1) / 2) / INK_SCALE;
+ if (!mass) return 0;
+ return (pad + advance / 2 - moment / mass) / INK_SCALE;
 }
 
 function centerFigures(el, text = el.textContent) {

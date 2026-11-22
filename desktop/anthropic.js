@@ -139,6 +139,14 @@ function thinking({ thinking: mode, effort }, quiet = true) {
  return {};
 }
 
+// A reply as it goes back without its thinking: Claude's own blocks lose their thinking and redacted thinking, the rest
+// (text, tool calls) stays as it was.
+function unthought(message) {
+ if (message.role !== 'assistant' || message.native?.provider !== 'anthropic') return message;
+ const content = message.native.content.filter(block => block.type !== 'thinking' && block.type !== 'redacted_thinking');
+ return { ...message, native: { ...message.native, content } };
+}
+
 // After a fallback mid-answer only the text before the last switch point is echoed back, together with everything after it.
 function echo(content) {
  const last = content.map(block => block.type).lastIndexOf('fallback');
@@ -207,7 +215,7 @@ async function stream(request, { signal, onEvent = () => {}, baseURL }) {
  // the fallback first; the extra dropped last before it went through is the one the model doesn't take.
  const extras = { fallbacks: !request.once && !refuses.fallbacks.has(model), quiet: !refuses.quiet.has(model) };
  const asksQuiet = request.thinking === 'adaptive' && request.effort === 'none';
- let message, dropped = '';
+ let message, dropped = '', unbound = false;
  for (;;) {
   try {
    message = await send(extras);
@@ -215,6 +223,13 @@ async function stream(request, { signal, onEvent = () => {}, baseURL }) {
   } catch (cause) {
    const fastRequest = request.fast === true && request.speed === 'fast';
    const detail = cause.error?.error?.message || cause.message || '';
+   // A signed thinking block the API holds bound to a history that has since changed: the history goes once more with
+   // the thinking taken out of every earlier reply (their text and tool calls stay), as the API's own docs recover it.
+   if (!began && !unbound && /bound to a different conversation/i.test(detail)) {
+    unbound = true;
+    request = { ...request, messages: request.messages.map(unthought) };
+    continue;
+   }
    const extra = began || !declined(cause) ? '' : fastRequest
     ? (extras.fallbacks && /fallback/i.test(detail) && !/speed|fast/i.test(detail) ? 'fallbacks' : '')
     : extras.fallbacks ? 'fallbacks' : extras.quiet && asksQuiet ? 'quiet' : '';

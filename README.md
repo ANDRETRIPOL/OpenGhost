@@ -6,20 +6,19 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.5.6 beta**
+**v1.5.7 beta**
 
-[Windows version 1.5.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.6/OpenGhost-1.5.6-Setup.exe)
+[Windows version 1.5.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.7/OpenGhost-1.5.7-Setup.exe)
 
-[Linux version 1.5.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.6/OpenGhost-1.5.6-linux.tar.gz)
+[Linux version 1.5.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.7/OpenGhost-1.5.7-linux.tar.gz)
 
-[macOS version 1.5.6](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.6/OpenGhost-1.5.6-mac.dmg)
+[macOS version 1.5.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.7/OpenGhost-1.5.7-mac.dmg)
 
 What's new:
-- The agent remembers details far better in long sessions: when a chat is summarized, everything since the last summary goes in whole (messages, replies, tool calls and results), long conversations in parts, and the data of a task under way is carried over in full.
-- Context economy: an arc in the composer sets how large a chat may grow, from 500K down to 100K. It is summarized sooner and every answer costs less; with models that charge more past a size (Claude Haiku, GPT with an API key, Gemini Pro) it always stays under that step.
-- Ghost Max and Ghost Max+ on the same arc, for work where nothing may be missed: the chat's own memory holds 80,000 or 120,000 characters, summaries are fuller and more of the conversation stays word for word.
-- Drawings for bookkeeping and tax for any country, and chat stats that show how many tokens went at the full price and how many came from the cache.
-- Ollama models that see pictures are shown as such and get a 128K context, models too small for the agent to work in are hidden, and a "What's new" card after each update.
+- Rules for the agent, in Settings → Rules: the app itself checks every step of the agent and stops what you have forbidden, so the agent cannot get round a rule. Say in words what worries you and the app's model builds the rule; or build it from blocks; or paste a hook written for another agent, and adapt it if it does not fit. Rules can ask first, forbid, keep the agent working until a check passes, tell it something, notify you or run your own script; a project can carry its own, used once you trust them.
+- Live widgets in answers: weather by the hour, a timer that rings, a route, currency, units, a split bill, a mortgage, plans with prices and 20 more kinds you can work with. Every model and provider gets the same nudge to use them.
+- The agent handles the browser better: it sees calendar icons and buttons without labels, ties a button to its field only when it stands right beside it, and sites that answer with unusual codes (LinkedIn's 999) no longer break a page.
+- Economy gets an ECO button and a compact arc, and its size cannot change while the agent works; Claude Haiku works with economy again; the macOS menu bar shows a one-colour ghost.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 

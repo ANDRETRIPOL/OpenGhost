@@ -1,60 +1,49 @@
 (() => {
 'use strict';
 
-// The composer's button for economy (economy.js): the arc the menu opens to (economy-arc.js), small, with its knob
-// where the chat's size stands. Without economy the knob rests at the start of the arc in the button's own colour; the
-// further the chat saves, the further along it goes, in the arc's colour for that place.
-// The arc in the button's 60-unit box: its centre, its radius, and where it starts and ends, in degrees (0 to the right,
-// counter-clockwise): the left side of a circle, "(", from the top down, as the menu's.
-const ARC = { cx: 73, cy: 60, r: 21, from: 105, to: 255 };
-// The knob: its radius, and the ring of the composer's own colour round it, as the arc's knob stands on its track.
-const KNOB = 8.5;
-const RING = 2.5;
-
-const point = (deg, r = ARC.r) => [ARC.cx + r * Math.cos(deg * Math.PI / 180), ARC.cy - r * Math.sin(deg * Math.PI / 180)];
+// The composer's button for economy (economy.js): a leaf, as an ECO mode is drawn, with its midrib and stalk. Without
+// economy it is in the button's own colour; with a size or Ghost Max picked it takes the colour the arc gives that
+// place (economy-arc.js), and the arc's knob flies out of it when the menu opens and back into it when it closes.
+// Drawn in the button's 60-unit box, the line of the plus and the shield; the midrib quieter than the leaf.
+const LEAF = 'M42 78C37.4 54.4 56.4 35.4 80 40C84.6 63.6 65.6 82.6 42 78Z';
+const RIB = 'M42 78L70 50';
+const STALK = 'M42 78L35.5 84.5';
 
 class EconomyButton extends IconButton {
  static get observedAttributes() { return [...super.observedAttributes, 'expanded']; }
  constructor() {
-  const [x0, y0] = point(ARC.from), [x1, y1] = point(ARC.to);
   super(`
    <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="30 30 60 60" fill="none" aria-hidden="true">
-    <g class="glyph">
-     <path class="arc" d="M${x0.toFixed(2)} ${y0.toFixed(2)}A${ARC.r} ${ARC.r} 0 0 0 ${x1.toFixed(2)} ${y1.toFixed(2)}" stroke="currentColor" stroke-linecap="round"/>
-     <circle class="knob" r="${KNOB}" fill="currentColor" stroke-width="${RING}"/>
+    <g class="glyph leaf">
+     <path class="edge" d="${LEAF}" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+     <path class="rib" d="${RIB}" stroke="currentColor" stroke-linecap="round"/>
+     <path class="stalk" d="${STALK}" stroke="currentColor" stroke-linecap="round"/>
     </g>
-   </svg>`, { place: [260, 30], hint: [230, 27] }, `
-   .arc{stroke-width:8;opacity:.42;transition:opacity .2s ease}
-   .knob{stroke:var(--composer-bg,#1e1e1e)}
-   button:hover .arc,button:focus-visible .arc{opacity:.6}
-   .knob{transition:fill .35s ease}`);
-  this.arc = this.shadowRoot.querySelector('.arc');
-  this.knob = this.shadowRoot.querySelector('.knob');
-  this.goal = 0;
+   </svg>`, { hint: [230, 27] }, `
+   .edge,.stalk{stroke-width:5.5}
+   .rib{stroke-width:5;opacity:.5}
+   .leaf{transition:color .35s ease}`);
+  this.leaf = this.shadowRoot.querySelector('.leaf');
   this.tint = '';
  }
  get expanded() { return this.hasAttribute('expanded'); }
  defaultLabel() { return I18n.t('economy'); }
  activate(e) { this.dispatchEvent(new CustomEvent('economy-toggle', { bubbles: true, composed: true, detail: { keyboard: e.detail === 0 } })); }
  sync() { this.button.setAttribute('aria-haspopup', 'dialog'); this.button.setAttribute('aria-expanded', String(this.expanded)); }
- // Where the knob stands, from 0 (no economy) to 1 (the last stop), and the colour it takes there ('' for none).
- setPlace(share, tint = '', instant = false) {
-  this.goal = Math.min(1, Math.max(0, share));
-  if (instant) this.s.place = [this.goal, 0];
-  if (tint !== this.tint) {
-   this.tint = tint;
-   this.knob.style.fill = tint || '';
-  }
-  this.wake();
+ // How far the chat saves (0 for none) and the colour of that place ('' for none): the leaf takes the colour.
+ setPlace(share, tint = '') {
+  if (tint === this.tint) return;
+  this.tint = tint;
+  this.leaf.style.color = share > 0 || tint ? tint : '';
  }
- knobBox() { return this.knob.getBoundingClientRect(); }
- hideKnob(hidden) { this.knob.style.visibility = hidden ? 'hidden' : ''; }
- targets() { return { place: this.goal, hint: this.expanded ? 1 : 0 }; }
- render(v) {
-  const [x, y] = point(ARC.from + (ARC.to - ARC.from) * v.place);
-  this.knob.setAttribute('cx', x.toFixed(2));
-  this.knob.setAttribute('cy', y.toFixed(2));
+ // Where the arc's knob comes from and goes back to: the leaf's middle.
+ knobBox() {
+  const box = this.leaf.getBoundingClientRect(), size = Math.min(box.width, box.height) * 0.7;
+  return new DOMRect(box.left + box.width / 2 - size / 2, box.top + box.height / 2 - size / 2, size, size);
  }
+ hideKnob(hidden) { this.leaf.style.visibility = hidden ? 'hidden' : ''; }
+ targets() { return { hint: this.expanded ? 1 : 0 }; }
+ render() {}
 }
 if (!customElements.get('economy-button')) customElements.define('economy-button', EconomyButton);
 })();

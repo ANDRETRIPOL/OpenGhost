@@ -223,6 +223,8 @@ class StreamView {
  }
 
  attributes(el, target) {
+  // A widget keeps the marks it gave itself (pinned, done); its data does not change once its fence is closed.
+  if (el.tagName === 'OG-BLOCK') return;
   for (const { name, value } of target.attributes) if (el.getAttribute(name) !== value) el.setAttribute(name, value);
   for (const name of el.getAttributeNames()) if (name !== 'style' && !target.hasAttribute(name)) el.removeAttribute(name);
  }
@@ -288,6 +290,9 @@ class StreamView {
 
  create(target, wave) {
   const node = document.importNode(target, true);
+  // A widget that comes in a reply as it is written unfolds as it appears (blocks.js); one read back from a saved chat
+  // is drawn by render() and stands still.
+  if (node.tagName === 'OG-BLOCK') node.setAttribute('fresh', '');
   if (wave.animate && !target.hasAttribute('data-nowave') && !target.hasAttribute('data-static')) this.waveTree(node, wave);
   return node;
  }

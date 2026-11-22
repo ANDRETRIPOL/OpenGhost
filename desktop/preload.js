@@ -94,6 +94,22 @@ contextBridge.exposeInMainWorld('openghost', {
   discard: token => ipcRenderer.invoke('skills:discard', token),
   onChange: callback => ipcRenderer.on('skills:changed', () => callback()),
  },
+ // Rules (desktop/rules.js): the user's and a project's, Claude Code's hooks to bring over, a handler run with the
+ // moment's JSON, the journal of what the rules did; and that the user's file changed.
+ rules: {
+  read: () => ipcRenderer.invoke('rules:read'),
+  write: rules => ipcRenderer.invoke('rules:write', rules),
+  project: folder => ipcRenderer.invoke('rules:project', folder),
+  writeProject: (folder, rules) => ipcRenderer.invoke('rules:write-project', folder, rules),
+  trust: folder => ipcRenderer.invoke('rules:trust', folder),
+  claude: folder => ipcRenderer.invoke('rules:claude', folder),
+  run: (id, handler, input, options) => ipcRenderer.invoke('rules:run', id, handler, input, options),
+  cancel: id => ipcRenderer.invoke('rules:cancel', id),
+  log: line => ipcRenderer.invoke('rules:log', line),
+  journal: since => ipcRenderer.invoke('rules:journal', since),
+  file: () => ipcRenderer.invoke('rules:file'),
+  onChange: callback => ipcRenderer.on('rules:changed', () => callback()),
+ },
  // The same place's path into the clipboard, and a terminal opened there ('opened' or 'missing').
  copyPath: target => ipcRenderer.invoke('path:copy', target),
  terminalAt: target => ipcRenderer.invoke('path:terminal', target),

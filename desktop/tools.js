@@ -380,6 +380,38 @@ async function readBody(response, limit) {
  return { bytes: Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).subarray(0, limit), cut };
 }
 
+// A page fetched through net.request rather than net.fetch. net.fetch makes a web Response of what came, and a Response
+// takes only a status between 200 and 599: a site that answers with another (LinkedIn answers 999 to what it takes for
+// a robot) made it throw inside Electron, the error came up in a window of its own, and the fetch never ended.
+// net.request takes any status; what it gives is shaped as much of a Response as the readers here use.
+function pageRequest(href, { headers = {}, signal } = {}) {
+ return new Promise((resolve, reject) => {
+  const request = net.request({ url: href, redirect: 'follow' });
+  for (const [name, value] of Object.entries(headers)) request.setHeader(name, value);
+  let where = href, done = false;
+  const fail = error => { if (!done) { done = true; reject(error); } };
+  signal?.addEventListener('abort', () => { request.abort(); fail(Object.assign(new Error('aborted'), { name: 'AbortError' })); }, { once: true });
+  request.on('redirect', (status, method, to) => { where = to; });
+  request.on('error', fail);
+  request.on('response', response => {
+   if (done) return;
+   done = true;
+   const head = new Headers();
+   for (const [name, value] of Object.entries(response.headers)) for (const one of [].concat(value)) head.append(name, String(one));
+   const body = new ReadableStream({
+    start(stream) {
+     response.on('data', chunk => stream.enqueue(new Uint8Array(chunk)));
+     response.on('end', () => stream.close());
+     response.on('error', error => stream.error(error));
+    },
+    cancel() { request.abort(); },
+   });
+   resolve({ status: response.statusCode, ok: response.statusCode >= 200 && response.statusCode < 300, url: where, headers: head, body });
+  });
+  request.end();
+ });
+}
+
 async function fetchUrl(id, { url }) {
  let address;
  try { address = new URL(String(url || '').trim()); } catch { return { error: `Not a valid address: ${url}` }; }
@@ -388,10 +420,9 @@ async function fetchUrl(id, { url }) {
  const timer = setTimeout(() => controller.abort(), TIMEOUT.fetch * 1000);
  if (id) jobs.set(id, () => controller.abort());
  try {
-  const response = await net.fetch(address.href, {
+  const response = await pageRequest(address.href, {
    headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8' },
    signal: controller.signal,
-   redirect: 'follow',
   });
   const type = response.headers.get('content-type') || '';
   const { bytes, cut } = await readBody(response, FETCH_BYTES);
@@ -617,4 +648,4 @@ async function release(dir) {
  return fs.promises.rmdir(dir).then(() => true, () => false);
 }
 
-module.exports = { runTool, cancel, cancelAll, environment, guide, release, mark, changed, changes, ports, CHATS };
+module.exports = { runTool, cancel, cancelAll, environment, guide, release, mark, changed, changes, ports, CHATS, pageRequest };

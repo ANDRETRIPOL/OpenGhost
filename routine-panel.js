@@ -19,6 +19,8 @@ const ROW = { in: 400, out: 340, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', close
 const EDGE = 8;
 // How far right of the sidebar the panel of a new routine stands, as a chat's dots' menu does.
 const SIDE_GAP = 16;
+// The width of a chat under which the routines' button drops its word.
+const NARROW = 560;
 const CONFIRM_TIME = 3000;
 const PRESETS = [15, 30, 60, 120, 180, 360, 720];
 const KINDS = ['once', 'every', 'daily', 'weekly', 'monthly'];
@@ -628,6 +630,9 @@ class RoutinePanel {
    pill.setAttribute('aria-haspopup', 'dialog');
    pill.setAttribute('aria-expanded', 'false');
    this.count = pill.querySelector('.routines-pill-count');
+   // In a narrow chat the button keeps its sign and its number and lets its word go, so the islands at the top have room.
+   const host = pill.parentElement;
+   if (host && window.ResizeObserver) new ResizeObserver(() => pill.classList.toggle('is-compact', host.clientWidth < NARROW)).observe(host);
    pill.addEventListener('click', event => this.state === 'open' ? this.close({ focusAnchor: event.detail === 0 }) : this.open());
    // Under the pointer the clock's hands go round once, about its middle.
    pill.addEventListener('pointerenter', () => {

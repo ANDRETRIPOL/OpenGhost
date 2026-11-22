@@ -778,6 +778,18 @@ function browserApproval(name, args, ask, apart, cwd, panel = null) {
  return false;
 }
 
+// What a step in the browser acts on, for the rules (rules.js): the element as the latest snapshot named it, and whether
+// it looks like an act with consequences (buy, pay, send, delete…), as the approval above judges a click.
+function browserTarget(name, args, apart, panel = null) {
+ if (!name.startsWith('browser_')) return { element: '', risky: false };
+ const element = refsOf(apart, panel)[args?.ref] || '';
+ const risky = name === 'browser_click' ? /^(button|link|clickable|menuitem|option)/.test(element) && RISKY_CLICK.test(element)
+  : name === 'browser_select' ? RISKY_CLICK.test(`${element} ${args?.option || ''}`)
+  : name === 'browser_type' ? !!args?.submit && RISKY_CLICK.test(element)
+  : name === 'browser_upload';
+ return { element, risky };
+}
+
 // A video or a PDF the user attached to the chat is one they showed the agent themselves: looking at it needs no
 // approval, wherever it lives. Each in its own way only: a video is watched, a PDF is read and its pages are looked at.
 // Reading a video as a plain file still asks, as any file outside the project does.
@@ -1208,6 +1220,7 @@ window.AgentTools = {
  needsApproval,
  approvalRule,
  describe,
+ browserTarget,
  inside,
  environment() {
   env ||= bridge ? bridge.environment().catch(() => null) : Promise.resolve(null);

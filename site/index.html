@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.5.6</span>
+      <span class="ver" data-version>v1.5.7</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.6.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.7.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.5.6</h3>
+        <h3 class="h3" data-news-title>What's new in 1.5.7</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.5.6';
+const FALLBACK = '1.5.7';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,18 +1470,18 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'The agent remembers details far better in long sessions: a summary now takes everything since the last one whole, nothing cut, in parts when it is long.',
-    'Context economy: an arc in the composer sets how large a chat may grow; it is summarized sooner and every answer costs less, and with models that charge more for long requests it stays under their step.',
-    'Ghost Max and Ghost Max+: for big tasks, a chat memory two to three times larger, fuller summaries and more of the conversation kept word for word.',
-    'Drawings for bookkeeping and tax for any country, and chat stats that show what went at the full price and what came from the cache.',
-    'Ollama models see pictures and get a 128K context, models too small for the agent are hidden, a "What\'s new" card after each update, and many fixes.',
+    'Rules for the agent: say in words what worries you and the app builds a rule the agent cannot get round, or build one from blocks; hooks written for other agents can be pasted in and adapted.',
+    'Live widgets in answers: weather, a timer, a route, currency, a mortgage, plans and 20 more kinds you can work with, from every model and provider.',
+    'The agent handles the browser better: calendars, icon buttons and form fields, and sites that answer with unusual codes no longer break a page.',
+    'Economy gets an ECO button and a compact arc, and its size cannot change while the agent works.',
+    'Fixes: Claude Haiku with economy, the macOS menu bar icon, the agent’s plan after a finished answer, and smaller things.',
   ],
   ru: [
-    'Агент намного лучше помнит детали в длинных сессиях: пересказ теперь берёт всё после прошлого целиком, без обрезки, а длинное — частями.',
-    'Экономия контекста: дуга в композере задаёт, до какого размера растёт чат; он сжимается раньше и каждый ответ дешевле, а у моделей с повышенной ценой за длинный запрос не переходит их порог.',
-    'Ghost Max и Ghost Max+: для больших задач память чата в 2–3 раза больше, пересказы подробнее, больше разговора остаётся дословно.',
-    'Рисунки для бухгалтерии и налогов для любой страны и статистика чата: что прошло по полной цене, а что из кеша.',
-    'Модели Ollama видят фото и получают окно 128K, слишком маленькие для агента модели скрыты, карточка «Что нового» после каждого обновления и много исправлений.',
+    'Правила для агента: скажите словами, чего опасаетесь, и приложение соберёт правило, которое агент не сможет обойти, или соберите его из блоков; хуки других агентов можно вставить и адаптировать.',
+    'Живые виджеты в ответах: погода, таймер, маршрут, валюта, ипотека, тарифы и ещё 20 видов, с которыми можно работать, — у всех моделей и провайдеров.',
+    'Агент лучше управляется с браузером: календари, кнопки-значки и поля форм, а сайты с необычными кодами ответа больше не ломают загрузку.',
+    'У экономии кнопка ECO и компактная дуга, а её размер не меняется, пока агент работает.',
+    'Исправления: Claude Haiku в экономии, значок в строке меню macOS, план агента после готового ответа и другие мелочи.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };
