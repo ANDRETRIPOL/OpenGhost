@@ -30,8 +30,11 @@ const said = K.exchange([
 check('The exchange holds the user\'s words, the work done and the reply', said.split('\n').map(line => line.split(' ')[0]), ['User:', 'Tool', 'Assistant:']);
 check('The agent\'s own record, memory and plan calls are not the work', /record|plan/.test(said.split('\n')[1]), false);
 check('A tool call is told with the start of its result', said.split('\n')[1], 'Tool web_search {"query":"Lisbon flats"} → 12 results');
-const long = K.exchange([user('a'.repeat(K.KEEP.exchange + 500))]);
-check('A long exchange keeps its latest part', [long.startsWith('[…]\n'), long.length <= K.KEEP.exchange + 4], [true, true]);
+const long = K.exchange([user('a'.repeat(30000)), reply('b'.repeat(30000))]);
+check('A long question and a long reply go to the keeper whole, never cut', [long.includes('a'.repeat(30000)), long.includes('b'.repeat(30000)), long.startsWith('[…]')], [true, true, false]);
+const huge = K.exchange([user('c'.repeat(K.KEEP.part + 5000)), reply('d'.repeat(1000))]), cut = K.pieces(huge);
+check('An exchange too long for one look is looked at in parts, nothing left out', [cut.length, cut.join('').replace(/\n/g, '') === huge.replace(/\n/g, ''), cut.every(part => part.length <= K.KEEP.part)], [2, true, true]);
+check('A short exchange is one look', K.pieces(said), [said]);
 
 // When a look is worth asking for.
 check('"Ok" or "thanks" is not worth a look', [K.worth([user('ok')]), K.worth([user('thanks a lot')])], [false, false]);
@@ -49,7 +52,12 @@ for (const size of [8000, 8001, 39999, 40000]) {
  const request = K.messages({ exchange: 'User: a new fact', record, memoryOn: false })[1].content;
  check(`A valid ${size}-character record is sent whole, including its oldest facts`, [record.length, request.includes(record)], [size, true]);
 }
-check('Exchange, shared-memory and output limits do not grow with the private record', [K.KEEP.exchange, K.KEEP.memory, K.KEEP.answer], [9000, 4000, 900]);
+check('Shared-memory and output limits do not grow with the private record', [K.KEEP.memory, K.KEEP.answer], [4000, 900]);
+for (const [most, size] of [[80000, 79999], [120000, 120000]]) {
+ const record = ('GHOST_HEAD: the oldest fact.\n').padEnd(size - 20, 'в') + '\nGHOST_TAIL: latest.';
+ const request = K.messages({ exchange: 'User: a new fact', record, memoryOn: false, most })[1].content;
+ check(`A Ghost Max chat's ${size}-character record (holds ${most}) is sent whole`, [record.length, request.includes(record)], [size, true]);
+}
 const oversized = 'OUTSIDE_RECORD_HEAD\n' + 'x'.repeat(40000) + '\nRECORD_END';
 const capped = K.messages({ exchange: 'User: a new fact', record: oversized, memoryOn: false })[1].content;
 check('The defensive cap applies only beyond 40,000 characters', [capped.startsWith("The chat's record now:\n[…]\n"), capped.includes(oversized.slice(-40000)), capped.includes('OUTSIDE_RECORD_HEAD')], [true, true, false]);

@@ -435,9 +435,13 @@ function parse(lines, openLine = -1, top = false) {
   if (m && indentOf(m[1]) < 4) {
    const mark = m[2], pad = indentOf(m[1]), body = [];
    let closed = false;
+   // A widget's fence closed with a stray mark after it ("````,", seen on GPT Luna) is closed all the same: its data
+   // would otherwise run to the end of the reply and the card never be drawn.
+   const widget = m[3].toLowerCase() === 'widget' && mark[0] === '`';
    for (i++; i < n; i++) {
     const close = lines[i].match(FENCE_CLOSE);
     if (close && close[1][0] === mark[0] && close[1].length >= mark.length) { closed = true; i++; break; }
+    if (widget && /^ {0,3}`{3,}[\s,.;:'"`]*$/.test(lines[i])) { closed = true; i++; break; }
     body.push(dedent(lines[i], pad));
    }
    add({ type: 'code', lang: m[3].toLowerCase(), info: m[4].trim(), body: body.join('\n'), closed }, from, i);

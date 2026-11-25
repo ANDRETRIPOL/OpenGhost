@@ -2104,31 +2104,31 @@ html[data-picture]:not(.is-quick) .main.is-veiled > .thread-view::before {
   color: rgb(var(--bubble-fg-rgb));
 }
 
-/* While it waits the message is still the user's to rewrite or take away: two small buttons stand before its last part,
-   level with its middle, and go the moment the agent takes it. */
-.message:has(> .queued-tools) {
-  anchor-scope: --queued;
-}
-
-.message:has(> .queued-tools) > :nth-last-child(1 of .media, .message-files, .message-quote, .message-bubble) {
-  anchor-name: --queued;
+/* While it waits the message is still the user's to send at once or to take back into the field: two small buttons
+   stand under it, where its Copy stands once it is read, and go the moment the agent takes it. Its own tools come back
+   in the same place then, and the leaving buttons lie over them as they fade, so nothing under it moves. */
+.message.is-queued > .message-tools {
+  display: none;
 }
 
 .queued-tools {
-  position: absolute;
-  position-anchor: --queued;
-  top: anchor(center);
-  right: calc(anchor(left) + 6px);
   display: flex;
+  align-self: flex-end;
   gap: 2px;
-  translate: 0 -50%;
+  min-height: 28px;
   animation: queued-tools-in 0.45s var(--motion-easing) 0.1s both;
+}
+
+.message:not(.is-queued) > .queued-tools {
+  position: absolute;
+  right: 0;
+  bottom: 0;
 }
 
 @keyframes queued-tools-in {
   from {
     opacity: 0;
-    transform: translateX(8px);
+    transform: translateY(-4px);
   }
 }
 
@@ -4810,6 +4810,51 @@ h6.md-h {
 .queued-tool svg {
   width: 15px;
   height: 15px;
+}
+
+/* Send now names itself under the pointer: its words open out to the right of the arrow as the button widens, and fold
+   back the same way. They come in by their colour, not by a move or a fade, which would snap at fractional scales. */
+.queued-tool.is-now {
+  grid-template-columns: 28px 0fr;
+  width: auto;
+  transition: grid-template-columns 0.4s var(--motion-easing), background-color 0.2s ease, color 0.2s ease;
+}
+
+.queued-tool.is-now:hover,
+.queued-tool.is-now:focus-visible {
+  grid-template-columns: 28px 1fr;
+}
+
+.queued-tool-label {
+  min-width: 0;
+  /* Cut by the width alone: the words are trimmed to their capitals, and their tails hang below. */
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+.queued-tool-label > span {
+  display: block;
+  padding-right: 10px;
+  color: transparent;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-box: trim-both cap alphabetic;
+  transition: color 0.18s ease;
+}
+
+.queued-tool.is-now:hover .queued-tool-label > span,
+.queued-tool.is-now:focus-visible .queued-tool-label > span {
+  color: currentColor;
+  transition: color 0.3s ease 0.08s;
+}
+
+/* Sent now: the message is on its way, and the button steps back until the agent takes it. */
+.queued-tool.is-spent {
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
 }
 
 .md-copy svg {
@@ -9411,8 +9456,7 @@ h6.md-h {
   visibility: hidden;
 }
 
-.notes-pill-count,
-.notepad-count {
+.notes-pill-count {
   display: grid;
   place-items: center;
   min-width: 20px;
@@ -9427,533 +9471,12 @@ h6.md-h {
   font-variant-numeric: tabular-nums;
 }
 
-[data-theme="light"] :is(.notes-pill-count, .notepad-count) {
+[data-theme="light"] .notes-pill-count {
   color: rgb(255, 255, 255);
 }
 
-:is(.notes-pill-count, .notepad-count)[hidden] {
+.notes-pill-count[hidden] {
   display: none;
-}
-
-/* The panel the button grows into: the glass of the open search (the same fill, the same deep frost), so what is written
-   on it reads over anything. It stands on the button's own corner; its name is at its head, the cross that closes it in
-   the far corner, and under them the field a note is written in and the notes. */
-.notepad {
-  --glass-fill: linear-gradient(180deg, rgba(54, 54, 60, 0.65), rgba(38, 38, 42, 0.65));
-  --glass-rim: rgba(255, 255, 255, 0.14);
-  --glass-shade: 0 0 0 0 transparent;
-  --glass-backdrop: blur(34px) saturate(1.9) brightness(1.08);
-  --notepad-width: min(336px, calc(100vw - 16px));
-  --plate: rgba(255, 255, 255, 0.07);
-  --plate-over: rgba(255, 255, 255, 0.11);
-  position: fixed;
-  inset: auto;
-  width: var(--notepad-width);
-  height: auto;
-  margin: 0;
-  padding: 0;
-  overflow: clip;
-  border: 0;
-  border-radius: 24px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, calc(0.42 * var(--shadow))), 0 6px 18px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
-  color: var(--fg-primary);
-}
-
-[data-theme="light"] .notepad {
-  --glass-backdrop: blur(34px) saturate(1.9) brightness(1.04);
-  --plate: rgba(60, 70, 90, 0.07);
-  --plate-over: rgba(60, 70, 90, 0.11);
-}
-
-/* Going, the glass no longer cuts what it held: the notes fade where they stand while it draws in to the button. */
-.notepad.is-closing {
-  overflow: visible;
-  pointer-events: none;
-}
-
-.notepad-title {
-  position: absolute;
-  top: 16px;
-  left: 20px;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 22px;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  transform-origin: 0 0;
-  pointer-events: none;
-}
-
-/* The button's own name, on its way to the panel's head: seen only while the two change places. */
-.notepad-title.is-ghost {
-  opacity: 0;
-}
-
-.notepad-corner {
-  position: absolute;
-  top: 13px;
-  right: 13px;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-}
-
-.notepad-corner > * {
-  grid-area: 1 / 1;
-}
-
-/* Open, the disc has given way to the cross; it is seen only on the way. */
-.notepad-count {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.notepad-close {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  outline: none;
-  background: none;
-  color: rgba(var(--fg-rgb), 0.75);
-  cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.notepad-close:hover {
-  background: var(--plate-over);
-  color: var(--fg-primary);
-}
-
-.notepad-close:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--focus-ring);
-}
-
-.notepad-close svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* What the panel holds keeps the panel's full width while the glass is still growing, so nothing in it is laid out anew. */
-.notepad-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: var(--notepad-width);
-  padding: 54px 10px 10px;
-}
-
-.notepad-hint {
-  display: none;
-  margin: 6px 10px 8px;
-  color: rgba(var(--fg-rgb), 0.55);
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 17px;
-}
-
-.notepad.is-empty .notepad-hint {
-  display: block;
-}
-
-/* The field a note is written in: a plate with a plus at its head, the first line of the list. */
-.notepad .notepad-form {
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 5px 6px 5px 13px;
-  border-radius: 16px;
-  background: var(--plate);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.05);
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.notepad .notepad-form::before {
-  content: "";
-  flex: none;
-  width: 14px;
-  height: 14px;
-  background: rgba(var(--fg-rgb), 0.55);
-  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'><path d='M7 2v10M2 7h10'/></svg>") center / contain no-repeat;
-}
-
-.notepad .notepad-form:focus-within {
-  background: var(--plate-over);
-  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.12);
-}
-
-.notepad .notepad-input {
-  padding: 6px 4px 6px 0;
-  font-size: 14px;
-}
-
-.notepad .notepad-input::placeholder {
-  color: rgba(var(--fg-rgb), 0.45);
-}
-
-.notepad .notepad-pane::before {
-  display: none;
-}
-
-.notepad .notepad-pane > .notepad-scrollbar {
-  top: 6px;
-  right: -7px;
-  bottom: 6px;
-}
-
-/* Five notes show whole; with more, the list scrolls. */
-.notepad .notepad-scroll {
-  max-height: min(284px, calc(var(--notepad-room, 520px) - 140px));
-  padding: 0;
-}
-
-.notepad .notepad-list {
-  gap: 6px;
-}
-
-/* A note on its plate: the ring that ticks it off, the note in strong type, and under it when it was written and whose
-   hand wrote it. */
-.notepad .notepad-item {
-  grid-template-columns: 40px minmax(0, 1fr) 34px;
-  align-items: center;
-  min-height: 52px;
-  padding: 7px 2px 7px 2px;
-  border-radius: 16px;
-  background: var(--plate);
-  transition: background-color 0.2s ease;
-}
-
-.notepad .notepad-item:hover {
-  background: var(--plate-over);
-}
-
-.notepad .notepad-tick {
-  justify-self: center;
-  color: rgba(var(--fg-rgb), 0.5);
-}
-
-.notepad-main {
-  min-width: 0;
-}
-
-.notepad .notepad-text {
-  padding: 0 4px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 19px;
-}
-
-.notepad-meta {
-  padding: 0 4px;
-  overflow: hidden;
-  color: rgba(var(--fg-rgb), 0.5);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 17px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.notepad .notepad-item.is-agent .notepad-by {
-  display: none;
-}
-
-.notepad .notepad-remove {
-  margin-top: 0;
-  border-radius: 50%;
-}
-
-/* The row a new note is written in, at the top of the sheet: it stays where it is while the notes gather under it. */
-.notepad-form {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  min-height: 44px;
-  padding: 6px 6px 6px 16px;
-}
-
-.notepad-input {
-  flex: 1;
-  min-width: 0;
-  max-height: 128px;
-  margin: 0;
-  padding: 6px 6px 6px 0;
-  border: 0;
-  outline: none;
-  resize: none;
-  background: none;
-  color: var(--fg-primary);
-  font: inherit;
-  font-size: 14.5px;
-  font-weight: 500;
-  line-height: 20px;
-  field-sizing: content;
-  scrollbar-width: none;
-}
-
-.notepad-input::placeholder {
-  color: rgba(var(--fg-rgb), 0.36);
-}
-
-/* The arrow that keeps the note comes in once there is something to keep. */
-.notepad-add {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  margin: 3px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  outline: none;
-  background: rgb(var(--composer-accent-rgb));
-  color: rgb(var(--composer-on-accent-rgb));
-  cursor: pointer;
-  transition: opacity 0.2s ease, scale 0.45s cubic-bezier(0.34, 1.45, 0.64, 1);
-}
-
-.notepad-add:disabled {
-  opacity: 0;
-  scale: 0.6;
-  pointer-events: none;
-  transition: opacity 0.15s ease, scale 0.2s ease;
-}
-
-.notepad-add:focus-visible {
-  box-shadow: 0 0 0 2px var(--composer-bg), 0 0 0 4px var(--focus-ring);
-}
-
-.notepad-add svg {
-  width: 13px;
-  height: 13px;
-}
-
-/* The notes, under a hairline; an empty notepad has neither. The scrollbar runs beside the list only. */
-.notepad-pane {
-  position: relative;
-}
-
-.notepad.is-empty .notepad-pane {
-  display: none;
-}
-
-.notepad-pane::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 14px;
-  left: 14px;
-  height: 1px;
-  background: rgba(var(--fg-rgb), 0.07);
-}
-
-.notepad-pane > .notepad-scrollbar {
-  top: 6px;
-  right: 1px;
-  bottom: 14px;
-}
-
-/* The list takes what room there is under the button, down to a little above the window's edge. */
-.notepad-scroll {
-  max-height: clamp(84px, calc(var(--notepad-room, 520px) - 210px), 320px);
-  padding: 5px 6px 8px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-}
-
-.notepad-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-/* Where the list goes on past its edge, the notes fade out there instead of being cut. */
-.notepad-scroll.is-cut-top {
-  mask-image: linear-gradient(transparent, #000 18px);
-}
-
-.notepad-scroll.is-cut-bottom {
-  mask-image: linear-gradient(#000 calc(100% - 22px), transparent);
-}
-
-.notepad-scroll.is-cut-top.is-cut-bottom {
-  mask-image: linear-gradient(transparent, #000 18px, #000 calc(100% - 22px), transparent);
-}
-
-/* Rows come into place when the notes open; clipped, a row on its way never makes the list look longer than it is. */
-.notepad-list {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  overflow: clip;
-  list-style: none;
-}
-
-.notepad-item {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 30px;
-  align-items: start;
-  border-radius: 12px;
-}
-
-.notepad-tick {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  outline: none;
-  background: none;
-  color: rgba(var(--fg-rgb), 0.36);
-  cursor: pointer;
-  transition: color 0.2s ease;
-}
-
-.notepad-tick:hover {
-  color: rgba(var(--fg-rgb), 0.7);
-}
-
-.notepad-tick:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--focus-ring);
-}
-
-.notepad-tick svg {
-  width: 20px;
-  height: 20px;
-  overflow: visible;
-}
-
-/* Ticked off, the ring fills and the tick is drawn into it. */
-.notepad-tick .tick-fill {
-  fill: rgb(var(--composer-accent-rgb));
-  transform: scale(0);
-  transform-origin: 10px 10px;
-  transition: transform 0.3s ease;
-}
-
-.notepad-tick .tick-check {
-  stroke: rgb(var(--composer-on-accent-rgb));
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  transition: stroke-dashoffset 0.2s ease;
-}
-
-.notepad-item.is-done .tick-fill {
-  transform: none;
-  transition: transform 0.5s cubic-bezier(0.34, 1.45, 0.64, 1);
-}
-
-.notepad-item.is-done .tick-check {
-  stroke-dashoffset: 0;
-  transition: stroke-dashoffset 0.32s var(--motion-easing) 0.14s;
-}
-
-/* A note the agent has brought up and that still waits for the user's word. */
-.notepad-item.is-reminded .notepad-tick {
-  color: rgb(var(--warn-rgb));
-}
-
-.notepad-text {
-  min-width: 0;
-  padding: 6px 4px;
-  border-radius: 8px;
-  outline: none;
-  font-size: 14.5px;
-  font-weight: 500;
-  line-height: 20px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  cursor: text;
-  transition: color 0.3s ease, background-color 0.2s ease;
-}
-
-.notepad-text:focus {
-  background: rgba(var(--fg-rgb), 0.05);
-}
-
-.notepad-item.is-done .notepad-text {
-  color: rgba(var(--fg-rgb), 0.38);
-  text-decoration: line-through;
-  text-decoration-color: rgba(var(--fg-rgb), 0.26);
-}
-
-.notepad-by,
-.notepad-remove {
-  grid-area: 1 / 3;
-  justify-self: center;
-}
-
-/* A small ghost marks a note the agent wrote down; under the pointer it gives way to the cross. */
-.notepad-by {
-  display: none;
-  width: 13px;
-  height: 14px;
-  margin-top: 9px;
-  color: rgba(var(--fg-rgb), 0.3);
-  transition: opacity 0.2s ease;
-}
-
-.notepad-item.is-agent .notepad-by {
-  display: block;
-}
-
-.notepad-by .glyph {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.notepad-by .glyph-ghost-eye {
-  fill: var(--composer-bg);
-}
-
-.notepad-remove {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  margin-top: 2px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  outline: none;
-  background: transparent;
-  color: var(--fg-secondary);
-  opacity: 0;
-  cursor: pointer;
-  transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
-}
-
-.notepad-remove svg {
-  width: 15px;
-  height: 15px;
-}
-
-.notepad-remove:hover {
-  background: var(--control-hover-bg);
-  color: var(--fg-primary);
-}
-
-.notepad-remove:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--focus-ring);
-}
-
-.notepad-item:hover .notepad-remove,
-.notepad-item:focus-within .notepad-remove {
-  opacity: 1;
-}
-
-.notepad-item:hover .notepad-by,
-.notepad-item:focus-within .notepad-by {
-  opacity: 0;
 }
 
 .composer {
@@ -16145,6 +15668,8 @@ button.attachment-text {
   width: 52px;
   height: 52px;
   margin: -8px 0 0 -16px;
+  /* The press squeezes the arrow toward its tip, where it clicks. */
+  transform-origin: 16px 8px;
   pointer-events: none;
 }
 
@@ -16329,14 +15854,6 @@ button.attachment-text {
   .general-drop svg,
   .theme-frame,
   .theme-check,
-  .notepad-veil,
-  .notepad-glyph,
-  .notepad-tick .tick-fill,
-  .notepad-tick .tick-check,
-  .notepad-item.is-done .tick-fill,
-  .notepad-item.is-done .tick-check,
-  .notepad-add,
-  .notepad-add:disabled,
   .top-tools,
   .thread-note-go,
   .thread-note-label,
@@ -23872,4 +23389,873 @@ html:not([data-theme="light"]) .tour :is([data-mark="x"], [data-mark="steam"], [
 
 .news-ok:focus-visible {
   box-shadow: 0 0 0 2px var(--app-bg), 0 0 0 4px var(--focus-ring);
+}
+
+/* The user's notes beside a chat (notepad.js): one panel of the notes' glass, its corner on the button's corner. It holds
+   two views laid out at their own sizes, the gallery of the notes and a note open, and changes its height between them
+   around its corner without moving (the view's own height never follows the glass while it grows, so nothing in it is
+   laid out anew). */
+.notepad {
+  --notepad-width: min(560px, calc(100vw - 16px));
+  --paper: rgba(255, 255, 255, 0.055);
+  --paper-rim: rgba(255, 255, 255, 0.09);
+  --soft: rgba(var(--fg-rgb), 0.58);
+  --faint: rgba(var(--fg-rgb), 0.4);
+  --accent: 255, 204, 0;
+  --plate: rgba(255, 255, 255, 0.07);
+  --plate-over: rgba(255, 255, 255, 0.12);
+  position: fixed;
+  inset: auto;
+  width: var(--notepad-width);
+  height: 300px;
+  margin: 0;
+  padding: 0;
+  overflow: clip;
+  border: 0;
+  border-radius: 24px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, calc(0.42 * var(--shadow))), 0 6px 18px rgba(0, 0, 0, calc(0.2 * var(--shadow)));
+  color: var(--fg-primary);
+  font-size: 14px;
+}
+
+[data-theme="light"] .notepad {
+  --paper: rgb(255, 255, 255);
+  --paper-rim: rgba(20, 30, 60, 0.1);
+  --accent: 214, 152, 0;
+  --plate: rgba(60, 70, 90, 0.07);
+  --plate-over: rgba(60, 70, 90, 0.12);
+}
+
+.notepad.is-closing {
+  pointer-events: none;
+}
+
+.notepad-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: var(--notepad-width);
+}
+
+.notepad-view[hidden] {
+  display: none;
+}
+
+/* The head: the name at the left (or the way back), the tools at the right. */
+.notepad-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 58px;
+  padding: 0 12px 0 20px;
+}
+
+.notepad-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-right: auto;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.notepad-total {
+  color: var(--faint);
+  font-weight: 500;
+}
+
+.notepad-tool {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  outline: none;
+  background: transparent;
+  color: rgba(var(--fg-rgb), 0.78);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.notepad-tool svg {
+  width: 20px;
+  height: 20px;
+}
+
+.notepad-tool .glyph {
+  width: 22px;
+  height: 22px;
+}
+
+.notepad-tool:hover {
+  background: var(--plate);
+  color: var(--fg-primary);
+}
+
+.notepad-tool:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+.notepad-tool.is-on {
+  background: var(--plate-over);
+  color: var(--fg-primary);
+}
+
+.notepad-tool.is-accent {
+  color: rgb(var(--accent));
+}
+
+.notepad-done.is-on {
+  color: rgb(var(--accent));
+}
+
+/* The bin asks once more: it turns red until it is pressed again or the moment passes. */
+.notepad-bin.is-armed {
+  background: rgba(255, 69, 58, 0.16);
+  color: rgb(255, 99, 88);
+}
+
+.notepad-aa-word {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.notepad-gap {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: rgba(var(--fg-rgb), 0.12);
+}
+
+.notepad-seg {
+  display: flex;
+  gap: 2px;
+  margin-right: 6px;
+  padding: 2px;
+  border-radius: 12px;
+  background: var(--plate);
+}
+
+.notepad-seg .notepad-tool {
+  width: 32px;
+  height: 30px;
+  border-radius: 9px;
+}
+
+.notepad-back {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  margin: 0 auto 0 -10px;
+  padding: 0 10px 0 4px;
+  border: 0;
+  border-radius: 10px;
+  outline: none;
+  background: transparent;
+  color: rgb(var(--accent));
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.notepad-back svg {
+  width: 22px;
+  height: 22px;
+}
+
+.notepad-back:hover {
+  background: var(--plate);
+}
+
+.notepad-back:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+/* What a view holds scrolls under its head; the scrollbar runs beside it. */
+.notepad .notepad-pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.notepad .notepad-scroll {
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.notepad .notepad-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.notepad .notepad-pane > .notepad-scrollbar {
+  top: 4px;
+  right: 3px;
+  bottom: 10px;
+}
+
+/* Once a view holds more than fits, its words fade out at the top and the bottom as the sidebar's chats do: an edge
+   fades only where there is more past it, and comes in as the scroll leaves it. */
+@property --notepad-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --notepad-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.notepad .notepad-scroll {
+  -webkit-mask-image: linear-gradient(transparent, #000 var(--notepad-fade-top), #000 calc(100% - var(--notepad-fade-bottom)), transparent);
+  mask-image: linear-gradient(transparent, #000 var(--notepad-fade-top), #000 calc(100% - var(--notepad-fade-bottom)), transparent);
+}
+
+.notepad .notepad-pane:has(> .notepad-scrollbar.is-scrollable) > .notepad-scroll {
+  animation-name: notepad-edge-in, notepad-edge-out;
+  animation-duration: auto, auto;
+  animation-timing-function: linear, linear;
+  animation-fill-mode: both, both;
+  animation-timeline: scroll(self block), scroll(self block);
+  animation-range: 0 28px, calc(100% - 28px) 100%;
+}
+
+@keyframes notepad-edge-in {
+  to {
+    --notepad-fade-top: 28px;
+  }
+}
+
+@keyframes notepad-edge-out {
+  from {
+    --notepad-fade-bottom: 28px;
+  }
+
+  to {
+    --notepad-fade-bottom: 0px;
+  }
+}
+
+/* The gallery: a card for each note, its page small, its name and when it was written under it. */
+.notepad-cards {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--notepad-cols, 3), minmax(0, 1fr));
+  gap: 16px 14px;
+  padding: 4px 20px 22px;
+}
+
+.notepad-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.notepad-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.18;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--paper-rim);
+  text-align: left;
+  transition: box-shadow 0.18s ease, scale 0.25s var(--motion-easing);
+}
+
+[data-theme="light"] .notepad-thumb {
+  box-shadow: inset 0 0 0 1px var(--paper-rim), 0 1px 3px rgba(20, 30, 60, 0.06);
+}
+
+.notepad-card:hover .notepad-thumb {
+  box-shadow: inset 0 0 0 1px rgba(var(--fg-rgb), 0.22);
+}
+
+.notepad-card:active .notepad-thumb {
+  scale: 0.97;
+}
+
+.notepad-card:focus-visible .notepad-thumb,
+.notepad-card.is-pinned .notepad-thumb {
+  box-shadow: inset 0 0 0 1px var(--paper-rim), 0 0 0 2.5px rgb(var(--accent));
+}
+
+.notepad-card:focus-visible:not(.is-pinned) .notepad-thumb {
+  box-shadow: inset 0 0 0 1px var(--paper-rim), 0 0 0 2.5px var(--focus-ring);
+}
+
+.notepad-card.is-done .notepad-mini {
+  opacity: 0.55;
+}
+
+/* The page in a card: the page itself, drawn at a share of its size. */
+.notepad-mini {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% / 0.6);
+  padding: 18px;
+  transform: scale(0.6);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.notepad-thumb-pin,
+.notepad-thumb-done {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--plate-over);
+  color: rgba(var(--fg-rgb), 0.8);
+}
+
+.notepad-thumb-pin + .notepad-thumb-done {
+  right: 35px;
+}
+
+.notepad-thumb-done {
+  background: rgb(var(--accent));
+  color: rgb(20, 20, 22);
+}
+
+.notepad-thumb-pin .glyph {
+  width: 18px;
+  height: 18px;
+}
+
+.notepad-thumb-done svg {
+  width: 15px;
+  height: 15px;
+}
+
+.notepad-card-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notepad-card-time {
+  max-width: 100%;
+  margin-top: -6px;
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The same notes as a list: a row each, its name over when it was written and its next line. */
+.notepad-cards.is-list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 0 10px 14px;
+}
+
+.is-list .notepad-card {
+  justify-items: start;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.is-list .notepad-card {
+  position: relative;
+}
+
+.is-list .notepad-card:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
+}
+
+.notepad-row-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notepad-row-pin {
+  flex: none;
+  display: grid;
+  color: rgb(var(--accent));
+}
+
+.notepad-row-pin .glyph {
+  width: 16px;
+  height: 16px;
+}
+
+.notepad-row-line {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--soft);
+  font-size: 12.5px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notepad-row-line b {
+  margin-right: 6px;
+  color: rgba(var(--fg-rgb), 0.72);
+  font-weight: 600;
+}
+
+.notepad-empty {
+  display: none;
+  padding: 18px 28px 30px;
+  text-align: center;
+}
+
+.notepad.is-empty .notepad-empty {
+  display: block;
+}
+
+.notepad-empty-name {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.notepad-empty-hint {
+  margin: 0;
+  color: var(--soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* A note's page, as it is written and as its card shows it. */
+.notepad-page {
+  color: var(--fg-primary);
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.notepad-page > :first-child {
+  margin-top: 0;
+}
+
+/* A title, and the first line of a page, which is its title as in the system's notes whatever it was written as. */
+.notepad-page h1,
+.notepad-page > p:first-child {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+/* A subheading in the tone of the agent's headings: its words in the tone, on a wash of it. */
+.notepad-page h2 {
+  position: relative;
+  isolation: isolate;
+  width: fit-content;
+  max-width: 100%;
+  margin: 14px 0 6px;
+  padding: 0.06em 0.4em 0.08em;
+  border-radius: 0.34em;
+  color: rgb(var(--tone, var(--fg-rgb)));
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.notepad-page h2::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(var(--tone, var(--fg-rgb)), 0.15);
+}
+
+.notepad-page p {
+  margin: 0 0 6px;
+}
+
+.notepad-page b {
+  font-weight: 700;
+}
+
+.notepad-page u {
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+
+.notepad-page s {
+  color: var(--faint);
+}
+
+/* Coloured words: the tone of the agent's headings, the words in it on a light wash of it. */
+.notepad-page mark {
+  padding: 0.02em 0.22em;
+  border-radius: 0.3em;
+  background: rgba(var(--tone), 0.17);
+  color: rgb(var(--tone));
+  font-weight: 600;
+}
+
+.notepad-page mark[data-tone="lilac"] { --tone: 190, 160, 255; }
+.notepad-page mark[data-tone="pink"] { --tone: 255, 134, 192; }
+.notepad-page mark[data-tone="orange"] { --tone: 255, 162, 98; }
+.notepad-page mark[data-tone="green"] { --tone: 128, 218, 134; }
+.notepad-page mark[data-tone="blue"] { --tone: 112, 172, 255; }
+.notepad-page mark[data-tone="turquoise"] { --tone: 72, 222, 200; }
+.notepad-page mark[data-tone="yellow"] { --tone: 255, 212, 96; }
+[data-theme="light"] .notepad-page mark[data-tone="lilac"] { --tone: 128, 84, 226; }
+[data-theme="light"] .notepad-page mark[data-tone="pink"] { --tone: 216, 48, 124; }
+[data-theme="light"] .notepad-page mark[data-tone="orange"] { --tone: 230, 106, 20; }
+[data-theme="light"] .notepad-page mark[data-tone="green"] { --tone: 30, 150, 70; }
+[data-theme="light"] .notepad-page mark[data-tone="blue"] { --tone: 36, 110, 226; }
+[data-theme="light"] .notepad-page mark[data-tone="turquoise"] { --tone: 0, 146, 128; }
+[data-theme="light"] .notepad-page mark[data-tone="yellow"] { --tone: 222, 156, 0; }
+
+.notepad-page ul,
+.notepad-page ol {
+  margin: 2px 0 6px;
+  padding: 0 0 0 26px;
+}
+
+.notepad-page li {
+  margin: 3px 0;
+  padding-left: 2px;
+}
+
+.notepad-page li::marker {
+  color: var(--soft);
+}
+
+/* A checklist: a ring before each point, filled and ticked once it is done. */
+.notepad-page ul.notepad-checks {
+  padding-left: 0;
+  list-style: none;
+}
+
+.notepad-page .notepad-checks > li {
+  position: relative;
+  padding-left: 30px;
+}
+
+.notepad-page .notepad-checks > li::before {
+  content: "";
+  position: absolute;
+  top: 0.16em;
+  left: 0;
+  width: 19px;
+  height: 19px;
+  box-sizing: border-box;
+  border: 1.5px solid rgba(var(--fg-rgb), 0.35);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.notepad-page .notepad-checks > li[data-done="true"]::before {
+  border-color: rgb(var(--accent));
+  background: rgb(var(--accent)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.8 10.3l2.7 2.7 5.6-6' fill='none' stroke='%23141416' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat;
+}
+
+[data-theme="light"] .notepad-page .notepad-checks > li[data-done="true"]::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.8 10.3l2.7 2.7 5.6-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.notepad-page .notepad-checks > li[data-done="true"] {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--fg-rgb), 0.3);
+}
+
+.notepad-page blockquote {
+  margin: 8px 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid rgba(var(--fg-rgb), 0.18);
+  color: var(--soft);
+}
+
+.notepad-page pre {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--plate);
+  font-family: var(--mono-font);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+/* The open note: its date at the top in small type, then the page, written in where it stands. */
+.notepad-sheet-scroll {
+  padding: 0 28px 28px;
+}
+
+.notepad-date {
+  margin: 0 0 12px;
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.notepad-doc {
+  min-height: 60%;
+  outline: none;
+  caret-color: rgb(var(--accent));
+}
+
+.notepad-doc ::selection {
+  background: rgba(64, 140, 255, 0.36);
+}
+
+/* The small bar under words chosen on the page, and the «Aa» menu of text styles: they stand over the words, so they
+   are all but solid and the words under them do not show through. */
+.notepad-bar,
+.notepad-styles {
+  position: absolute;
+  z-index: 2;
+  border-radius: 14px;
+  background: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)), rgba(34, 34, 38, 0.95);
+  box-shadow: 0 0 0 1px var(--glass-rim, rgba(255, 255, 255, 0.14)), 0 14px 34px rgba(0, 0, 0, 0.36);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+}
+
+[data-theme="light"] :is(.notepad-bar, .notepad-styles) {
+  box-shadow: 0 0 0 1px rgba(20, 30, 60, 0.1), 0 14px 34px rgba(20, 30, 60, 0.16);
+}
+
+.notepad-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 42px;
+  padding: 0 6px;
+}
+
+.notepad-bar[hidden],
+.notepad-styles[hidden] {
+  display: none;
+}
+
+.notepad-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--fg-primary);
+  cursor: pointer;
+  transition: background-color 0.22s ease;
+}
+
+.notepad-mark svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* What the words chosen already are: a quiet plate that comes and goes softly; the pointer has the glide. */
+.notepad-mark.is-on {
+  background: var(--plate);
+}
+
+.notepad-bar-line {
+  width: 1px;
+  height: 18px;
+  margin: 0 5px;
+  background: rgba(var(--fg-rgb), 0.12);
+}
+
+.notepad-dot {
+  width: 20px;
+  height: 20px;
+  margin: 0 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(var(--tone));
+  cursor: pointer;
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+  will-change: transform;
+}
+
+/* Under the pointer a colour grows a little, softly, and settles back as softly. */
+.notepad-dot:hover {
+  transform: scale(1.2);
+}
+
+.notepad-dot:active {
+  transform: scale(1.08);
+  transition-duration: 0.12s;
+}
+
+.notepad-dot.is-on {
+  box-shadow: 0 0 0 2px rgba(var(--fg-rgb), 0.15), 0 0 0 3.5px rgb(var(--tone));
+}
+
+.notepad-dot.is-none {
+  position: relative;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(var(--fg-rgb), 0.35);
+}
+
+.notepad-dot.is-none::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  right: 3px;
+  height: 1.5px;
+  background: rgba(var(--fg-rgb), 0.45);
+  transform: rotate(-45deg);
+}
+
+.notepad-styles {
+  width: 236px;
+  padding: 6px;
+  border-radius: 16px;
+}
+
+.notepad-style {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notepad-style {
+  position: relative;
+}
+
+.notepad-style-tick {
+  display: none;
+  width: 16px;
+  margin-left: auto;
+  color: rgb(var(--accent));
+}
+
+.notepad-style.is-on .notepad-style-tick {
+  display: grid;
+}
+
+.notepad-style-tick svg {
+  width: 16px;
+  height: 16px;
+}
+
+.notepad-style.is-title {
+  font-size: 19px;
+  font-weight: 750;
+}
+
+.notepad-style.is-heading .notepad-style-word {
+  --tone: 190, 160, 255;
+  color: rgb(var(--tone));
+  font-size: 16px;
+  font-weight: 800;
+}
+
+[data-theme="light"] .notepad-style.is-heading .notepad-style-word {
+  --tone: 128, 84, 226;
+}
+
+.notepad-style.is-mono {
+  font-family: var(--mono-font);
+  font-size: 13px;
+}
+
+.notepad-style.is-quote {
+  color: var(--soft);
+}
+
+.notepad-style-line {
+  display: block;
+  height: 1px;
+  margin: 5px 10px;
+  background: rgba(var(--fg-rgb), 0.1);
+}
+
+/* The open notes are read: their glass is dense enough that the chat behind never shows through the words. */
+html:root:not([data-theme="light"]) .notepad.glass-lens {
+  --glass-fill: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)), rgba(30, 30, 34, 0.74);
+}
+
+html:root[data-theme="light"] .notepad.glass-lens {
+  --glass-fill: rgba(251, 251, 252, 0.8);
+}
+
+[data-theme="light"] :is(.notepad-bar, .notepad-styles) {
+  background: rgba(252, 252, 253, 0.97);
+}
+
+/* One highlight under the pointer for the rows of the list and the lines of the styles menu (Glide in notepad.js). */
+.notepad-glide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-radius: 12px;
+  background: var(--plate);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.notepad-styles > .notepad-glide {
+  border-radius: 10px;
+}
+
+.notepad-bar > .notepad-glide {
+  top: 0;
+  border-radius: 9px;
 }

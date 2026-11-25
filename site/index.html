@@ -1043,7 +1043,7 @@ section { scroll-margin-top: 90px; }
     <div class="welcome" aria-hidden="true"><div class="welcome-flight"><ghost-thinking></ghost-thinking></div></div>
     <a class="badge glass" href="#download" data-hero>
       <span class="dot" aria-hidden="true"></span>
-      <span class="ver" data-version>v1.5.7</span>
+      <span class="ver" data-version>v1.5.8</span>
       <span class="sep" aria-hidden="true"></span>
       <span data-t="hero.badge">Free and open source</span>
     </a>
@@ -1186,12 +1186,12 @@ section { scroll-margin-top: 90px; }
   <section class="section wrap" id="download" aria-labelledby="download-title">
     <div class="section-head">
       <p class="eyebrow rise" data-t="download.eyebrow">Download</p>
-      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.7.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
+      <h2 class="h2 rise" id="download-title"><span data-download-title>OpenGhost 1.5.8.</span><br><span class="soft" data-t="download.title2">Free, for every desktop.</span></h2>
     </div>
     <div class="platforms" id="platforms"></div>
     <article class="news pane rise">
       <div>
-        <h3 class="h3" data-news-title>What's new in 1.5.7</h3>
+        <h3 class="h3" data-news-title>What's new in 1.5.8</h3>
         <ul id="news"></ul>
       </div>
       <div class="links">
@@ -1462,7 +1462,7 @@ document.getElementById('theme').addEventListener('click', () => {
 
 /* ———————————————— Release ———————————————— */
 
-const FALLBACK = '1.5.7';
+const FALLBACK = '1.5.8';
 const assetsFor = version => ({
   win: { name: `OpenGhost-${version}-Setup.exe`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-Setup.exe` },
   mac: { name: `OpenGhost-${version}-mac.dmg`, url: `https://github.com/${REPO}/releases/download/v${version}/OpenGhost-${version}-mac.dmg` },
@@ -1470,18 +1470,18 @@ const assetsFor = version => ({
 });
 const NOTES = {
   en: [
-    'Rules for the agent: say in words what worries you and the app builds a rule the agent cannot get round, or build one from blocks; hooks written for other agents can be pasted in and adapted.',
-    'Live widgets in answers: weather, a timer, a route, currency, a mortgage, plans and 20 more kinds you can work with, from every model and provider.',
-    'The agent handles the browser better: calendars, icon buttons and form fields, and sites that answer with unusual codes no longer break a page.',
-    'Economy gets an ECO button and a compact arc, and its size cannot change while the agent works.',
-    'Fixes: Claude Haiku with economy, the macOS menu bar icon, the agent’s plan after a finished answer, and smaller things.',
+    'Calendar: a day, three days, a week, a month and tasks; drag entries, type them in plain words, and reminders come from the app itself, on time, with the window closed. Google, iCloud and Outlook calendars can be shown too.',
+    'The agent sees your calendar and writes into it: "remind me on Friday at 6" becomes an entry, and your own entries are changed only after Allow.',
+    'Notes like on a Mac: a gallery of notes with titles, colours and checklists, and the agent edits a note in place instead of writing a second one.',
+    'Sports tactics in answers: a live board for football, hockey, basketball and rugby where you drag players and offside and passes follow, plus a players comparison.',
+    'Send now for a waiting message, the agent sees frames inside pages (sellers’ chats, payment forms), and the chat no longer stops halfway through a fast reply.',
   ],
   ru: [
-    'Правила для агента: скажите словами, чего опасаетесь, и приложение соберёт правило, которое агент не сможет обойти, или соберите его из блоков; хуки других агентов можно вставить и адаптировать.',
-    'Живые виджеты в ответах: погода, таймер, маршрут, валюта, ипотека, тарифы и ещё 20 видов, с которыми можно работать, — у всех моделей и провайдеров.',
-    'Агент лучше управляется с браузером: календари, кнопки-значки и поля форм, а сайты с необычными кодами ответа больше не ломают загрузку.',
-    'У экономии кнопка ECO и компактная дуга, а её размер не меняется, пока агент работает.',
-    'Исправления: Claude Haiku в экономии, значок в строке меню macOS, план агента после готового ответа и другие мелочи.',
+    'Календарь: день, три дня, неделя, месяц и задачи; записи перетаскиваются и пишутся обычными словами, а напоминания приходят от самого приложения, точно в срок и при закрытом окне. Можно показать календари Google, iCloud и Outlook.',
+    'Агент видит календарь и записывает в него: «напомни в пятницу в 18» становится записью, а ваши записи он меняет только после «Разрешить».',
+    'Заметки как на Mac: галерея заметок с заголовками, цветами и чек-листами, и агент правит заметку на месте, а не пишет вторую.',
+    'Тактика в спорте прямо в ответе: живое поле для футбола, хоккея, баскетбола и регби — игроков можно двигать, офсайд и передачи пересчитываются; плюс сравнение игроков.',
+    '«Отправить сейчас» для ждущего сообщения, агент видит окна других сайтов внутри страницы (чаты продавцов, формы оплаты), а чат больше не останавливается посреди быстрого ответа.',
   ],
 };
 let release = { version: FALLBACK, assets: assetsFor(FALLBACK), page: `https://github.com/${REPO}/releases/tag/v${FALLBACK}`, notes: null };

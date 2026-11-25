@@ -364,7 +364,7 @@ async function stream(request, { signal, onEvent = () => {}, apiUrl = API_URL } 
     onEvent({ type: 'content', delta: delta.content });
    }
    for (const part of delta.tool_calls || []) {
-    onEvent({ type: 'activity' });
+    onEvent({ type: 'activity', calling: true });
     // A piece says which call it belongs to by its index; one that doesn't belongs to the last call, unless it brings
     // a new id.
     const last = calls.length - 1, fresh = part.id && last >= 0 && calls[last].id && calls[last].id !== part.id;

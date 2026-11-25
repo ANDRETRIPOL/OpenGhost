@@ -12,7 +12,7 @@ bridge?.onEvent(data => listeners.get(data.id)?.(data));
 // as GPT-6 Luna did), the chat's private record once full (about 12,000) and the app's notes (tests/model-window.cjs). Above it the work needs room of its own (economy.js, ROOM),
 // and a chat is summarized at 90% of its window. A model with less would summarize every few steps and forget its
 // work: it is not offered at all (settings.js), as the agent's work matters more than the number of models.
-const AGENT = 45000, ROOM = 48000;
+const AGENT = 47000, ROOM = 48000;
 const NEED = Math.ceil((AGENT + ROOM) / 0.9 / 1000) * 1000;
 const NAMES = { deepseek: 'DeepSeek', openai: 'OpenAI', chatgpt: 'ChatGPT', anthropic: 'Anthropic', openrouter: 'OpenRouter', local: 'Local', custom: 'Custom API' };
 
@@ -127,7 +127,7 @@ function viaMain(config, { messages, tools, signal, onReasoning, onContent, onAc
     partial.reasoning += event.delta;
     onReasoning?.(event.delta, partial);
    } else if (event.type === 'activity') {
-    onActivity?.();
+    onActivity?.(event);
    } else if (event.type === 'done') {
     finish();
     // The provider learned something about the model on the way: what the picker and the effort control show is out of date.
@@ -149,9 +149,10 @@ function counted(config, result) {
  return result;
 }
 
-function heard(begin, onContent, onReasoning) {
+// `onCalling`: the model has begun to write a call of a tool (its name or its arguments), not only to think.
+function heard(begin, onContent, onReasoning, onCalling) {
  return {
-  onActivity: begin,
+  onActivity: event => { begin(); if (event?.calling) onCalling?.(); },
   onContent: (delta, partial) => { if (delta) begin(); onContent?.(delta, partial); },
   onReasoning: (delta, partial) => { if (delta) begin(); onReasoning?.(delta, partial); },
  };
@@ -160,9 +161,9 @@ function heard(begin, onContent, onReasoning) {
 async function stream(config, options) {
  // A model whose window is smaller than the agent's instructions would lose them without a word: said before it is asked.
  if (config.window && config.window < NEED) throw new ProviderError(I18n.t('error.window', { window: config.window.toLocaleString('en-US'), need: NEED.toLocaleString('en-US') }));
- const { messages, tools, signal, onReasoning, onContent, onRetry, retryBudget } = options;
+ const { messages, tools, signal, onReasoning, onContent, onCalling, onRetry, retryBudget } = options;
  const result = await endure(config, begin => {
-  const live = heard(begin, onContent, onReasoning);
+  const live = heard(begin, onContent, onReasoning, onCalling);
   if (config.provider !== 'deepseek') return viaMain(config, { ...options, ...live });
   return DeepSeek.streamChat({ key: config.key, model: config.model, effort: config.effort, vision: config.vision, messages, tools, signal, ...live });
  }, { signal, onRetry, retryBudget });

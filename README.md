@@ -6,19 +6,20 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
-**v1.5.7 beta**
+**v1.5.8 beta**
 
-[Windows version 1.5.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.7/OpenGhost-1.5.7-Setup.exe)
+[Windows version 1.5.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.8/OpenGhost-1.5.8-Setup.exe)
 
-[Linux version 1.5.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.7/OpenGhost-1.5.7-linux.tar.gz)
+[Linux version 1.5.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.8/OpenGhost-1.5.8-linux.tar.gz)
 
-[macOS version 1.5.7](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.7/OpenGhost-1.5.7-mac.dmg)
+[macOS version 1.5.8](https://github.com/ANDRETRIPOL/OpenGhost/releases/download/v1.5.8/OpenGhost-1.5.8-mac.dmg)
 
 What's new:
-- Rules for the agent, in Settings → Rules: the app itself checks every step of the agent and stops what you have forbidden, so the agent cannot get round a rule. Say in words what worries you and the app's model builds the rule; or build it from blocks; or paste a hook written for another agent, and adapt it if it does not fit. Rules can ask first, forbid, keep the agent working until a check passes, tell it something, notify you or run your own script; a project can carry its own, used once you trust them.
-- Live widgets in answers: weather by the hour, a timer that rings, a route, currency, units, a split bill, a mortgage, plans with prices and 20 more kinds you can work with. Every model and provider gets the same nudge to use them.
-- The agent handles the browser better: it sees calendar icons and buttons without labels, ties a button to its field only when it stands right beside it, and sites that answer with unusual codes (LinkedIn's 999) no longer break a page.
-- Economy gets an ECO button and a compact arc, and its size cannot change while the agent works; Claude Haiku works with economy again; the macOS menu bar shows a one-colour ghost.
+- Calendar, in the sidebar: a day, three days, a week, a month and tasks. Drag entries, type them in plain words in four languages, repeat them as calendars do; reminders come from the app itself, on time, even with the window closed. Google, iCloud and Outlook calendars can be shown by their link.
+- The agent sees your calendar and writes into it, checking every date against its weekday; "remind me on Friday at 6 to call Mum" becomes an entry, and entries you made are changed only after Allow.
+- Notes like on a Mac: a gallery with previews, titles, colours and checklists, and the agent edits a note in place, keeping what you formatted by hand.
+- Sports tactics in answers: a live board for football, hockey, basketball and rugby, where you drag players and offside, passes and shots are recounted at once; and a comparison of players by their numbers.
+- Send now for a waiting message, as in Claude Code; the agent sees frames inside pages (a seller’s chat, a payment form); the chat no longer stops halfway through a fast reply.
 
 Older versions are on the [Releases](https://github.com/ANDRETRIPOL/OpenGhost/releases) page.
 

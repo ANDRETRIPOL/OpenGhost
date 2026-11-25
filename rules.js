@@ -675,7 +675,7 @@ function past(rule, chats, place = (cwd, p) => p) {
  }
  return out.sort((a, b) => (b.at || 0) - (a.at || 0));
 }
-const RULE_FREE_NAMES = new Set(['notepad', 'routine', 'memory', 'record', 'plan', 'ask_user', 'skill']);
+const RULE_FREE_NAMES = new Set(['notepad', 'routine', 'calendar', 'memory', 'record', 'plan', 'ask_user', 'skill']);
 
 // --- Keeping them -------------------------------------------------------------------------------------------------
 

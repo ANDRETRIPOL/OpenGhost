@@ -22,7 +22,7 @@ const ASK = 2500;
 // own processor answers slowly, and a model it did not tell about was taken to see no pictures.
 const SHOW = 20000;
 // The window the app asks Ollama for when the user names none and the model runs with less: what the agent needs to
-// work (Providers.NEED, about 104K), as the 128K the models are trained for. A model trained for less is not offered.
+// work (Providers.NEED, about 106K), as the 128K the models are trained for. A model trained for less is not offered.
 const AUTO = 131072;
 
 const error = (message, status = 0, code = '') => Object.assign(new Error(message), { status, code });
@@ -479,7 +479,7 @@ async function chatOllama(request, root, { signal, onEvent }) {
    }
    for (const call of message.tool_calls || []) {
     if (!call?.function?.name) continue;
-    onEvent({ type: 'activity' });
+    onEvent({ type: 'activity', calling: true });
     const given = call.function.arguments;
     calls.push({ id: callId(calls.length), type: 'function', function: { name: call.function.name, arguments: typeof given === 'string' ? given : JSON.stringify(given || {}) } });
    }
@@ -542,7 +542,7 @@ async function stream(request, { signal, onEvent = () => {} } = {}) {
     onEvent({ type: 'content', delta: delta.content });
    }
    for (const part of delta.tool_calls || []) {
-    onEvent({ type: 'activity' });
+    onEvent({ type: 'activity', calling: true });
     const last = calls.length - 1, fresh = part.id && last >= 0 && calls[last].id && calls[last].id !== part.id;
     const call = calls[part.index ?? (fresh ? last + 1 : Math.max(0, last))] ||= { id: '', type: 'function', function: { name: '', arguments: '' } };
     if (part.id) call.id = part.id;

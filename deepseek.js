@@ -138,7 +138,7 @@ async function streamChat({ key, model, effort, vision = true, messages, tools, 
      onContent?.(delta.content, result);
     }
     for (const part of delta.tool_calls || []) {
-     onActivity?.();
+     onActivity?.({ calling: true });
      const call = calls[part.index ?? calls.length] ||= { id: '', type: 'function', function: { name: '', arguments: '' } };
      if (part.id) call.id = part.id;
      if (part.function?.name) call.function.name += part.function.name;

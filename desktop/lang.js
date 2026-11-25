@@ -13,24 +13,28 @@ const STRINGS = {
   'menu.openLink': 'Open link in new tab', 'menu.copyLink': 'Copy link address', 'menu.openImage': 'Open image in new tab', 'menu.copyImage': 'Copy image',
   'menu.cut': 'Cut', 'menu.copy': 'Copy', 'menu.paste': 'Paste', 'menu.selectAll': 'Select all',
   'menu.back': 'Back', 'menu.forward': 'Forward', 'menu.reload': 'Reload', 'menu.inspect': 'Inspect',
+  'cal.now': 'Now', 'cal.in': 'In {n} min', 'cal.inHours': 'In {n} h', 'cal.today': 'Today', 'cal.tomorrow': 'Tomorrow', 'cal.allDay': 'All day',
  },
  it: {
   'tray.open': 'Apri OpenGhost', 'tray.quick': 'Chat rapida', 'tray.quit': 'Esci da OpenGhost',
   'menu.openLink': 'Apri link in una nuova scheda', 'menu.copyLink': 'Copia indirizzo del link', 'menu.openImage': 'Apri immagine in una nuova scheda', 'menu.copyImage': 'Copia immagine',
   'menu.cut': 'Taglia', 'menu.copy': 'Copia', 'menu.paste': 'Incolla', 'menu.selectAll': 'Seleziona tutto',
   'menu.back': 'Indietro', 'menu.forward': 'Avanti', 'menu.reload': 'Ricarica', 'menu.inspect': 'Ispeziona',
+  'cal.now': 'Adesso', 'cal.in': 'Tra {n} min', 'cal.inHours': 'Tra {n} h', 'cal.today': 'Oggi', 'cal.tomorrow': 'Domani', 'cal.allDay': 'Tutto il giorno',
  },
  fr: {
   'tray.open': 'Ouvrir OpenGhost', 'tray.quick': 'Chat rapide', 'tray.quit': 'Quitter OpenGhost',
   'menu.openLink': 'Ouvrir le lien dans un nouvel onglet', 'menu.copyLink': 'Copier l’adresse du lien', 'menu.openImage': 'Ouvrir l’image dans un nouvel onglet', 'menu.copyImage': 'Copier l’image',
   'menu.cut': 'Couper', 'menu.copy': 'Copier', 'menu.paste': 'Coller', 'menu.selectAll': 'Tout sélectionner',
   'menu.back': 'Précédent', 'menu.forward': 'Suivant', 'menu.reload': 'Recharger', 'menu.inspect': 'Inspecter',
+  'cal.now': 'Maintenant', 'cal.in': 'Dans {n} min', 'cal.inHours': 'Dans {n} h', 'cal.today': 'Aujourd’hui', 'cal.tomorrow': 'Demain', 'cal.allDay': 'Toute la journée',
  },
  ru: {
   'tray.open': 'Открыть OpenGhost', 'tray.quick': 'Быстрый чат', 'tray.quit': 'Выйти из OpenGhost',
   'menu.openLink': 'Открыть ссылку в новой вкладке', 'menu.copyLink': 'Копировать адрес ссылки', 'menu.openImage': 'Открыть картинку в новой вкладке', 'menu.copyImage': 'Копировать картинку',
   'menu.cut': 'Вырезать', 'menu.copy': 'Копировать', 'menu.paste': 'Вставить', 'menu.selectAll': 'Выделить всё',
   'menu.back': 'Назад', 'menu.forward': 'Вперёд', 'menu.reload': 'Обновить', 'menu.inspect': 'Просмотреть код',
+  'cal.now': 'Сейчас', 'cal.in': 'Через {n} мин', 'cal.inHours': 'Через {n} ч', 'cal.today': 'Сегодня', 'cal.tomorrow': 'Завтра', 'cal.allDay': 'Весь день',
  },
 };
 

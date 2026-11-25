@@ -7,7 +7,7 @@
 const PREVIEW_LINES = 14;
 const LEAVE = { duration: 300, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
 const REVEAL = { duration: 420, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' };
-const ICONS = { command: 'terminal', file: 'file', web: 'globe' };
+const ICONS = { command: 'terminal', file: 'file', web: 'globe', calendar: 'calendar' };
 const PLACES = { folder: 'folder', file: 'file', site: 'globe' };
 const MAX_PLACES = 3;
 const KEY = 'openghost.approval.details';

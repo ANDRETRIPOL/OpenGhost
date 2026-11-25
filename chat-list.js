@@ -127,7 +127,7 @@ function place(parent, children) {
 }
 
 class ChatList {
- constructor({ root, library, chat, onNewFolder, onNewChat, onLock, onNewRoutine = null, onSkills = null, onFork = null, onSplit = null }) {
+ constructor({ root, library, chat, onNewFolder, onNewChat, onLock, onNewRoutine = null, onSkills = null, onCalendar = null, onFork = null, onSplit = null }) {
   this.root = root;
   this.list = root.querySelector('.chats-list');
   this.library = library;
@@ -140,6 +140,10 @@ class ChatList {
   this.routinesFolded = folded();
   // The Skills row above them: a head like a group's that opens the search for skills (spotlight.js).
   this.onSkills = onSkills;
+  // The Calendar row under it opens the calendar's page in the chat's place (calendar.js); while it is open no chat's
+  // row is the active one.
+  this.onCalendar = onCalendar;
+  this.calendarOpen = false;
   // Fork a whole chat (chat.js), from the dots' menu; how far in each chat's row stands, as `tree` put it.
   this.onFork = onFork;
   this.onSplit = onSplit;
@@ -310,7 +314,7 @@ class ChatList {
   this.guard(item, chat);
   item.time.textContent = this.timeOf(chat);
   this.preview(item, chat);
-  item.row.classList.toggle('is-active', active);
+  item.row.classList.toggle('is-active', active && !this.calendarOpen);
   item.row.classList.toggle('is-quick', !!chat.quick);
   item.row.classList.toggle('is-routine', !!routine);
   item.row.classList.toggle('is-routine-off', routine === 'off');
@@ -534,6 +538,7 @@ class ChatList {
   this.pairGroups ||= new Map();
   for (const id of this.pairGroups.keys()) if (!pairs.some(pair => pair.left === id)) this.pairGroups.delete(id);
   if (this.onSkills && !query) order.push(this.skillsRow());
+  if (this.onCalendar && !query) order.push(this.calendarRow());
   if (this.onNewRoutine && (!query || routines.length)) order.push(this.routinesGroup(routines, !!query, seen));
   if (pinned.length) order.push(this.pinnedHead, ...pinned.map(chat => this.item(chat, seen)));
   if (!query || loose.length || I18n.t('chats.home').toLowerCase().includes(query)) order.push(this.home(loose, !!query, seen, draft === HOME));
@@ -603,6 +608,44 @@ class ChatList {
   }
   return this.skillsGroup.section;
  }
+
+ // The Calendar row: like the Skills row, a head with nothing under it, and at its end how many entries today still
+ // has.
+ calendarRow() {
+  if (!this.calendarGroup) {
+   const group = this.calendarGroup = this.group({ path: null, name: I18n.t('cal.title') }, true, true);
+   group.section.classList.add('is-skills', 'is-calendar');
+   group.calendar = true;
+   group.head.querySelector('.chats-folder-icon').innerHTML = Glyphs.calendar;
+   group.head.removeAttribute('aria-expanded');
+   group.head.setAttribute('aria-pressed', 'false');
+   group.add.remove();
+   group.count = element('span', 'chats-calendar-count');
+   group.countText = element('span', 'chats-calendar-count-n');
+   group.count.append(group.countText);
+   group.count.hidden = true;
+   group.head.append(group.count);
+  }
+  return this.calendarGroup.section;
+ }
+
+ // The calendar's page opened or put away: its row is the active one, and no chat's row is.
+ calendar(open) {
+  this.calendarOpen = !!open;
+  const group = this.calendarGroup;
+  if (group) { group.section.classList.toggle('is-open', this.calendarOpen); group.head.setAttribute('aria-pressed', String(this.calendarOpen)); }
+  this.root.classList.toggle('is-calendar-open', this.calendarOpen);
+  for (const item of this.rows.values()) item.row.classList.toggle('is-active', !this.calendarOpen && item.row.dataset.id === this.chat.activeId);
+ }
+
+ calendarCount(n) {
+  const group = this.calendarGroup;
+  if (!group) return;
+  group.count.hidden = !n;
+  group.countText.textContent = n ? String(n) : '';
+ }
+
+ calendarIcon() { return this.calendarGroup?.head.querySelector('.chats-folder-icon') || null; }
 
  // The routines' group stays even when empty: its plus sets the first one up, and a line says what routines are.
  routinesGroup(chats, searching, seen) {
@@ -857,6 +900,7 @@ class ChatList {
  // A folder folds with the index; the routines' group keeps its fold in this window's own storage.
  toggleGroup(group) {
   if (group.skills) { this.onSkills?.(); return; }
+  if (group.calendar) { this.onCalendar?.(); return; }
   if (!group.routines) { this.library.toggleFolder(group.path); return; }
   this.routinesFolded = !this.routinesFolded;
   try { localStorage.setItem(FOLD, this.routinesFolded ? '1' : '0'); } catch {}

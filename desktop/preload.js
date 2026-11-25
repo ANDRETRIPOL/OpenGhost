@@ -84,6 +84,28 @@ contextBridge.exposeInMainWorld('openghost', {
    set: next => ipcRenderer.invoke('awake:set', next),
   },
  },
+ // The calendar (desktop/calendar.js keeps it and sends its reminders): all of it, an entry added, changed, taken away
+ // or put back, the tags, a reminder put off; another calendar shown or copied in, changed, taken away or read again; an
+ // .ics file copied in; that it changed, that a reminder is due (the page shows it as a card), that a notification was
+ // pressed (the calendar opens at its entry), and that this page can show reminders.
+ calendar: {
+  get: () => ipcRenderer.invoke('calendar:get'),
+  add: data => ipcRenderer.invoke('calendar:add', data),
+  update: (id, changes) => ipcRenderer.invoke('calendar:update', id, changes),
+  remove: id => ipcRenderer.invoke('calendar:remove', id),
+  restore: data => ipcRenderer.invoke('calendar:restore', data),
+  tags: tags => ipcRenderer.invoke('calendar:tags', tags),
+  snooze: (id, key, minutes) => ipcRenderer.invoke('calendar:snooze', id, key, minutes),
+  feed: data => ipcRenderer.invoke('calendar:feed', data),
+  feedUpdate: (id, changes) => ipcRenderer.invoke('calendar:feed-update', id, changes),
+  feedRemove: id => ipcRenderer.invoke('calendar:feed-remove', id),
+  feedRefresh: id => ipcRenderer.invoke('calendar:feed-refresh', id),
+  import: () => ipcRenderer.invoke('calendar:import'),
+  onChange: callback => ipcRenderer.on('calendar:changed', (event, view) => callback(view)),
+  onRemind: callback => ipcRenderer.on('calendar:remind', (event, card) => callback(card)),
+  onOpen: callback => ipcRenderer.on('calendar:open', (event, place) => callback(place)),
+  ready: () => ipcRenderer.send('calendar:ready'),
+ },
  // Skills (desktop/skills.js): those a chat in a folder can use, the instructions of one; one fetched from a link to be
  // shown to the user, then put in or let go; and that they changed.
  skills: {

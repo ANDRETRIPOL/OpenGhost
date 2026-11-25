@@ -1,0 +1,158 @@
+/* Football widgets (blocks-pitch.js): the tactics board and players compared. The card is the black widget card of
+   blocks.css. Ours are white, theirs blue, the user's own player orange; red only for what is wrong (offside, a pass
+   cut out, a gap too wide, a space left open). */
+og-block[kind="pitch"], og-block[kind="players"] { --pt-them: 92, 148, 255; --pt-ball: 255, 214, 74; }
+og-block[kind="pitch"] { max-width: 640px; }
+og-block[kind="pitch"] > .pt-tabs { margin: 0 0 12px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+
+.pt-field { margin: 0 -6px; touch-action: none; }
+.pt-svg { display: block; width: 100%; overflow: visible; font-family: var(--font); user-select: none; }
+.pt-svg.is-over { cursor: grab; }
+.pt-svg.is-dragging { cursor: grabbing; }
+.pt-stripe { fill: rgba(255, 255, 255, 0.022); }
+.pt-mark { fill: none; stroke: rgba(255, 255, 255, 0.2); stroke-width: 1; }
+.pt-spot { fill: rgba(255, 255, 255, 0.3); }
+.pt-goal { fill: rgba(255, 255, 255, 0.5); }
+.pt-goal.is-them { fill: rgba(var(--pt-them), 0.75); }
+/* The other grounds, in the same quiet lines: the rink's red and blue lines, the court's paint and hoops, the rugby
+   field's in-goals, dashed 10 m and 5 m lines and posts. */
+.pt-mark.is-wide { stroke-width: 2.4; }
+.pt-mark.is-strong { stroke: rgba(255, 255, 255, 0.34); stroke-width: 1.4; }
+.pt-mark.is-red { stroke: rgba(255, 96, 96, 0.34); }
+.pt-mark.is-blue { stroke: rgba(var(--pt-them), 0.36); }
+.pt-spot.is-red { fill: rgba(255, 96, 96, 0.4); }
+.pt-mark.is-dash { stroke-dasharray: 5 6; }
+.pt-mark.is-dots { stroke-dasharray: 2 16; }
+.pt-crease { fill: rgba(var(--pt-them), 0.12); stroke: rgba(255, 96, 96, 0.34); stroke-width: 1; }
+.pt-key-paint { fill: rgba(255, 255, 255, 0.035); }
+.pt-board { stroke: rgba(255, 255, 255, 0.5); stroke-width: 2; stroke-linecap: round; }
+.pt-hoop { fill: none; stroke: rgba(255, 255, 255, 0.6); stroke-width: 1.6; }
+.pt-hoop.is-them { stroke: rgba(var(--pt-them), 0.85); }
+.pt-ingoal { fill: rgba(255, 255, 255, 0.03); }
+.pt-post { stroke: rgba(255, 255, 255, 0.5); stroke-width: 2; }
+.pt-post.is-them { stroke: rgba(var(--pt-them), 0.75); }
+og-block[data-sport="rugby"] .pt-p .pt-in { font-size: 7.5px; }
+
+/* Players. */
+.pt-p .pt-halo { fill: none; stroke: none; }
+.pt-p .pt-disc { stroke: #0b0b0d; stroke-width: 1.5; transition: fill 0.25s, stroke 0.25s; }
+.pt-p.is-us .pt-disc { fill: #fff; }
+.pt-p.is-them .pt-disc { fill: rgb(var(--pt-them)); }
+.pt-p.is-me .pt-disc { fill: rgb(var(--bk-accent)); }
+.pt-p.is-me .pt-halo { fill: rgba(var(--bk-accent), 0.22); }
+.pt-p .pt-in { font-size: 8.5px; font-weight: 750; fill: #0b0b0d; pointer-events: none; }
+.pt-p.is-them .pt-in { fill: #fff; }
+.pt-p .pt-name, .pt-p .pt-you { font-size: 10px; font-weight: 650; stroke: #0b0b0d; stroke-width: 3.2px; stroke-linejoin: round; paint-order: stroke; pointer-events: none; transition: fill 0.25s; }
+.pt-p.is-us .pt-name { fill: rgba(255, 255, 255, 0.78); }
+.pt-p.is-them .pt-name { fill: rgba(var(--pt-them), 0.95); }
+.pt-p.is-me .pt-name, .pt-p .pt-you { fill: rgb(var(--bk-accent)); font-weight: 750; }
+.pt-p .pt-you { font-size: 10.5px; }
+.pt-p.is-off .pt-disc { stroke: rgb(var(--bk-bad)); stroke-width: 2.6; }
+.pt-p.is-off .pt-name { fill: rgb(var(--bk-bad)); }
+.pt-p.is-cut .pt-halo { fill: rgba(var(--bk-bad), 0.28); }
+.pt-p.is-drag .pt-halo { fill: rgba(255, 255, 255, 0.16); }
+.pt-p.is-drag.is-me .pt-halo { fill: rgba(var(--bk-accent), 0.36); }
+.pt-ball { fill: rgb(var(--pt-ball)); stroke: #0b0b0d; stroke-width: 1.5; pointer-events: none; }
+
+/* Offside, areas, arrows, gaps. */
+.pt-off-line { fill: none; stroke: rgba(var(--bk-bad), 0); stroke-width: 1.2; stroke-dasharray: 3 4; transition: stroke 0.3s; }
+.pt-off.is-on .pt-off-line { stroke: rgba(var(--bk-bad), 0.7); }
+.pt-off-t { font-size: 9.5px; font-weight: 650; fill: rgba(var(--bk-bad), 0); stroke: #0b0b0d; stroke-width: 3px; paint-order: stroke; transition: fill 0.3s; }
+.pt-off.is-on .pt-off-t { fill: rgba(var(--bk-bad), 0.9); }
+/* Rugby's ball line is no fault, only where play is: white, not red. */
+.pt-off.is-on.is-soft .pt-off-line { stroke: rgba(255, 255, 255, 0.42); }
+.pt-off.is-on.is-soft .pt-off-t { fill: rgba(255, 255, 255, 0.62); }
+/* Basketball: what a shot from where the ball is would be worth, and whether he is open. */
+.pt-shot { font-size: 10px; font-weight: 700; fill: rgba(255, 255, 255, 0.82); stroke: #0b0b0d; stroke-width: 3px; paint-order: stroke; pointer-events: none; }
+.pt-shot.is-open { fill: rgb(var(--bk-good)); }
+.pt-area { stroke-width: 1; stroke-dasharray: 4 4; }
+.pt-area.is-zone { fill: rgba(var(--bk-accent), 0.1); stroke: rgba(var(--bk-accent), 0.55); }
+.pt-area.is-hole { fill: rgba(var(--bk-bad), 0.1); stroke: rgba(var(--bk-bad), 0.6); }
+.pt-lines, .pt-top, .pt-areas, .pt-off { pointer-events: none; }
+.pt-arrow { fill: none; stroke-width: 2; stroke-linecap: round; }
+.pt-arrow.is-pass { stroke: #fff; }
+.pt-head.is-pass { fill: #fff; }
+.pt-arrow.is-run { stroke: rgba(255, 255, 255, 0.7); stroke-dasharray: 5 5; }
+.pt-head.is-run { fill: rgba(255, 255, 255, 0.7); }
+.pt-arrow.is-run.is-them { stroke: rgb(var(--pt-them)); }
+.pt-head.is-run.is-them { fill: rgb(var(--pt-them)); }
+.pt-arrow.is-run.is-me { stroke: rgb(var(--bk-accent)); }
+.pt-head.is-run.is-me { fill: rgb(var(--bk-accent)); }
+.pt-arrow.is-pass.is-them { stroke: rgb(var(--pt-them)); }
+.pt-head.is-pass.is-them { fill: rgb(var(--pt-them)); }
+.pt-badge.is-them { fill: rgb(var(--pt-them)); }
+.pt-arrow.is-bad { stroke: rgb(var(--bk-bad)); }
+.pt-head.is-bad { fill: rgb(var(--bk-bad)); }
+.pt-badge { fill: #fff; }
+.pt-badge.is-bad { fill: rgb(var(--bk-bad)); }
+.pt-badge-n { font-size: 10px; font-weight: 800; fill: #0b0b0d; }
+.pt-note { font-size: 10px; font-weight: 700; fill: #fff; stroke: #0b0b0d; stroke-width: 3px; paint-order: stroke; }
+.pt-note.is-bad { fill: rgb(var(--bk-bad)); }
+.pt-gap { fill: none; stroke: rgba(var(--bk-good), 0.75); stroke-width: 1; stroke-dasharray: 2 3; }
+.pt-gap.is-bad { stroke: rgba(var(--bk-bad), 0.8); }
+.pt-gap-t { font-size: 10px; font-weight: 700; fill: rgb(var(--bk-good)); stroke: #0b0b0d; stroke-width: 3px; paint-order: stroke; }
+.pt-gap-t.is-bad { fill: rgb(var(--bk-bad)); }
+
+/* The key: each team's colour, its formation, the button that changes it. */
+.pt-key { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.pt-team { height: 28px; padding: 0 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 7px; background: rgba(255, 255, 255, 0.07); font-size: 12.5px; font-weight: 600; color: rgba(var(--bk-fg), 0.82); transition: background-color 0.2s; }
+.pt-team:not(:disabled):hover, .pt-team.is-open { background: rgba(255, 255, 255, 0.14); }
+.pt-team i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.pt-team.is-us i { background: #fff; }
+.pt-team.is-them i { background: rgb(var(--pt-them)); }
+.pt-team b { font-weight: 700; color: #fff; }
+.pt-team b:empty { display: none; }
+.pt-team svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.6; }
+.pt-dir { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(var(--bk-fg), 0.5); }
+.pt-dir svg { width: 16px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.pt-forms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding: 8px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); }
+.pt-chip { height: 28px; padding: 0 11px; border-radius: 999px; display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 650; color: rgba(var(--bk-fg), 0.72); background: rgba(255, 255, 255, 0.06); transition: background-color 0.2s, color 0.2s; }
+.pt-chip:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.pt-chip.is-on { background: #fff; color: #0b0b0d; }
+
+.pt-say { margin-top: 12px; font-size: 13.5px; line-height: 1.42; color: rgba(var(--bk-fg), 0.88); }
+
+/* Steps: play, the step bar (a tap goes to a step), where we are. */
+.pt-steps { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.pt-play { width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #0b0b0d; transition: background-color 0.2s; }
+.pt-play:hover { background: rgba(255, 255, 255, 0.86); }
+.pt-play .bk-i-play { border-left-width: 10px; border-top-width: 6px; border-bottom-width: 6px; margin-left: 2px; }
+.pt-play .bk-i-pause::before, .pt-play .bk-i-pause::after { width: 3.5px; height: 12px; }
+.pt-bar { flex: 1; display: flex; gap: 4px; min-width: 0; }
+.pt-seg { flex: 1; height: 18px; position: relative; }
+.pt-seg::before { content: ""; position: absolute; left: 0; right: 0; top: 7px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.14); transition: background-color 0.35s; }
+.pt-seg.is-on::before { background: #fff; }
+.pt-seg:first-child { flex: 0 0 18px; }
+.pt-count { font-size: 12px; color: rgba(var(--bk-fg), 0.55); white-space: nowrap; min-width: 74px; text-align: right; }
+.pt-acts, .pt-redo { margin-top: 12px; }
+.pt-acts .bk-btn, .pt-redo .bk-btn { flex: 0 0 auto; }
+
+/* Players compared. */
+og-block[kind="players"] { max-width: 560px; }
+.pl-who { display: flex; flex-wrap: wrap; gap: 6px; }
+.pl-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 5px 12px 5px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); transition: background-color 0.25s, box-shadow 0.25s; }
+.pl-chip i, .pl-face { width: 28px; height: 28px; border-radius: 50%; flex: none; background: rgba(var(--tone), 0.25); box-shadow: inset 0 0 0 2px rgba(var(--tone), 0.5); transition: background-color 0.25s, box-shadow 0.25s; }
+.pl-face { background-size: cover; background-position: center top; }
+.pl-chip.is-on { background: rgba(var(--tone), 0.14); box-shadow: inset 0 0 0 1px rgba(var(--tone), 0.55); }
+.pl-chip.is-on i { background: rgb(var(--tone)); box-shadow: none; }
+.pl-chip.is-on .pl-face { box-shadow: inset 0 0 0 2px rgb(var(--tone)); }
+.pl-chip-text { display: flex; flex-direction: column; gap: 2px; text-align: left; min-width: 0; }
+.pl-chip-text .bk-meta { font-size: 11.5px; }
+.pl-web { display: flex; justify-content: center; margin-top: 8px; }
+.pl-web-svg { display: block; overflow: visible; font-family: var(--font); }
+.pl-ring { fill: none; stroke: rgba(255, 255, 255, 0.1); }
+.pl-spoke { stroke: rgba(255, 255, 255, 0.08); }
+.pl-axis { font-size: 11px; font-weight: 600; fill: rgba(255, 255, 255, 0.55); transition: fill 0.2s; }
+.pl-axis.is-on { fill: #fff; }
+.pl-shape { fill: rgba(var(--tone), 0.16); stroke: rgb(var(--tone)); stroke-width: 1.8; stroke-linejoin: round; }
+.pl-dot { fill: rgb(var(--tone)); stroke: #0b0b0d; stroke-width: 1.5; }
+.pl-rows { margin-top: 12px; display: grid; gap: 2px; }
+.pl-row { display: grid; grid-template-columns: minmax(84px, 34%) 1fr; column-gap: 12px; row-gap: 4px; align-items: center; padding: 6px 8px; margin: 0 -8px; border-radius: 10px; transition: background-color 0.2s; }
+.pl-row.is-on { background: rgba(255, 255, 255, 0.05); }
+.pl-bars { display: grid; gap: 4px; min-width: 0; }
+.pl-row-name { font-size: 12.5px; color: rgba(var(--bk-fg), 0.7); }
+.pl-bar { display: flex; align-items: center; gap: 8px; height: 14px; }
+.pl-bar i { height: 6px; border-radius: 3px; background: rgb(var(--tone)); transition: width 0.62s var(--bk-ease); min-width: 0; }
+og-block.is-fresh .pl-bar i { width: 0 !important; }
+.pl-bar b { font-size: 12px; font-weight: 600; color: rgba(var(--bk-fg), 0.7); white-space: nowrap; }
+.pl-bar b.is-best { color: #fff; font-weight: 750; }

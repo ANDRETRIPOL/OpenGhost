@@ -10,8 +10,11 @@ const Pictures = require('./pictures');
 
 const PARTITION = 'persist:browser';
 const WORLD = 1077;
-const WAIT = { load: 30000, stop: 15000, call: 12000, quiet: [300, 2000], pointer: 420 };
-const SNAPSHOT = { view: 9000, full: 40000 };
+const WAIT = { load: 30000, stop: 15000, call: 12000, quiet: [300, 2000], pointer: 70 };
+// The agent's pointer on screen: its way takes base + slope × log2(distance / size + 1) ms, at most `most`, and `fix` ms
+// more to be brought back after a move longer than `long` px (the same numbers as CURSOR in browser-panel.js).
+const POINTER = { base: 170, slope: 92, size: 24, most: 560, long: 140, fix: 120 };
+const SNAPSHOT = { view: 9000, full: 40000, frame: 6000 };
 const SHOT = { max: 1280, quality: 82, tall: 4 };
 const UPLOAD = { files: 10, each: 100 * 1024 * 1024, total: 200 * 1024 * 1024 };
 const READ_MAX = 4 * 1024 * 1024;
@@ -33,7 +36,7 @@ const KEYS = {
 const MODIFIERS = { alt: 1, control: 2, ctrl: 2, meta: 4, cmd: 4, win: 4, shift: 8 };
 
 // Everything below runs inside the page, in an isolated world the page's own scripts can't see.
-function install() {
+function install(base = 1) {
  if (window.__og) return;
  const ACTIVE = new Set(['link', 'button', 'combobox', 'listbox', 'textbox', 'searchbox', 'checkbox', 'radio', 'slider', 'spinbutton', 'switch', 'tab', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'treeitem', 'file input', 'clickable']);
  const TYPING = new Set(['textbox', 'searchbox', 'combobox', 'spinbutton']);
@@ -59,7 +62,7 @@ function install() {
  }).flatMap(([meaning, words]) => words.split(' ').map(word => [word, meaning])));
  const ARROWS = new Set(['arrow', 'chevron', 'caret', 'angle', 'triangle']);
  const TOWARD = { left: 'left arrow', prev: 'left arrow', previous: 'left arrow', back: 'left arrow', right: 'right arrow', next: 'right arrow', forward: 'right arrow', down: 'down arrow', up: 'up arrow' };
- const state = { next: 1, refs: new Map(), ids: new WeakMap(), document: Array.from(crypto.getRandomValues(new Uint32Array(4)), n => n.toString(16)).join('-') };
+ const state = { next: base, refs: new Map(), ids: new WeakMap(), document: Array.from(crypto.getRandomValues(new Uint32Array(4)), n => n.toString(16)).join('-') };
  const clean = text => (text || '').replace(/\s+/g, ' ').trim();
  const cut = (text, max) => text.length > max ? `${text.slice(0, max - 1)}…` : text;
  const quote = (text, max = 100) => `"${cut(clean(text), max).replace(/"/g, '\'')}"`;
@@ -258,9 +261,9 @@ function install() {
   return clean(text);
  }
 
- function snapshot({ full = false } = {}) {
-  const vw = innerWidth, vh = innerHeight, max = full ? 40000 : 9000;
-  const lines = [], refs = {};
+ function snapshot({ full = false, max = full ? 40000 : 9000 } = {}) {
+  const vw = innerWidth, vh = innerHeight;
+  const lines = [], refs = {}, holes = [];
   let size = 0, skipped = 0, visited = 0;
   const push = text => {
    if (size + text.length > max) { skipped++; return; }
@@ -295,7 +298,12 @@ function install() {
     let doc = null;
     try { doc = el.contentDocument; } catch {}
     if (doc?.body) children(doc.body);
-    else if (inView(rectOf(el))) push(`iframe${el.title ? ` ${quote(el.title)}` : ''} (content not readable)`);
+    else if (inView(rectOf(el))) {
+     // A frame of another site: the main process reads it in a world of its own and puts it in this place.
+     const before = lines.length;
+     push(`iframe${el.title ? ` ${quote(el.title)}` : ''} (content not readable)`);
+     if (lines.length > before) holes.push({ at: before, rect: rectOf(el) });
+    }
     return;
    } else if (SKIP.has(el.tagName)) {
     return;
@@ -329,7 +337,7 @@ function install() {
   uploads(document);
   const scroller = document.scrollingElement || document.documentElement;
   const height = scroller.scrollHeight, top = scroller.scrollTop;
-  return { lines, refs, skipped, document: state.document, scroll: { top, height, vh, vw, below: Math.max(0, height - top - vh) } };
+  return { lines, refs, holes, skipped, document: state.document, scroll: { top, height, vh, vw, below: Math.max(0, height - top - vh) } };
  }
 
  function element(ref) {
@@ -566,11 +574,29 @@ function install() {
   const el = state.refs.get(Number(ref))?.deref();
   if (el?.getAttribute('data-openghost-upload') === marker) el.removeAttribute('data-openghost-upload');
  }
- window.__og = { snapshot, point, choose, reveal, quiet, has, image, imageIn, photos, box: ref => rectOf(element(ref)), document: () => state.document, field, fill,
+ // What has the keyboard: a field, a frame (of another site, which the main process asks itself) or nothing to type in.
+ function typing() {
+  let el = document.activeElement;
+  for (;;) {
+   if (el?.shadowRoot?.activeElement) { el = el.shadowRoot.activeElement; continue; }
+   if (el?.tagName === 'IFRAME') {
+    let inner = null;
+    try { inner = el.contentDocument?.activeElement; } catch {}
+    if (!inner) return 'frame';
+    el = inner;
+    continue;
+   }
+   break;
+  }
+  if (!el || el === el.ownerDocument.body || el === el.ownerDocument.documentElement) return 'none';
+  return el.isContentEditable || TYPING.has(roleOf(el)) || el.matches('input:not([type=hidden]),textarea,select') ? 'field' : 'none';
+ }
+ window.__og = { snapshot, typing, point, choose, reveal, quiet, has, image, imageIn, photos, box: ref => rectOf(element(ref)), document: () => state.document, field, fill,
   uploadTarget, unmarkUpload, isFile: ref => { const el = element(ref);return el.tagName === 'INPUT' && el.type === 'file'; } };
 }
 
-const INSTALL = `(${install.toString()})();`;
+const installed = base => `(${install.toString()})(${base});`;
+const INSTALL = installed(1);
 const plain = message => Object.assign(new Error(message), { plain: true });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const guests = new Map();
@@ -689,7 +715,9 @@ async function attach(found) {
  if (found.attached && found.guest.debugger.isAttached()) return;
  if (!found.guest.debugger.isAttached()) found.guest.debugger.attach('1.3');
  found.attached = true;
+ watchFrames(found);
  await found.guest.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
+ await found.guest.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }).catch(() => {});
 }
 
 function timed(promise, ms, message) {
@@ -704,6 +732,184 @@ async function world(guest, expression) {
  return answer?.ok;
 }
 
+// Frames of another site in a page (a seller's chat on a car site, the card form of a payment service, a help window)
+// cannot be read from the page's own world. Each is read and used in an isolated world of its own through the browser's
+// debugging channel, the way the page itself is, and its elements get numbers of their own: frame k numbers from
+// k × FRAME_REFS on. A frame drawn by a process of its own (another site) has a session of its own on that channel.
+const FRAME_REFS = 100000;
+const FRAME_DEPTH = 3;
+
+function watchFrames(found) {
+ if (found.frames) return;
+ found.frames = { sessions: new Map(), worlds: new Map(), numbers: new Map(), next: 1 };
+ const { sessions, worlds } = found.frames;
+ found.guest.debugger.on('message', (_event, method, params) => {
+  if (method === 'Target.attachedToTarget' && params.targetInfo?.type === 'iframe') {
+   sessions.set(params.targetInfo.targetId, params.sessionId);
+   found.guest.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, params.sessionId).catch(() => {});
+  } else if (method === 'Target.detachedFromTarget') {
+   for (const [id, session] of sessions) if (session === params.sessionId) { sessions.delete(id); worlds.delete(id); }
+  }
+ });
+}
+
+const cdpOf = guest => (method, params = {}, session = '') => session ? guest.debugger.sendCommand(method, params, session) : guest.debugger.sendCommand(method, params);
+const quadBox = quad => {
+ const xs = [quad[0], quad[2], quad[4], quad[6]], ys = [quad[1], quad[3], quad[5], quad[7]];
+ const left = Math.min(...xs), top = Math.min(...ys), right = Math.max(...xs), bottom = Math.max(...ys);
+ return { left, top, right, bottom, width: right - left, height: bottom - top };
+};
+
+// Every frame below the page's own, with the session it runs in and where it is drawn in the page: `border` the box of
+// its iframe element, `inner` where its own page begins, both in the pixels of the page on screen.
+async function frameList(found) {
+ const cdp = cdpOf(found.guest), list = new Map();
+ const walk = (node, session, top) => {
+  if (!top) list.set(node.frame.id, { id: node.frame.id, url: node.frame.url, parent: node.frame.parentId, session });
+  for (const child of node.childFrames || []) walk(child, session, false);
+ };
+ walk((await cdp('Page.getFrameTree')).frameTree, '', true);
+ for (const [id, session] of found.frames.sessions) {
+  const tree = await cdp('Page.getFrameTree', {}, session).catch(() => null);
+  if (!tree) continue;
+  const known = list.get(id);
+  list.set(id, { id, url: tree.frameTree.frame.url, parent: known?.parent || tree.frameTree.frame.parentId, session });
+  walk(tree.frameTree, session, true);
+ }
+ // The session of a frame's parent holds its iframe element, measured from the top of that session's own page.
+ const shift = new Map([['', { x: 0, y: 0 }]]);
+ const placed = async frame => {
+  if (frame.placed !== undefined) return frame.placed;
+  frame.placed = null;
+  const parent = frame.parent ? list.get(frame.parent) : null;
+  if (parent) await placed(parent);
+  const session = parent ? parent.session : '';
+  if (!shift.has(session)) {
+   const root = [...list.values()].find(item => item.session === session && found.frames.sessions.get(item.id) === session);
+   const at = root ? await placed(root) : null;
+   shift.set(session, at ? { x: at.inner.left, y: at.inner.top } : null);
+  }
+  const by = shift.get(session);
+  if (!by) return null;
+  try {
+   const owner = await cdp('DOM.getFrameOwner', { frameId: frame.id }, session);
+   const model = (await cdp('DOM.getBoxModel', { backendNodeId: owner.backendNodeId }, session)).model;
+   const move = box => ({ ...box, left: box.left + by.x, right: box.right + by.x, top: box.top + by.y, bottom: box.bottom + by.y });
+   frame.owner = { backendNodeId: owner.backendNodeId, session };
+   frame.placed = { border: move(quadBox(model.border)), inner: move(quadBox(model.content)) };
+  } catch {}
+  return frame.placed;
+ };
+ for (const frame of list.values()) await placed(frame);
+ return [...list.values()].filter(frame => frame.placed && frame.placed.inner.width >= 1 && frame.placed.inner.height >= 1);
+}
+
+function frameNumber(found, id) {
+ const numbers = found.frames.numbers;
+ if (!numbers.has(id)) numbers.set(id, found.frames.next++);
+ return numbers.get(id);
+}
+
+async function frameWorld(found, frame, expression) {
+ const cdp = cdpOf(found.guest), worlds = found.frames.worlds, base = frameNumber(found, frame.id) * FRAME_REFS + 1;
+ const code = `${installed(base)}(async () => { try { return { ok: await (${expression}) }; } catch (error) { return { error: String(error && error.message || error) }; } })()`;
+ for (let attempt = 0; ; attempt++) {
+  let world = worlds.get(frame.id);
+  try {
+   if (!world || world.session !== frame.session) {
+    const made = await cdp('Page.createIsolatedWorld', { frameId: frame.id, worldName: 'openghost', grantUniveralAccess: false }, frame.session);
+    world = { context: made.executionContextId, session: frame.session };
+    worlds.set(frame.id, world);
+   }
+   const reply = await timed(cdp('Runtime.evaluate', { expression: code, contextId: world.context, awaitPromise: true, returnByValue: true }, frame.session), WAIT.call, 'The page is not responding');
+   if (reply.exceptionDetails) throw new Error(reply.exceptionDetails.exception?.description || reply.exceptionDetails.text);
+   const answer = reply.result?.value;
+   if (answer?.error) throw plain(answer.error);
+   return answer?.ok;
+  } catch (error) {
+   // A frame that went to another page has a new world: it is made again, once.
+   if (error.plain) throw error;
+   worlds.delete(frame.id);
+   if (attempt) throw plain(`The embedded frame could not be read: ${error.message}`);
+  }
+ }
+}
+
+// Moves what a frame's world measured (a point, a box, a picture's box) into the pixels of the page on screen.
+function shifted(value, at) {
+ if (!value || typeof value !== 'object') return value;
+ const out = { ...value };
+ if (Number.isFinite(out.x) && Number.isFinite(out.y)) {
+  out.x = Math.min(Math.max(out.x + at.left, at.left + 1), at.right - 1);
+  out.y = Math.min(Math.max(out.y + at.top, at.top + 1), at.bottom - 1);
+ }
+ for (const [key, by] of [['left', at.left], ['right', at.left], ['top', at.top], ['bottom', at.top]]) if (Number.isFinite(out[key])) out[key] += by;
+ if (out.rect) out.rect = shifted(out.rect, at);
+ return out;
+}
+
+// Calls a function of the page's script on element ref, in the world of the frame the number belongs to.
+async function onRef(found, ref, name, ...args) {
+ const number = Number(ref), expression = `__og.${name}(${[number, ...args].map(arg => JSON.stringify(arg)).join(', ')})`;
+ const k = Math.floor(number / FRAME_REFS);
+ if (!k || !found.frames) return world(found.guest, expression);
+ const id = [...found.frames.numbers].find(([, n]) => n === k)?.[0];
+ let frame = id && (await frameList(found)).find(item => item.id === id);
+ if (!frame) throw plain(`Element [${ref}] is no longer on the page. Take a new snapshot.`);
+ // A frame partly out of sight is brought in first, as a person would scroll to it.
+ if (name === 'point' && frame.owner) {
+  await cdpOf(found.guest)('DOM.scrollIntoViewIfNeeded', { backendNodeId: frame.owner.backendNodeId }, frame.owner.session).catch(() => {});
+  frame = (await frameList(found)).find(item => item.id === id) || frame;
+ }
+ return shifted(await frameWorld(found, frame, expression), frame.placed.inner);
+}
+
+// The snapshot with the frames of other sites read into it, each in the place of its iframe line.
+async function withFrames(found, snap, full) {
+ if (!snap.holes?.length) return snap;
+ let frames;
+ try { frames = await frameList(found); } catch { return snap; }
+ const near = (a, b) => Math.abs(a.left - b.left) < 3 && Math.abs(a.top - b.top) < 3 && Math.abs(a.width - b.width) < 3 && Math.abs(a.height - b.height) < 3;
+ const fill = async (part, at, depth) => {
+  for (const hole of [...(part.holes || [])].reverse()) {
+   const rect = { left: hole.rect.left + at.x, top: hole.rect.top + at.y, width: hole.rect.width, height: hole.rect.height };
+   const frame = frames.find(item => near(item.placed.border, rect));
+   if (!frame) continue;
+   let inner;
+   try { inner = await frameWorld(found, frame, `__og.snapshot(${JSON.stringify({ full, max: SNAPSHOT.frame })})`); } catch { continue; }
+   if (depth < FRAME_DEPTH) await fill(inner, { x: frame.placed.inner.left, y: frame.placed.inner.top }, depth + 1);
+   let host = '';
+   try { host = new URL(frame.url).host.replace(/^www\./, ''); } catch {}
+   const head = `${part.lines[hole.at].replace(' (content not readable)', '')}${host ? ` from ${host}` : ''}`;
+   part.lines[hole.at] = inner.lines.length ? [`${head}:`, ...inner.lines.map(line => `  ${line}`)].join('\n') : `${head} (empty)`;
+   Object.assign(part.refs, inner.refs);
+   part.skipped += inner.skipped;
+  }
+ };
+ await fill(snap, { x: 0, y: 0 }, 1);
+ return snap;
+}
+
+// Whether a field has the keyboard, in the page or in one of its frames.
+async function typingTo(found) {
+ const top = await world(found.guest, '__og.typing()').catch(() => 'field');
+ if (top !== 'frame') return top === 'field';
+ if (!found.frames) return true;
+ const frames = await frameList(found).catch(() => []);
+ for (const frame of frames) if (await frameWorld(found, frame, '__og.typing()').catch(() => '') === 'field') return true;
+ return false;
+}
+
+// Whether the text is on the page or in one of its frames.
+async function hasText(found, text) {
+ const expression = `__og.has(${JSON.stringify(text)})`;
+ if (await world(found.guest, expression).catch(() => false)) return true;
+ if (!found.frames) return false;
+ const frames = await frameList(found).catch(() => []);
+ for (const frame of frames) if (await frameWorld(found, frame, expression).catch(() => false)) return true;
+ return false;
+}
+
 async function settle(guest, loading = false) {
  await sleep(loading ? 250 : 120);
  if (guest.isLoading()) await timed(new Promise(resolve => guest.once('did-stop-loading', resolve)), WAIT.stop, 'slow').catch(() => {});
@@ -716,7 +922,9 @@ function percent(scroll) {
 }
 
 async function state(guest, { full = false, note = '' } = {}) {
- const snap = await world(guest, `__og.snapshot(${JSON.stringify({ full })})`);
+ const found = [...guests.values()].find(item => item.guest === guest);
+ let snap = await world(guest, `__og.snapshot(${JSON.stringify({ full })})`);
+ if (found?.frames) snap = await withFrames(found, snap, full);
  const { scroll } = snap, head = [];
  if (note) head.push(note);
  head.push(`Page: ${guest.getTitle() || '(no title)'}`, `URL: ${guest.getURL()}`);
@@ -732,11 +940,21 @@ async function state(guest, { full = false, note = '' } = {}) {
  return { text: `${head.join('\n')}\n\n${body}${tail.length ? `\n${tail.join('\n')}` : ''}`, refs: snap.refs, page: guest.getURL(), document: snap.document };
 }
 
+// How long the agent's pointer takes on screen to get from where it was to x, y, as a hand does (Fitts' law): longer
+// the farther, but not much longer for a long way, with the bringing back after a long move (browser-panel.js, point).
+function travel(from, x, y, zoom = 1) {
+ const dist = from ? Math.hypot(x - from.x, y - from.y) * zoom : 140;
+ if (dist < 3) return 0;
+ return Math.round(Math.min(POINTER.most, POINTER.base + POINTER.slope * Math.log2(dist / POINTER.size + 1)) + (dist > POINTER.long ? POINTER.fix : 0));
+}
+
 async function pointer(found, x, y) {
  const { guest, host } = found;
  if (host.isDestroyed()) return;
- host.send('browser:event', { type: 'pointer', id: guest.id, x, y });
- if (shown.open && (shown.id === guest.id || shown.ids?.includes(guest.id))) await sleep(WAIT.pointer);
+ const ms = travel(found.pointerAt, x, y, guest.getZoomFactor?.() || 1);
+ found.pointerAt = { x, y };
+ host.send('browser:event', { type: 'pointer', id: guest.id, x, y, ms });
+ if (shown.open && (shown.id === guest.id || shown.ids?.includes(guest.id))) await sleep(ms + WAIT.pointer);
 }
 
 async function mouse(guest, x, y, count = 1) {
@@ -835,7 +1053,8 @@ async function saveScreenshot(files, given, image, signal) {
  }
 }
 
-async function screenshot(guest, args, signal, files) {
+async function screenshot(tab, args, signal, files) {
+ const found = tab.guest ? tab : { guest: tab }, { guest } = found;
  // A private profile file cannot be laundered into an uploadable PNG by navigating to its file URL first.
  if (args.save_to !== undefined && /^file:/i.test(guest.getURL?.() || '')) {
   if (!files?.file) throw plain('This screenshot has no working folder');
@@ -844,10 +1063,14 @@ async function screenshot(guest, args, signal, files) {
  const cdp = (method, params = {}) => guest.debugger.sendCommand(method, params);
  const full = !!args.full_page, keys = ['x', 'y', 'width', 'height'], region = keys.some(key => args[key] !== undefined), reference = args.ref !== undefined;
  if ((full && (region || reference)) || (region && reference)) throw plain('Choose full_page, an element ref, or one viewport rectangle, not several at once');
- let crop = reference ? await world(guest, `__og.box(${Number(args.ref)})`) : region ? Object.fromEntries(keys.map(key => [key, Number(args[key])])) : null;
+ let crop = reference ? await onRef(found, args.ref, 'box') : region ? Object.fromEntries(keys.map(key => [key, Number(args[key])])) : null;
  if (crop && reference) crop = { x: crop.left, y: crop.top, width: crop.width, height: crop.height };
  const metrics = await cdp('Page.getLayoutMetrics'), view = metrics.cssVisualViewport, content = metrics.cssContentSize;
  const width = Math.round(view.clientWidth), height = Math.round(full ? Math.min(content.height, view.clientHeight * SHOT.tall) : view.clientHeight);
+ // A shot of the screen takes the page's scroll bars too, so it is as wide as the whole window of the page (innerWidth),
+ // not as its visible width: wider by the bar, and by much more in a page zoomed out to fit the panel. Measured by the
+ // visible width alone, every point read from the shot lands short of where it is, the more the further right and down.
+ const inner = Number(full ? 0 : await world(guest, 'innerWidth').catch(() => 0)), across = inner > 0 ? inner : width;
  if (!width || !height || width * height > 64000000) throw plain('The page is too large to capture safely: choose the viewport or a smaller region');
  if (crop && (!keys.every(key => Number.isFinite(crop[key])) || crop.x < 0 || crop.y < 0 || crop.width < 1 || crop.height < 1 || crop.x + crop.width > view.clientWidth + .5 || crop.y + crop.height > view.clientHeight + .5)) throw plain('The screenshot rectangle must be inside the visible page; scroll the element into view first');
  const params = { format: 'png' };
@@ -858,13 +1081,13 @@ async function screenshot(guest, args, signal, files) {
  let image = nativeImage.createFromBuffer(Buffer.from(shot.data, 'base64'));
  if (image.isEmpty()) throw plain('The browser page returned an empty screenshot; wait for it to draw and try again');
  if (crop) {
-  const size = image.getSize(), k = size.width / view.clientWidth;
+  const size = image.getSize(), k = size.width / across;
   const x = Math.round(crop.x * k), y = Math.round(crop.y * k);
   image = image.crop({ x, y, width: Math.min(size.width - x, Math.round(crop.width * k)), height: Math.min(size.height - y, Math.round(crop.height * k)) });
  }
  // Export the original native PNG, not the smaller JPEG preview the model receives. Never resize the page or app.
  const saved = args.save_to !== undefined ? await saveScreenshot(files, args.save_to, image, signal) : null;
- const pageWidth = crop ? crop.width : width, target = Math.min(pageWidth, SHOT.max);
+ const pageWidth = crop ? crop.width : across, target = Math.min(pageWidth, SHOT.max);
  if (image.getSize().width !== target) image = image.resize({ width: target, quality: 'good' });
  const size = image.getSize();
  return { image: `data:image/jpeg;base64,${image.toJPEG(SHOT.quality).toString('base64')}`, width: size.width, height: size.height, scale: size.width / pageWidth, origin: { x: crop?.x || 0, y: crop?.y || 0 }, saved };
@@ -873,12 +1096,13 @@ async function screenshot(guest, args, signal, files) {
 // A picture for the agent to show the user (show_pictures), kept for its chat: the picture of element ref, the picture
 // in a part of the screen (x, y, width, height in page pixels, read from a screenshot), or the whole screen. A picture
 // with an address is fetched at the largest size the page offers; anything else is cut from a shot of the screen.
-async function picture(guest, args, signal) {
+async function picture(tab, args, signal) {
+ const found = tab.guest ? tab : { guest: tab }, { guest } = found;
  const chat = String(args.chat || ''), page = guest.getURL(), title = guest.getTitle();
  const given = key => args[key] !== undefined && args[key] !== null && args[key] !== '';
  const part = ['x', 'y', 'width', 'height'].every(key => given(key) && Number.isFinite(Number(args[key]))) && Number(args.width) > 0 && Number(args.height) > 0;
  let seen = null;
- if (given('ref')) seen = await world(guest, `__og.image(${Number(args.ref)})`);
+ if (given('ref')) seen = await onRef(found, args.ref, 'image');
  else if (part) seen = await world(guest, `__og.imageIn(${['x', 'y', 'width', 'height'].map(key => Number(args[key])).join(', ')})`);
  if (seen?.src && /^(https?|data):/i.test(seen.src)) {
   const kept = await Pictures.fromWeb(chat, seen.src, page, signal, !!args.sealed).catch(() => null);
@@ -890,7 +1114,7 @@ async function picture(guest, args, signal) {
  let image = nativeImage.createFromBuffer(Buffer.from(shot.data, 'base64'));
  const rect = seen?.rect || null;
  if (rect) {
-  const k = image.getSize().width / view.clientWidth;
+  const inner = Number(await world(guest, 'innerWidth').catch(() => 0)), k = image.getSize().width / (inner > 0 ? inner : view.clientWidth);
   const left = Math.max(0, rect.left), top = Math.max(0, rect.top), right = Math.min(view.clientWidth, rect.left + rect.width), bottom = Math.min(view.clientHeight, rect.top + rect.height);
   if (right - left < 4 || bottom - top < 4) throw plain('That is not on the screen now: scroll it into view first');
   image = image.crop({ x: Math.round(left * k), y: Math.round(top * k), width: Math.round((right - left) * k), height: Math.round((bottom - top) * k) });
@@ -947,6 +1171,7 @@ async function uploadFiles(found, args, signal, files) {
  const reference = args.ref !== undefined && args.ref !== null;
  if (reference) {
   if (!Number.isInteger(Number(args.ref)) || Number(args.ref) < 1) throw plain('Pass a file input ref from the latest snapshot');
+  if (Number(args.ref) >= FRAME_REFS) throw plain('This file input is in an embedded frame of another site: click its attachment button, then use browser_upload without ref for the file chooser it opens.');
   marker = crypto.randomBytes(12).toString('hex');
   try {
    await world(guest, `__og.uploadTarget(${Number(args.ref)}, ${JSON.stringify(marker)})`);
@@ -1035,7 +1260,7 @@ async function act(found, name, args, signal, files) {
   case 'browser_click': {
    let x = Number(args.x), y = Number(args.y), note = '';
    if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
-    const spot = await world(guest, `__og.point(${Number(args.ref)})`);
+    const spot = await onRef(found, args.ref, 'point');
     ({ x, y } = spot);
     if (spot.covered) note = `Note: at that spot [${args.ref}] is covered by ${spot.covered}, the click went there.`;
     else if (spot.picker) note = `Note: [${args.ref}] is the browser's own ${spot.picker} field; its picker is not part of the page and never shows in a snapshot. Set it with browser_type [${args.ref}] and the ${spot.picker} as ${PICKED[spot.picker]}.`;
@@ -1054,18 +1279,18 @@ async function act(found, name, args, signal, files) {
    const text = String(args.text ?? ''), ref = Number(args.ref), given = args.ref !== undefined && args.ref !== null && args.ref !== '';
    let before = null, note = '';
    if (given) {
-    if (await world(guest, `__og.isFile(${ref})`)) throw plain('A local file cannot be typed into this input. Use browser_upload with local file paths.');
-    const kind = await world(guest, `__og.field(${ref})`);
+    if (await onRef(found, ref, 'isFile')) throw plain('A local file cannot be typed into this input. Use browser_upload with local file paths.');
+    const kind = await onRef(found, ref, 'field');
     // The browser's own date, time or colour field takes no keys: its value is set at once.
     if (kind.picker) {
      check();
-     const value = await world(guest, `__og.fill(${ref}, ${JSON.stringify(text)})`);
+     const value = await onRef(found, ref, 'fill', text);
      if (args.submit) { await sleep(60); check(); await press(guest, 'Enter'); }
      done();
      await settle(guest);
      return state(guest, { note: `Set [${args.ref}] to "${value}".` });
     }
-    const spot = await world(guest, `__og.point(${ref})`);
+    const spot = await onRef(found, ref, 'point');
     check();
     await pointer(found, spot.x, spot.y);
     check();
@@ -1073,12 +1298,15 @@ async function act(found, name, args, signal, files) {
     await sleep(80);
     // Read-only after the click too (some fields open up on focus): the site fills it from a picker of its own, which
     // the click may have opened.
-    before = await world(guest, `__og.field(${ref})`);
+    before = await onRef(found, ref, 'field');
     if (before.readonly && text) {
      done();
      await settle(guest);
      return state(guest, { note: `Note: [${args.ref}] is read-only, so nothing was typed: the site fills it from a picker of its own. It was clicked: if a calendar or a list opened, choose in it; if not, click the button beside the field.` });
     }
+   }
+   else if (!await typingTo(found)) {
+    throw plain('Nothing was typed: no field has the keyboard (Control+A would select the whole page). Pass ref, the [number] of the field from the latest snapshot; a field in an embedded frame has its number there too.');
    }
    check();
    if (args.clear !== false) {
@@ -1090,13 +1318,13 @@ async function act(found, name, args, signal, files) {
    // A field that refused the text put in at once (an input mask) gets it key by key.
    if (before?.focused && text) {
     await sleep(60);
-    const after = await world(guest, `__og.field(${ref})`).catch(() => null);
+    const after = await onRef(found, ref, 'field').catch(() => null);
     if (after?.focused && after.value === before.value && after.value.trim() !== text.trim()) {
      check();
      if (args.clear !== false) { await press(guest, 'Control+A'); await press(guest, 'Delete'); }
      await typeKeys(guest, text, check);
      await sleep(60);
-     const keyed = await world(guest, `__og.field(${ref})`).catch(() => null);
+     const keyed = await onRef(found, ref, 'field').catch(() => null);
      if (keyed && keyed.value === before.value) note = `Note: [${args.ref}] did not take the text, neither at once nor key by key.`;
     }
    }
@@ -1106,7 +1334,7 @@ async function act(found, name, args, signal, files) {
    return state(guest, { note });
   }
   case 'browser_select': {
-   const chosen = await world(guest, `__og.choose(${Number(args.ref)}, ${JSON.stringify(String(args.option ?? ''))})`);
+   const chosen = await onRef(found, args.ref, 'choose', String(args.option ?? ''));
    done();
    await settle(guest);
    return state(guest, { note: `Chose "${chosen}".` });
@@ -1120,7 +1348,7 @@ async function act(found, name, args, signal, files) {
   }
   case 'browser_scroll': {
    if (args.ref !== undefined && args.ref !== null && args.ref !== '') {
-    await world(guest, `__og.reveal(${Number(args.ref)})`);
+    await onRef(found, args.ref, 'reveal');
    } else {
     const metrics = await guest.debugger.sendCommand('Page.getLayoutMetrics');
     const view = metrics.cssVisualViewport, amount = Math.min(10, Math.max(0.1, Number(args.amount) || 0.8));
@@ -1139,11 +1367,11 @@ async function act(found, name, args, signal, files) {
    catch (error) { check();return { text: `${note}\nThe file selection was accepted, but the updated page could not be read (${error.message}). Take a fresh snapshot before any retry; the attachment may already be present.` }; }
   }
   case 'browser_picture':
-   return picture(guest, args, signal);
+   return picture(found, args, signal);
   case 'browser_photos':
    return photosOf(guest, args, signal);
   case 'browser_screenshot': {
-   const shot = await screenshot(guest, args, signal, files);
+   const shot = await screenshot(found, args, signal, files);
    const scale = Math.abs(shot.scale - 1) < 0.01 ? 'one screenshot pixel is one page pixel' : `divide screenshot pixels by ${shot.scale.toFixed(3)}`;
    const offset = shot.origin.x || shot.origin.y ? `, then add x ${shot.origin.x}, y ${shot.origin.y} for browser_click` : ', so x and y for browser_click follow that scale';
    const saved = shot.saved ? `\nSaved PNG: ${shot.saved.path} (${shot.saved.width}×${shot.saved.height}, ${shot.saved.bytes} bytes). This is a normal unencrypted file, ready for a browser attachment.` : '';
@@ -1160,7 +1388,7 @@ async function act(found, name, args, signal, files) {
    if (args.text) {
     while (Date.now() < until) {
      check();
-     if (await world(guest, `__og.has(${JSON.stringify(String(args.text))})`).catch(() => false)) { found = true; break; }
+     if (await hasText(found, String(args.text))) { found = true; break; }
      await sleep(400);
     }
    } else {

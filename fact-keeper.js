@@ -7,8 +7,11 @@
 // The model sees the exchange since the last look, the record and the memory as they stand, and answers with what
 // to add or change; the app writes it the way the agent's own tools would.
 const KEEP = {
- // What goes to the model of the exchange, of the record and of the memory, in characters: the latest is kept.
- exchange: 9000,
+ // The exchange goes to the model whole: the user's words and the reply in full, never cut. One look carries at most
+ // `part` characters of it; a longer one is looked at in parts, one after another, nothing left out.
+ part: 200000,
+ // Of the record and of the memory, in characters: the latest is kept. The record's size is the chat's own (a Ghost
+ // Max chat holds more, chat.js recordLimit); this is the size of a chat without it.
  record: 40000,
  memory: 4000,
  // Of one tool call: its arguments and its result.
@@ -72,8 +75,23 @@ function exchange(entries) {
   }
   if (entry.content?.trim()) lines.push(`Assistant: ${entry.content.trim()}`);
  }
- const all = lines.join('\n');
- return all.length > KEEP.exchange ? `[…]\n${all.slice(-KEEP.exchange)}` : all;
+ return lines.join('\n');
+}
+
+// The exchange in parts of at most KEEP.part characters, in order and whole: lines are kept together, and only a line
+// longer than a part is split.
+function pieces(said) {
+ const out = [];
+ let now = '';
+ for (const line of String(said || '').split('\n')) {
+  for (let at = 0; at < Math.max(1, line.length); at += KEEP.part) {
+   const slice = line.slice(at, at + KEEP.part);
+   if (now && now.length + slice.length + 1 > KEEP.part) { out.push(now); now = ''; }
+   now = now ? `${now}\n${slice}` : slice;
+  }
+ }
+ if (now || !out.length) out.push(now);
+ return out;
 }
 
 // Whether the agent itself changed the memory in the exchange: then the memory is its own doing, and the look leaves it,
@@ -89,8 +107,8 @@ function worth(entries) {
  return words >= KEEP.words || worked;
 }
 
-function messages({ exchange: said, record = '', memory = '', memoryOn = true }) {
- const brief = record.length > KEEP.record ? `[…]\n${record.slice(-KEEP.record)}` : record;
+function messages({ exchange: said, record = '', memory = '', memoryOn = true, most = KEEP.record }) {
+ const brief = record.length > most ? `[…]\n${record.slice(-most)}` : record;
  const kept = memory.length > KEEP.memory ? memory.slice(0, KEEP.memory) : memory;
  const parts = [
   `The chat's record now:\n${brief.trim() || '(empty)'}`,
@@ -121,5 +139,5 @@ function verdict(answer) {
  return out;
 }
 
-window.FactKeeper = { KEEP, SYSTEM, exchange, worth, touched, messages, verdict };
+window.FactKeeper = { KEEP, SYSTEM, exchange, pieces, worth, touched, messages, verdict };
 })();

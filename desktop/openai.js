@@ -270,7 +270,7 @@ async function answer(request, context) {
  const say = delta => { result.content += delta; onEvent({ type: 'content', delta }); };
  for await (const event of events(response.body, alive)) {
   if ((event.type === 'response.output_item.added' || event.type === 'response.output_item.done') && ['function_call', 'reasoning'].includes(event.item?.type)
-   || event.type === 'response.function_call_arguments.delta') onEvent({ type: 'activity' });
+   || event.type === 'response.function_call_arguments.delta') onEvent({ type: 'activity', calling: event.type === 'response.function_call_arguments.delta' || event.item?.type === 'function_call' });
   if (event.type === 'response.output_text.delta') {
    // Separate message items read as separate paragraphs.
    if (textItem && event.item_id !== textItem && result.content) say('\n\n');

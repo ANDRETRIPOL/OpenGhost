@@ -31,7 +31,7 @@ const HELPERS = { most: 3, wait: 600, longest: 1800, log: 6, compact: 0.82, full
 // Calm tones a helper's ghost is drawn in, one each, in the order they start.
 const TONES = ['120, 178, 255', '186, 150, 255', '110, 214, 168', '240, 188, 110'];
 const OWN = new Set(['spawn_agent', 'wait_agent', 'send_message', 'interrupt_agent', 'list_agents']);
-const KEPT = new Set([...OWN, 'ask_user', 'plan', 'notepad', 'routine', 'memory', 'record', 'show_pictures']);
+const KEPT = new Set([...OWN, 'ask_user', 'plan', 'notepad', 'routine', 'calendar', 'memory', 'record', 'show_pictures']);
 // Who stopped a helper: the user (End, or its Stop in the island), the agent (interrupt_agent), or the app closing.
 // Only a helper that finished by itself, or that the agent stopped, starts a turn of the agent's: one the user stopped
 // waits for the user's next word.
@@ -588,19 +588,20 @@ proto.abort = function (conv) {
  this.stopHelpers(conv);
 };
 
-// End with the chat's agent not at work stops the helpers that still are.
+// End with the chat's agent not at work stops the helpers that still are, and its commands left in the background.
 const stop = proto.stop;
 proto.stop = function () {
  const conv = this.active;
  if (conv?.turn) return stop.call(this);
+ this.stopJobs?.(conv);
  if (working(conv).length) this.stopHelpers(conv);
 };
 
 // The chat is at work while its agent or any of its helpers is.
-Object.defineProperty(proto, 'working', { configurable: true, get() { return !!this.active?.turn || working(this.active).length > 0; } });
+Object.defineProperty(proto, 'working', { configurable: true, get() { return !!this.active?.turn || working(this.active).length > 0 || this.jobsRunning?.(this.active); } });
 const isBusy = proto.isBusy;
 proto.isBusy = function (id) {
- return isBusy.call(this, id) || working(this.conversations.get(id)).length > 0;
+ return isBusy.call(this, id) || working(this.conversations.get(id)).length > 0 || this.jobsRunning?.(this.conversations.get(id));
 };
 
 // When the chat's turn ends, its helpers go on. Stopped helpers whose story the agent read in it and did not send on

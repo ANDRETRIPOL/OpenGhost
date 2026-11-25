@@ -3,8 +3,8 @@
 
 // A message sent while the agent is busy waits for it to finish its step. Until the agent takes the message, its bubble is
 // an outline of dashes walking round it; once taken, the bubble's colour runs across it and it is a message like any other.
-// While it waits the agent has not read it, so it is still the user's to rewrite or take away: two small buttons stand
-// before it for that, and go the moment the agent takes it.
+// While it waits the agent has not read it, so it is still the user's to send at once or to take back into the field:
+// two small buttons stand under it for that, and go the moment the agent takes it.
 const DASH = { step: 13, share: 0.42, width: 2 };
 const FILL = { duration: 460, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' };
 const FADE = { duration: 260, easing: 'ease', fill: 'forwards' };
@@ -18,7 +18,7 @@ const PULL = { fade: 200, scale: 0.94, sink: 12, roomAt: 80, dustAt: 300, room: 
 const SVG = 'http://www.w3.org/2000/svg';
 const ICON = body => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 const TOOLS = [
- ['edit', 'queued.edit', ICON('<path d="M3.1 12.9l.75-3 6.7-6.7a1.6 1.6 0 0 1 2.25 0 1.6 1.6 0 0 1 0 2.25l-6.7 6.7z"/><path d="M9.5 4.25l2.25 2.25"/>')],
+ ['now', 'queued.now', ICON('<path d="M8 12.75V3.25M3.9 7.35L8 3.25l4.1 4.1"/>')],
  ['remove', 'queued.remove', ICON('<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>')],
 ];
 
@@ -50,16 +50,22 @@ function tools(message, actions) {
   button.type = 'button';
   button.className = `queued-tool is-${name}`;
   button.innerHTML = icon;
-  button.title = I18n.t(label);
   button.setAttribute('aria-label', I18n.t(label));
-  button.addEventListener('click', () => actions[name]?.());
+  // Send now names itself under the pointer, beside its arrow; the cross has its tip.
+  if (name === 'now') button.insertAdjacentHTML('beforeend', `<span class="queued-tool-label" aria-hidden="true"><span>${I18n.t('queued.nowLabel')}</span></span>`);
+  else button.title = I18n.t(label);
+  button.addEventListener('click', () => {
+   // Sent now, the message is on its way: the button has done its work and steps back.
+   if (name === 'now') { button.inert = true; button.classList.add('is-spent'); }
+   actions[name]?.();
+  });
   row.append(button);
  }
  message.append(row);
  return row;
 }
 
-// actions: { edit, remove }, what the buttons before a waiting message do; without them it has none.
+// actions: { now, remove }, what the buttons before a waiting message do; without them it has none.
 function put(message, actions = null) {
  const box = message.querySelector('.message-bubble');
  message.classList.add('is-queued');

@@ -165,8 +165,16 @@ function fromFields(body) {
   if (!m) return null;
   const depth = m[1].length;
   while (stack.length > 1 && stack.at(-1).depth >= depth) stack.pop();
-  const at = stack.at(-1).at;
-  if (m[3] === undefined) { at[m[2]] = {}; stack.push({ depth, at: at[m[2]] }); continue; }
+  // A name that comes again under a name alone begins the next item of a list (the phases of a pitch, each with its
+  // own name and words), instead of writing over the first one.
+  const frame = stack.at(-1);
+  if (frame.holder && Object.hasOwn(frame.at, m[2])) {
+   const list = Array.isArray(frame.holder[frame.key]) ? frame.holder[frame.key] : (frame.holder[frame.key] = [frame.at]);
+   frame.at = {};
+   list.push(frame.at);
+  }
+  const at = frame.at;
+  if (m[3] === undefined) { at[m[2]] = {}; stack.push({ depth, at: at[m[2]], holder: at, key: m[2] }); continue; }
   let value = m[3].trim();
   try { value = JSON.parse(value); } catch {}
   at[m[2]] = value;
@@ -1051,5 +1059,7 @@ function make(kind, data, fresh = false) {
  return el;
 }
 
-window.Blocks = { get KINDS() { return Object.keys(KINDS); }, make, scan, rewrite, known, parse, fromFields, keep, settle, fenceOf, Alarms };
+// A kind from another file (blocks-pitch.js): its build gets the same tools as the kinds here.
+const add = (kind, build) => { KINDS[kind] = build; };
+window.Blocks = { get KINDS() { return Object.keys(KINDS); }, add, make, scan, rewrite, known, parse, fromFields, keep, settle, fenceOf, Alarms };
 })();

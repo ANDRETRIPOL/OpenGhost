@@ -9,6 +9,18 @@
 // A version's entry: `features` with a picture of each (whats-new/<version>/<picture>-<theme>.png), `changes` with the
 // sign of each. Their words are in the languages' files, as news.<version>.<key>.title and .text.
 const RELEASES = {
+ '1.5.8': {
+  features: [
+   { key: 'calendar', picture: 'calendar' },
+   { key: 'notes', picture: 'notes' },
+   { key: 'tactics', picture: 'tactics' },
+  ],
+  changes: [
+   { key: 'sendnow', icon: 'agent' },
+   { key: 'browser', icon: 'language' },
+   { key: 'fixes', icon: 'fix' },
+  ],
+ },
  '1.5.7': {
   features: [
    { key: 'rules', picture: 'rules' },

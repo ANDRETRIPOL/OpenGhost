@@ -78,6 +78,14 @@ const TOOL_NOTES = {
  declined: 'The user declined this action. Don\'t try it again another way: say what you wanted to do and why, or choose a different approach.',
  message: 'The user didn\'t approve this and sent a new message instead, read it next.',
  withdrawn: 'This note comes from the app, not from the user: the user took that message back before you could read it, so there is no new message. The step it stood in for was not done: ask the user how to go on before you try it again.',
+ // The user sent a waiting message now (Send now): the step under way is cut short for it.
+ cut: 'Stopped halfway: the user sent you a message and asked you to read it at once, so this action was cut short and may be half done. Read the message next, and check what this action left before you count on it.',
+ notDone: 'Not done: the user sent you a message and asked you to read it at once, so this action was not started. Read the message next.',
+ cutReply: 'This note comes from the app, not from the user: the user sent you a message and asked you to read it at once, so your answer was stopped before you wrote it. Read the message next.',
+ // A command under way is not cut for it: it goes on in the background, and the agent is told how it ended.
+ background: 'Still running, in the background now: the user sent you a message and asked you to read it at once, so this command goes on by itself while you read it. Read the message next. Do not run the command again, and do not wait or look for it: once it ends, a note from the app tells you how it ended, and if you have finished by then, the app brings you back to it.',
+ backgroundDone: 'This note comes from the app, not from the user: a command you left running in the background has ended. The command:',
+ backgroundStopped: 'This note comes from the app, not from the user: the user pressed End, which also stopped a command you had left running in the background. It did not finish. The command:',
  cancelled: 'Cancelled: the user stopped the agent.',
  reconnect: 'This note comes from the app, not from the user: the last response was interrupted by a temporary provider failure. Continue the user\'s task from the saved progress, without restarting or repeating text already shown. Completed tool calls and their results above remain valid: do not run them again just because the response was interrupted. Incomplete tool calls from the failed response were discarded and were not executed; request them afresh only if still needed. Continue working without asking the user to press Retry.',
  images: 'This message comes from the app, not from the user: the pictures your last tool calls returned, in order.',
@@ -116,11 +124,18 @@ const TOOL_NOTES = {
  planBack: list => `This note comes from the app, not from the user: you ended your turn, but your plan still has open steps: ${list}. Go on with them now. End only if the user's latest message put this work aside or the next step needs them: then call plan with action wait and say why, or drop the steps they no longer want, with the reason.`,
 };
 // Answers that mean a tool did nothing: the user said no, stopped the agent or wrote instead. They do no step's work.
-const UNDONE = new Set([TOOL_NOTES.declined, TOOL_NOTES.cancelled, TOOL_NOTES.message, TOOL_NOTES.browserMessage]);
+const UNDONE = new Set([TOOL_NOTES.declined, TOOL_NOTES.cancelled, TOOL_NOTES.message, TOOL_NOTES.browserMessage, TOOL_NOTES.cut, TOOL_NOTES.notDone, TOOL_NOTES.background]);
+// The notes that tell the agent a message waits for it: a step put off or cut short for one.
+// What a message sent now may cut short: reading from the internet and steps in the browser, as Claude Code does; a
+// command goes on in the background instead (Chat.keepRunning). Every other step (a file written, a note, the plan) is
+// quick and changes something: it is let finish, so what it did is not lost and the agent learns its real result.
+const CUT_FOR_MESSAGE = new Set(['web_search', 'fetch_url', 'find_media']);
+const cuttable = name => !!name && (name === AgentTools.shell || name.startsWith('browser_') || CUT_FOR_MESSAGE.has(name));
+const FOR_MESSAGE = new Set([TOOL_NOTES.message, TOOL_NOTES.browserMessage, TOOL_NOTES.cut, TOOL_NOTES.notDone, TOOL_NOTES.background]);
 // The user's rules (rules.js) at the moments of the work. What they tell the agent comes as notes of the app, only when a
 // rule acted: a chat with no rules has nothing of it. The app's own tools (the notepad, memory, the plan...) are no steps
 // a rule watches: the plan's steps have moments of their own (TaskCreated, TaskCompleted).
-const RULE_FREE = new Set(['notepad', 'routine', 'memory', 'record', 'plan', 'ask_user', 'skill']);
+const RULE_FREE = new Set(['notepad', 'routine', 'calendar', 'memory', 'record', 'plan', 'ask_user', 'skill']);
 const RULE_ANSWER = 400;
 const ruleNames = names => (names.length ? names : ['(unnamed)']).map(name => `“${name}”`).join(', ');
 const RULE_NOTES = {
@@ -268,14 +283,19 @@ const PICTURES = {
 // The user's notepad beside a chat (notepad.js), and what the agent's notepad tool answers.
 const PAD = {
  max: 1000,
+ // A note written in its page may be longer; the agent reads the first `max` characters of each.
+ page: 8000,
  reminded: ' (you have brought it up already)',
  shown: text => `The user now sees the note in the chat: "${text}". Ask them in one short sentence whether to do it now, and do nothing about it until they say yes.`,
  ticked: text => `Ticked off: "${text}".`,
  noted: (id, text) => `Written down as ${id}: "${text}". The user sees it in the chat and in their notepad, so there is no need to repeat it.`,
+ // A note in a pill in the chat: its lines in a row, without a checklist's boxes or a list's dashes.
+ pill: text => String(text || '').split('\n').map(line => line.replace(/^\s*(?:\[[ x]\]|-)\s+/, '').trim()).filter(Boolean).join(' · '),
+ rewritten: (id, text) => `${id} now reads: "${text}". The user sees it in the chat and in their notepad, so there is no need to repeat it.`,
  none: id => `Error: there is no note ${id || 'with that id'}.`,
  done: 'Error: that note is ticked off already.',
  empty: 'Error: text is empty.',
- action: 'Error: action must be remind, done or add.',
+ action: 'Error: action must be remind, done, add or edit.',
  elsewhere: 'Error: the notepad belongs to the main conversation. From the mini chat it can only be read.',
 };
 // What the agent's routine tool answers, and the message that gives it a routine when one is due (routines.js).
@@ -448,7 +468,7 @@ const FORMAT_GUIDE = [
  '  ```',
  '  Keep labels short, wrap labels with punctuation in double quotes, never add style, classDef or colors, and never draw diagrams with ASCII art.',
  '- Live widgets and drawings work together and never repeat each other. A widget is for data the user works with: something to change, tick, time or pick. A drawing explains: how a thing works, what it is made of, how it changes. One reply may hold both, each showing something different; the same numbers never appear twice, once in a widget and again in a drawing.',
- '  These requests get their widget in the reply, every time: a forecast: weather; set a timer: timer; a stopwatch: stopwatch; how long until a date: countdown; the time in other cities, a call across time zones: clocks; convert money: currency; convert units: units; split a bill: split; options found with prices to choose from (cars, rooms, flats, goods, tickets): compare; the price of one product: product; the budget of a trip or an event: budget; the numbers of a loan or a mortgage: loan; tariffs, plans or subscriptions with prices (a service, a phone, a cloud, a gym): plans, never a table, for the country of the user as their language and time zone show it, saying which, never asking it first; a drive or a ride between two places, or how far one place is from another, even asked plainly (by road: how long, how far, the fuel; the straight line only in the words): route; a flight: flight; a parcel: parcel; departures from a stop: transit; a recipe: recipe (its ingredients, scaled by servings; the steps as text or a drawing); the food of a day: nutrition; a workout: workout; readings over days: vitals; the price chart of a currency, a share or a coin: market; spending: spending; a list to pack or to do: checklist; a build or a test run: build; help to choose between places, dates or options: compare when each has a price or numbers, otherwise poll, with what speaks for each in the words.',
+ '  These requests get their widget in the reply, every time: a forecast: weather; set a timer: timer; a stopwatch: stopwatch; how long until a date: countdown; the time in other cities, a call across time zones: clocks; convert money: currency; convert units: units; split a bill: split; options found with prices to choose from (cars, rooms, flats, goods, tickets): compare; the price of one product: product; the budget of a trip or an event: budget; the numbers of a loan or a mortgage: loan; tariffs, plans or subscriptions with prices (a service, a phone, a cloud, a gym): plans, never a table, for the country of the user as their language and time zone show it, saying which, never asking it first; a drive or a ride between two places, or how far one place is from another, even asked plainly (by road: how long, how far, the fuel; the straight line only in the words): route; a flight: flight; a parcel: parcel; departures from a stop: transit; a recipe: recipe (its ingredients, scaled by servings; the steps as text or a drawing); the food of a day: nutrition; a workout: workout; readings over days: vitals; the price chart of a currency, a share or a coin: market; spending: spending; a list to pack or to do: checklist; a build or a test run: build; football, ice hockey, basketball or rugby tactics (a formation, a set play like a forecheck, a pick-and-roll or a lineout, how to play a role, a situation the user describes, a picture of a match or of a game\'s lineup screen): pitch; players compared by their numbers: players; help to choose between places, dates or options: compare when each has a price or numbers, otherwise poll, with what speaks for each in the words.',
  '  These widgets are not the drawing kinds of the same names: a recipe, a route, a checklist or a day of food the user will use goes in the widget, and a drawing shows only what the widget does not (the steps of a dish, how a long trip is laid out). Next to its widget the drawing of the same name is never drawn: a recipe widget, then its steps in a steps drawing with no ingredient in it; a route widget, then no route drawing; and no number a widget shows (a payment, a total, a rate, a price) is put again in metrics, a table, a chart or a list. A question that only asks to explain (how a mortgage works, why the interest adds up) gets drawings and no widget. Bookkeeping and tax (an invoice, a bank statement, entries, a reconciliation, a trial balance, a report, a tax, debts by age) are the bookkeeping drawings, never a widget: budget, spending and loan are for a person\'s own money.',
  '  A widget is shown once: a later message of the same turn (after a check, a plan step or a tool) never shows it again, it only says what changed. A timer, a stopwatch or a countdown is its widget and nothing else: never wait the time out with a command, a tool or a routine; the app keeps the widget\'s time and rings at its end, with the chat closed too. A widget that counts (loan, split, budget, currency, units) does its own sums from the numbers you give it: do not count them again in the words, where a slip would disagree with it; the words say what the result means for the user. Never invent a widget\'s data: use what you found or were given, and put where it comes from and when in "source". Labels in the language of the answer. A forecast with every hour, no key needed: geocoding-api.open-meteo.com/v1/search?name=<city>&count=1 gives latitude and longitude, then api.open-meteo.com/v1/forecast?latitude=<lat>&longitude=<lon>&hourly=temperature_2m,weather_code,wind_speed_10m&daily=sunrise,sunset&timezone=auto&forecast_days=3, with "source": "Open-Meteo.com".',
  '  Write it as a fenced widget block holding one JSON object with "kind" and its fields, closed before a tool call. The fence of a widget is always widget, never mermaid: a widget\'s fields in a mermaid block draw nothing. Every kind may add "source", "actions": [{"label","say"}] (buttons that send "say" to you as the user\'s next message) and "links": [{"label","url"}] (opened in the built-in browser).',
@@ -464,6 +484,10 @@ const FORMAT_GUIDE = [
  '  route: from, to, fromLabel, toLabel, depart "H:MM", minutes, km, roundTrip, fuel {per100, price, currency}. flight: airline, number, from {code, city, time}, to {code, city, time}, status, state air|late|landed, progress 0-1, gate, terminal, baggage, note.',
  '  parcel: carrier, number, eta, steps [{label, place, at, done}]. transit: title, meta, lines [{name, to, times ["H:MM"]}]. recipe: title, meta, servings, ingredients [{name, amount, unit}]. nutrition: title, goal, meals [{name, kcal, protein, fat, carbs, done}]. workout: title, rest, exercises [{name, sets, reps, weight}].',
  '  vitals: title, unit, normal [low, high], series {"7 days": [{at, v, v2}]}. market: name, symbol, currency, series {"1D": [values], "1W": [...]} (shown only, never advice; it is the price chart, so no chart of the same prices goes with it). spending: title, meta, currency, budget, categories [{name, amount}] (it is the chart of the shares, so no pie or bars of them goes with it). checklist: title, items [{text, done, note}]. build: title, branch, steps [{name, state ok|fail|run|wait, time, log}]. poll: question, options [{text, note}], choosePrefix.',
+ '  pitch (a tactics board the user plays with): title, formation (ours) and against (theirs), like 4-4-2, 4-3-3, 4-2-3-1, 4-1-2-1-2, 4-1-4-1, 3-4-1-2, 3-4-3, 3-5-2, 5-3-2 or any other adding up to 10; you (the user\'s role); phases [{name (a word or two), say (one sentence), ball, us, them, zone, hole, gaps, passes, runs, steps}]. The pitch is 105×68 m: x from our goal line (0) to theirs (105), y from our left touchline (0) to our right one (68); a place is [x, y]. The app stands both teams in their formations, so us {role: [x, y]} and them {...} hold only who stands elsewhere in that phase. Roles: GK LB LCB CB RCB RB LWB RWB CDM LDM RDM LCM CM RCM LM RM LAM CAM RAM LW RW LF RF CF ST LS RS; theirs are named from their own side, so their RB plays on our left. ball: "LCM" (ours), "them:RM" or [x, y]. zone [x1, y1, x2, y2]: the area to hold; hole: a space left open (red). gaps [[role, role, min m, max m]]. passes [[from, to: a role, [x, y], or "them:RB" to close him down]] in the order to look for them ("them:CM" as from: a pass of theirs); runs [[role, [x, y]]] ("them:RB" for theirs). steps [{say, us, them, pass [from, to], ball}] play one after another, each moving only who moves. Every phase shows its play: passes, runs or steps, never only where players stand.',
+ '  sport: "hockey", "basketball" or "rugby", always written for them (left out it is football), the same fields in metres along the attack. Hockey: a 60×30 rink, our goal line at 4, theirs at 56, blue lines at 21.7 and 38.3, so their zone, where we forecheck and attack, is x 38.3 to 56; roles G LD RD LW C RW; formations 1-2-2, 2-1-2, 1-3-1, box+1. Basketball: a 28×15 court, we attack the basket at [26.4, 7.5] and defend the one at [1.6, 7.5]; roles PG SG SF PF C; formations 5-out, 4-out-1-in, horns, zone-2-3, zone-3-2, zone-1-3-1, man. Rugby union: 100×70, we score over their try line at x 100 (in-goals to -8 and 108), 22 m lines at 22 and 78; roles are the shirt numbers "1" to "15"; formations attack, defence, scrum, lineout. The app finds hockey offside at the blue line, rugby players ahead of the ball and forward passes, a basketball shot worth two or three, open or guarded.',
+ '  A situation the user describes, or a picture of a match or of a game\'s lineup screen, is a pitch too: put every player told or seen, and no other, in top-level us and them as {role: {at: [x, y], name, rating}}, where the words or the picture put them (a picture attacking upward: its bottom edge is our goal line, its left edge our left touchline; a lineup screen shows ours only), with no formation unless one is named, then phases for what can happen next. Theirs use the same x and y as ours. The app finds offside, marks a pass with a man in its way, measures the gaps and lets the user drag players and play the steps, so the words never list the positions again. When the user writes that they moved players on the pitch, answer with the pitch again, the players where they put them.',
+ '  players (players compared by their numbers): title, players [{name, meta (club, position), rating (overall, out of 100, only when there is one), image (photo URL), stats {name: value}}], units {"Pass accuracy": "%"}, lower [names where less is better], note, chart web|bars. Ratings out of 100 (pace, shooting, passing, dribbling, defending, physical) are drawn as a web, other numbers (goals, xG, passes per 90, accuracy) as bars; numbers found, never invented, with source.',
  '- Write math as \\( … \\) inline and \\[ … \\] on its own line.',
  '- For a quotation use > with the quote itself and put the author on its own last line starting with —, for example > — Steve Jobs, Apple.',
  '  For notes, tips and warnings use > [!NOTE], > [!TIP] or > [!WARNING] instead of a plain quote.',
@@ -488,7 +512,7 @@ const VISUAL_CHECK = [
  '- Bookkeeping and tax: invoice, statement, entries, t-accounts, reconcile, match, trial, report, tax, aging.',
  '- An explanation of how something works: a scheme of the whole and a chart for every curve in it, not one drawing for the whole answer.',
  '- Something better seen than described, a dish, a place, a game, a product: pictures or a video found with find_media.',
- '- A request on the list of widgets (a forecast, a timer, a stopwatch, days until a date, the time in other cities, a conversion, a split, options with prices, the price of a product, a budget, a loan, plans, a route or a distance, a flight, a parcel, departures, a recipe, a day of food, a workout, readings, a price chart, spending, a list, a build, a choice): its widget, every time, and a drawing only for what the widget does not show.',
+ '- A request on the list of widgets (a forecast, a timer, a stopwatch, days until a date, the time in other cities, a conversion, a split, options with prices, the price of a product, a budget, a loan, plans, a route or a distance, a flight, a parcel, departures, a recipe, a day of food, a workout, readings, a price chart, spending, a list, a build, tactics of a sport or a picture of a match, players compared, a choice): its widget, every time, and a drawing only for what the widget does not show.',
  'Draw it in this reply without being asked, and keep the words around it short.',
 ].join('\n');
 
@@ -1506,6 +1530,7 @@ class Chat {
  abort(conv) {
   const turn = conv.turn;
   if (!turn) return;
+  this.stopJobs?.(conv);
   turn.controller.abort();
   turn.release?.('abort');
   if (turn.tool) AgentTools.cancel(turn.tool);
@@ -1748,7 +1773,8 @@ class Chat {
   }
   MessageFold.settle(bubble);
   turn.queue.push({ prompt, bubble });
-  QueuedRing.put(bubble, { edit: () => this.withdraw(conv, bubble, true), remove: () => this.withdraw(conv, bubble) });
+  // Under it: send it now, or take it back into the field, words, quotes and files, to send later or put another way.
+  QueuedRing.put(bubble, { now: () => this.sendNow(conv, bubble), remove: () => this.withdraw(conv, bubble, true) });
   this.dismissGhost(turn.part.view);
   // The ghost waits under the message now, and still says what the agent does: the message is read once that is done.
   if (turn.deed && !turn.writing) this.say(turn, turn.next, turn.deed);
@@ -1769,6 +1795,122 @@ class Chat {
   if (back) this.onRecall?.({ ...prompt, ...splitQuotes(prompt.text) });
   // Pictures of a message thrown away are let go once it no longer shows them.
   else gone.then(() => { for (const item of prompt.attachments) if (item.image && item.url) URL.revokeObjectURL(item.url); });
+ }
+
+ // Send now: the user will not wait for the agent's work to go on. An answer the model is writing, its words or a call
+ // of a tool, is let finish, so nothing it wrote is lost; one it has not begun to write (it only thinks yet) is stopped,
+ // as there is nothing of it to keep. Then the waiting messages are read, in the same turn: of the calls in that answer
+ // only the quick ones that change something are made (see cuttable), the others are not started. An action under way
+ // is cut as End cuts it, or a command goes on in the background (keepRunning). Nothing else of the work ends.
+ sendNow(conv, bubble) {
+  const turn = conv.turn;
+  if (!turn || turn.controller.signal.aborted || !turn.queue.some(item => item.bubble === bubble)) return;
+  turn.urgent = true;
+  if (turn.writing || turn.calling) return;
+  turn.step?.abort();
+  if (turn.tool && turn.toolName !== AgentTools.shell && cuttable(turn.toolName)) AgentTools.cancel(turn.tool);
+ }
+
+ // A command under way when a message is sent now goes on by itself, as in Claude Code: stopped halfway, an install or a
+ // build would be left broken. Its end is kept with the chat and told to the agent in a note at its next request, this
+ // turn's or a later one's (backgroundNotes). End stops it with the rest. Once it has ended, `finish` adds what the app
+ // saw it do (its files, its ports) and it counts for the plan as a command that ended in its turn does; `after` runs.
+ keepRunning(conv, { id, name = AgentTools.shell, args, running, finish = null, after }) {
+  const job = { id, command: String(args.command || '').trim(), output: '', done: false };
+  (conv.jobs ||= []).push(job);
+  const ended = running.then(output => String(output ?? ''), error => `Error: ${error.message}`).then(async output => {
+   if (job.stopped) return output;
+   try { output = finish ? await finish(output) : output; } catch {}
+   this.proveStep(conv, name, JSON.stringify(args), output);
+   return output;
+  });
+  ended.then(output => { job.output = output; }).finally(() => {
+   job.done = true;
+   after?.();
+   if (!this.wakeForJobs(conv)) this.onChange();
+  });
+  return TOOL_NOTES.background;
+ }
+
+ // While a command goes on in the background the chat is at work, as while helpers are: End is there to stop it.
+ jobsRunning(conv) {
+  return (conv?.jobs || []).some(job => !job.done);
+ }
+
+ // End stops the commands left running in the background too. Nobody is woken for them; the agent is told at its next
+ // request that they were stopped, so it does not count on them.
+ stopJobs(conv) {
+  const running = (conv?.jobs || []).filter(job => !job.done);
+  if (!running.length) return;
+  for (const job of running) {
+   job.stopped = job.done = true;
+   AgentTools.cancel(job.id);
+  }
+  this.onChange();
+ }
+
+ // A command left in the background that ends while the agent is not at work brings it back, as finished helpers do:
+ // it gets a turn with the note of how the command ended, as if it had waited for it. Not in a chat locked or gone.
+ wakeForJobs(conv) {
+  if (conv.turn || !(conv.jobs || []).some(job => job.done && !job.stopped) || !conv.record || conv.locked || !this.library.chat(conv.id) || !this.agent(conv)) return false;
+  const config = this.config(conv);
+  if (!config.ready) return false;
+  this.resume(conv, config);
+  return true;
+ }
+
+ // The commands left running in the background that have ended since: told once each, the command and how it ended.
+ // Taken by the agent's request alone (request), which keeps what it sent with the reply.
+ backgroundNotes(conv) {
+  const ended = (conv.jobs || []).filter(job => job.done);
+  if (!ended.length) return [];
+  conv.jobs = conv.jobs.filter(job => !job.done);
+  return ended.map(job => ({ role: 'user', content: job.stopped ? `${TOOL_NOTES.backgroundStopped}\n${job.command}` : `${TOOL_NOTES.backgroundDone}\n${job.command}\n\n${job.output}` }));
+ }
+
+ // What a step did, for the plan's proofs: that something was done and how the last check ended (agent-plan.js), and
+ // what the app itself sees of it, for the step to be closed on (plan-proof.js). Whether it counts as work done.
+ proveStep(conv, name, rawArgs, output) {
+  // A command gone on in the background has shown nothing yet: it is proved once it has ended (keepRunning).
+  if (output === TOOL_NOTES.background) return false;
+  const worked = !/^Error\b/.test(output) && !UNDONE.has(output);
+  const saw = AgentPlan.saw(conv, { name, shell: name === AgentTools.shell, args: rawArgs, output, worked });
+  if (this.planWatch(conv)) {
+   const cwd = this.cwd(conv);
+   PlanProof.note(conv, PlanProof.read(name, rawArgs, output, { place: shown => AgentTools.place(cwd, shown), worked, shell: AgentTools.shell, check: AgentPlan.PLAN.check }));
+  }
+  return saw;
+ }
+
+ // A message sent now waits to be read: the step under way was cut for it, or the answer it let finish is out.
+ forMessage(turn) {
+  return (!!turn.step?.signal.aborted && !turn.controller.signal.aborted) || !!(turn.urgent && turn.queue.length);
+ }
+
+ // The calls of an answer that are not started for a message sent now: those in the browser and on the internet, quick
+ // to give again. What the agent wrote that changes something is made all the same, so none of it is lost: a file
+ // written, a note, the plan; and a command, which goes on in the background at once (useTool, keepRunning).
+ heldForMessage(turn, name) {
+  return this.forMessage(turn) && cuttable(name) && name !== AgentTools.shell;
+ }
+
+ // What stops the agent's step: End, or a message sent now. The step's own signal is stopped by End too (newStep).
+ stepSignal(turn) {
+  return turn.step?.signal || turn.controller.signal;
+ }
+
+ // Each step of the turn can be cut short on its own, for a message sent now; End cuts it as it cuts the turn.
+ newStep(turn) {
+  const step = turn.step = new AbortController(), stop = () => step.abort();
+  if (turn.controller.signal.aborted) stop();
+  else turn.controller.signal.addEventListener('abort', stop, { once: true });
+  turn.unstep?.();
+  turn.unstep = () => turn.controller.signal.removeEventListener('abort', stop);
+ }
+
+ // The step was cut for a message sent now, and only that: the turn goes on.
+ wasCut(turn, error) {
+  return error?.name === 'AbortError' && !!turn.step?.signal.aborted && !turn.controller.signal.aborted;
  }
 
  async drive(conv, turn, prepare) {
@@ -1803,26 +1945,38 @@ class Chat {
   for (;;) {
    turn.controller.signal.throwIfAborted();
    await this.compactIfNeeded(conv, turn);
-   const response = await this.request(conv, turn);
+   // A message sent now while there was no step to cut (the chat was being summed up, a rule was at work) is read first.
+   if (turn.urgent && turn.queue.length) await this.takeQueue(conv, turn);
+   turn.urgent = false;
+   this.newStep(turn);
+   let response;
+   try {
+    response = await this.request(conv, turn);
+   } catch (error) {
+    if (!this.wasCut(turn, error)) throw error;
+    // The reply was cut where it stood for a message sent now: what it had written stays, and the message comes next.
+    const step = { role: 'user', content: turn.queue.length ? TOOL_NOTES.cutReply : TOOL_NOTES.withdrawn };
+    turn.part.entry.steps.push(step);
+    conv.tokens += estimate([step]);
+    turn.urgent = false;
+    if (turn.queue.length) await this.takeQueue(conv, turn);
+    this.save(conv);
+    continue;
+   }
    if (!response) continue; // A temporary stream failure opened the next part of this same turn.
    const { part, calls, finish } = response;
    const images = [];
    let told = false;
    for (const call of calls) {
-    const result = turn.controller.signal.aborted ? TOOL_NOTES.cancelled : await this.useTool(conv, turn, part.view, call);
+    const result = turn.controller.signal.aborted ? TOOL_NOTES.cancelled
+     : this.heldForMessage(turn, call.function.name) ? TOOL_NOTES.notDone
+     : await this.useTool(conv, turn, part.view, call);
     const output = await this.ruleAfter(conv, turn, turn.ruleSteps?.get(call.id), typeof result === 'string' ? result : result.text);
     part.entry.steps.push({ role: 'tool', tool_call_id: call.id, content: output });
     conv.tokens += Math.ceil(output.length / CONTEXT.chars);
-    // What the step did, for the plan's proofs: that something was done, and how the last check ended.
-    const name = call.function.name, worked = !/^Error\b/.test(output) && !UNDONE.has(output);
-    if (AgentPlan.saw(conv, { name, shell: name === AgentTools.shell, args: call.function.arguments, output, worked })) turn.work = (turn.work || 0) + 1;
-    // And what the app itself sees of it, for the step to be closed on (plan-proof.js).
-    if (this.planWatch(conv)) {
-     const cwd = this.cwd(conv);
-     PlanProof.note(conv, PlanProof.read(name, call.function.arguments, output, { place: shown => AgentTools.place(cwd, shown), worked, shell: AgentTools.shell, check: AgentPlan.PLAN.check }));
-    }
+    if (this.proveStep(conv, call.function.name, call.function.arguments, output)) turn.work = (turn.work || 0) + 1;
     if (result.images?.length) images.push(...result.images);
-    told ||= output === TOOL_NOTES.message || output === TOOL_NOTES.browserMessage;
+    told ||= FOR_MESSAGE.has(output);
    }
    if (images.length) {
     const step = imageStep(images);
@@ -1924,6 +2078,12 @@ class Chat {
   if (this.routinable(conv)) {
    const lines = Routines.lines(conv.id), had = told(TOOL_NOTES.routines), note = lines || had ? `${TOOL_NOTES.routines}\n${lines ? `${lines}\n${TOOL_NOTES.ids}` : TOOL_NOTES.routinesNone}` : '';
    if (note && note !== had) out.push({ role: 'user', content: note });
+  }
+  // The user's calendar (calendar-agent.js), the same way: one with nothing in the coming week gets no note, unless an
+  // earlier note told of something.
+  if (window.CalendarAgent && AgentTools.schemas.some(tool => tool.function.name === 'calendar')) {
+   const note = CalendarAgent.note(told(CalendarAgent.HEAD));
+   if (note) out.push({ role: 'user', content: note });
   }
   // What is remembered of the user from all chats, the same way; switched off, a chat that was told of it is told so.
   const kept = Memory.on ? Memory.lines() : '', known = told(TOOL_NOTES.memory);
@@ -2031,7 +2191,9 @@ class Chat {
   const messages = [...system, ...withPictures(this.history(conv), UserContext.pictures())];
   conv.base = this.countBase(conv, system);
   if (this.agent(conv)) await Desk.refresh().catch(() => {});
-  const notes = this.notes(conv, messages), at = this.seam(conv, messages);
+  // How commands left in the background ended is told here, in the request itself, and only once: the size of the chat
+  // is counted with notes() too, and must not take them.
+  const notes = [...this.notes(conv, messages), ...this.backgroundNotes(conv)], at = this.seam(conv, messages);
   if (messages[at]) messages[at] = { ...messages[at], cache: true };
   messages.push(...notes);
   const counted = estimate(messages);
@@ -2045,7 +2207,7 @@ class Chat {
    result = await Providers.stream(turn.config, {
     messages,
     tools: this.agent(conv) ? this.toolSchemas(conv) : null,
-    signal: turn.controller.signal,
+    signal: this.stepSignal(turn),
     session: this.session(conv),
     retryBudget: turn.retryBudget ||= { used: 0 },
     // The model thinks before it acts: said beside the ghost, where the last step's words would stay otherwise, with
@@ -2061,6 +2223,8 @@ class Chat {
      if (turn.next && !turn.queue.length) this.dismissGhost(turn.next);
      view.stream.push(part.entry.content);
     },
+    // A call being written counts as writing: a message sent now waits for it (sendNow).
+    onCalling: () => { turn.calling = true; },
     onRetry: () => this.showRetry(view),
    });
   } catch (error) {
@@ -2075,10 +2239,11 @@ class Chat {
    }
    conv.tokens = estimate(messages) + estimate(content ? [{ role: 'assistant', content }] : []);
    turn.writing = false;
-   if (await this.reconnect(conv, turn, error)) return null;
+   if (!this.wasCut(turn, error) && await this.reconnect(conv, turn, error)) return null;
    throw error;
   } finally {
    turn.writing = false;
+   turn.calling = false;
    // Its thinking is over: a thought still waiting its turn is not shown any more.
    clearTimeout(turn.thoughtTimer);
    turn.thoughtTimer = 0;
@@ -2375,6 +2540,7 @@ class Chat {
   // what a routine does when it runs asks for approval then, step by step, as any task does.
   if (name === 'notepad') return this.useNotepad(conv, turn, args);
   if (name === 'routine') return this.useRoutine(conv, turn, args);
+  if (name === 'calendar') return this.useCalendar(conv, turn, view, args);
   if (name === 'ask_user') return this.useAsk(conv, turn, view, args);
   if (name === 'memory') return this.useMemory(conv, turn, args);
   if (name === 'record') return this.useRecord(conv, turn, args);
@@ -2452,27 +2618,40 @@ class Chat {
    }
   }
   const id = turn.tool = `${conv.id}-${++this.tools}`;
+  turn.toolName = name;
   // A stopped step ends at once. The tool is told to stop as well, but a page still loading or a wait in the browser
   // would otherwise hold the agent for up to a minute.
-  const stopped = new Promise(resolve => turn.controller.signal.addEventListener('abort', () => resolve(TOOL_NOTES.cancelled), { once: true }));
+  // A message sent now cuts it short the same way.
+  const stopped = new Promise(resolve => {
+   turn.controller.signal.addEventListener('abort', () => resolve(TOOL_NOTES.cancelled), { once: true });
+   // A command started while a message sent now waits goes to the background at once.
+   if (cuttable(name)) {
+    const cut = () => resolve(turn.controller.signal.aborted ? TOOL_NOTES.cancelled : TOOL_NOTES.cut);
+    if (this.forMessage(turn)) cut();
+    else turn.step?.signal.addEventListener('abort', cut, { once: true });
+   }
+  });
   try {
    if (shared) return await this.runShared(conv, turn, view, { name, args, id, cwd, apart, shared, stopped });
    if (!handed) {
-    const done = await Promise.race([AgentTools.run(name, args, { id, cwd, apart, panel }), stopped]);
+    const running = AgentTools.run(name, args, { id, cwd, apart, panel });
+    const done = await Promise.race([running, stopped]);
+    if (done === TOOL_NOTES.cut && name === AgentTools.shell) return this.keepRunning(conv, { id, args, running });
     // A change made to a file is shown a moment under the ghost's line, then folds away (agent-line.js).
     if (name === 'edit_file' && typeof done === 'string' && done.startsWith('Edited ')) this.glanceEdit(turn.next || view, args);
     // Take control in the middle of the step: the step was cut, and the agent waits for the browser as above.
-    if (!panel?.took(id) || done === TOOL_NOTES.cancelled) return done;
+    if (!panel?.took(id) || done === TOOL_NOTES.cancelled || done === TOOL_NOTES.cut) return done;
     const note = await yielded();
     if (note) return note;
     handed = TOOL_NOTES.cutShort;
    }
    const now = await Promise.race([AgentTools.run('browser_snapshot', {}, { id, cwd, apart, panel }), stopped]);
-   return now === TOOL_NOTES.cancelled ? now : `${handed}\n\n${now}`;
+   return now === TOOL_NOTES.cancelled || now === TOOL_NOTES.cut ? now : `${handed}\n\n${now}`;
   } catch (error) {
    return `Error: ${error.message}`;
   } finally {
    turn.tool = '';
+   turn.toolName = '';
   }
  }
 
@@ -2731,6 +2910,8 @@ class Chat {
    this.ruleNotice(conv, turn, 'agent_completed', turn.parts.findLast(part => part.entry.content.trim())?.entry.content?.slice(0, 400) || '');
    this.foresee(conv, turn);
   }
+  // A command that ended in the background while this turn was finishing is told of in a turn of its own.
+  if (!aborted) Promise.resolve().then(() => this.wakeForJobs(conv));
  }
 
  // A finished reply, for the user who may not be looking (notify.js): the chat's key and its name.
@@ -3017,9 +3198,12 @@ class Chat {
 
  // The notes the user keeps beside a chat, for things to come back to (notepad.js shows them). The agent reads them in a
  // note from the app, and has a tool to bring one up, tick one off or write one down. It never acts on one by itself.
+ // A note with a page is read in the marks the agent writes one in (NoteFormat), so it can rewrite it keeping its look.
  padLines(conv) {
-  return (conv.pad?.items || []).filter(note => !note.done)
-   .map(note => `- [${note.id}] ${note.text.replace(/\s*\n\s*/g, ' / ')}${note.reminded ? PAD.reminded : ''}`).join('\n');
+  const line = text => { const flat = text.replace(/\s*\n\s*/g, ' / '); return flat.length > PAD.max ? `${flat.slice(0, PAD.max)}…` : flat; };
+  const words = note => (note.html && window.NoteFormat ? NoteFormat.toText(note.html) : '') || note.text;
+  return (conv.pad?.items || []).filter(note => !note.done && String(note.text || '').trim())
+   .map(note => `- [${note.id}] ${line(words(note))}${note.reminded ? PAD.reminded : ''}`).join('\n');
  }
 
  // Every change is saved at once and told to whoever shows the notes.
@@ -3029,23 +3213,62 @@ class Chat {
   this.onNotes?.(conv, change);
  }
 
+ // The agent writes a note as a page in a few plain marks (notepad.js, NoteFormat): its title, subheadings, points,
+ // checklists and coloured words; the agent reads it back as its lines.
  addNote(conv, text, by = 'user') {
-  const clean = String(text ?? '').replace(/\r\n?/g, '\n').replace(/\n{2,}/g, '\n').trim().slice(0, PAD.max);
+  const raw = String(text ?? '').replace(/\r\n?/g, '\n').trim();
+  const page = by === 'agent' && window.NoteFormat && raw ? NoteFormat.fromText(raw.slice(0, PAD.page)) : null;
+  const clean = page ? page.text.slice(0, PAD.page) : raw.replace(/\n{2,}/g, '\n').slice(0, PAD.max);
   if (!conv?.pad || !clean) return null;
   const note = { id: `n${conv.pad.next++}`, text: clean, done: false, at: Date.now(), by, reminded: 0 };
+  if (page) note.html = page.html;
   conv.pad.items.push(note);
   this.padChanged(conv, { kind: 'add', note });
   return note;
  }
 
- // Rewritten to nothing, a note is gone. Rewritten to something else, it is a note the agent has not brought up yet.
- editNote(conv, id, text) {
+ // The agent rewrites a note at the user's word in the same marks it writes one in, so the note keeps a page's look.
+ // Rewritten, it is a note the agent has not brought up yet.
+ rewriteNote(conv, id, text) {
   const note = conv?.pad?.items.find(item => item.id === id);
-  const clean = String(text ?? '').replace(/\r\n?/g, '\n').replace(/\n{2,}/g, '\n').trim().slice(0, PAD.max);
-  if (!note || clean === note.text) return;
-  if (!clean) { this.removeNote(conv, id); return; }
-  note.text = clean;
+  const raw = String(text ?? '').replace(/\r\n?/g, '\n').trim();
+  if (!note || !raw || !window.NoteFormat) return null;
+  const page = NoteFormat.fromText(raw.slice(0, PAD.page));
+  if (!page.text) return null;
+  note.text = page.text.slice(0, PAD.page);
+  note.html = page.html;
+  note.edited = Date.now();
   note.reminded = 0;
+  this.padChanged(conv, { kind: 'rewrite', note });
+  return note;
+ }
+
+ // A new note the user is about to write: empty until written in, and let go if left empty (notepad.js).
+ createNote(conv) {
+  if (!conv?.pad) return null;
+  const note = { id: `n${conv.pad.next++}`, text: '', html: '', done: false, at: Date.now(), by: 'user', reminded: 0 };
+  conv.pad.items.push(note);
+  this.padChanged(conv, { kind: 'add', note });
+  return note;
+ }
+
+ // A note written in its page (notepad.js): its page as kept (a few plain tags) and its words, line by line, which is
+ // what the agent reads. Rewritten, it is a note the agent has not brought up yet.
+ writeNote(conv, id, { text, html }) {
+  const note = conv?.pad?.items.find(item => item.id === id);
+  if (!note) return;
+  const words = String(text ?? '').replace(/\r\n?/g, '\n').trim().slice(0, PAD.page);
+  if (words !== note.text) note.reminded = 0;
+  note.text = words;
+  note.html = String(html ?? '');
+  note.edited = Date.now();
+  this.padChanged(conv, { kind: 'write', note });
+ }
+
+ pinNote(conv, id, pinned) {
+  const note = conv?.pad?.items.find(item => item.id === id);
+  if (!note || !!note.pinned === !!pinned) return;
+  if (pinned) note.pinned = true; else delete note.pinned;
   this.padChanged(conv, { kind: 'edit', note });
  }
 
@@ -3072,19 +3295,25 @@ class Chat {
   if (action === 'add') {
    const note = this.addNote(conv, args.text, 'agent');
    if (!note) return PAD.empty;
-   turn.pills.push({ role: 'noted', note: note.id, text: note.text });
+   turn.pills.push({ role: 'noted', note: note.id, text: PAD.pill(note.text) });
    return PAD.noted(note.id, note.text);
   }
-  if (action !== 'remind' && action !== 'done') return PAD.action;
+  if (action !== 'remind' && action !== 'done' && action !== 'edit') return PAD.action;
   const id = String(args.id ?? '').trim().replace(/^\[|\]$/g, ''), note = conv.pad.items.find(item => item.id === id);
   if (!note) return `${PAD.none(id)} The notepad as it stands now:\n${this.padLines(conv) || TOOL_NOTES.padEmpty}`;
   if (action === 'done') {
    this.checkNote(conv, note.id, true);
    return PAD.ticked(note.text);
   }
+  if (action === 'edit') {
+   const rewritten = this.rewriteNote(conv, note.id, args.text);
+   if (!rewritten) return PAD.empty;
+   turn.pills.push({ role: 'noted', edited: true, note: note.id, text: PAD.pill(rewritten.text) });
+   return PAD.rewritten(note.id, NoteFormat.toText(rewritten.html));
+  }
   if (note.done) return PAD.done;
   note.reminded = Date.now();
-  turn.pills.push({ role: 'reminder', note: note.id, text: note.text });
+  turn.pills.push({ role: 'reminder', note: note.id, text: PAD.pill(note.text) });
   this.padChanged(conv, { kind: 'remind', note });
   return PAD.shown(note.text);
  }
@@ -3132,6 +3361,16 @@ class Chat {
   if (!result.item) return failed(result.error);
   mark(action === 'edit' ? 'changed' : action === 'pause' ? 'paused' : 'resumed', result.item);
   return `${(action === 'edit' ? ROUTINE.changed : action === 'pause' ? ROUTINE.paused : ROUTINE.resumed)(result.item)} ${ROUTINE.clock()}`;
+ }
+
+ // The agent's hand on the user's calendar (calendar-agent.js). A change to an entry the user made waits for their OK,
+ // on the card every other step asks with.
+ useCalendar(conv, turn, view, args) {
+  return CalendarAgent.use({
+   conv, turn, args, mode: this.modeOf(conv),
+   waiting: () => (turn.queue.length ? TOOL_NOTES.message : ''),
+   ask: request => this.approve(conv, turn, view, { name: 'calendar', args: request, cwd: this.cwd(conv) }),
+  });
  }
 
  // A routine the user set up, changed or took away by hand stands in its chat as a pill, as one of the agent's does.
@@ -3285,12 +3524,14 @@ class Chat {
  async runShared(conv, turn, view, { name, args, id, cwd, apart, shared, stopped }) {
   const holder = turn.next || view, releases = [];
   for (const kind of ['build', 'git'].filter(kind => shared[kind])) {
+   // A message sent now waits: a command that would wait for another agent's build or git first is not started.
+   if (this.forMessage(turn) && Desk.others(conv, cwd).some(peer => peer.running.has(kind))) { releases.forEach(done => done()); return TOOL_NOTES.notDone; }
    let line = null;
-   const release = await Desk.take(conv, cwd, kind, turn.controller.signal, () => {
+   const release = await Desk.take(conv, cwd, kind, this.stepSignal(turn), () => {
     line ||= this.showLine(holder, I18n.t('chat.waiting'));
    });
    this.hideLine(line);
-   if (!release) { releases.forEach(done => done()); return TOOL_NOTES.cancelled; }
+   if (!release) { releases.forEach(done => done()); return turn.controller.signal.aborted ? TOOL_NOTES.cancelled : TOOL_NOTES.notDone; }
    releases.push(release);
   }
   try {
@@ -3299,38 +3540,51 @@ class Chat {
    const peers = Desk.others(conv, cwd).length > 0, planned = this.planWatch(conv);
    const token = peers || planned ? await AgentTools.mark(cwd) : '';
    const before = shared.server ? new Set(await AgentTools.ports()) : null;
-   const done = await Promise.race([AgentTools.run(name, args, { id, cwd, apart }), stopped]);
+   const running = AgentTools.run(name, args, { id, cwd, apart });
+   const done = await Promise.race([running, stopped]);
    if (done === TOOL_NOTES.cancelled) return done;
-   const notes = [];
-   if (token) {
-    const found = await AgentTools.changes(token);
-    if (planned) PlanProof.note(conv, PlanProof.changes(found, shown => AgentTools.place(cwd, shown)));
-    const crossed = [];
-    if (peers) {
-     for (const shown of [...found.touched, ...found.removed].slice(0, 200)) {
-      const full = AgentTools.place(cwd, shown), held = full && Desk.holder(conv, full);
-      if (held) crossed.push(`${shown} (${this.peerName(conv, held)})`);
-      else if (full) Desk.claim(conv, full, shown);
-     }
-    }
-    if (crossed.length) notes.push(`Note from the app: this command also changed files another agent is changing right now: ${crossed.slice(0, 8).join(', ')}. Tell the user, and do not touch them again.`);
+   // Sent a message now, a command goes on in the background, and holds its place at the build or in git till it ends.
+   const seen = { cwd, token, before, peers, planned };
+   if (done === TOOL_NOTES.cut && name === AgentTools.shell) {
+    const held = releases.splice(0);
+    return this.keepRunning(conv, { id, name, args, running, finish: output => this.afterCommand(conv, turn, output, seen), after: () => held.forEach(free => free()) });
    }
-   if (before) {
-    let opened = [];
-    for (const until = Date.now() + DESK.settle; !opened.length && Date.now() < until && !turn.controller.signal.aborted;) {
-     await new Promise(resolve => setTimeout(resolve, 500));
-     opened = (await AgentTools.ports()).filter(port => !before.has(port));
-    }
-    for (const port of opened) Desk.servers.set(port, { conv, chat: this, at: Date.now() });
-    if (planned) PlanProof.note(conv, opened.map(port => ({ kind: 'server', port })));
-    if (opened.length) notes.push(`Note from the app: this computer now listens on port ${opened.join(', ')}, which this command opened.`);
-   }
-   return notes.length ? `${done}\n\n${notes.join('\n')}` : done;
+   return await this.afterCommand(conv, turn, done, seen);
   } finally {
    releases.forEach(done => done());
   }
  }
 
+
+ // What the app saw a command do, once it has ended: the files it changed (for the plan's proofs, and against another
+ // agent's files) and the ports it opened, added to what it printed.
+ async afterCommand(conv, turn, done, { cwd, token, before, peers, planned }) {
+  const notes = [];
+  if (token) {
+   const found = await AgentTools.changes(token);
+   if (planned) PlanProof.note(conv, PlanProof.changes(found, shown => AgentTools.place(cwd, shown)));
+   const crossed = [];
+   if (peers) {
+    for (const shown of [...found.touched, ...found.removed].slice(0, 200)) {
+     const full = AgentTools.place(cwd, shown), held = full && Desk.holder(conv, full);
+     if (held) crossed.push(`${shown} (${this.peerName(conv, held)})`);
+     else if (full) Desk.claim(conv, full, shown);
+    }
+   }
+   if (crossed.length) notes.push(`Note from the app: this command also changed files another agent is changing right now: ${crossed.slice(0, 8).join(', ')}. Tell the user, and do not touch them again.`);
+  }
+  if (before) {
+   let opened = [];
+   for (const until = Date.now() + DESK.settle; !opened.length && Date.now() < until && !turn.controller.signal.aborted;) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    opened = (await AgentTools.ports()).filter(port => !before.has(port));
+   }
+   for (const port of opened) Desk.servers.set(port, { conv, chat: this, at: Date.now() });
+   if (planned) PlanProof.note(conv, opened.map(port => ({ kind: 'server', port })));
+   if (opened.length) notes.push(`Note from the app: this computer now listens on port ${opened.join(', ')}, which this command opened.`);
+  }
+  return notes.length ? `${done}\n\n${notes.join('\n')}` : done;
+ }
 
  // Whether the agent itself set the whole record to `brief` after the latest note of it, with write: then the request
  // holds it already, in the agent's own call, and a note would only repeat it. After a summary that call is gone, and
@@ -3502,6 +3756,9 @@ class Chat {
  // far more often than it is. Not when it waits for the user, ran out of room or was stopped.
  planBack(conv, turn, finish) {
   if (turn.quiet || FINISH_NOTES.includes(finish) || turn.controller.signal.aborted || (turn.planBack || 0) >= AgentPlan.PLAN.returns) return '';
+  // Nor while a command it left in the background still runs: the turn just ends, and the command's end brings the agent
+  // back to its plan (wakeForJobs), as helpers' reports do; sent back now, it would only wait for it, step after step.
+  if (this.jobsRunning(conv)) return '';
   const view = this.planView(conv), left = AgentPlan.open(view?.plan);
   if (!left.length || view.waiting) return '';
   turn.planBack = (turn.planBack || 0) + 1;
@@ -3612,32 +3869,39 @@ class Chat {
   conv.keeping = true;
   try {
    if (conv.brief == null) conv.brief = (await this.library.record(conv.id).catch(() => '')) || '';
-   const record = this instanceof SideChat && typeof this.origin?.brief === 'string' ? this.origin.brief : conv.brief;
-   let cost = null;
-   const answer = await Providers.complete(turn.config, {
-    messages: FactKeeper.messages({ exchange: FactKeeper.exchange(entries), record, memory: memoryOn ? Memory.lines() : '', memoryOn }),
-    maxTokens: FactKeeper.KEEP.answer,
-    onUsage: usage => { cost = usage; },
-   });
-   // A new reply under way writes the record itself: this look is left for the next one, which starts from the same place.
-   if (conv.turn) return;
-   const found = FactKeeper.verdict(answer);
-   if (recordOn) {
-    for (const fact of found.record) await this.useRecord(conv, turn, fact.add ? { action: 'add', text: fact.add } : { action: 'edit', old_text: fact.old, new_text: fact.new });
-   }
-   if (memoryOn) {
-    for (const fact of found.memory) this.useMemory(conv, turn, fact.save ? { action: 'save', text: fact.save } : { action: 'update', id: fact.id, text: fact.text });
+   // The record as large as this chat keeps it (a Ghost Max chat holds more), so that nothing in it is written twice.
+   const owner = this instanceof SideChat ? this.origin : conv, most = this.recordLimit(owner);
+   const reply = conv.messages.findLast(entry => entry.role === 'assistant' && entry.turn === turn.id);
+   let cost = null, saved = false;
+   // The exchange whole, the user's words and the reply in full; one too long for one look is looked at in parts.
+   for (const part of FactKeeper.pieces(FactKeeper.exchange(entries))) {
+    const record = this instanceof SideChat && typeof this.origin?.brief === 'string' ? this.origin.brief : conv.brief;
+    cost = null;
+    const answer = await Providers.complete(turn.config, {
+     messages: FactKeeper.messages({ exchange: part, record, memory: memoryOn ? Memory.lines() : '', memoryOn, most }),
+     maxTokens: FactKeeper.KEEP.answer,
+     onUsage: usage => { cost = usage; },
+    });
+    // A new reply under way writes the record itself: this look is left for the next one, which starts from the same place.
+    if (conv.turn) return;
+    const found = FactKeeper.verdict(answer);
+    if (recordOn) {
+     for (const fact of found.record) await this.useRecord(conv, turn, fact.add ? { action: 'add', text: fact.add } : { action: 'edit', old_text: fact.old, new_text: fact.new });
+    }
+    if (memoryOn) {
+     for (const fact of found.memory) this.useMemory(conv, turn, fact.save ? { action: 'save', text: fact.save } : { action: 'update', id: fact.id, text: fact.text });
+    }
+    // What the look cost is the reply's, where the chat's stats count it.
+    if (reply && cost) spend(reply, cost);
+    if (cost || found.memory.length) saved = true;
    }
    conv.keptTo = last;
-   // What the look cost is the reply's, where the chat's stats count it; the memory's mark stands after the reply's own.
-   const reply = conv.messages.findLast(entry => entry.role === 'assistant' && entry.turn === turn.id);
-   if (reply && cost) spend(reply, cost);
    if (turn.pills.length) {
     let after = turn.part.view.el;
     while (after.nextElementSibling?.classList.contains('thread-note')) after = after.nextElementSibling;
     this.postPills(conv, turn, after);
    }
-   if ((cost || found.memory.length) && conv.record && this.library.chat(conv.id)) this.save(conv);
+   if (saved && conv.record && this.library.chat(conv.id)) this.save(conv);
   } finally {
    conv.keeping = false;
   }
@@ -3669,7 +3933,7 @@ class Chat {
    if (after.isConnected) after.after(el);
    else conv.list.append(el);
    after = el;
-   (entry.role === 'memory' ? MemoryPill : entry.role === 'asked' ? AskRecord : entry.role === 'routine' ? RoutinePill : entry.role === 'skill' ? SkillPill : NotePill).enter(el);
+   (entry.role === 'memory' ? MemoryPill : entry.role === 'asked' ? AskRecord : entry.role === 'routine' ? RoutinePill : entry.role === 'calendar' ? CalendarPill : entry.role === 'skill' ? SkillPill : NotePill).enter(el);
    this.viewOf(conv)?.followBottom();
   }
  }
@@ -3834,6 +4098,7 @@ class Chat {
   if (entry.role === 'fork') return this.forkNotice(entry);
   if (entry.role === 'reminder' || entry.role === 'noted') return NotePill.build(entry);
   if (entry.role === 'routine') return RoutinePill.build(entry);
+  if (entry.role === 'calendar' && window.CalendarPill) return CalendarPill.build(entry);
   if (entry.role === 'skill') return SkillPill.build(entry);
   if (entry.role === 'memory') return MemoryPill.build(entry);
   if (entry.role === 'asked') return AskRecord.build(entry);

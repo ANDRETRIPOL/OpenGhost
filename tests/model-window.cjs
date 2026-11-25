@@ -7,7 +7,7 @@ const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 let count = 0;
 const check = (name, ok, detail = '') => { assert.ok(ok, `${name}${detail ? ` — ${detail}` : ''}`); count++; console.log(`ok  ${name}`); };
 
-const c = { window: {}, console, navigator: { platform: 'Win32', userAgent: '' }, I18n: { t: key => key, has: () => false }, setTimeout, clearTimeout, localStorage: { getItem: () => null, setItem() {} } };
+const c = { window: { openghost: { calendar: {} } }, console, navigator: { platform: 'Win32', userAgent: '' }, I18n: { t: key => key, has: () => false }, setTimeout, clearTimeout, localStorage: { getItem: () => null, setItem() {} } };
 c.window.window = c.window;
 vm.createContext(c);
 for (const file of ['agent-prompt.js', 'agent-tools.js', 'providers.js', 'settings.js']) vm.runInContext(read(file), c);

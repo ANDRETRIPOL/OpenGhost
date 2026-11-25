@@ -92,6 +92,7 @@ window.Glyphs = {
  // unit long, so it can be drawn in, and the minute hand is a path of its own, to go round the clock's middle (Routines.turn).
  routine: svg('<path class="routine-rim" pathLength="1" d="M41.5 48.5A22 22 0 1 1 38.7 65.7"/><path class="routine-arrow" d="M39.5 37.5v11.5h11.5"/><g class="routine-hands"><path class="routine-minute" d="M60 48.5V60"/><path class="routine-hour" d="M60 60l8 5.5"/></g>', 'glyph-routine'),
  // An open book: a skill, instructions for a kind of task. Its pages are paths of their own, so they can turn.
+ calendar: svg('<rect x="37.5" y="42" width="45" height="39" rx="9"/><path d="M37.5 54h45"/><path d="M49 36.5v10M71 36.5v10"/><circle class="calendar-today" cx="60" cy="67.5" r="3" fill="currentColor" stroke="none"/>', 'glyph-calendar'),
  skill: svg('<path class="skill-left" d="M60 45.5c-5.5-4.2-12.5-5.8-21-5.5v34c8.5-.3 15.5 1.3 21 5.5"/><path class="skill-right" d="M60 45.5c5.5-4.2 12.5-5.8 21-5.5v34c-8.5-.3-15.5 1.3-21 5.5"/><path d="M60 45.5v34"/>', 'glyph-skill'),
  // A chat started in the quick window wears a bolt in the list.
  bolt: svg('<path d="M64 36 44 64h15l-3 20 20-28H61z"/>'),

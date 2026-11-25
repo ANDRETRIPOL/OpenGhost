@@ -15,6 +15,7 @@ const Lang = require('./lang');
 const Reveal = require('./reveal');
 const Notify = require('./notify');
 const Routines = require('./routines');
+const Calendar = require('./calendar');
 const Skills = require('./skills');
 const Update = require('./update');
 const Pictures = require('./pictures');
@@ -94,6 +95,16 @@ const writes = new Map();
 function storeFile(key) {
  if (typeof key !== 'string' || !STORE_KEY.test(key)) throw new Error(`Bad store key: ${key}`);
  return path.join(storeDir(), `${key}.json`);
+}
+
+// A calendar reminder as the system's notification says it, in the app's language: «Через 15 мин · Дизайн-ревью»,
+// and under it the time (and the place).
+function calendarWords(card) {
+ const minutes = Math.round((card.begins - Date.now()) / 60000);
+ const when = card.allDay ? Lang.t('cal.allDay') : minutes <= 0 ? Lang.t('cal.now') : minutes < 120 ? Lang.t('cal.in').replace('{n}', minutes) : Lang.t('cal.inHours').replace('{n}', Math.round(minutes / 60));
+ const clock = ms => new Date(ms).toLocaleTimeString(Lang.lang === 'en' ? 'en-GB' : Lang.lang, { hour: '2-digit', minute: '2-digit' });
+ const span = card.allDay ? '' : card.end > card.begins ? `${clock(card.begins)} – ${clock(card.end)}` : clock(card.begins);
+ return { title: `${when} · ${card.title}`.slice(0, 120), body: [span, card.place].filter(Boolean).join(' · ').slice(0, 180) };
 }
 
 async function readStore(key) {
@@ -380,9 +391,10 @@ if (process.argv.includes('--create-shortcut')) {
    win.on('closed', () => {
     win = null;
     Routines.unready();
-    // With the quick chat on, or a routine on, the app goes on in the tray, and an agent at work in the quick chat is
-    // not stopped: only what this window asked for is. Otherwise closing the window ends everything and the app.
-    if (Quick.on || Routines.alive) { LLM.cancelFrom(contents); return; }
+    // With the quick chat on, a routine on, or a reminder of the calendar still to come, the app goes on in the tray,
+    // and an agent at work in the quick chat is not stopped: only what this window asked for is. Otherwise closing the
+    // window ends everything and the app.
+    if (Quick.on || Routines.alive || Calendar.alive) { LLM.cancelFrom(contents); return; }
     Tools.cancelAll();
     LLM.cancelAll();
     Pdf.cancelAll();
@@ -393,7 +405,7 @@ if (process.argv.includes('--create-shortcut')) {
   if (fresh) {
    win.webContents.on('did-finish-load', () => Notify.paint());
    // Read anew, the page takes no routine until it says it is ready again.
-   win.webContents.on('did-start-loading', () => Routines.unready());
+   win.webContents.on('did-start-loading', () => { Routines.unready(); Calendar.unready(); });
    win.on('restore', keepAwake);
    win.on('show', keepAwake);
   }
@@ -426,18 +438,24 @@ if (process.argv.includes('--create-shortcut')) {
   // A routine due with no window: the window is made unseen and its page runs it. While a routine is on the app keeps
   // its place in the tray, the quick chat on or not.
   Routines.setup({ store: { read: readStore, write: writeStore }, fromApp, window: () => win, wake: () => showMain(null, true), changed: () => Quick.retray() });
+  // The calendar's reminders come with the window closed too: the system's notification, pressed, opens the calendar at
+  // the entry. While a reminder is still to come the app keeps its place in the tray.
+  Calendar.setup({
+   store: { read: readStore, write: writeStore }, fromApp, window: () => win, icon: ICON, changed: () => Quick.retray(),
+   open: place => showMain(main => main.webContents.send('calendar:open', place)), words: card => calendarWords(card),
+  });
   Lang.load();
   Browser.setup();
   Keys.load();
   Quick.setup({
-   fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : process.platform === 'darwin' ? 'trayTemplate.png' : 'icon.png'), stay: () => Routines.alive,
+   fromApp, glass: GLASS, look, external, showMain, zoom: display => Size.zoom(display), icon: ICON, trayIcon: path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : process.platform === 'darwin' ? 'trayTemplate.png' : 'icon.png'), stay: () => Routines.alive || Calendar.alive,
    preload: path.join(__dirname, 'preload.js'), page: path.join(ROOT, 'index.html'), languages,
   });
   // A new version of the app (desktop/update.js), put in only while no agent works, here or in the quick chat.
   Update.setup({ fromApp, window: () => win, busy: () => working || Quick.working });
   if (!Quick.startHidden) showMain();
  });
- app.on('window-all-closed', () => { if (!Quick.on && !Routines.alive) app.quit(); });
+ app.on('window-all-closed', () => { if (!Quick.on && !Routines.alive && !Calendar.alive) app.quit(); });
  app.on('before-quit', event => {
   Tools.cancelAll();
   Proof.cancelAll();

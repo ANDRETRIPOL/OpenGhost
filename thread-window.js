@@ -52,14 +52,16 @@ function watch(thread) {
   const was = held;
   if (was?.el.isConnected && was.list === now() && !was.list.classList.contains('is-settling')) {
    if (was.end) { if (!followers.get(thread)?.() && thread.scrollHeight - thread.scrollTop - thread.clientHeight >= 1) thread.scrollTop = thread.scrollHeight; }
-   else { const shift = depth(was.el) - was.depth; if (Math.abs(shift) > 0.5) thread.scrollTop += shift; }
+   // A chat going after a reply being written out is on its way to the end, a little behind it: no place is held
+   // then. Put back up by what changed above, it would take that for the user scrolling up and stop following.
+   else if (!followers.get(thread)?.()) { const shift = depth(was.el) - was.depth; if (Math.abs(shift) > 0.5) thread.scrollTop += shift; }
   }
   note();
  };
  // Scrolled by hand or by the chat, the place is the new one; only what moved under it since is put right first.
  thread.addEventListener('scroll', () => {
   const was = held;
-  if (was?.el.isConnected && was.list === now() && !was.end && !was.list.classList.contains('is-settling')) {
+  if (was?.el.isConnected && was.list === now() && !was.end && !was.list.classList.contains('is-settling') && !followers.get(thread)?.()) {
    const shift = depth(was.el) - was.depth;
    if (Math.abs(shift) > 0.5) thread.scrollTop += shift;
   }

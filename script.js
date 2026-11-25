@@ -137,10 +137,26 @@ chatList = new ChatList({
   onNewRoutine: MAIN_WINDOW && Routines.available ? head => routineMaker?.open({ anchor: head }) : null,
   // The Skills row above the routines opens the search for skills alone.
   onSkills: MAIN_WINDOW && Skills.available ? () => spotlight.showSkills() : null,
+  // The Calendar row under it opens the calendar's page in the chat's place, and closes it (calendar.js).
+  onCalendar: MAIN_WINDOW && window.CalendarStore?.available ? () => calendarPage?.toggle() : null,
   // A fork of the whole chat, from its row's menu (chat.js).
   onFork: MAIN_WINDOW ? id => chat.forkChat(id) : null,
   onSplit: MAIN_WINDOW ? id => splitView?.open(id) : null,
 });
+// The calendar (calendar.js): its page lies over the chat; opening a chat or starting a new one puts it away.
+let calendarPage = null;
+if (MAIN_WINDOW && window.CalendarStore?.available) {
+  calendarPage = new CalendarPage({ main, list: chatList });
+  for (const name of ['open', 'newChat']) {
+    const was = chat[name].bind(chat);
+    chat[name] = (...args) => { calendarPage.close(); return was(...args); };
+  }
+  // A pill of the agent's in the chat (calendar-agent.js) opens the calendar on its entry.
+  thread.addEventListener('click', event => {
+    const pill = event.target.closest('.thread-note-pill')?.closest('.thread-note.is-calendar-pill');
+    if (pill) calendarPage.open({ at: { id: pill.dataset.calendar, key: pill.dataset.key || '' } });
+  });
+}
 document.querySelector('.titlebar-name').innerHTML = `${Glyphs.ghost}<span>OpenGhost</span>`;
 const modeButton = document.querySelector('.composer-mode');
 const browserToggle = document.querySelector('.browser-toggle');
@@ -507,7 +523,7 @@ if (!window.openghost?.quick) {
 
 // The language can't change while an agent, or a helper of one, is at work in this window: the page is read anew for it.
 LanguageSettings.busy = () => [chat, ...MiniChat.all().map(mini => mini.chat)]
-  .some(one => one && [...one.conversations.values()].some(conv => conv.turn || window.Helpers?.working(conv).length));
+  .some(one => one && [...one.conversations.values()].some(conv => conv.turn || window.Helpers?.working(conv).length || one.jobsRunning(conv)));
 // While an agent works here, the window is not slowed down out of sight (desktop/main.js).
 if (!window.openghost?.quick && window.openghost?.working) {
   let working = false;

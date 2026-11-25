@@ -15,7 +15,9 @@ const WIDTH = { share: 0.44, min: 360, chat: 400 };
 // A page made for a wider screen than the panel is shown whole, zoomed out until its width fits, as far as `min`. A page
 // wider by no more than `slack` (a scrollbar under an element of 100vw) is left as it is: zooming would not cure it.
 const FIT = { min: 0.3, slack: 32, settle: 150, late: 1200, again: 700, resize: 250, tries: 6 };
-const CURSOR = { hide: 2600 };
+// The agent's pointer: fades `idle` ms after its last move while the agent works, `rest` ms after the agent is done;
+// a move longer than `long` px runs up to `past` px beyond and is brought back in `fix` ms; `bow`: the bend of its way.
+const CURSOR = { idle: 15000, rest: 1400, long: 140, past: 12, fix: 120, bow: 0.07, press: 200 };
 const TOAST_TIME = 4200;
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 // The agent's steps that use the window's one keyboard: they type or press keys in a page, or click in one (a click puts
@@ -207,6 +209,7 @@ class BrowserPanel {
   this.error = $('.browser-error');
   this.overlay = $('.browser-agent');
   this.cursor = $('.browser-cursor');
+  this.cursorArrow = $('.browser-cursor-arrow');
   this.toast = $('.browser-toast');
   $('.browser-new').addEventListener('click', () => this.newTab());
   this.backButton.addEventListener('click', () => this.active?.view?.goBack());
@@ -611,7 +614,11 @@ class BrowserPanel {
    else if (data.action === 'new') this.newTab();
    else if (data.action === 'close' && from) this.close(from);
   } else if (data.type === 'pointer') {
-   if (from && from === this.active && this.seen) this.point(data.x, data.y);
+   // The page tells where it clicks in its own pixels; a page zoomed out to fit the panel is drawn smaller than that.
+   if (from && from === this.active && this.seen) {
+    const zoom = from.view?.getZoomFactor?.() || 1;
+    this.point(data.x * zoom, data.y * zoom, Number(data.ms) || 0);
+   }
   } else if (data.type === 'download') {
    this.notify(I18n.t('browser.downloaded', { name: data.name }));
   }
@@ -628,38 +635,64 @@ class BrowserPanel {
   this.toastTimer = setTimeout(() => toast.classList.remove('is-shown'), TOAST_TIME);
  }
 
- point(x, y) {
-  const cursor = this.cursor, from = this.cursorAt || { x: this.stage.clientWidth / 2, y: this.stage.clientHeight * 0.62 };
+ // The agent's pointer goes to x, y as a hand moves a mouse, in `ms` (the main process waits as long before it clicks):
+ // off quickly, then slowing down for longer than it sped up, on a gentle bow that always bends the same way for the
+ // same direction; on a long way it runs a little past and is brought back. It stays where it stopped, on screen for as
+ // long as the agent goes on, and starts the next move from there.
+ point(x, y, ms = 0) {
+  const cursor = this.cursor, stage = this.stage;
+  let from = this.cursorAt;
+  // Still under way to the last place: it turns from where it is now.
+  if (from && cursor.getAnimations().some(animation => animation.playState === 'running')) {
+   const [nx, ny] = getComputedStyle(cursor).translate.split(' ').map(parseFloat);
+   if (Number.isFinite(nx) && Number.isFinite(ny)) from = { x: nx, y: ny };
+  }
+  // The first time it comes in from below and to the right of where it goes, as a hand reaching for the mouse.
+  if (!from) from = { x: Math.min(stage.clientWidth - 12, x + 96), y: Math.min(stage.clientHeight - 12, y + 104) };
   this.cursorAt = { x, y };
   cursor.classList.add('is-shown');
-  clearTimeout(this.cursorTimer);
-  this.cursorTimer = setTimeout(() => { cursor.classList.remove('is-shown'); this.cursorAt = null; }, CURSOR.hide);
-  const ripple = () => {
+  this.keepCursor(CURSOR.idle);
+  const press = () => {
+   this.cursorArrow.animate([{ scale: 1 }, { scale: 0.86, offset: 0.4 }, { scale: 1 }], { duration: CURSOR.press, easing: 'ease-out' });
    const ring = element('span', 'browser-ripple');
    ring.style.translate = `${x}px ${y}px`;
-   this.stage.append(ring);
+   stage.append(ring);
    ring.addEventListener('animationend', () => ring.remove());
   };
   const dx = x - from.x, dy = y - from.y, dist = Math.hypot(dx, dy);
-  if (reducedMotion() || dist < 3) {
-   cursor.style.translate = `${x}px ${y}px`;
-   ripple();
-   return;
-  }
-  const nx = -dy / dist, ny = dx / dist;
-  const bend = Math.min(32, dist * 0.14) * (Math.random() < 0.5 ? -1 : 1);
-  const steps = dist < 90 ? 10 : 16;
-  const frames = [];
-  for (let i = 0; i <= steps; i++) {
-   const t = i / steps;
-   const s = (10 * t ** 3) - (15 * t ** 4) + (6 * t ** 5);
-   const arc = Math.sin(Math.PI * t) * bend;
-   frames.push({ translate: `${from.x + dx * s + nx * arc}px ${from.y + dy * s + ny * arc}px`, offset: t });
-  }
-  const duration = Math.round(Math.min(400, Math.max(170, 60 + 90 * Math.log2(dist / 26 + 1))));
   cursor.getAnimations().forEach(animation => animation.cancel());
   cursor.style.translate = `${x}px ${y}px`;
-  cursor.animate(frames, { duration, easing: 'linear' }).finished.then(ripple, () => {});
+  if (reducedMotion() || dist < 3 || ms < 60) { press(); return; }
+  const ux = dx / dist, uy = dy / dist, nx = -uy, ny = ux;
+  const fix = dist > CURSOR.long ? CURSOR.fix : 0, main = ms - fix;
+  // Where the first sweep lands: a little past on a long way, a hair off to the side.
+  const past = fix ? Math.min(CURSOR.past, dist * 0.03) : 0, aside = fix ? (Math.random() - 0.5) * 3 : 0;
+  const end = { x: x + ux * past + nx * aside, y: y + uy * past + ny * aside };
+  const bow = dist * CURSOR.bow * (0.7 + Math.random() * 0.3) * (dx >= 0 ? -1 : 1);
+  const bend = { x: from.x + dx * 0.45 + nx * bow, y: from.y + dy * 0.45 + ny * bow };
+  const smooth = t => t * t * t * (10 - 15 * t + 6 * t * t);
+  const frames = [], steps = Math.max(12, Math.round(ms / 16));
+  for (let i = 0; i <= steps; i++) {
+   const time = i / steps * ms;
+   let px, py;
+   if (time <= main) {
+    const s = smooth(1 - (1 - time / main) ** 1.35), r = 1 - s;
+    px = r * r * from.x + 2 * r * s * bend.x + s * s * end.x;
+    py = r * r * from.y + 2 * r * s * bend.y + s * s * end.y;
+   } else {
+    const s = smooth((time - main) / fix);
+    px = end.x + (x - end.x) * s;
+    py = end.y + (y - end.y) * s;
+   }
+   frames.push({ translate: `${px.toFixed(1)}px ${py.toFixed(1)}px`, offset: time / ms });
+  }
+  cursor.animate(frames, { duration: ms, easing: 'linear' }).finished.then(press, () => {});
+ }
+
+ // The pointer stays while the agent works and fades `after` ms after its last move; it keeps its place for the next.
+ keepCursor(after) {
+  clearTimeout(this.cursorTimer);
+  this.cursorTimer = setTimeout(() => this.cursor.classList.remove('is-shown'), after);
  }
 
  signedIn(host) {
@@ -679,7 +712,10 @@ class BrowserPanel {
   if (!on) {
    // An agent the user took the browser from and that is done no longer waits for it.
    this.taken.delete(seat);
-   if (!this.drivers.size) this.taken.clear();
+   if (!this.drivers.size) {
+    this.taken.clear();
+    if (this.cursor.classList.contains('is-shown')) this.keepCursor(CURSOR.rest);
+   }
    this.release();
    this.loosen();
   }

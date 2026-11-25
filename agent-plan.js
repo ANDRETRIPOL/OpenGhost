@@ -27,7 +27,7 @@ const PLAN = {
  check: /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(test|build|lint|check|typecheck|type-check)\b|\bnpx\s+(tsc|eslint|jest|vitest|playwright|mocha|ava)\b|\b(jest|vitest|pytest|tox|nox|mypy|ruff|flake8|pylint|eslint|tsc|phpunit|rspec|mocha)\b|\bpython3?\s+-m\s+(pytest|unittest|mypy|ruff|py_compile|compileall)\b|\bnode\s+--(check|test)\b|\b(cargo|go|dotnet|swift|mix)\s+(test|build|check|vet)\b|\b(gradlew?|mvn)\s+\S*(test|build|check|verify)\b|\bmake(\s+(test|check|all))?\s*($|[;&|\n])/im,
  // Tools that do no step's work themselves. The user's answer to a question is a step's work: it may be what a step
  // waited for.
- idle: new Set(['plan', 'record', 'memory', 'notepad', 'routine', 'skill']),
+ idle: new Set(['plan', 'record', 'memory', 'notepad', 'routine', 'calendar', 'skill']),
  // What says nothing of what was seen.
  hollow: /^(it\s+)?(is\s+)?(done|ok(ay)?|finished|complete(d)?|works?|working|fine|ready|yes|готово|сделано|выполнено|работает|всё работает|fatto|finito|fait|terminé|ça marche)[.!]*$/i,
  head: 'The plan now:',

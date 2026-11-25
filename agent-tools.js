@@ -177,7 +177,7 @@ const SCHEMAS = [
   url: { type: 'string', description: 'For new: what to open in it' },
   tab: { type: 'integer', description: 'For switch and close: the tab number from the list' },
  }, ['action']),
- fn('record', 'This chat\'s private record, a short file only this chat can read or write. Other chats never see it, even in the same folder, and it is not a file in the folder: read_file and the shell cannot open it, and write_file must not be used instead of it. What it holds comes in a note from the app. add: put new lines at its end; the app puts this computer\'s date and time before them. edit: replace old_text, copied exactly from the record, with new_text; an empty new_text deletes it. write: replace the whole record with text, already shortened, with anything no longer true taken out; empty text clears it. At most 40000 characters. Use it for the facts of this chat. When the user says to write them down, save them or put them in a file without naming a path, this is the tool.', {
+ fn('record', 'This chat\'s private record, a short file only this chat can read or write. Other chats never see it, even in the same folder, and it is not a file in the folder: read_file and the shell cannot open it, and write_file must not be used instead of it. What it holds comes in a note from the app. add: put new lines at its end; the app puts this computer\'s date and time before them. edit: replace old_text, copied exactly from the record, with new_text; an empty new_text deletes it. write: replace the whole record with text, already shortened, with anything no longer true taken out; empty text clears it. At most 40000 characters. Use it for the facts of this chat. When the user says to write them down, save them or put them in a file without naming a path, this is the tool; in their notes or notepad is the notepad tool.', {
   action: { type: 'string', enum: ['add', 'edit', 'write'] },
   text: { type: 'string', description: 'For add: the new lines. For write: the whole record as it should stand after this call. In the user\'s language.' },
   old_text: { type: 'string', description: 'For edit: the exact piece of the record to change, long enough to be found in one place only' },
@@ -191,7 +191,7 @@ const SCHEMAS = [
   reason: { type: 'string', description: 'For drop and wait: why, one sentence in the user\'s language. For start while the plan has open steps: why the new plan replaces it' },
   after: { type: 'integer', description: 'For add: put the new steps after this step; at the end by default' },
  }, ['action']),
- fn('spawn_agent', 'Start a helper: another agent like you, with your model and your tools (except asking the user, the plan, the notepad, routines, memory, the record, pictures in the reply and starting helpers), working at the same time as you in the same folder, with a browser tab of its own. It knows nothing but your message, so the message holds everything it needs: the goal, the files and places, what done looks like and how to check it, what not to touch. It goes on after your turn ends. It ends with a report that comes to you by itself: at your next step, or in a new turn the app starts for you once all your helpers have finished. The user sees your helpers at work and can write to them or stop them. See the instructions on helpers for when to start one.', {
+ fn('spawn_agent', 'Start a helper: another agent like you, with your model and your tools (except asking the user, the plan, the notepad, routines, the calendar, memory, the record, pictures in the reply and starting helpers), working at the same time as you in the same folder, with a browser tab of its own. It knows nothing but your message, so the message holds everything it needs: the goal, the files and places, what done looks like and how to check it, what not to touch. It goes on after your turn ends. It ends with a report that comes to you by itself: at your next step, or in a new turn the app starts for you once all your helpers have finished. The user sees your helpers at work and can write to them or stop them. See the instructions on helpers for when to start one.', {
   task_name: { type: 'string', description: 'The part in one to four words of the user\'s language, the name the user sees, e.g. "Меню и цены"' },
   message: { type: 'string', description: 'The whole task for the helper, in the user\'s language: what to do, where, what done looks like, how to check it, which files are its own and which to leave alone' },
  }, ['task_name', 'message']),
@@ -211,17 +211,17 @@ const SCHEMAS = [
   id: { type: 'string', description: 'For update and forget: the id of the record, like m3' },
   text: { type: 'string', description: 'For save and update: the whole record, one or two plain sentences about the user in their language, clear on their own a year from now' },
  }, ['action']),
- fn('notepad', 'The user\'s notepad beside this chat; what is in it comes in a note from the app. remind: bring a note up when its moment has come. The app shows it to the user as a card in the chat; then ask whether to do it now and wait for their yes. done: tick a note off once the user has agreed and it is done, or once they say it no longer matters. add: write a note down when the user asks you to keep something in mind or to bring it up at a moment of your work together. Not for anything tied to a time or a date, repeated, or to be watched while the user is away, even when the user says "remind me": a note never comes up by itself, so that is the routine tool.', {
-  action: { type: 'string', enum: ['remind', 'done', 'add'] },
-  id: { type: 'string', description: 'For remind and done: the id of the note, like n3' },
-  text: { type: 'string', description: 'For add: the note, one short line in the user\'s own words and language' },
+ fn('notepad', 'The user\'s notepad beside this chat; what is in it comes in a note from the app. remind: bring a note up when its moment has come. The app shows it to the user as a card in the chat; then ask whether to do it now and wait for their yes. done: tick a note off once the user has agreed and it is done, or once they say it no longer matters. add: write a note down when the user asks you to keep something in mind or to bring it up at a moment of your work together. edit: rewrite a note when the user asks to change it (its words, its points, its language, its look), never a second note in its place; a note done as a whole is ticked off with done, not rewritten. Not for anything tied to a time or a date, repeated, or to be watched while the user is away, even when the user says "remind me": a note never comes up by itself, so that is the calendar, or the routine tool when you have work to do then.', {
+  action: { type: 'string', enum: ['remind', 'done', 'add', 'edit'] },
+  id: { type: 'string', description: 'For remind, done and edit: the id of the note, like n3' },
+  text: { type: 'string', description: 'For add, and for edit the whole note as it should now read: start from the note as the latest note from the app shows it, not from what you wrote before (the user may have changed its words, colours or bold since), and keep its marks on the same words, translated ones too. The note in the user\'s language, laid out as a small page: a short title on the first line, then lines; "## " a subheading, "- " points, "- [ ] " a checklist, "1. " steps, **bold** for what matters most, ==words== in a colour (==green:words==; lilac, pink, orange, green or blue). A short thing stays one line' },
  }, ['action']),
  fn('skill', 'Skills: folders of instructions for kinds of tasks, in the Agent Skills format other agents use too. The ones you can use come in a note from the app. use: load the instructions of a skill by its name, before you start a task that fits it; you get them with the folder of the skill and its other files. add: put in a new skill from a link the user gave or asked for: a GitHub folder or repository, a .zip or .skill file, or a SKILL.md. It is ready in every chat at once.', {
   action: { type: 'string', enum: ['use', 'add'] },
   name: { type: 'string', description: 'For use: the name of the skill, as in the note. For add: which skill, when the link holds several' },
   url: { type: 'string', description: 'For add: the link to the skill' },
  }, ['action']),
- fn('routine', 'Routines: tasks the app gives you by itself, on time, in this chat, for as long as the user wants: every hour, every morning, on Mondays, once at 19:00. The routines of this chat come in a note from the app, each with its id. add: set one up when something is to be done, checked or said at a time or a date, again and again, or while the user is away: also when the user only says "remind me" or "tell me when", or only describes such a need. edit: change what one does or when. pause and resume: stop one for a while and start it again. remove: take one away. The answer tells the time on the computer now and when the routine runs next.', {
+ fn('routine', 'Routines: tasks the app gives you by itself, on time, in this chat, for as long as the user wants: every hour, every morning, on Mondays, once at 19:00. The routines of this chat come in a note from the app, each with its id. add: set one up when something is to be done, checked or said at a time or a date, again and again, or while the user is away: also when the user only says "tell me when", or only describes such a need; a reminder of something the user does themselves is the calendar tool. edit: change what one does or when. pause and resume: stop one for a while and start it again. remove: take one away. The answer tells the time on the computer now and when the routine runs next.', {
   action: { type: 'string', enum: ['add', 'edit', 'pause', 'resume', 'remove'] },
   id: { type: 'string', description: 'For edit, pause, resume and remove: the id of the routine, like r1x2y' },
   text: { type: 'string', description: 'For add, and for edit when what it does changes: the task as an instruction to yourself that is whole on its own, in the user\'s language: what to do or check and where, what counts as worth telling, and what to tell the user' },
@@ -240,6 +240,23 @@ const SCHEMAS = [
    },
    required: ['kind'],
   },
+ }, ['action']),
+ fn('calendar', 'The user\'s calendar in the app; its coming week comes in a note from the app, each entry with its id. The app reminds the user of an entry with remind set by itself, without you: a reminder of something the user does themselves is an entry here, not a routine. add; move: another day or time; edit; done: tick a task off; remove; find: the entries between two days. Every date goes with its weekday, which the app checks.', {
+  action: { type: 'string', enum: ['add', 'edit', 'move', 'done', 'remove', 'find'] },
+  id: { type: 'string' },
+  title: { type: 'string', description: 'Short, in the user\'s language' },
+  kind: { type: 'string', enum: ['event', 'task'], description: 'event: at a time, for a while (a meeting). task: to do by a day or time (call, pay)' },
+  date: { type: 'string', description: 'YYYY-MM-DD, local; none for a task with no day' },
+  weekday: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
+  time: { type: 'string', description: 'HH:MM local; empty for all day' },
+  duration: { type: 'integer', description: 'Minutes' },
+  repeat: { type: 'object', description: 'null stops it', properties: { freq: { type: 'string', enum: ['daily', 'weekly', 'monthly', 'yearly'] }, interval: { type: 'integer' }, days: { type: 'array', items: { type: 'string' } }, until: { type: 'string' } } },
+  remind: { type: 'integer', description: 'Minutes before; 0 at the time; -1 none' },
+  note: { type: 'string' },
+  tag: { type: 'string' },
+  occurrence: { type: 'string', description: 'A repeating entry: the date of the one time meant; left out, every time' },
+  from: { type: 'string', description: 'For find, YYYY-MM-DD' },
+  to: { type: 'string' },
  }, ['action']),
  fn('ask_user', 'Ask the user one to four questions, each with ready choices, when their answer decides what you do next and you cannot find it out yourself. The app turns the message field into a card: the user picks a choice with one press or writes an answer in their own words, and you get the answers back as the result of this call. The app adds the line for their own words itself, so never add a choice like "Other". When you have a reason to prefer one choice, put it first and end its label with "(Recommended)", in English exactly so: the app shows it as a mark in the user\'s language. Write everything else in the user\'s language.', {
   questions: {
@@ -889,6 +906,8 @@ function relative(cwd, path) {
 // details for whoever wants them.
 function describe(name, args, cwd, apart = null, panel = null) {
  const refs = refsOf(apart, panel);
+ // A change to an entry of the user's own calendar (calendar-agent.js): what and when, as it stands now.
+ if (name === 'calendar') return { kind: 'calendar', title: I18n.t(`approve.calendar.${args.action}`), effect: 'change', places: [], quote: `“${String(args.title || '')}” · ${String(args.when || '')}` };
  const purpose = typeof args.description === 'string' ? args.description.trim() : '';
  const file = { kind: 'file', label: String(args.path || '').split(/[\\/]/).filter(Boolean).pop() || String(args.path || ''), title: relative(cwd, args.path || '.') };
  const site = url => ({ kind: 'site', label: host(url), title: url });
@@ -1215,7 +1234,8 @@ window.AgentTools = {
  runs,
  available: !!bridge,
  // The quick chat's window has no built-in browser, so its agent is given no tools for one.
- schemas: window.openghost?.quick ? SCHEMAS.filter(tool => !tool.function.name.startsWith('browser_')) : SCHEMAS,
+ // The calendar's tool only where the app keeps a calendar (desktop/calendar.js).
+ schemas: (window.openghost?.quick ? SCHEMAS.filter(tool => !tool.function.name.startsWith('browser_')) : SCHEMAS).filter(tool => tool.function.name !== 'calendar' || !!window.openghost?.calendar),
  modes: MODES,
  needsApproval,
  approvalRule,

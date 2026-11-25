@@ -200,7 +200,7 @@ async function stream(request, { signal, onEvent = () => {}, baseURL }) {
   live.on('streamEvent', event => {
    began = true;
    if (event.type === 'content_block_start' && ['tool_use', 'thinking', 'redacted_thinking'].includes(event.content_block?.type)
-    || event.type === 'content_block_delta' && ['input_json_delta', 'thinking_delta', 'signature_delta'].includes(event.delta?.type)) onEvent({ type: 'activity' });
+    || event.type === 'content_block_delta' && ['input_json_delta', 'thinking_delta', 'signature_delta'].includes(event.delta?.type)) onEvent({ type: 'activity', calling: event.content_block?.type === 'tool_use' || event.delta?.type === 'input_json_delta' });
    // Text blocks after the first one start a new paragraph, the same as they are stored.
    if (event.type === 'content_block_start' && event.content_block?.type === 'text' && blocks++ && content) {
     content += '\n\n';
