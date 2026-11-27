@@ -4,7 +4,7 @@
 
 # OpenGhost
 
-[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/6cKd2UND5) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
+[![Discord](https://img.shields.io/badge/Discord-join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/FPfeqjEDNA) [![Website](https://img.shields.io/badge/Website-try%20it%20in%20your%20browser-171717)](https://andretripol.github.io/OpenGhost/)
 
 **v1.5.8 beta**
 
